@@ -1,0 +1,19 @@
+version: 2
+
+models:
+  - name: fct_postings
+    description: "One row per posting with all enriched fields and time dimensions. Collection-phase anchor table."
+    columns:
+      - name: posting_id
+        tests:
+          - not_null
+          - unique
+      - name: source
+        tests:
+          - not_null
+      - name: role_category
+        tests:
+          - not_null
+      - name: is_remote
+        tests:
+          - not_null

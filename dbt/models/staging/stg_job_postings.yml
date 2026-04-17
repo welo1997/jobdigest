@@ -1,0 +1,54 @@
+version: 2
+
+sources:
+  - name: raw
+    database: JOB_MARKET
+    schema: RAW
+    tables:
+      - name: job_postings
+        description: "Immutable raw job postings from all sources"
+        columns:
+          - name: posting_id
+            tests:
+              - not_null
+              - unique
+      - name: skill_tags
+        description: "Claude Haiku extracted skills per posting"
+        columns:
+          - name: posting_id
+            tests:
+              - not_null
+              - unique
+      - name: personal_scores
+        description: "Claude Sonnet personal fit scores per posting"
+        columns:
+          - name: posting_id
+            tests:
+              - not_null
+              - unique
+
+models:
+  - name: stg_job_postings
+    description: "Cleaned and categorised job postings with parsed salary, role category, and remote flag"
+    columns:
+      - name: posting_id
+        description: "MD5 hash of the posting URL"
+        tests:
+          - not_null
+          - unique
+      - name: source
+        description: "Source identifier (remotive, adzuna, etc.)"
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['remotive', 'adzuna', 'weworkremotely', 'startupjobs', 'greenhouse', 'lever', 'jobscz', 'profesia', 'linkedin', 'eurojobs']
+      - name: role_category
+        description: "Derived role category from title"
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['data_engineering', 'data_analysis', 'machine_learning', 'software_engineering', 'devops_platform', 'product', 'design', 'other_tech_function', 'uncategorised']
+      - name: is_remote
+        description: "Whether the posting is remote"
+        tests:
+          - not_null

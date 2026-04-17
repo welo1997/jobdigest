@@ -1,0 +1,16 @@
+version: 2
+
+models:
+  - name: fct_personal_matches
+    description: "High-scoring personal matches that haven't been notified yet. Feeds Telegram alerts."
+    columns:
+      - name: posting_id
+        tests:
+          - not_null
+          - unique
+      - name: personal_score
+        tests:
+          - not_null
+      - name: is_remote
+        tests:
+          - not_null

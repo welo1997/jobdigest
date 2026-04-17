@@ -1,0 +1,15 @@
+version: 2
+
+models:
+  - name: int_skill_exploded
+    description: "One row per (posting, skill) with canonical skill names from taxonomy"
+    columns:
+      - name: posting_id
+        tests:
+          - not_null
+      - name: skill
+        tests:
+          - not_null
+      - name: skill_raw
+        tests:
+          - not_null

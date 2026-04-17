@@ -1,0 +1,36 @@
+name: 'job_market'
+version: '1.0.0'
+config-version: 2
+
+profile: 'job_market'
+
+model-paths: ["models"]
+analysis-paths: ["analyses"]
+test-paths: ["tests"]
+seed-paths: ["seeds"]
+macro-paths: ["macros"]
+snapshot-paths: ["snapshots"]
+
+clean-targets:
+  - "target"
+  - "dbt_packages"
+
+models:
+  job_market:
+    staging:
+      +schema: staging
+      +materialized: view
+    intermediate:
+      +schema: intermediate
+      +materialized: table
+    marts:
+      analysis:
+        +schema: marts_analysis
+        +materialized: table
+      personal:
+        +schema: marts_personal
+        +materialized: table
+
+seeds:
+  job_market:
+    +schema: raw

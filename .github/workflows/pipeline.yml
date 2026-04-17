@@ -1,0 +1,59 @@
+name: Daily Pipeline
+
+on:
+  schedule:
+    - cron: '0 7 * * 1-5'  # Mon-Fri 07:00 UTC
+  workflow_dispatch:         # Manual trigger
+
+env:
+  SNOWFLAKE_ACCOUNT: ${{ secrets.SNOWFLAKE_ACCOUNT }}
+  SNOWFLAKE_USER: ${{ secrets.SNOWFLAKE_USER }}
+  SNOWFLAKE_PASSWORD: ${{ secrets.SNOWFLAKE_PASSWORD }}
+  SNOWFLAKE_DATABASE: JOB_MARKET
+  SNOWFLAKE_WAREHOUSE: COMPUTE_WH
+  SNOWFLAKE_ROLE: SYSADMIN
+  ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+  ADZUNA_APP_ID: ${{ secrets.ADZUNA_APP_ID }}
+  ADZUNA_API_KEY: ${{ secrets.ADZUNA_API_KEY }}
+  TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+  TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+
+jobs:
+  pipeline:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Step 1 — Ingest all sources
+        run: python -m ingestion.run
+
+      - name: Step 2 — Skill extraction (Haiku)
+        run: python -m enrichment.skill_extractor
+
+      - name: Step 3 — Personal scoring (Haiku)
+        run: python -m enrichment.personal_scorer
+
+      - name: Step 4 — dbt seed
+        working-directory: dbt
+        run: dbt seed --profiles-dir .
+
+      - name: Step 5 — dbt run
+        working-directory: dbt
+        run: dbt run --profiles-dir .
+
+      - name: Step 6 — dbt test
+        working-directory: dbt
+        run: dbt test --profiles-dir .
+
+      - name: Step 7 — Telegram notifications
+        run: python notify.py

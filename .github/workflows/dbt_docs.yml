@@ -1,0 +1,47 @@
+name: dbt Docs
+
+on:
+  schedule:
+    - cron: '0 10 * * 0'  # Sunday 10:00 UTC
+  workflow_dispatch:
+
+env:
+  SNOWFLAKE_ACCOUNT: ${{ secrets.SNOWFLAKE_ACCOUNT }}
+  SNOWFLAKE_USER: ${{ secrets.SNOWFLAKE_USER }}
+  SNOWFLAKE_PASSWORD: ${{ secrets.SNOWFLAKE_PASSWORD }}
+  SNOWFLAKE_DATABASE: JOB_MARKET
+  SNOWFLAKE_WAREHOUSE: COMPUTE_WH
+  SNOWFLAKE_ROLE: SYSADMIN
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+jobs:
+  docs:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Generate dbt docs
+        working-directory: dbt
+        run: |
+          dbt deps --profiles-dir . || true
+          dbt docs generate --profiles-dir .
+
+      - name: Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: dbt/target

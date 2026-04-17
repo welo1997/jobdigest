@@ -1,0 +1,10 @@
+.env
+__pycache__/
+*.pyc
+dbt/target/
+dbt/logs/
+dbt/dbt_packages/
+.venv/
+.pytest_cache/
+skill_extraction.log
+setup_snowflake.py

@@ -1,0 +1,16 @@
+version: 2
+
+models:
+  - name: int_postings_enriched
+    description: "Job postings joined with skill tags and personal scores"
+    columns:
+      - name: posting_id
+        tests:
+          - not_null
+          - unique
+      - name: has_skills
+        tests:
+          - not_null
+      - name: skills_count
+        tests:
+          - not_null

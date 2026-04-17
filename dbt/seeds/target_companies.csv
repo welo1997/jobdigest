@@ -1,0 +1,21 @@
+company_name,ats,board_token,industry
+Stripe,greenhouse,stripe,fintech
+Cloudflare,greenhouse,cloudflare,infrastructure
+Datadog,greenhouse,datadog,observability
+GitLab,greenhouse,gitlab,devtools
+Twilio,greenhouse,twilio,communications
+Figma,greenhouse,figma,design
+Notion,greenhouse,notion,productivity
+Airtable,greenhouse,airtable,productivity
+Plaid,greenhouse,plaid,fintech
+Snyk,greenhouse,snyk,security
+Vercel,greenhouse,vercel,infrastructure
+HashiCorp,greenhouse,hashicorp,infrastructure
+dbt Labs,greenhouse,dbtlabsinc,data
+Fivetran,greenhouse,fivetran,data
+Airbyte,greenhouse,airbyte,data
+Prefect,greenhouse,prefect,data
+Monte Carlo,greenhouse,montecarlodata,data
+Grafana Labs,greenhouse,grafanalabs,observability
+Sentry,greenhouse,sentry,devtools
+PostHog,greenhouse,posthog,analytics

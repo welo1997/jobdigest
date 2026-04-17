@@ -1,0 +1,191 @@
+"""Extract skills from job postings using Claude Haiku."""
+
+from __future__ import annotations
+
+import json
+import logging
+import os
+import sys
+from typing import Optional
+
+import anthropic
+import snowflake.connector
+from dotenv import load_dotenv
+
+load_dotenv()
+logger = logging.getLogger(__name__)
+
+BATCH_SIZE = 50
+MODEL = "claude-haiku-4-5-20251001"
+
+PROMPT_TEMPLATE = """Extract all technical skills, tools, and technologies from this job posting.
+Return ONLY a JSON array of lowercase strings. Normalise variants
+(e.g. "PostgreSQL" -> "postgresql", "React.js" -> "react"). Max 30 items.
+If none found, return [].
+
+Title: {title}
+Description: {description}"""
+
+
+def get_snowflake_connection() -> snowflake.connector.SnowflakeConnection:
+    return snowflake.connector.connect(
+        account=os.environ["SNOWFLAKE_ACCOUNT"],
+        user=os.environ["SNOWFLAKE_USER"],
+        password=os.environ["SNOWFLAKE_PASSWORD"],
+        database=os.environ["SNOWFLAKE_DATABASE"],
+        warehouse=os.environ["SNOWFLAKE_WAREHOUSE"],
+        role=os.environ.get("SNOWFLAKE_ROLE", "SYSADMIN"),
+    )
+
+
+def fetch_untagged_postings(
+    conn: snowflake.connector.SnowflakeConnection, limit: Optional[int] = None
+) -> list[dict]:
+    """Get postings that don't have skill_tags yet."""
+    sql = """
+        SELECT p.posting_id, p.title, p.description
+        FROM raw.job_postings p
+        LEFT JOIN raw.skill_tags s ON p.posting_id = s.posting_id
+        WHERE s.posting_id IS NULL
+          AND p.description IS NOT NULL
+        ORDER BY p.loaded_at DESC
+    """
+    if limit:
+        sql += f" LIMIT {limit}"
+
+    cur = conn.cursor()
+    cur.execute(sql)
+    rows = cur.fetchall()
+    cur.close()
+    return [
+        {"posting_id": r[0], "title": r[1], "description": r[2]}
+        for r in rows
+    ]
+
+
+def extract_skills(
+    client: anthropic.Anthropic, title: str, description: str
+) -> tuple[list[str], str]:
+    """Call Haiku to extract skills. Returns (skills_list, raw_response)."""
+    truncated_desc = (description or "")[:1500]
+    prompt = PROMPT_TEMPLATE.format(title=title or "Unknown", description=truncated_desc)
+
+    response = client.messages.create(
+        model=MODEL,
+        max_tokens=512,
+        messages=[{"role": "user", "content": prompt}],
+    )
+    raw_text = response.content[0].text.strip()
+
+    # Strip markdown fences if present (```json ... ```)
+    cleaned = raw_text
+    if cleaned.startswith("```"):
+        lines = cleaned.split("\n")
+        # Drop first line (```json) and last line (```)
+        lines = [l for l in lines if not l.strip().startswith("```")]
+        cleaned = "\n".join(lines).strip()
+
+    try:
+        skills = json.loads(cleaned)
+        if not isinstance(skills, list):
+            raise ValueError(f"Expected list, got {type(skills)}")
+        skills = [str(s).lower().strip() for s in skills[:30]]
+        return skills, raw_text
+    except (json.JSONDecodeError, ValueError) as exc:
+        logger.warning("Failed to parse skills response: %s - %s", exc, raw_text[:200])
+        return [], raw_text
+
+
+def store_skill_tags(
+    conn: snowflake.connector.SnowflakeConnection,
+    results: list[dict],
+) -> int:
+    """MERGE skill extraction results into raw.skill_tags."""
+    if not results:
+        return 0
+
+    cur = conn.cursor()
+    inserted = 0
+    for r in results:
+        cur.execute(
+            """
+            MERGE INTO raw.skill_tags AS tgt
+            USING (
+                SELECT
+                    %s AS posting_id,
+                    parse_json(%s) AS skills,
+                    %s AS raw_response
+            ) AS src
+            ON tgt.posting_id = src.posting_id
+            WHEN NOT MATCHED THEN INSERT (posting_id, skills, raw_response)
+                VALUES (src.posting_id, src.skills, src.raw_response)
+            """,
+            (r["posting_id"], json.dumps(r["skills"]), r["raw_response"]),
+        )
+        result = cur.fetchone()
+        if result and result[0] > 0:
+            inserted += 1
+    cur.close()
+    return inserted
+
+
+def run(limit: Optional[int] = None) -> None:
+    """Main entry point: fetch untagged postings, extract skills, store results."""
+    conn = get_snowflake_connection()
+    client = anthropic.Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
+
+    postings = fetch_untagged_postings(conn, limit=limit)
+    logger.info("Found %d untagged postings", len(postings))
+
+    if not postings:
+        conn.close()
+        return
+
+    batch_results: list[dict] = []
+
+    for i, posting in enumerate(postings):
+        try:
+            skills, raw_response = extract_skills(
+                client, posting["title"], posting["description"]
+            )
+            batch_results.append({
+                "posting_id": posting["posting_id"],
+                "skills": skills,
+                "raw_response": raw_response,
+            })
+            logger.info(
+                "[%d/%d] %s -> %d skills",
+                i + 1, len(postings), posting["title"][:50], len(skills),
+            )
+        except Exception:
+            logger.exception(
+                "[%d/%d] Failed to extract skills for %s, skipping.",
+                i + 1, len(postings), posting["posting_id"],
+            )
+
+        # Store in batches
+        if len(batch_results) >= BATCH_SIZE:
+            stored = store_skill_tags(conn, batch_results)
+            logger.info("Stored batch: %d new rows", stored)
+            batch_results = []
+
+    # Store remaining
+    if batch_results:
+        stored = store_skill_tags(conn, batch_results)
+        logger.info("Stored final batch: %d new rows", stored)
+
+    conn.close()
+    logger.info("Skill extraction complete.")
+
+
+if __name__ == "__main__":
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+        stream=sys.stdout,
+    )
+    # Optional: pass --limit N to cap the run
+    limit = None
+    if len(sys.argv) > 2 and sys.argv[1] == "--limit":
+        limit = int(sys.argv[2])
+    run(limit=limit)
