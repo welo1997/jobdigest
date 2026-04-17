@@ -91,6 +91,9 @@ def load_postings(postings: Sequence[JobPosting]) -> int:
                 json.dump(_posting_to_row(p), f, ensure_ascii=False)
                 f.write("\n")
 
+        # Ensure schema context is set for temp objects
+        cur.execute("USE SCHEMA RAW")
+
         # Create temp stage & staging table, PUT file, COPY INTO, MERGE
         cur.execute("CREATE TEMPORARY STAGE IF NOT EXISTS __posting_stage")
         cur.execute(
