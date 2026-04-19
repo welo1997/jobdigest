@@ -36,7 +36,14 @@ staged as (
                 then 'devops_platform'
             when lower(title) like any ('%product manager%', '%product owner%', '%program manager%', '%tpm%')
                 then 'product'
-            when lower(title) like any ('%designer%', '%ux %', '%ui %', '%user experience%')
+            when lower(title) like any (
+                '%ux designer%', '%ui designer%', '%ux/ui%', '%ui/ux%',
+                '%product designer%', '%visual designer%', '%interaction designer%',
+                '%graphic designer%', '%motion designer%', '%webdesigner%',
+                '%web designer%', '%ux researcher%', '%ux concepter%',
+                '%user experience%', '%user interface designer%',
+                '%digital designer%', '%content designer%'
+            )
                 then 'design'
             when lower(title) like any ('%marketing%', '%sales%', '%finance%', '%accounting%', '%recruiter%', '%hr %', '%human resources%', '%legal%', '%operations%')
                 then 'other_tech_function'
