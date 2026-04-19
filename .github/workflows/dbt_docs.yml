@@ -2,7 +2,7 @@ name: dbt Docs
 
 on:
   schedule:
-    - cron: '0 10 * * 0'  # Sunday 10:00 UTC
+    - cron: '30 7 * * 5'  # Friday 07:30 UTC — after pipeline
   workflow_dispatch:
 
 env:

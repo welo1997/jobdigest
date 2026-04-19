@@ -2,7 +2,7 @@ name: Daily Pipeline
 
 on:
   schedule:
-    - cron: '0 7 * * 1,4'  # Mon & Thu 07:00 UTC — cost-optimised
+    - cron: '0 7 * * 5'  # Friday 07:00 UTC — cost-optimised
   workflow_dispatch:         # Manual trigger
 
 env:
