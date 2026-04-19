@@ -49,9 +49,13 @@ class StartupJobsSource(BaseSource):
     def normalize(self, raw_items: list[dict]) -> list[JobPosting]:
         postings: list[JobPosting] = []
         for item in raw_items:
-            slug = item.get("slug", "")
-            offer_id = item.get("id", "")
-            url = f"https://www.startupjobs.cz/nabidka/{offer_id}/{slug}" if offer_id else ""
+            # API provides full path with slug in "url" field
+            path = item.get("url", "")
+            if path:
+                url = f"https://www.startupjobs.cz{path}"
+            else:
+                offer_id = item.get("id", "")
+                url = f"https://www.startupjobs.cz/nabidka/{offer_id}" if offer_id else ""
             if not url:
                 continue
 
