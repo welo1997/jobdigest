@@ -41,7 +41,7 @@ models:
         tests:
           - not_null
           - accepted_values:
-              values: ['remotive', 'adzuna', 'weworkremotely', 'startupjobs', 'greenhouse', 'lever', 'jobscz', 'profesia', 'linkedin', 'eurojobs']
+              values: ['remotive', 'adzuna', 'weworkremotely', 'startupjobs', 'greenhouse', 'lever', 'jobscz', 'profesia', 'linkedin', 'eurojobs', 'cocuma']
       - name: role_category
         description: "Derived role category from title"
         tests:
