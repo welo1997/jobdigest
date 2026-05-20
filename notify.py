@@ -17,14 +17,18 @@ TELEGRAM_API = "https://api.telegram.org/bot{token}/sendMessage"
 
 
 def get_snowflake_connection() -> snowflake.connector.SnowflakeConnection:
-    return snowflake.connector.connect(
+    kwargs = dict(
         account=os.environ["SNOWFLAKE_ACCOUNT"],
         user=os.environ["SNOWFLAKE_USER"],
-        password=os.environ["SNOWFLAKE_PASSWORD"],
         database=os.environ["SNOWFLAKE_DATABASE"],
         warehouse=os.environ["SNOWFLAKE_WAREHOUSE"],
         role=os.environ.get("SNOWFLAKE_ROLE", "SYSADMIN"),
     )
+    if key_path := os.environ.get("SNOWFLAKE_PRIVATE_KEY_PATH"):
+        kwargs["private_key_file"] = os.path.expanduser(key_path)
+    else:
+        kwargs["password"] = os.environ["SNOWFLAKE_PASSWORD"]
+    return snowflake.connector.connect(**kwargs)
 
 
 def fetch_matches(conn: snowflake.connector.SnowflakeConnection) -> list[dict]:
