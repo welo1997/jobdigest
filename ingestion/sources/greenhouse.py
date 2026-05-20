@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import html
 import logging
 from datetime import date, datetime
 from typing import Optional
@@ -46,7 +47,7 @@ class GreenhouseSource(BaseSource):
     def fetch(self) -> list[dict]:
         all_jobs: list[dict] = []
         for token in self._board_tokens:
-            url = f"https://boards-api.greenhouse.io/v1/boards/{token}/jobs"
+            url = f"https://boards-api.greenhouse.io/v1/boards/{token}/jobs?content=true"
             try:
                 resp = requests.get(url, timeout=15)
                 resp.raise_for_status()
@@ -76,7 +77,7 @@ class GreenhouseSource(BaseSource):
                     title=item.get("title"),
                     company=item.get("_board_token"),  # will map via taxonomy
                     url=abs_url,
-                    description=item.get("content"),
+                    description=html.unescape(item["content"]) if item.get("content") else None,
                     location=location,
                     country_code=None,
                     remote_signal=None,
