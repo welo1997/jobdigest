@@ -15,7 +15,8 @@ analysis — with a personal job alert layer on top as a filtered view.
 
 2. **Personal job alerts** (secondary): a filtered mart on top of the same data
    that scores postings for personal relevance and sends Telegram notifications
-   for mid/senior remote Data Engineer / Data Analyst / Freelance roles.
+   for early-career Data Engineer / Analytics Engineer / Data Analyst / ML roles.
+   Work setup (remote / on-site CZ / hybrid) is not filtered — only role category and score.
 
 Built to demonstrate: multi-source ingestion, Snowflake warehousing, dbt Core
 modelling (Kimball-style layering), Claude API enrichment, GitHub Actions CI/CD.
@@ -44,7 +45,7 @@ modelling (Kimball-style layering), Claude API enrichment, GitHub Actions CI/CD.
 | Ingestion | Python 3.11 — `feedparser`, `requests`, `beautifulsoup4` |
 | Warehouse | Snowflake — new free trial account, DB: `JOB_MARKET` |
 | Transform | dbt Core (open source) |
-| AI enrichment | Claude API — `claude-haiku-4-5` for skill extraction (high volume); `claude-sonnet-4-5` for personal scoring (low volume) |
+| AI enrichment | Claude API — `claude-haiku-4-5` for both skill extraction (high volume) and personal scoring (Haiku produces well-calibrated scores at 10× lower cost than Sonnet) |
 | Orchestration | GitHub Actions — daily cron, weekdays 07:00 UTC |
 | Notification | Telegram Bot API via `python-telegram-bot` |
 | Visualisation | Metabase (self-hosted Docker, same pattern as Footshop) |
@@ -261,29 +262,48 @@ Description: {description[:1500]}
 **Cost:** ~300 tokens/call × $0.0008/1K ≈ $0.00024/posting.
 100–200 new postings/day ≈ **$0.03–0.05/day**.
 
-### 2. Personal fit scoring — Sonnet (data roles, remote, unscored)
+### 2. Personal fit scoring — Haiku (data roles, unscored)
 
-Runs only where `role_category IN ('data_engineering','data_analysis','machine_learning')`
-AND `is_remote = TRUE` AND no `personal_scores` row yet. Sonnet chosen for
-reasoning quality; volume is low.
+Runs where `role_category IN ('data_engineering','data_analysis','machine_learning')`
+AND no `personal_scores` row yet AND `description IS NOT NULL`. Work setup is **not**
+filtered — remote, on-site CZ, and hybrid all flow through the scorer; the prompt
+treats relocation outside CZ/EU as a soft factor. Haiku produces well-calibrated
+scores with explicit soft-factor reasoning and matches Sonnet quality on this task.
 
-**Prompt:**
+**Prompt** (lives in `enrichment/personal_scorer.py:PROMPT_TEMPLATE`):
 ```
-Score this job posting for a mid/senior Data Engineer or Data Analyst with
-3–6 years experience. Stack: dbt, Snowflake, Python, Airflow, SQL.
-Based in Czech Republic, open to fully remote roles anywhere.
+Score this job posting for an early-career data professional with strong fundamentals
+in dbt, Snowflake, Python, and SQL — growing into mid-level. Open to stretch roles
+where the stack matches even if the seniority is one step above current level.
 
-Rate 0–10. Write 2 sentences explaining fit.
+Candidate profile:
+- Core stack: dbt, Snowflake, Python, SQL (production experience)
+- Working knowledge: Docker, Metabase, Google Sheets
+- Strong interest in AI/ML tooling; learns quickly
+- Based in Czech Republic; remote, on-site in CZ, hybrid in CZ are all fine
+- ~1-2 years professional experience; credible growth into mid-level
+- Open to full-time or freelance/contract
+- Languages: English (fluent), Czech (native)
+- Background in ecommerce (Footshop)
+- Bonus alignment: trading firms or ecommerce companies
+
+Hard dealbreakers (score 0 only if these apply):
+- Requires security clearance
+- Requires native-level fluency in a language other than English/Czech
+- Requires relocation outside the Czech Republic / EU
+
+Soft factors (reduce the score, do NOT zero it):
+- Posted as 5+ years required: -2 to -3
+- Stack mismatch with core stack: -2 to -4
+- Lead / Manager / Principal title with little hands-on: -2 to -3
+- Senior IC with strong stack overlap: -0 to -2
+
+Rate 0-10. Senior IC + perfect stack overlap can score 6-8. Reserve 9-10 for near-perfect mid-level matches.
 Respond ONLY in JSON: {"personal_score": <int>, "summary": "<2 sentences>"}
-
-Title: {title}
-Company: {company}
-Skills: {skills_csv}
-Description: {description[:2000]}
 ```
 
-**Cost:** ~600 tokens/call × $0.003/1K ≈ $0.0018/posting.
-20–50 relevant postings/day ≈ **$0.04–0.09/day**.
+**Cost:** ~700 tokens/call × $0.0008/1K ≈ $0.00056/posting.
+20–80 relevant postings/day ≈ **$0.01–0.05/day**.
 
 Both scripts must be **idempotent** — re-running must not insert duplicates.
 JSON parse errors must be caught, logged, and skipped without crashing the run.
@@ -321,8 +341,9 @@ JSON parse errors must be caught, logged, and skipped without crashing the run.
   of real data. Do not build `agg_*` models speculatively — let the data shape them.
 
 ### `marts/personal/fct_personal_matches`
-- Filter: `personal_score >= 7 AND notified = FALSE AND is_remote = TRUE`
+- Filter: `personal_score >= var('personal_score_threshold', 5) AND notified = FALSE`
   AND `role_category IN ('data_engineering','data_analysis','machine_learning')`
+- No `is_remote` filter — work setup isn't a hard requirement; the scorer's prompt handles location nuance
 - Ordered by `personal_score DESC, posted_at DESC`
 
 ---

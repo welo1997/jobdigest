@@ -4,7 +4,10 @@ __pycache__/
 dbt/target/
 dbt/logs/
 dbt/dbt_packages/
+dbt/.user.yml
 .venv/
 .pytest_cache/
-skill_extraction.log
+.claude/
+logs/
+*.log
 setup_snowflake.py

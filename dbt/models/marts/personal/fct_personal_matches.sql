@@ -34,9 +34,8 @@ matches as (
         notified_at
 
     from enriched
-    where personal_score >= {{ var('personal_score_threshold', 7) }}
+    where personal_score >= {{ var('personal_score_threshold', 5) }}
       and notified = false
-      and is_remote = true
       and role_category in ('data_engineering', 'data_analysis', 'machine_learning')
 
 )

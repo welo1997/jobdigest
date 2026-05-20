@@ -18,23 +18,35 @@ logger = logging.getLogger(__name__)
 BATCH_SIZE = 50
 MODEL = "claude-haiku-4-5-20251001"
 
-PROMPT_TEMPLATE = """Score this job posting for a junior Data Engineer / Analytics Engineer / Data Analyst
-with 0-2 years of experience.
+PROMPT_TEMPLATE = """Score this job posting for an early-career data professional with strong fundamentals
+in dbt, Snowflake, Python, and SQL — growing into mid-level. Open to stretch roles where the
+stack matches even if the seniority is one step above current level.
 
 Candidate profile:
-- Stack: dbt, Snowflake, Python, SQL, Google Sheets, Docker, Metabase
-- Interest in AI/ML tooling
-- Based in Czech Republic, open to fully remote roles only
-- Junior / entry-level seniority
+- Core stack: dbt, Snowflake, Python, SQL (production experience)
+- Working knowledge: Docker, Metabase, Google Sheets
+- Strong interest in AI/ML tooling; learns quickly
+- Based in Czech Republic; remote, on-site in CZ, hybrid in CZ are all fine
+- ~1-2 years professional experience; credible growth into mid-level
 - Open to full-time or freelance/contract
-- Languages: English, Czech
+- Languages: English (fluent), Czech (native)
 - Background in ecommerce (Footshop)
-- Bonus: trading firms or ecommerce companies
+- Bonus alignment: trading firms or ecommerce companies
 
-Dealbreakers (score 0 if any apply):
-- Requires relocation (not remote)
-- Requires 5+ years of experience
+Hard dealbreakers (score 0 only if these apply):
 - Requires security clearance
+- Requires native-level fluency in a language other than English/Czech
+- Requires relocation outside the Czech Republic / EU (e.g., on-site only in US, Asia)
+
+Soft factors (reduce the score, do NOT zero it):
+- Posted as 5+ years required: -2 to -3 from base fit
+- Stack mismatch with core stack (e.g., Java/Scala/AWS-only): -2 to -4
+- Lead / Manager / Principal title with little hands-on: -2 to -3
+- Senior individual contributor with strong stack overlap: -0 to -2 (still scorable)
+
+Score on actual fit — stack overlap, remote-friendliness, growth potential — not just
+seniority gap. A senior IC role with perfect stack overlap can score 6-8 if the candidate
+would credibly grow into it. Reserve 9-10 for near-perfect mid-level matches.
 
 Rate 0-10. Write 2 sentences explaining fit.
 Respond ONLY in JSON: {{"personal_score": <int>, "summary": "<2 sentences>"}}
@@ -46,14 +58,18 @@ Description: {description}"""
 
 
 def get_snowflake_connection() -> snowflake.connector.SnowflakeConnection:
-    return snowflake.connector.connect(
+    kwargs = dict(
         account=os.environ["SNOWFLAKE_ACCOUNT"],
         user=os.environ["SNOWFLAKE_USER"],
-        password=os.environ["SNOWFLAKE_PASSWORD"],
         database=os.environ["SNOWFLAKE_DATABASE"],
         warehouse=os.environ["SNOWFLAKE_WAREHOUSE"],
         role=os.environ.get("SNOWFLAKE_ROLE", "SYSADMIN"),
     )
+    if key_path := os.environ.get("SNOWFLAKE_PRIVATE_KEY_PATH"):
+        kwargs["private_key_file"] = os.path.expanduser(key_path)
+    else:
+        kwargs["password"] = os.environ["SNOWFLAKE_PASSWORD"]
+    return snowflake.connector.connect(**kwargs)
 
 
 def fetch_unscored_postings(
@@ -72,7 +88,6 @@ def fetch_unscored_postings(
         LEFT JOIN raw.personal_scores ps ON p.posting_id = ps.posting_id
         JOIN raw_staging.stg_job_postings stg ON p.posting_id = stg.posting_id
         WHERE ps.posting_id IS NULL
-          AND stg.is_remote = TRUE
           AND stg.role_category IN ('data_engineering', 'data_analysis', 'machine_learning')
           AND p.description IS NOT NULL
         ORDER BY p.loaded_at DESC
