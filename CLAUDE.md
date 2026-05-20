@@ -288,7 +288,6 @@ Candidate profile:
 - Bonus alignment: trading firms or ecommerce companies
 
 Hard dealbreakers (score 0 only if these apply):
-- Requires security clearance
 - Requires native-level fluency in a language other than English/Czech
 - Requires relocation outside the Czech Republic / EU
 
