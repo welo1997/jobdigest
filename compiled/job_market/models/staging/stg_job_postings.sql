@@ -16,11 +16,23 @@ staged as (
         trim(location)                                  as location,
         upper(trim(country_code))                       as country_code,
 
-        -- Remote flag: TRUE if source is inherently remote or signal is set
-        coalesce(
-            remote_signal,
-            source in ('remotive', 'weworkremotely')
-        )                                               as is_remote,
+        -- Remote flag: trust ingestor's TRUE; otherwise scan title/location/description
+        -- for explicit remote keywords. Catches ATS sources (greenhouse/lever) that
+        -- expose location strings like "Remote - US" or "Germany (Remote)".
+        case
+            when remote_signal = true then true
+            when lower(coalesce(location, '')) like '%remote%'
+              or lower(coalesce(location, '')) like '%anywhere%' then true
+            when lower(coalesce(title, '')) like '%(remote)%'
+              or lower(coalesce(title, '')) like '%remote)%'
+              or lower(coalesce(title, '')) like '% remote %'
+              or lower(coalesce(title, '')) like 'remote %' then true
+            when regexp_like(
+                lower(coalesce(description, '')),
+                '(fully remote|100% remote|remote[- ]first|remote[- ]friendly|work from anywhere|work[- ]from[- ]home|home[- ]office|z domova|this is a remote|remote position|remote role)'
+            ) then true
+            else false
+        end                                             as is_remote,
 
         -- Role category based on title keywords
         case
