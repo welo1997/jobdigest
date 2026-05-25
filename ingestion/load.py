@@ -79,6 +79,18 @@ def load_postings(postings: Sequence[JobPosting]) -> int:
         logger.info("No postings to load.")
         return 0
 
+    # Dedupe by posting_id — Snowflake MERGE inserts every duplicate source row
+    # when the key is missing from target, which breaks the PK uniqueness test.
+    deduped: dict[str, JobPosting] = {}
+    for p in postings:
+        deduped[p.posting_id] = p
+    if len(deduped) < len(postings):
+        logger.info(
+            "Deduped %d postings down to %d unique posting_ids.",
+            len(postings), len(deduped),
+        )
+    postings = list(deduped.values())
+
     conn = get_connection()
     cur = conn.cursor()
     try:

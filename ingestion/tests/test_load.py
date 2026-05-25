@@ -49,3 +49,29 @@ def test_load_empty_list(mock_conn_fn):
     result = load_postings([])
     assert result == 0
     mock_conn_fn.assert_not_called()
+
+
+@patch("ingestion.load.tempfile.NamedTemporaryFile")
+@patch("ingestion.load.get_connection")
+def test_load_dedupes_repeated_posting_ids(mock_conn_fn, mock_tmpfile):
+    """Same posting_id appearing twice in one batch must be deduped before MERGE."""
+    mock_cur = MagicMock()
+    mock_cur.fetchone.return_value = (1,)
+    mock_conn = MagicMock()
+    mock_conn.cursor.return_value = mock_cur
+    mock_conn_fn.return_value = mock_conn
+
+    written_lines: list[str] = []
+    handle = MagicMock()
+    handle.name = "/tmp/fake.ndjson"
+    handle.write.side_effect = lambda s: written_lines.append(s)
+    handle.__enter__.return_value = handle
+    handle.__exit__.return_value = False
+    mock_tmpfile.return_value = handle
+
+    dupe = _make_posting()
+    load_postings([dupe, dupe, _make_posting(posting_id="def456")])
+
+    payload = "".join(written_lines)
+    assert payload.count('"posting_id": "abc123"') == 1
+    assert payload.count('"posting_id": "def456"') == 1
