@@ -6,6 +6,7 @@ with enriched as (
     
     where loaded_at > (select coalesce(max(loaded_at), '1900-01-01') from JOB_MARKET.raw_marts_analysis.fct_postings)
     
+    qualify row_number() over (partition by posting_id order by loaded_at desc) = 1
 
 )
 
