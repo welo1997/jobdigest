@@ -77,6 +77,7 @@ staged as (
 
         posted_at,
         loaded_at,
+        last_seen_at,
         notified,
         notified_at
 

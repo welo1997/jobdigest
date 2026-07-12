@@ -35,12 +35,14 @@ BATCH_MERGE_SQL = f"""
 MERGE INTO RAW.JOB_POSTINGS AS tgt
 USING __staging_postings AS src
 ON tgt.posting_id = src.posting_id
+WHEN MATCHED THEN UPDATE SET
+    tgt.last_seen_at = CURRENT_TIMESTAMP()
 WHEN NOT MATCHED THEN INSERT (
-    {', '.join(COLUMNS)}
+    {', '.join(COLUMNS)}, last_seen_at
 ) VALUES (
     src.posting_id, src.source, src.title, src.company, src.url,
     src.description, src.location, src.country_code, src.remote_signal,
-    src.salary_raw, src.currency, src.posted_at
+    src.salary_raw, src.currency, src.posted_at, CURRENT_TIMESTAMP()
 )
 """
 
