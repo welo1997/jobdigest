@@ -6,15 +6,21 @@ import logging
 import os
 import sys
 import time
+from urllib.parse import urlparse
 
 import requests
 import snowflake.connector
 from dotenv import load_dotenv
 
+from enrichment.curator import curate
+
 load_dotenv()
 logger = logging.getLogger(__name__)
 
 TELEGRAM_API = "https://api.telegram.org/bot{token}/sendMessage"
+
+# Max postings to send per run. Curation trims the live shortlist down to this.
+MAX_ALERTS = int(os.environ.get("PERSONAL_MAX_ALERTS", "6"))
 
 LIVENESS_HEADERS = {
     "User-Agent": (
@@ -36,22 +42,57 @@ CLOSURE_MARKERS = (
     "this job is no longer available",
     "this position is no longer available",
     "this position has been filled",
+    "this role is no longer",
+    "this job is no longer open",
+    "this opening is no longer",
+    "the job you're looking for",       # greenhouse "…is no longer available"
     "we are no longer accepting applications",
     "no longer accepting applications",
+    "job posting not found",
     "this job has expired",
     "this listing is no longer active",
+    "position closed",
     "page not found",
     "stránka neexistuje",
 )
+
+# HTTP codes that mean the posting is definitively gone.
+DEAD_STATUS = frozenset({404, 410})
+# Codes that indicate bot-blocking / rate-limiting rather than a dead posting.
+# We cannot verify these hosts, and the user prefers a maybe-stale link over a
+# missed live one, so we send them (verdict "live") with a note.
+BOT_BLOCKED_STATUS = frozenset({401, 403, 406, 451, 999})
+
+# ATS hosts whose job path disappears (redirects to the board root) when a
+# posting is filled. If the final URL no longer contains the job segment we
+# treat it as dead.
+ATS_JOB_PATH_HOSTS = ("greenhouse.io", "lever.co", "ashbyhq.com")
+
+
+def _redirected_off_job_page(requested_url: str, final_url: str) -> bool:
+    """True if an ATS job link redirected away from its job detail path."""
+    host = urlparse(requested_url).netloc.lower()
+    if not any(h in host for h in ATS_JOB_PATH_HOSTS):
+        return False
+    req_path = urlparse(requested_url).path.rstrip("/")
+    final_path = urlparse(final_url).path.rstrip("/")
+    # Job detail pages carry a numeric/slug id segment (…/jobs/123, …/job/abc).
+    # A redirect to the board root or careers landing page drops it.
+    if req_path == final_path:
+        return False
+    return ("/jobs/" in req_path or "/job/" in req_path) and (
+        "/jobs/" not in final_path and "/job/" not in final_path
+    )
 
 
 def check_url_liveness(url: str) -> tuple[str, str]:
     """Probe a job URL. Returns (verdict, note).
 
     verdict is one of:
-      - "live"    : 2xx/3xx and no closure marker → send alert
-      - "dead"    : 4xx or closure marker found → skip + mark notified
-      - "unknown" : 429, timeout, network error → skip and try again next run
+      - "live"    : 2xx/3xx with no closure marker, OR a bot-blocked host we
+                    cannot verify → send alert (better a stale link than a miss)
+      - "dead"    : 404/410, closure marker, or ATS redirect-to-root → skip + mark notified
+      - "unknown" : 429, 5xx, timeout, network error → skip and retry next run
     """
     if not url:
         return ("dead", "empty url")
@@ -67,13 +108,27 @@ def check_url_liveness(url: str) -> tuple[str, str]:
             return ("unknown", f"network error after retry: {exc.__class__.__name__}")
         if resp.status_code == 429:
             return ("unknown", "429 rate limited")
-    if resp.status_code >= 400:
-        return ("dead", f"HTTP {resp.status_code}")
+
+    code = resp.status_code
+    if code in DEAD_STATUS:
+        return ("dead", f"HTTP {code}")
+    if code in BOT_BLOCKED_STATUS:
+        # Can't inspect the body; assume live so we don't drop real postings
+        # behind Cloudflare/LinkedIn bot walls (notably Adzuna redirects).
+        return ("live", f"HTTP {code} (bot-blocked, unverifiable — sending)")
+    if code >= 500:
+        return ("unknown", f"HTTP {code} (server error)")
+    if code >= 400:
+        return ("dead", f"HTTP {code}")
+
+    if _redirected_off_job_page(url, resp.url):
+        return ("dead", f"redirected to {urlparse(resp.url).path or '/'}")
+
     body_lower = resp.text.lower()
     for marker in CLOSURE_MARKERS:
         if marker in body_lower:
             return ("dead", f"closure marker: {marker[:30]}")
-    return ("live", f"HTTP {resp.status_code}")
+    return ("live", f"HTTP {code}")
 
 
 def get_snowflake_connection() -> snowflake.connector.SnowflakeConnection:
@@ -132,7 +187,8 @@ def format_message(match: dict) -> str:
     posted = match["posted_at"] or "?"
     skills = match["skills_csv"] or "none extracted"
     salary = match["salary_raw"] or "not listed"
-    summary = match["personal_summary"] or ""
+    # Prefer the curator's "why today" note; fall back to the per-posting score summary.
+    summary = match.get("curation_note") or match["personal_summary"] or ""
     url = match["url"] or ""
 
     emoji = "\U0001f7e2" if score >= 8 else "\U0001f7e1"  # green or yellow circle
@@ -194,37 +250,46 @@ def main() -> None:
         logger.warning("TELEGRAM_TOKEN or TELEGRAM_CHAT_ID not set. Printing to stdout instead.")
 
     matches = fetch_matches(conn)
-    logger.info("Found %d matches to notify.", len(matches))
+    logger.info("Found %d candidate matches.", len(matches))
 
     if not matches:
         conn.close()
         return
 
-    sent_ids: list[str] = []
+    # 1. Liveness probe — keep only confirmed-live postings.
+    live: list[dict] = []
     dead_ids: list[str] = []
     unknown_count = 0
-
     for match in matches:
         verdict, note = check_url_liveness(match["url"])
         if verdict == "dead":
-            logger.info(
-                "Skipping dead: %s @ %s (%s)",
-                match["title"], match["company"], note,
-            )
+            logger.info("Dead: %s @ %s (%s)", match["title"], match["company"], note)
             dead_ids.append(match["posting_id"])
-            continue
-        if verdict == "unknown":
+        elif verdict == "unknown":
             logger.warning(
-                "Skipping (liveness unknown): %s @ %s (%s) — will retry next run",
+                "Liveness unknown: %s @ %s (%s) — will retry next run",
                 match["title"], match["company"], note,
             )
             unknown_count += 1
-            continue
+        else:
+            live.append(match)
 
+    logger.info("Live=%d dead=%d unknown=%d", len(live), len(dead_ids), unknown_count)
+
+    # 2. Curation — let Claude pick the few genuinely worth sending. On any failure
+    # curate() returns None and we fall back to the top matches by score (already
+    # ordered by fetch_matches).
+    selected = curate(live, MAX_ALERTS) if live else []
+    if selected is None:
+        logger.info("Falling back to top %d live matches by score.", MAX_ALERTS)
+        selected = live[:MAX_ALERTS]
+
+    # 3. Send the selected picks.
+    sent_ids: list[str] = []
+    for match in selected:
         msg = format_message(match)
         if token and chat_id:
-            success = send_telegram(token, chat_id, msg)
-            if success:
+            if send_telegram(token, chat_id, msg):
                 sent_ids.append(match["posting_id"])
                 logger.info(
                     "Sent: %s @ %s (score=%s)",
@@ -237,13 +302,14 @@ def main() -> None:
             print("---")
             sent_ids.append(match["posting_id"])
 
-    # Mark both successfully-sent and confirmed-dead so they exit the queue.
-    # Unknown (rate-limited / network) stay unnotified to retry next run.
+    # Mark sent + confirmed-dead as notified so they leave the queue. Live-but-not-
+    # selected and unknown-liveness rows stay unnotified: they get reconsidered next
+    # run and otherwise age out via the mart's freshness filter.
     mark_notified(conn, sent_ids + dead_ids)
     conn.close()
     logger.info(
-        "Notification complete. sent=%d dead=%d unknown=%d",
-        len(sent_ids), len(dead_ids), unknown_count,
+        "Notification complete. sent=%d dead=%d unknown=%d live_held=%d",
+        len(sent_ids), len(dead_ids), unknown_count, len(live) - len(sent_ids),
     )
 
 
