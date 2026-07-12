@@ -10,7 +10,9 @@ from ingestion.load import load_postings
 from ingestion.sources.adzuna import AdzunaSource
 from ingestion.sources.cocuma import CocumaSource
 from ingestion.sources.greenhouse import GreenhouseSource
+from ingestion.sources.himalayas import HimalayasSource
 from ingestion.sources.jobscz import JobsCzSource
+from ingestion.sources.remoteok import RemoteOKSource
 from ingestion.sources.remotive import RemotiveSource
 from ingestion.sources.startupjobs import StartupJobsSource
 from ingestion.sources.weworkremotely import WeWorkRemotelySource
@@ -26,6 +28,8 @@ logger = logging.getLogger(__name__)
 ALL_SOURCES = [
     RemotiveSource,
     WeWorkRemotelySource,
+    RemoteOKSource,
+    HimalayasSource,
     StartupJobsSource,
     AdzunaSource,
     GreenhouseSource,

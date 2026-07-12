@@ -10,3 +10,23 @@ Vercel,greenhouse,vercel,infrastructure
 dbt Labs,greenhouse,dbtlabsinc,data
 Fivetran,greenhouse,fivetran,data
 Grafana Labs,greenhouse,grafanalabs,observability
+Databricks,greenhouse,databricks,data
+Hightouch,greenhouse,hightouch,data
+Sigma Computing,greenhouse,sigmacomputing,data
+Elastic,greenhouse,elastic,data
+MongoDB,greenhouse,mongodb,data
+Netlify,greenhouse,netlify,infrastructure
+CockroachLabs,greenhouse,cockroachlabs,data
+ClickHouse,greenhouse,clickhouse,data
+Remote,greenhouse,remotecom,hr
+PlanetScale,greenhouse,planetscale,data
+Scale AI,greenhouse,scaleai,ai
+Instacart,greenhouse,instacart,ecommerce
+Reddit,greenhouse,reddit,social
+Discord,greenhouse,discord,social
+Coinbase,greenhouse,coinbase,fintech
+Robinhood,greenhouse,robinhood,fintech
+Affirm,greenhouse,affirm,fintech
+Brex,greenhouse,brex,fintech
+Mixpanel,greenhouse,mixpanel,data
+Amplitude,greenhouse,amplitude,data
