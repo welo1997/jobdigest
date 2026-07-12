@@ -12,7 +12,7 @@ from ingestion.base import BaseSource, JobPosting, make_posting_id
 
 logger = logging.getLogger(__name__)
 
-REMOTIVE_API_URL = "https://remotive.com/api/remote-jobs"
+REMOTIVE_API_URL = "https://remotive.com/api/remote-jobs?category=data"
 
 
 class RemotiveSource(BaseSource):

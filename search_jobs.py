@@ -25,8 +25,12 @@ import sys
 from typing import Optional
 
 from ingestion.base import JobPosting
+from ingestion.sources.arbeitnow import ArbeitnowSource
+from ingestion.sources.ashby import AshbySource
 from ingestion.sources.greenhouse import GreenhouseSource
 from ingestion.sources.himalayas import HimalayasSource
+from ingestion.sources.jobicy import JobicySource
+from ingestion.sources.lever import LeverSource
 from ingestion.sources.remoteok import RemoteOKSource
 from ingestion.sources.remotive import RemotiveSource
 from ingestion.sources.weworkremotely import WeWorkRemotelySource
@@ -92,7 +96,8 @@ def dedup_key(p: JobPosting) -> str:
 
 
 def gather(include_cz: bool) -> list[JobPosting]:
-    sources = [RemotiveSource, WeWorkRemotelySource, RemoteOKSource, HimalayasSource, GreenhouseSource]
+    sources = [RemotiveSource, WeWorkRemotelySource, RemoteOKSource, HimalayasSource,
+               JobicySource, ArbeitnowSource, GreenhouseSource, AshbySource, LeverSource]
     # Adzuna only if keys are present.
     try:
         from ingestion.sources.adzuna import AdzunaSource

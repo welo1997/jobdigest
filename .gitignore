@@ -11,3 +11,4 @@ dbt/.user.yml
 logs/
 *.log
 setup_snowflake.py
+candidates.json
