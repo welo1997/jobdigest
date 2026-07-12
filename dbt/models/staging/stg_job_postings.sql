@@ -29,7 +29,8 @@ staged as (
               or lower(coalesce(title, '')) like 'remote %' then true
             when regexp_like(
                 lower(coalesce(description, '')),
-                '(fully remote|100% remote|remote[- ]first|remote[- ]friendly|work from anywhere|work[- ]from[- ]home|home[- ]office|z domova|this is a remote|remote position|remote role)'
+                '.*(fully remote|100% remote|remote[- ]first|remote[- ]friendly|work from anywhere|work[- ]from[- ]home|home[- ]office|z domova|this is a remote|remote position|remote role).*',
+                's'  -- REGEXP_LIKE is fully anchored; wrap in .*…* and let . span newlines
             ) then true
             else false
         end                                             as is_remote,
@@ -61,6 +62,27 @@ staged as (
                 then 'other_tech_function'
             else 'uncategorised'
         end                                             as role_category,
+
+        -- Work region — coarse geography for the personal alert (international-first).
+        -- Derived from country_code + free-text location; 'worldwide' = remote-anywhere.
+        case
+            when upper(coalesce(country_code, '')) = 'CZ'
+              or regexp_like(lower(coalesce(location, '')), '.*(czech|praha|prague|brno|ostrava).*', 's')
+                then 'cz'
+            when regexp_like(lower(coalesce(location, '')), '.*(worldwide|anywhere|global|fully remote).*', 's')
+                then 'worldwide'
+            when upper(coalesce(country_code, '')) = 'GB'
+              or regexp_like(lower(coalesce(location, '')), '.*(united kingdom|england|london).*', 's')
+                then 'uk'
+            when upper(coalesce(country_code, '')) = 'US'
+              or regexp_like(lower(coalesce(location, '')), '.*(united states|remote us).*', 's')
+                then 'us'
+            when upper(coalesce(country_code, '')) in
+                 ('DE','NL','FR','ES','PL','AT','IE','PT','SK','IT','BE','SE','DK','FI')
+              or regexp_like(lower(coalesce(location, '')), '.*(europe|emea|germany|netherlands|poland|austria|spain|france|ireland).*', 's')
+                then 'eu'
+            else 'other'
+        end                                             as work_region,
 
         -- Salary parsing
         salary_raw,

@@ -18,40 +18,47 @@ logger = logging.getLogger(__name__)
 BATCH_SIZE = 50
 MODEL = "claude-haiku-4-5-20251001"
 
-PROMPT_TEMPLATE = """Score this job posting for an early-career data professional with strong fundamentals
-in dbt, Snowflake, Python, and SQL — growing into mid-level. Open to stretch roles where the
-stack matches even if the seniority is one step above current level.
+PROMPT_TEMPLATE = """Score this job posting for an early-career data professional (dbt, Snowflake, Python, SQL)
+based in the Czech Republic (EU). PRIMARY focus: REMOTE roles open to candidates in the EU or
+worldwide. CZ-based roles (remote, hybrid, or on-site in Czechia) are also a good fit.
 
 Candidate profile:
 - Core stack: dbt, Snowflake, Python, SQL (production experience)
-- Working knowledge: Docker, Metabase, Google Sheets
+- Working knowledge: Docker, Metabase
 - Strong interest in AI/ML tooling; learns quickly
-- Based in Czech Republic; remote, on-site in CZ, hybrid in CZ are all fine
-- ~1-2 years professional experience; credible growth into mid-level
-- Open to full-time or freelance/contract
+- ~1-2 years professional experience; credible growth into mid-level; open to stretch roles
+  where the stack matches even if seniority is a step above current level
+- Based in Czech Republic (EU). Can work: fully remote (EU/worldwide) or anywhere in CZ.
+  Open to full-time or freelance/contract.
 - Languages: English (fluent), Czech (native)
-- Background in ecommerce (Footshop)
-- Bonus alignment: trading firms or ecommerce companies
+- Background in ecommerce (Footshop); bonus alignment: ecommerce or trading/fintech companies
 
-Hard dealbreakers (score 0 only if these apply):
-- Requires native-level fluency in a language other than English/Czech
-- Requires relocation outside the Czech Republic / EU (e.g., on-site only in US, Asia)
+Location eligibility (IMPORTANT — use the Location and Remote fields below):
+- BEST: fully remote and open to EU / Europe / EMEA / worldwide / "anywhere". Score highest on stack fit.
+- GOOD: remote within, or on-site/hybrid in, the Czech Republic.
+- Score 0 ONLY if the candidate cannot legally hold the role from Czechia/EU, e.g.:
+  * requires US or other non-EU work authorization, or must be located in a specific non-EU
+    country/timezone with no EU-remote option
+  * requires on-site presence outside CZ/EU with no remote option
+  * requires a security clearance, or native fluency in a language other than English/Czech
+  A role that is remote and EU-eligible (or CZ-based) is NEVER a location dealbreaker.
 
 Soft factors (reduce the score, do NOT zero it):
-- Posted as 5+ years required: -2 to -3 from base fit
-- Stack mismatch with core stack (e.g., Java/Scala/AWS-only): -2 to -4
+- Posted as 5+ years required: -2 to -3
+- Stack mismatch with core stack (e.g., Java/Scala-only): -2 to -4
 - Lead / Manager / Principal title with little hands-on: -2 to -3
 - Senior individual contributor with strong stack overlap: -0 to -2 (still scorable)
 
-Score on actual fit — stack overlap, remote-friendliness, growth potential — not just
-seniority gap. A senior IC role with perfect stack overlap can score 6-8 if the candidate
-would credibly grow into it. Reserve 9-10 for near-perfect mid-level matches.
-
-Rate 0-10. Write 2 sentences explaining fit.
+Rate 0-10 on actual fit — stack overlap, remote/EU-eligibility, growth potential. A remote
+EU/worldwide role with strong stack overlap can score 8-10. A senior IC with perfect stack
+overlap can score 6-8. Reserve 9-10 for strong remote-international roles or mid-level CZ
+matches with clear stack alignment.
 Respond ONLY in JSON: {{"personal_score": <int>, "summary": "<2 sentences>"}}
 
 Title: {title}
 Company: {company}
+Location: {location}
+Remote: {is_remote}
 Skills: {skills_csv}
 Description: {description}"""
 
@@ -81,7 +88,9 @@ def fetch_unscored_postings(
             p.title,
             p.company,
             p.description,
-            array_to_string(s.skills, ', ') as skills_csv
+            array_to_string(s.skills, ', ') as skills_csv,
+            stg.location,
+            stg.is_remote
         FROM raw.job_postings p
         LEFT JOIN raw.skill_tags s ON p.posting_id = s.posting_id
         LEFT JOIN raw.personal_scores ps ON p.posting_id = ps.posting_id
@@ -105,6 +114,8 @@ def fetch_unscored_postings(
             "company": r[2],
             "description": r[3],
             "skills_csv": r[4] or "",
+            "location": r[5] or "",
+            "is_remote": r[6],
         }
         for r in rows
     ]
@@ -112,13 +123,16 @@ def fetch_unscored_postings(
 
 def score_posting(
     client: anthropic.Anthropic, title: str, company: str,
-    description: str, skills_csv: str
+    description: str, skills_csv: str,
+    location: str = "", is_remote: Optional[bool] = None,
 ) -> tuple[Optional[int], Optional[str], str]:
     """Call Sonnet to score personal fit. Returns (score, summary, raw_response)."""
     truncated_desc = (description or "")[:2000]
     prompt = PROMPT_TEMPLATE.format(
         title=title or "Unknown",
         company=company or "Unknown",
+        location=location or "not specified",
+        is_remote="yes" if is_remote else ("no" if is_remote is False else "unknown"),
         skills_csv=skills_csv or "none extracted",
         description=truncated_desc,
     )
@@ -206,6 +220,8 @@ def run(limit: Optional[int] = None) -> None:
                 posting["company"],
                 posting["description"],
                 posting["skills_csv"],
+                posting.get("location", ""),
+                posting.get("is_remote"),
             )
             batch_results.append({
                 "posting_id": posting["posting_id"],

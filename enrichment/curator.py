@@ -24,12 +24,14 @@ logger = logging.getLogger(__name__)
 MODEL = "claude-haiku-4-5-20251001"
 
 CANDIDATE_PROFILE = (
-    "Early-career data professional (~1-2 yrs), based in Czech Republic. "
-    "Core stack: dbt, Snowflake, Python, SQL. Working knowledge of Docker, "
-    "Metabase. Strong interest in AI/ML tooling. Open to remote, on-site CZ, "
-    "or hybrid CZ; full-time or contract. Background in ecommerce (Footshop); "
-    "bonus alignment with ecommerce or trading firms. Growing toward mid-level "
-    "and open to stretch roles where the stack matches."
+    "Early-career data professional (~1-2 yrs), based in Czech Republic (EU). "
+    "Core stack: dbt, Snowflake, Python, SQL. Working knowledge of Docker, Metabase. "
+    "Strong interest in AI/ML tooling. MAIN focus: fully remote roles open to the "
+    "EU / worldwide; CZ-based roles (remote/hybrid/on-site) are also welcome. "
+    "Not eligible for roles requiring US/non-EU work authorization or non-EU on-site "
+    "presence. Full-time or contract. Background in ecommerce (Footshop); bonus "
+    "alignment with ecommerce or trading/fintech. Growing toward mid-level, open to "
+    "stretch roles where the stack matches."
 )
 
 PROMPT_TEMPLATE = """You are the job-hunt assistant for this candidate:
@@ -40,6 +42,7 @@ Below is today's shortlist of already-scored, confirmed-live postings (JSON).
 Pick the ones genuinely worth the candidate's attention today. Rules:
 - Choose at most {max_alerts} postings, ordered best-first.
 - Drop near-duplicates (same role at the same company under different titles/sources) — keep the single best.
+- Prefer fully-remote EU/worldwide roles; rank them above CZ-local ones when fit is comparable.
 - Drop weak fits even if their score is borderline; quality over quantity. It is fine to return fewer than {max_alerts}, or none.
 - For each pick, write ONE short sentence on why it's worth a look today (stack overlap, growth, location, company type) — concrete, not generic.
 

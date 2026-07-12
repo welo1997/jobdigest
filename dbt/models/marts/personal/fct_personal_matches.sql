@@ -16,6 +16,7 @@ candidates as (
         country_code,
         role_category,
         is_remote,
+        work_region,
 
         salary_raw,
         salary_min,
@@ -76,4 +77,13 @@ deduped as (
 select *
 from deduped
 where group_notified = 0
-order by personal_score desc, posted_at desc
+-- International-first: within the same score, surface remote roles open to
+-- EU/UK/US/worldwide ahead of CZ-local ones (CZ still kept, just after).
+order by
+    personal_score desc,
+    case
+        when is_remote and work_region in ('worldwide', 'eu', 'uk', 'us') then 0
+        when work_region = 'cz' then 1
+        else 2
+    end,
+    posted_at desc
