@@ -33,6 +33,11 @@ WITH scored AS (
     JOIN raw_staging.stg_job_postings stg ON p.posting_id = stg.posting_id
     WHERE stg.role_category IN ('data_engineering', 'data_analysis', 'machine_learning')
       AND ps.personal_score >= %(min_score)s
+      -- Freshness: only postings re-seen in a source feed recently, matching the
+      -- fct_personal_matches mart. Without this the tool surfaces months-old,
+      -- long-filled postings (many sites serve HTTP 200 for expired listings).
+      AND coalesce(p.last_seen_at, p.loaded_at)
+          >= dateadd(day, -7, current_timestamp())
 )
 SELECT *
 FROM (

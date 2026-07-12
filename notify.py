@@ -33,9 +33,12 @@ LIVENESS_HEADERS = {
 # host returns HTTP 200. Czech and English variants seen on jobs.cz,
 # startupjobs.cz, greenhouse, lever.
 CLOSURE_MARKERS = (
+    # startupjobs.cz serves HTTP 200 for expired postings with this banner:
+    # "Nabídce vypršela platnost nebo již není aktuální."
+    "vypršela platnost",
+    "již není aktuální",
     "nabídka byla již obsazena",
     "nabídka již byla obsazena",
-    "nabídka již není aktuální",
     "tato nabídka již není aktivní",
     "tato nabídka zde již není",
     "neexistuje nebo již byla obsazena",
