@@ -15,22 +15,31 @@ logger = logging.getLogger(__name__)
 
 ADZUNA_BASE = "https://api.adzuna.com/v1/api/jobs"
 
-# Country config: (country_code, pages_to_fetch)
-# Total budget ~250 requests/day
-# Note: Adzuna does not support CZ — using PL + AT for Central Europe
+# Country config: (country_code, pages_to_fetch). Focused on the largest
+# remote-hiring markets rather than broad local coverage — the personal focus is
+# international remote, and Adzuna has no remote flag so we lean on the search
+# phrase. Total requests = sum(pages) * len(SEARCH_TERMS), well under 250/day.
 COUNTRY_CONFIG = [
-    ("pl", 2),   # 40 results — closest to CZ
-    ("at", 2),   # 40 results — Central Europe
-    ("de", 3),   # 60 results
-    ("nl", 2),   # 40 results
-    ("gb", 3),   # 60 results
-    ("us", 4),   # 80 results
+    ("gb", 2),   # 40 results
+    ("us", 3),   # 60 results
+    ("de", 1),   # 20 results
+    ("nl", 1),   # 20 results
 ]
 
-# Broad search terms to capture all tech-company roles
-SEARCH_TERMS = ["engineer", "developer", "designer", "manager", "analyst", "data"]
+# Remote-focused data-role search phrases (Adzuna `what` matches all words), so
+# results skew heavily toward remote data/analytics/ML roles instead of local jobs.
+SEARCH_TERMS = [
+    "remote data engineer",
+    "remote data analyst",
+    "remote analytics engineer",
+    "remote data scientist",
+    "remote machine learning engineer",
+]
 
 RESULTS_PER_PAGE = 20
+
+# Substrings that mark a posting as remote (used to set remote_signal).
+_REMOTE_HINTS = ("remote", "work from home", "anywhere", "distributed")
 
 
 class AdzunaSource(BaseSource):
@@ -92,6 +101,9 @@ class AdzunaSource(BaseSource):
 
             salary_raw = self._build_salary(item)
             currency = self._currency_for_country(item.get("_country", ""))
+            location = item.get("location", {}).get("display_name")
+            blob = f"{item.get('title', '')} {location or ''} {item.get('description', '')}".lower()
+            is_remote = any(hint in blob for hint in _REMOTE_HINTS) or None
 
             postings.append(
                 JobPosting(
@@ -101,9 +113,9 @@ class AdzunaSource(BaseSource):
                     company=item.get("company", {}).get("display_name"),
                     url=redirect_url,
                     description=item.get("description"),
-                    location=item.get("location", {}).get("display_name"),
+                    location=location,
                     country_code=item.get("_country", "").upper() or None,
-                    remote_signal=None,  # Adzuna doesn't reliably flag remote
+                    remote_signal=is_remote,  # inferred from the posting text
                     salary_raw=salary_raw,
                     currency=currency,
                     posted_at=self._parse_date(item.get("created")),
