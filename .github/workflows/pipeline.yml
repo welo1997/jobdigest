@@ -1,9 +1,10 @@
 name: Daily Pipeline
 
 on:
-  schedule:
-    - cron: '0 7 * * 5'  # Friday 07:00 UTC — cost-optimised
-  workflow_dispatch:         # Manual trigger
+  workflow_dispatch:         # Triggered on schedule by the claude.ai cloud routine (gh workflow run)
+  # Fallback scheduler — uncomment if the cloud routine can't dispatch the workflow:
+  # schedule:
+  #   - cron: '0 7 * * 1-5'  # weekdays 07:00 UTC
 
 env:
   SNOWFLAKE_ACCOUNT: ${{ secrets.SNOWFLAKE_ACCOUNT }}
@@ -33,6 +34,9 @@ jobs:
 
       - name: Install dependencies
         run: pip install -r requirements.txt
+
+      - name: Step 0 — Migrate schema (idempotent)
+        run: python -m ingestion.migrate
 
       - name: Step 1 — Ingest all sources
         run: python -m ingestion.run
