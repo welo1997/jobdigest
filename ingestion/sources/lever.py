@@ -18,8 +18,9 @@ logger = logging.getLogger(__name__)
 
 HEADERS = {"User-Agent": "Mozilla/5.0 (compatible; job-market-intel/1.0)"}
 
-# Verified-live Lever boards (EU-heavy tech companies).
-ORGS = ["spotify", "qonto", "contentsquare", "aircall", "swile", "blablacar"]
+# Verified-live Lever boards (EU-heavy tech + fintech / ecommerce).
+ORGS = ["spotify", "qonto", "contentsquare", "aircall", "swile", "blablacar",
+        "zopa", "moonpig", "moonpay", "vestiairecollective"]
 
 
 class LeverSource(BaseSource):

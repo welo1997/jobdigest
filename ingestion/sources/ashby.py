@@ -18,10 +18,12 @@ logger = logging.getLogger(__name__)
 
 HEADERS = {"User-Agent": "Mozilla/5.0 (compatible; job-market-intel/1.0)"}
 
-# Verified-live Ashby boards (remote-first / data / AI heavy).
+# Verified-live Ashby boards (remote-first / data / AI + fintech / ecommerce).
 ORGS = [
     "notion", "openai", "ramp", "cohere", "supabase", "elevenlabs",
     "baseten", "linear", "posthog", "langchain", "modal",
+    # fintech / trading / ecommerce
+    "plaid", "pleo", "wealthsimple", "mollie", "keyrock", "backmarket", "deliveroo",
 ]
 
 # Map Ashby address country names to ISO-3166 alpha-2.
