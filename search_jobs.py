@@ -9,7 +9,13 @@ Usage:
     python search_jobs.py                 # fetch international remote data roles
     python search_jobs.py --check-live    # also HTTP-probe each URL (slower)
     python search_jobs.py --cz            # also include Czech sources
+    python search_jobs.py --freelance     # keep only freelance/contract data roles
     python search_jobs.py --limit 60      # cap output
+
+Every candidate is tagged with a ``work_type`` (freelance/contract vs permanent),
+detected from the title + description, so freelance opportunities that already flow
+through the remote boards (Himalayas "Contractor", Lemon.io / A.Team / Toptal network
+ads, contract postings on Remotive/RemoteOK/WeWorkRemotely) surface distinctly.
 
 Adzuna is included only if ADZUNA_APP_ID / ADZUNA_API_KEY are set (1Password / env).
 Output: candidates.json (+ a printed summary).
@@ -34,6 +40,7 @@ from ingestion.sources.lever import LeverSource
 from ingestion.sources.remoteok import RemoteOKSource
 from ingestion.sources.remotive import RemotiveSource
 from ingestion.sources.weworkremotely import WeWorkRemotelySource
+from ingestion.sources.workingnomads import WorkingNomadsSource
 
 logger = logging.getLogger(__name__)
 
@@ -48,6 +55,71 @@ _DATA_PATTERNS = (
 def is_data_role(title: Optional[str]) -> bool:
     t = (title or "").lower()
     return any(p in t for p in _DATA_PATTERNS)
+
+
+# --- Freelance / contract detection ---------------------------------------------
+# Positive signals for freelance/contract work. Kept broad but guarded against the
+# "smart contract" (blockchain) false-positive that pollutes naive keyword matches.
+_FREELANCE_PATTERNS = (
+    "freelance", "freelancer", "contractor", "contract role", "contract position",
+    "contract basis", "on a contract", "fixed-term", "fixed term", "interim",
+    "day rate", "daily rate", "/day", "per day", "b2b", "self-employed",
+    "self employed", "independent consultant", "ičo", "outside ir35", "inside ir35",
+    "6-month contract", "12-month contract", "month contract", "gig", "project-based",
+    "project based", "temporary contract",
+)
+# Bare "contract" is only trusted when not part of "smart contract" / "contract address".
+_BARE_CONTRACT = re.compile(r"\bcontract(?:s|or|ors|ing)?\b")
+_CONTRACT_FALSE = re.compile(r"smart contract|contract address|contract law")
+
+
+# --- Seniority detection -------------------------------------------------------
+_JUNIOR_RE = re.compile(
+    r"\b(junior|jr|graduate|grad|entry[- ]?level|intern|internship|apprentice|"
+    r"working student|werkstudent|trainee|early[- ]career|no experience|"
+    r"associate|early[- ]?talent)\b", re.I)
+# Senior/lead signals, incl. roman-numeral levels III+ and "II" (mid-senior).
+_SENIOR_RE = re.compile(
+    r"\b(senior|sr|staff|principal|lead|head|director|vp|expert|architect|"
+    r"iii|iv|manager)\b", re.I)
+
+
+def seniority(title: Optional[str]) -> str:
+    """Classify a title as 'junior', 'mid', or 'senior'."""
+    t = title or ""
+    if _JUNIOR_RE.search(t):
+        return "junior"
+    if _SENIOR_RE.search(t):
+        return "senior"
+    return "mid"
+
+
+def work_type(title: Optional[str], description: Optional[str]) -> str:
+    """Classify a posting as 'freelance/contract' or 'permanent' from its text."""
+    text = f"{title or ''} {description or ''}".lower()
+    if any(p in text for p in _FREELANCE_PATTERNS):
+        return "freelance/contract"
+    if _BARE_CONTRACT.search(text) and not _CONTRACT_FALSE.search(text):
+        return "freelance/contract"
+    return "permanent"
+
+
+# --- Part-time / reduced-hours detection (fit alongside a full-time job) ---------
+_PARTTIME_RE = re.compile(
+    r"part[- ]?time|part time|half[- ]?time|reduced hours|flexible hours|"
+    r"\b0\.[1-8]\s?fte\b|\b(?:10|15|20|24|25|30)\s?(?:h|hrs|hours)\s?(?:/|per|a)\s?week|"
+    r"a few hours|moonlight|side project|evenings and weekends|"
+    # Czech part-time / side-contract signals
+    r"\bdpp\b|\bdp[cč]\b|[cč]áste[cč]n[yý] [uú]vazek|polovi[cč]n[ií] [uú]vazek|"
+    r"zkr[aá]cen[yý] [uú]vazek|brig[aá]d|[uú]vazek 0[.,]",
+    re.I)
+_FULLTIME_NEG = re.compile(r"full[- ]?time only|plný úvazek pouze", re.I)
+
+
+def is_part_time(title: Optional[str], description: Optional[str]) -> bool:
+    """True if the posting signals part-time / reduced-hours availability."""
+    text = f"{title or ''} {description or ''}"
+    return bool(_PARTTIME_RE.search(text)) and not _FULLTIME_NEG.search(text)
 
 
 # --- Region + EU-eligibility heuristics ---
@@ -97,7 +169,8 @@ def dedup_key(p: JobPosting) -> str:
 
 def gather(include_cz: bool) -> list[JobPosting]:
     sources = [RemotiveSource, WeWorkRemotelySource, RemoteOKSource, HimalayasSource,
-               JobicySource, ArbeitnowSource, GreenhouseSource, AshbySource, LeverSource]
+               JobicySource, ArbeitnowSource, WorkingNomadsSource,
+               GreenhouseSource, AshbySource, LeverSource]
     # Adzuna only if keys are present.
     try:
         from ingestion.sources.adzuna import AdzunaSource
@@ -109,7 +182,8 @@ def gather(include_cz: bool) -> list[JobPosting]:
         from ingestion.sources.jobscz import JobsCzSource
         from ingestion.sources.startupjobs import StartupJobsSource
         from ingestion.sources.cocuma import CocumaSource
-        sources += [StartupJobsSource, JobsCzSource, CocumaSource]
+        from ingestion.sources.profesia import ProfesiaSource
+        sources += [StartupJobsSource, JobsCzSource, CocumaSource, ProfesiaSource]
 
     postings: list[JobPosting] = []
     for cls in sources:
@@ -127,6 +201,12 @@ def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--check-live", action="store_true", help="HTTP-probe each URL (slower)")
     ap.add_argument("--cz", action="store_true", help="also include Czech sources")
+    ap.add_argument("--freelance", action="store_true",
+                    help="keep only freelance/contract data roles")
+    ap.add_argument("--junior", action="store_true",
+                    help="keep only junior/mid roles (drop senior/lead/staff/principal)")
+    ap.add_argument("--parttime", action="store_true",
+                    help="keep only roles signalling part-time / reduced hours")
     ap.add_argument("--limit", type=int, default=80)
     ap.add_argument("--out", default="candidates.json")
     args = ap.parse_args()
@@ -149,12 +229,30 @@ def main() -> None:
         rows.append({
             "title": p.title, "company": p.company, "source": p.source,
             "location": p.location, "region": region, "eligibility": elig,
+            "work_type": work_type(p.title, p.description),
+            "seniority": seniority(p.title),
+            "part_time": is_part_time(p.title, p.description),
             "url": p.url, "posted_at": p.posted_at.isoformat() if p.posted_at else None,
             "description": (p.description or "")[:600],
         })
 
-    # Best-eligible first; drop the clearly-blocked ones from the top view.
-    rows.sort(key=lambda r: (_RANK.get(r["eligibility"], 5), r["region"]))
+    if args.freelance:
+        rows = [r for r in rows if r["work_type"] == "freelance/contract"]
+        logger.info("Freelance filter: kept %d freelance/contract candidates", len(rows))
+    if args.junior:
+        rows = [r for r in rows if r["seniority"] in ("junior", "mid")]
+        logger.info("Junior filter: kept %d junior/mid candidates", len(rows))
+    if args.parttime:
+        rows = [r for r in rows if r["part_time"]]
+        logger.info("Part-time filter: kept %d part-time candidates", len(rows))
+
+    # Best-eligible first; when hunting junior, float junior/mid up, else freelance up.
+    _sen_rank = {"junior": 0, "mid": 1, "senior": 2}
+    rows.sort(key=lambda r: (
+        _RANK.get(r["eligibility"], 5),
+        _sen_rank[r["seniority"]] if args.junior else
+        (0 if r["work_type"] == "freelance/contract" else 1),
+        r["region"]))
     rows = rows[: args.limit]
 
     if args.check_live:
@@ -175,9 +273,17 @@ def main() -> None:
     print(f"\n{len(rows)} candidates -> {args.out}")
     print("by eligibility:", dict(Counter(r["eligibility"] for r in rows)))
     print("by region:     ", dict(Counter(r["region"] for r in rows)))
+    print("by work_type:  ", dict(Counter(r["work_type"] for r in rows)))
+    print("by seniority:  ", dict(Counter(r["seniority"] for r in rows)))
     print("\nTop eligible:")
     for r in [x for x in rows if x["eligibility"] == "eligible"][:12]:
-        print(f"  [{r['region']}] {(r['title'] or '?')[:46]:<46} | {(r['company'] or '?')[:24]:<24} | {r['source']}")
+        tag = "[FL]" if r["work_type"] == "freelance/contract" else "[PT]"
+        print(f"  {tag} [{r['region']}] {(r['title'] or '?')[:44]:<44} | {(r['company'] or '?')[:22]:<22} | {r['source']}")
+    fl = [x for x in rows if x["work_type"] == "freelance/contract"]
+    if fl and not args.freelance:
+        print(f"\nFreelance/contract ({len(fl)} found — run with --freelance to isolate):")
+        for r in fl[:12]:
+            print(f"  [{r['eligibility'][:8]:<8}|{r['region']}] {(r['title'] or '?')[:42]:<42} | {(r['company'] or '?')[:20]:<20} | {r['source']}")
 
 
 if __name__ == "__main__":

@@ -25,6 +25,10 @@ class JobPosting:
     salary_raw: Optional[str] = None
     currency: Optional[str] = None
     posted_at: Optional[date] = None
+    # Coarse role_category hint derived from the source's profession/category filter
+    # (e.g. a jobs.cz "Marketing" field). Used only as a fallback when the title-based
+    # classifier can't categorise a (often non-English) title. Not persisted to Snowflake.
+    source_category: Optional[str] = None
 
     def as_tuple(self) -> tuple:
         """Return values in column order for Snowflake INSERT."""

@@ -1,4 +1,12 @@
-"""Jobs.cz -- scrape Czech IT job listings via HTML."""
+"""Jobs.cz -- scrape Czech job listings via HTML across all tech/business fields.
+
+Jobs.cz filters by a numeric profession id (``field[]``). We iterate a curated set
+of tech/IT/business/creative fields (not just IT) so the digest can serve any role
+at a tech company -- engineering, product, design, marketing, sales, finance, HR,
+legal. Manual/industrial fields (gastronomy, manufacturing, crafts, security,
+public admin) are intentionally excluded. Listings are de-duplicated by URL across
+fields, since a posting often appears under several professions.
+"""
 
 from __future__ import annotations
 
@@ -14,13 +22,33 @@ from ingestion.base import BaseSource, JobPosting, make_posting_id
 logger = logging.getLogger(__name__)
 
 BASE_URL = "https://www.jobs.cz/prace/"
-# field 200900013 = "Informacni technologie" (IT category)
-SEARCH_PARAMS = {"field[]": "200900013"}
-MAX_PAGES = 40
+
+# Curated profession fields, discovered from the jobs.cz taxonomy: label -> (field id,
+# role_category hint). Tech/IT/business/creative only; manual & non-tech industries left
+# out on purpose. The hint is a coarse fallback used by the ingest classifier only when a
+# (often Czech) title can't be categorised from its text. `None` = no confident mapping.
+FIELD_CATEGORIES: dict[str, tuple[str, str | None]] = {
+    "IS/IT: vyvoj":            ("200900013", "software_engineering"),
+    "IS/IT: sprava systemu":   ("200900012", "devops_platform"),
+    "IS/IT: konzultace/PM":    ("200900011", "software_engineering"),
+    "Elektrotechnika/energ.":  ("200900008", None),
+    "Marketing":               ("200900017", "other_tech_function"),
+    "Media, reklama, PR":      ("200900018", "other_tech_function"),
+    "Prodej a obchod":         ("200900026", "other_tech_function"),
+    "Nakup":                   ("200900019", "other_tech_function"),
+    "Bankovnictvi/fin. sluzby":("200900002", "other_tech_function"),
+    "Ekonomika/podnik. finance":("200900007", "other_tech_function"),
+    "Pojistovnictvi":          ("200900022", "other_tech_function"),
+    "Pravni sluzby":           ("200900025", "other_tech_function"),
+    "Personalistika a HR":     ("200900021", "other_tech_function"),
+    "Administrativa":          ("200900001", "other_tech_function"),
+    "Kultura/umeni/tvurci":    ("200900014", "design"),
+}
+MAX_PAGES = 30  # per field; the "no new listings" guard usually stops earlier
 
 
 class JobsCzSource(BaseSource):
-    """Jobs.cz HTML scraper -- Czech IT job listings."""
+    """Jobs.cz HTML scraper -- Czech listings across curated tech/business fields."""
 
     @property
     def source_name(self) -> str:
@@ -28,13 +56,23 @@ class JobsCzSource(BaseSource):
 
     def fetch(self) -> list[dict]:
         all_cards: list[dict] = []
-        seen_urls: set[str] = set()
+        seen_urls: set[str] = set()  # dedup across fields (a job spans several)
+        for label, (field_id, hint) in FIELD_CATEGORIES.items():
+            got = self._fetch_field(label, field_id, hint, seen_urls, all_cards)
+            logger.info("Jobs.cz [%s]: +%d new (%d total so far)",
+                        label, got, len(all_cards))
+        logger.info("Jobs.cz: fetched %d unique listings across %d fields",
+                    len(all_cards), len(FIELD_CATEGORIES))
+        return all_cards
+
+    def _fetch_field(self, label: str, field_id: str, hint: str | None,
+                     seen_urls: set[str], sink: list[dict]) -> int:
+        added = 0
         for page in range(1, MAX_PAGES + 1):
             try:
-                params = {**SEARCH_PARAMS, "page": page}
                 resp = requests.get(
                     BASE_URL,
-                    params=params,
+                    params={"field[]": field_id, "page": page},
                     headers={"User-Agent": "Mozilla/5.0"},
                     timeout=15,
                 )
@@ -47,24 +85,20 @@ class JobsCzSource(BaseSource):
                 new_on_page = 0
                 for article in articles:
                     card = self._parse_card(article)
+                    if card:
+                        card["source_category"] = hint
                     if card and card["url"] not in seen_urls:
                         seen_urls.add(card["url"])
-                        all_cards.append(card)
+                        sink.append(card)
                         new_on_page += 1
-
-                logger.info(
-                    "Jobs.cz page %d: %d listings (%d new)",
-                    page, len(articles), new_on_page,
-                )
-                # Stop if page returned only duplicates (past last page)
+                        added += 1
+                # Past the last page jobs.cz repeats results -> stop on all-dupes.
                 if new_on_page == 0:
                     break
             except requests.RequestException as exc:
-                logger.warning("Jobs.cz page %d failed: %s", page, exc)
+                logger.warning("Jobs.cz [%s] page %d failed: %s", label, page, exc)
                 break
-
-        logger.info("Jobs.cz: fetched %d listings total", len(all_cards))
-        return all_cards
+        return added
 
     def _parse_card(self, article: BeautifulSoup) -> Optional[dict]:
         title_link = article.find("a", class_="SearchResultCard__titleLink")
@@ -133,6 +167,7 @@ class JobsCzSource(BaseSource):
                     salary_raw=None,
                     currency="CZK",
                     posted_at=None,
+                    source_category=item.get("source_category"),
                 )
             )
         logger.info("Jobs.cz: normalised %d postings", len(postings))

@@ -12,3 +12,7 @@ logs/
 *.log
 setup_snowflake.py
 candidates.json
+candidates_*.json
+service/outbox/
+design/email-preview.html
+exchange/                    # matcher shortlists.json / picks.json — contains subscriber PII

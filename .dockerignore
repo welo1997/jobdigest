@@ -1,0 +1,19 @@
+# Keep the backend build context small + secret-free.
+.git
+__pycache__/
+**/__pycache__/
+*.pyc
+.env
+.env.*
+web/
+dbt/
+analytics*/
+logs/
+notes/
+design/
+service/outbox/
+*.log
+*.json
+!package.json
+venv/
+.venv/
