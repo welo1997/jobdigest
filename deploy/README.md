@@ -82,7 +82,10 @@ gets re-sent jobs they've already seen.
 ```bash
 sudo install -m 755 deploy/jobdigest-backup.sh /usr/local/bin/jobdigest-backup.sh
 sudo cp deploy/jobdigest-backup.{service,timer} /etc/systemd/system/
-# Edit the .service: uncomment JOBDIGEST_BACKUP_REMOTE and point it at your rclone remote.
+# Create the encryption passphrase for off-box copies, and save it in your password manager
+# — it is the only way to restore one.
+sudo sh -c 'head -c 32 /dev/urandom | base64 > /etc/jobdigest-backup.pass'
+sudo chmod 600 /etc/jobdigest-backup.pass
 sudo systemctl daemon-reload && sudo systemctl enable --now jobdigest-backup.timer
 ```
 
@@ -99,6 +102,20 @@ jobdigest-backup.sh restore <file>    # DESTRUCTIVE — prompts for confirmation
 **Set `JOBDIGEST_BACKUP_REMOTE`.** A backup sitting on the same VPS does not survive losing
 the VPS. rclone is already installed for the matcher routine. Run `verify` monthly — an
 untested backup is a hypothesis.
+
+⚠️ **The backup remote must not live inside `gdrive:JobDigest`.** That folder is shared with
+the claude.ai matcher routine's Google account, and Drive sharing is inherited by subfolders.
+A dump contains every subscriber's email, CV summary and `manage_token` — and a manage token
+is a bearer credential for that subscription. Use a separate folder (default:
+`gdrive:JobDigest-Backups`); the script refuses to run otherwise. Off-box copies are
+gpg-encrypted (AES256) before upload and the plaintext never leaves the box, so a
+compromised remote yields ciphertext only. Restore one with:
+
+```bash
+gpg --batch --passphrase-file /etc/jobdigest-backup.pass \
+    -o restored.dump -d jobdigest-<stamp>.dump.gpg
+jobdigest-backup.sh restore restored.dump
+```
 
 ### Retention
 The daily pipeline prunes automatically (`service/pipeline.py`); no setup needed:

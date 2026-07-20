@@ -11,22 +11,73 @@
 # Usage:  jobdigest-backup.sh [backup|restore <file>|verify]
 #
 # Off-box copies (STRONGLY recommended — a backup on the same VPS does not survive losing
-# the VPS): set JOBDIGEST_BACKUP_REMOTE to an rclone remote, e.g. "gdrive:JobDigest/backups".
-# rclone is already installed for the matcher routine (see matcher-routine.md).
+# the VPS): set JOBDIGEST_BACKUP_REMOTE to an rclone remote. rclone is already installed
+# for the matcher routine (see matcher-routine.md) — but the backup remote must be a
+# SEPARATE, UNSHARED folder; see check_remote_not_shared() below for why.
+#
+# Off-box copies are encrypted (gpg symmetric AES256) before upload. To restore one:
+#   gpg --batch --passphrase-file <file> -o restored.dump -d jobdigest-<stamp>.dump.gpg
 set -euo pipefail
 
 COMPOSE_DIR=/opt/jobdigest/deploy
 BACKUP_DIR="${JOBDIGEST_BACKUP_DIR:-/var/backups/jobdigest}"
 KEEP_DAYS="${JOBDIGEST_BACKUP_KEEP_DAYS:-30}"
 REMOTE="${JOBDIGEST_BACKUP_REMOTE:-}"
+# The dump contains every subscriber's email, CV-derived summary and — critically — their
+# manage/confirm tokens, which are bearer credentials: anyone holding one can read and
+# change that subscription. So anything leaving the box is encrypted first. gpg symmetric
+# keeps this to tooling every Debian box already has. Keep the passphrase in your password
+# manager: lose it and the off-box copies are unrecoverable.
+PASSPHRASE_FILE="${JOBDIGEST_BACKUP_PASSPHRASE_FILE:-}"
+# The folder the matcher shares with the claude.ai routine's Google account.
+MATCH_REMOTE="${JOBDIGEST_GDRIVE_REMOTE:-gdrive:JobDigest}"
 COMPOSE="docker compose"
+ENC_FILE=""
 
 cd "$COMPOSE_DIR"
 mkdir -p "$BACKUP_DIR"
+chmod 700 "$BACKUP_DIR"
+
+# Refuse a backup remote that sits inside the matcher's shared Drive folder. Drive sharing
+# is inherited by subfolders, so "gdrive:JobDigest/backups" would hand every nightly dump —
+# subscriber emails, CV summaries and manage tokens — to the claude.ai routine's Google
+# account. Enforced at runtime because this is a config mistake that looks entirely fine
+# until it isn't: the backups still work, they are just readable by someone else.
+check_remote_not_shared() {
+  [ -n "$REMOTE" ] || return 0
+  case "$REMOTE" in
+    "$MATCH_REMOTE"|"$MATCH_REMOTE"/*)
+      echo "backup: REFUSING — JOBDIGEST_BACKUP_REMOTE ($REMOTE) is inside the matcher's" \
+           "shared Drive folder ($MATCH_REMOTE), which the claude.ai routine's Google" \
+           "account can read. Point it at a separate, unshared remote." >&2
+      exit 1 ;;
+  esac
+}
+
+# Encrypt a dump for off-box storage; sets ENC_FILE on success. Fails closed — a missing
+# passphrase or a gpg error means nothing is uploaded, rather than a plaintext dump of the
+# subscriber table landing in cloud storage.
+encrypt_for_upload() {
+  local src="$1" out="$1.gpg"
+  ENC_FILE=""
+  if [ -z "$PASSPHRASE_FILE" ] || [ ! -s "$PASSPHRASE_FILE" ]; then
+    echo "backup: ERROR — JOBDIGEST_BACKUP_PASSPHRASE_FILE unset or empty; refusing to" \
+         "upload an unencrypted dump (it contains subscriber tokens)." >&2
+    return 1
+  fi
+  if ! gpg --batch --yes --quiet --symmetric --cipher-algo AES256 \
+           --passphrase-file "$PASSPHRASE_FILE" --output "$out" "$src"; then
+    echo "backup: ERROR — encryption failed, nothing uploaded." >&2
+    rm -f "$out"
+    return 1
+  fi
+  ENC_FILE="$out"
+}
 
 # Service name in deploy/docker-compose.yml is `db`; POSTGRES_USER/DB are both `jobmatch`.
 do_backup() {
   local stamp file
+  check_remote_not_shared
   # Skip cleanly when the stack is down — a stopped site must not look like a backup
   # failure, and pg_dump against a dead container would just emit an error into the file.
   local cid
@@ -75,12 +126,15 @@ do_backup() {
   # and surface it in the exit code so systemd/n8n still alerts.
   local remote_failed=0
   if [ -n "$REMOTE" ]; then
-    if rclone copy "$file" "$REMOTE/"; then
-      echo "backup: copied off-box to $REMOTE"
+    # Encrypt, upload, then drop the ciphertext — the local dump stays plaintext so
+    # `verify` and `restore` keep working without the passphrase.
+    if encrypt_for_upload "$file" && rclone copy "$ENC_FILE" "$REMOTE/"; then
+      echo "backup: copied off-box to $REMOTE (encrypted)"
     else
       echo "backup: ERROR — off-box copy to $REMOTE failed; local dump is intact" >&2
       remote_failed=1
     fi
+    if [ -n "$ENC_FILE" ]; then rm -f "$ENC_FILE"; fi
   else
     echo "backup: WARNING — JOBDIGEST_BACKUP_REMOTE unset, backup is on the same VPS only" >&2
   fi
@@ -88,6 +142,8 @@ do_backup() {
   # Rotate local copies only. Remote retention is the remote's business.
   find "$BACKUP_DIR" -name 'jobdigest-*.dump' -mtime "+$KEEP_DAYS" -delete
   find "$BACKUP_DIR" -name 'jobdigest-*.partial' -mtime +1 -delete
+  # Ciphertext is transient (removed after upload); this only catches a crash mid-run.
+  find "$BACKUP_DIR" -name 'jobdigest-*.dump.gpg' -mtime +1 -delete
 
   return "$remote_failed"
 }

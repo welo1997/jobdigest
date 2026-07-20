@@ -12,8 +12,18 @@ Requires=docker.service
 Type=oneshot
 WorkingDirectory=/opt/jobdigest/deploy
 # Off-box copies, so backups survive losing the VPS. Uses the same `gdrive` rclone remote
-# the matcher routine already authorised (see matcher-routine.md).
-Environment=JOBDIGEST_BACKUP_REMOTE=gdrive:JobDigest/backups
+# the matcher routine already authorised (see matcher-routine.md) — but a DIFFERENT folder:
+# gdrive:JobDigest is shared with the claude.ai routine's Google account, Drive sharing is
+# inherited by subfolders, and a dump contains every subscriber's manage token. The script
+# refuses to run if this points inside the shared folder.
+Environment=JOBDIGEST_BACKUP_REMOTE=gdrive:JobDigest-Backups
+# Passphrase for the symmetric encryption applied before anything leaves the box. Without
+# it the script keeps the local dump and skips the upload. Create it once:
+#   sudo sh -c 'head -c 32 /dev/urandom | base64 > /etc/jobdigest-backup.pass'
+#   sudo chmod 600 /etc/jobdigest-backup.pass
+# Then store that passphrase in your password manager — it is the only way to restore an
+# off-box copy.
+Environment=JOBDIGEST_BACKUP_PASSPHRASE_FILE=/etc/jobdigest-backup.pass
 # systemd runs as root; rclone's config was authorised as `deploy`. Without this the
 # off-box copy fails with "didn't find section in config file".
 Environment=RCLONE_CONFIG=/home/deploy/.config/rclone/rclone.conf
