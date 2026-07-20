@@ -48,8 +48,9 @@ check_remote_not_shared() {
   case "$REMOTE" in
     "$MATCH_REMOTE"|"$MATCH_REMOTE"/*)
       echo "backup: REFUSING — JOBDIGEST_BACKUP_REMOTE ($REMOTE) is inside the matcher's" \
-           "shared Drive folder ($MATCH_REMOTE), which the claude.ai routine's Google" \
-           "account can read. Point it at a separate, unshared remote." >&2
+           "exchange folder ($MATCH_REMOTE), which is reachable by every claude.ai session" \
+           "with the Drive connector and is one 'share' away from being third-party" \
+           "readable. A dump holds subscriber manage tokens. Use a separate remote." >&2
       exit 1 ;;
   esac
 }
