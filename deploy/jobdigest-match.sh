@@ -17,7 +17,14 @@ EX=/opt/jobdigest/exchange
 REMOTE="${JOBDIGEST_GDRIVE_REMOTE:-gdrive:JobDigest}"   # rclone remote:folder
 COMPOSE="sudo docker compose"
 
-mkdir -p "$EX"; chmod 777 "$EX"   # container 'app' user must be able to write here
+# The pipeline container runs as uid 1000 (`app`), the same numeric uid as the host's
+# `deploy` user — so this can be owner-private and the container still writes fine. It was
+# 0777, which made shortlists.json (subscriber preferences + CV summaries) readable by any
+# local account, and let any local process swap picks.json between the rclone pull below
+# and the container reading it — i.e. choose what every subscriber gets emailed.
+mkdir -p "$EX"
+chown 1000:1000 "$EX"
+chmod 700 "$EX"
 
 case "${1:-}" in
   export)
@@ -42,6 +49,12 @@ case "${1:-}" in
       echo "import: no picks.json on $REMOTE — routine has not run yet, nothing to do" >&2
       exit 0
     fi
+    # rclone runs as root under systemd, so the pulled file lands root-owned. Hand it to
+    # uid 1000 explicitly rather than relying on root's umask leaving it world-readable —
+    # now that the directory is 0700, a 0600 root-owned file would be unreadable to the
+    # container and the matcher would fail silently, which is the exact failure shape that
+    # bit us with RCLONE_CONFIG on 19 Jul.
+    chown 1000:1000 "$EX/picks.json"
     age_h=$(( ( $(date +%s) - $(date -r "$EX/picks.json" +%s) ) / 3600 ))
     if [ "$age_h" -gt "${JOBDIGEST_PICKS_MAX_AGE_H:-20}" ]; then
       echo "import: picks.json is ${age_h}h old (> ${JOBDIGEST_PICKS_MAX_AGE_H:-20}h) — refusing to" \
