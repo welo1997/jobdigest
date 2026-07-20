@@ -14,4 +14,8 @@ Requires=docker.service
 Type=oneshot
 WorkingDirectory=/opt/jobdigest/deploy
 # Override the Drive remote with: Environment=JOBDIGEST_GDRIVE_REMOTE=gdrive:YourFolder
+# systemd runs this as root, but rclone was authorised as `deploy` — without this the
+# push to Drive fails with 'didn't find section in config file' and no shortlists ever
+# reach the routine (silent matcher outage; hit production 2026-07-19..20).
+Environment=RCLONE_CONFIG=/home/deploy/.config/rclone/rclone.conf
 ExecStart=/opt/jobdigest/deploy/jobdigest-match.sh export

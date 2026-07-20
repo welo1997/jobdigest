@@ -11,8 +11,12 @@ Requires=docker.service
 [Service]
 Type=oneshot
 WorkingDirectory=/opt/jobdigest/deploy
-# Uncomment and point at your rclone remote so backups survive losing the VPS:
-# Environment=JOBDIGEST_BACKUP_REMOTE=gdrive:JobDigest/backups
+# Off-box copies, so backups survive losing the VPS. Uses the same `gdrive` rclone remote
+# the matcher routine already authorised (see matcher-routine.md).
+Environment=JOBDIGEST_BACKUP_REMOTE=gdrive:JobDigest/backups
+# systemd runs as root; rclone's config was authorised as `deploy`. Without this the
+# off-box copy fails with "didn't find section in config file".
+Environment=RCLONE_CONFIG=/home/deploy/.config/rclone/rclone.conf
 Environment=JOBDIGEST_BACKUP_DIR=/var/backups/jobdigest
 Environment=JOBDIGEST_BACKUP_KEEP_DAYS=30
 ExecStart=/usr/local/bin/jobdigest-backup.sh backup

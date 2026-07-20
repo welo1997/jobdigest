@@ -9,4 +9,7 @@ Requires=docker.service
 Type=oneshot
 WorkingDirectory=/opt/jobdigest/deploy
 # Override the Drive remote with: Environment=JOBDIGEST_GDRIVE_REMOTE=gdrive:YourFolder
+# Runs as root; rclone's config lives under `deploy`. See the export unit for the outage
+# this prevents.
+Environment=RCLONE_CONFIG=/home/deploy/.config/rclone/rclone.conf
 ExecStart=/opt/jobdigest/deploy/jobdigest-match.sh import

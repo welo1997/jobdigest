@@ -27,6 +27,15 @@ mkdir -p "$BACKUP_DIR"
 # Service name in deploy/docker-compose.yml is `db`; POSTGRES_USER/DB are both `jobmatch`.
 do_backup() {
   local stamp file
+  # Skip cleanly when the stack is down — a stopped site must not look like a backup
+  # failure, and pg_dump against a dead container would just emit an error into the file.
+  local cid
+  cid="$($COMPOSE ps -q db 2>/dev/null || true)"
+  if [ -z "$cid" ] || [ "$(docker inspect -f '{{.State.Running}}' "$cid" 2>/dev/null)" != "true" ]; then
+    echo "backup: db container not running, skipping"
+    exit 0
+  fi
+
   stamp=$(date -u +%Y%m%d-%H%M%S)
   file="$BACKUP_DIR/jobdigest-$stamp.dump"
 
@@ -61,8 +70,17 @@ do_backup() {
 
   echo "backup: wrote $file ($(du -h "$file" | cut -f1))"
 
+  # A failed off-box copy must NOT abort the run before rotation — the local dump is
+  # already valid, and skipping rotation would slowly fill the disk. Record the failure
+  # and surface it in the exit code so systemd/n8n still alerts.
+  local remote_failed=0
   if [ -n "$REMOTE" ]; then
-    rclone copy "$file" "$REMOTE/" && echo "backup: copied off-box to $REMOTE"
+    if rclone copy "$file" "$REMOTE/"; then
+      echo "backup: copied off-box to $REMOTE"
+    else
+      echo "backup: ERROR — off-box copy to $REMOTE failed; local dump is intact" >&2
+      remote_failed=1
+    fi
   else
     echo "backup: WARNING — JOBDIGEST_BACKUP_REMOTE unset, backup is on the same VPS only" >&2
   fi
@@ -70,6 +88,8 @@ do_backup() {
   # Rotate local copies only. Remote retention is the remote's business.
   find "$BACKUP_DIR" -name 'jobdigest-*.dump' -mtime "+$KEEP_DAYS" -delete
   find "$BACKUP_DIR" -name 'jobdigest-*.partial' -mtime +1 -delete
+
+  return "$remote_failed"
 }
 
 # Restore is destructive: --clean drops existing objects first. Guarded by an explicit
