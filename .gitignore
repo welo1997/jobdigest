@@ -16,3 +16,7 @@ candidates_*.json
 service/outbox/
 design/email-preview.html
 exchange/                    # matcher shortlists.json / picks.json — contains subscriber PII
+
+# Local-only infrastructure reference (VPS IP, Cloudflare zone/account IDs).
+# Public notes refer to these by placeholder; see notes/INFRA.local.md.
+notes/INFRA.local.md
