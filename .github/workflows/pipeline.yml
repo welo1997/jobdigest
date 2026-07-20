@@ -12,7 +12,14 @@ env:
   SNOWFLAKE_PASSWORD: ${{ secrets.SNOWFLAKE_PASSWORD }}
   SNOWFLAKE_DATABASE: JOB_MARKET
   SNOWFLAKE_WAREHOUSE: COMPUTE_WH
-  SNOWFLAKE_ROLE: SYSADMIN
+  # Least privilege: this pipeline only needs to read/write its own database. SYSADMIN can
+  # create and drop *any* object in the account, so a bug or a compromised Actions run had
+  # account-wide blast radius — and CLAUDE.md's own Phase 2 says "service user + role +
+  # grants (no SYSADMIN)". Set the SNOWFLAKE_ROLE secret to the dedicated role; the fallback
+  # names it explicitly so a missing secret fails loudly at connect time rather than
+  # silently falling back to whatever the user's default role happens to be.
+  # DDL for the role is in README.md ("Snowflake least-privilege role").
+  SNOWFLAKE_ROLE: ${{ secrets.SNOWFLAKE_ROLE || 'JOB_MARKET_ETL' }}
   ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
   ADZUNA_APP_ID: ${{ secrets.ADZUNA_APP_ID }}
   ADZUNA_API_KEY: ${{ secrets.ADZUNA_API_KEY }}
