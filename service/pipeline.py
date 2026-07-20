@@ -34,6 +34,8 @@ BASE_URL = os.environ.get("BASE_URL", "https://jobdigest.eu")
 # un-acted-on matches for postings gone this long. Descriptions are ~81% of table size.
 RETENTION_DESC_DAYS = int(os.environ.get("RETENTION_DESC_DAYS", "90"))
 RETENTION_MATCH_DAYS = int(os.environ.get("RETENTION_MATCH_DAYS", "180"))
+# Raw analytics events. Rolled up to events_daily first, so pruning loses no trend data.
+RETENTION_EVENT_DAYS = int(os.environ.get("RETENTION_EVENT_DAYS", "180"))
 
 
 def _is_due(profile: dict, now: datetime) -> bool:
@@ -64,9 +66,15 @@ def run(ingest: bool = False, cz: bool = False, match: bool = False,
     if prune and not dry_run:
         descs = store.prune_descriptions(RETENTION_DESC_DAYS)
         stale_matches = store.prune_matches(RETENTION_MATCH_DAYS)
+        # Roll up yesterday BEFORE pruning, so a trend line never loses a day even if the
+        # retention window and the rollup ever meet.
+        rolled = store.rollup_events()
+        events = store.prune_events(RETENTION_EVENT_DAYS)
         logger.info("Retention: blanked %d description(s) >%dd inactive, "
-                    "deleted %d stale match row(s) >%dd",
-                    descs, RETENTION_DESC_DAYS, stale_matches, RETENTION_MATCH_DAYS)
+                    "deleted %d stale match row(s) >%dd, "
+                    "rolled up %d event group(s), deleted %d raw event(s) >%dd",
+                    descs, RETENTION_DESC_DAYS, stale_matches, RETENTION_MATCH_DAYS,
+                    rolled, events, RETENTION_EVENT_DAYS)
 
     if match:
         from service.matcher import run as match_run

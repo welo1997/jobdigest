@@ -9,6 +9,7 @@ module-level connection pool. Connection string comes from DATABASE_URL, e.g.
 from __future__ import annotations
 
 import json
+import logging
 import os
 import secrets
 from contextlib import contextmanager
@@ -138,6 +139,53 @@ def prune_descriptions(days: int = 90) -> int:
             "and last_seen_at < now() - (%s || ' days')::interval",
             (int(days),),
         )
+        return cur.rowcount
+
+
+def record_event(name: str, *, session_id: str | None = None, path: str | None = None,
+                 country: str | None = None, browser: str | None = None,
+                 props: dict | None = None, profile_id: str | None = None) -> None:
+    """Append one analytics event. Never raises — analytics must not break a user flow.
+
+    Callers are responsible for validating `name` against a whitelist and for keeping
+    `props` free of personal data; this function only enforces column-level limits.
+    """
+    try:
+        with cursor(commit=True) as cur:
+            cur.execute(
+                "insert into events (name, session_id, path, country, browser, props, profile_id) "
+                "values (%s,%s,%s,%s,%s,%s,%s)",
+                (name[:64], (session_id or None) and session_id[:64],
+                 (path or None) and path[:200], (country or None) and country[:2],
+                 (browser or None) and browser[:16], json.dumps(props or {})[:2000],
+                 profile_id),
+            )
+    except Exception:                                  # pragma: no cover - defensive
+        logging.getLogger("service.store").warning("record_event failed", exc_info=True)
+
+
+def rollup_events(day_offset: int = 1) -> int:
+    """Fold one day's raw events into `events_daily` so trends survive retention pruning.
+
+    Idempotent: re-running for the same day replaces that day's counts."""
+    with cursor(commit=True) as cur:
+        cur.execute(
+            "insert into events_daily (day, name, country, n) "
+            "select (occurred_at at time zone 'utc')::date, name, coalesce(country, '??'), count(*) "
+            "from events "
+            "where (occurred_at at time zone 'utc')::date = (current_date - %s::int) "
+            "group by 1, 2, 3 "
+            "on conflict (day, name, country) do update set n = excluded.n",
+            (day_offset,),
+        )
+        return cur.rowcount
+
+
+def prune_events(days: int = 180) -> int:
+    """Delete raw events older than `days`. Daily rollups are kept indefinitely."""
+    with cursor(commit=True) as cur:
+        cur.execute("delete from events where occurred_at < now() - (%s || ' days')::interval",
+                    (int(days),))
         return cur.rowcount
 
 

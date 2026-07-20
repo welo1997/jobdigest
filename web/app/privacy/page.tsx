@@ -9,7 +9,7 @@ export default function Privacy() {
       <Nav />
       <main>
         <div className="wrap page-head">
-          <span className="label">Effective 18 July 2026</span>
+          <span className="label">Effective 20 July 2026</span>
           <h1>Privacy Policy</h1>
           <p>How JobDigest collects, uses, and protects your data. Plain language, no surprises.</p>
         </div>
@@ -29,6 +29,8 @@ export default function Privacy() {
             <li><b>CV-derived signals</b> — if you upload a CV (optional), see section 4.</li>
             <li><b>Delivery records</b> — which jobs we&apos;ve already emailed you, so we never send
               the same posting twice, plus timestamps of sends and confirmation.</li>
+            <li><b>Anonymous usage statistics</b> — which pages are viewed and which steps of the
+              signup form are reached or fail, so we can fix what&apos;s confusing. See section 6.</li>
           </ul>
           <p>We do <b>not</b> collect names, phone numbers, payment details, or track you across other
             websites. We do not buy or sell personal data.</p>
@@ -38,6 +40,12 @@ export default function Privacy() {
             confirm your subscription) to send you the daily job digest and the transactional emails
             required to manage it. You can withdraw consent at any time by unsubscribing — one click,
             from any email — which stops all sending immediately.</p>
+          <p>The anonymous usage statistics in section 6 are processed on the basis of our
+            <b> legitimate interest</b> (Art. 6(1)(f) GDPR) in understanding which parts of our own
+            website are confusing or broken, so we can improve them. Because these statistics use no
+            cookies, no IP addresses and no cross-site tracking, the impact on your privacy is minimal
+            — but you can object at any time (section 8), and we honour your browser&apos;s
+            &quot;Do Not Track&quot; and Global Privacy Control settings automatically.</p>
 
           <h2>4. Your CV — parse &amp; discard</h2>
           <p>If you choose to upload a CV, we read it <b>once, in memory</b>, to detect relevant skills
@@ -52,18 +60,39 @@ export default function Privacy() {
           <ul>
             <li><b>Hetzner</b> (Germany) — server hosting and database.</li>
             <li><b>Resend</b> (EU region) — sending our emails.</li>
-            <li><b>Cloudflare</b> — DNS, HTTPS, and bot protection (Turnstile) for the website.</li>
+            <li><b>Cloudflare</b> — DNS, HTTPS, bot protection (Turnstile), and cookieless
+              aggregate page-view analytics for the website.</li>
           </ul>
 
-          <h2>6. Cookies &amp; similar</h2>
-          <p>The site sets no advertising or analytics cookies. Cloudflare Turnstile (our
+          <h2>6. Cookies &amp; usage statistics</h2>
+          <p>The site sets <b>no advertising or analytics cookies</b>. Cloudflare Turnstile (our
             no-CAPTCHA bot check) may set a strictly necessary token to verify you&apos;re human when
-            you sign up. That&apos;s it.</p>
+            you sign up.</p>
+          <p>To improve the site we record a small number of anonymous events — for example
+            &quot;landing page viewed&quot;, &quot;signup form started&quot;, or &quot;CV upload
+            failed&quot;. This is done <b>without cookies</b>, and specifically:</p>
+          <ul>
+            <li>We <b>never store your IP address</b> — not in raw form, and not hashed. The only
+              location we keep is your <b>country</b>.</li>
+            <li>We store a coarse browser family (e.g. &quot;firefox&quot;), never the full
+              browser fingerprint or user-agent string.</li>
+            <li>Events are grouped by a random identifier that lives only in your browser tab and is
+              <b> erased when you close it</b>. It cannot link your visits together or follow you to
+              any other site.</li>
+            <li>No CV content, email address, or anything you type is ever included.</li>
+            <li>If your browser sends &quot;Do Not Track&quot; or Global Privacy Control, we record
+              nothing at all.</li>
+          </ul>
+          <p>We also use <b>Cloudflare Web Analytics</b> for aggregate page-view counts. It is
+            cookieless by design and collects no personal data or cross-site identifiers.</p>
 
           <h2>7. How long we keep it</h2>
           <p>We keep your subscription data for as long as you&apos;re subscribed. When you
             unsubscribe, we remove your active profile and retain only your email address on a
             suppression list — the minimum needed to make sure we never email you again.</p>
+          <p>Anonymous usage events (section 6) are deleted after <b>180 days</b>. Before deletion they
+            are reduced to daily totals — for example &quot;42 signup forms started on 3 March&quot; —
+            which contain no individual records at all.</p>
 
           <h2>8. Your rights</h2>
           <p>Under the GDPR you have the right to access, correct, delete, restrict, or port your data,

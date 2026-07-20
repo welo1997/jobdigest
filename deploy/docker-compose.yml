@@ -45,6 +45,7 @@ services:
       dockerfile: Dockerfile
       args:
         NEXT_PUBLIC_TURNSTILE_SITE_KEY: ${NEXT_PUBLIC_TURNSTILE_SITE_KEY:-}
+        NEXT_PUBLIC_CF_BEACON_TOKEN: ${NEXT_PUBLIC_CF_BEACON_TOKEN:-}
     restart: unless-stopped
     environment:
       SITE_DOMAIN: ${SITE_DOMAIN:-localhost}

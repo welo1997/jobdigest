@@ -14,6 +14,7 @@ there is never a password.
     GET  /unsubscribe        human one-click unsubscribe (HTML page)
     POST /unsubscribe        RFC 8058 one-click (List-Unsubscribe-Post from mail clients)
     POST /cv/parse           multipart CV -> derived signals JSON (file discarded)
+    POST /event              cookieless first-party analytics event (whitelisted names)
 
 Bot protection: every mutating public entry point (subscribe, cv/parse) verifies a
 Cloudflare Turnstile token. If TURNSTILE_SECRET is unset (local dev) verification is
@@ -34,7 +35,7 @@ from contextlib import asynccontextmanager
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
-from fastapi import FastAPI, Form, HTTPException, UploadFile
+from fastapi import FastAPI, Form, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, EmailStr, Field
@@ -406,3 +407,100 @@ async def cv_parse(file: UploadFile, cf_turnstile_token: Optional[str] = Form(No
     finally:
         del data                        # drop the raw bytes promptly
     return {"ok": True, "signals": signals}
+
+
+# --------------------------------------------------------------- analytics -----
+# First-party, cookieless product analytics. Exists to answer "where does the signup flow
+# lose people", nothing more. See migration_005_events.sql for the privacy rationale and
+# web/lib/analytics.ts for the client half.
+
+# Strict whitelist: an unknown name is dropped, so a hostile client can't invent event
+# types or use this table as free storage.
+EVENT_NAMES = {
+    "landing_view",         # someone loaded the landing page
+    "form_started",         # first interaction with the signup form
+    "cv_upload_attempted",  # a file was chosen
+    "cv_parse_ok",          # parse succeeded (props: {"skills": <int count>})
+    "cv_parse_failed",      # parse failed  (props: {"reason": "<enum>"}) — the key UX signal
+    "turnstile_failed",     # bot check rejected a (probably real) person
+    "subscribe_submitted",  # signup POST issued
+    "subscribe_ok",         # signup accepted
+    "subscribe_error",      # signup rejected (props: {"status": <int>})
+    "confirm_clicked",      # double opt-in link followed
+    "preferences_viewed",
+    "preferences_saved",
+    "matches_viewed",
+    "match_clicked",
+}
+
+# Only these keys may appear in props, and values are coerced to short scalars — this is
+# what keeps CV text, emails and search terms out of the table by construction.
+EVENT_PROP_KEYS = {"reason", "status", "skills", "count", "variant", "step"}
+
+_BROWSERS = (("edg", "edge"), ("chrome", "chrome"), ("safari", "safari"),
+             ("firefox", "firefox"))
+
+
+def _browser_family(ua: str) -> str:
+    """Coarse family only — we never store the raw user-agent string."""
+    ua = (ua or "").lower()
+    for needle, family in _BROWSERS:
+        if needle in ua:
+            # Chrome's UA contains "safari"; edge's contains "chrome". Order above handles it.
+            return family
+    return "other"
+
+
+def _clean_props(props: Optional[dict]) -> dict:
+    out: dict = {}
+    for k, v in (props or {}).items():
+        if k not in EVENT_PROP_KEYS:
+            continue
+        if isinstance(v, bool) or isinstance(v, int):
+            out[k] = v
+        elif isinstance(v, str):
+            out[k] = v[:64]                      # short enum-ish strings only
+    return out
+
+
+class EventIn(BaseModel):
+    name: str
+    session_id: Optional[str] = Field(None, max_length=64)
+    path: Optional[str] = Field(None, max_length=200)
+    props: Optional[dict] = None
+    token: Optional[str] = None      # manage token, only sent from authenticated pages
+
+
+@app.post("/event")
+async def event(body: EventIn, request: Request) -> dict:
+    """Record one analytics event. Always returns {"ok": true} — analytics must never
+    surface an error into a user flow, and a silent response gives a hostile client no
+    signal about what was accepted.
+
+    Country comes from Cloudflare's edge header; the IP itself is never read or stored.
+    """
+    if body.name not in EVENT_NAMES:
+        return {"ok": True}                       # unknown event: silently ignored
+
+    # A manage token identifies a subscriber on their own pages. Resolve it to a profile_id
+    # so engagement can be analysed; the token itself is never stored on the event.
+    profile_id = None
+    if body.token:
+        prof = store.get_by_manage_token(body.token)
+        profile_id = str(prof["id"]) if prof else None
+
+    path = (body.path or "").split("?")[0][:200] or None   # drop any query string
+    country = (request.headers.get("cf-ipcountry") or "")[:2].upper() or None
+    if country in {"XX", "T1"}:                    # CF's unknown / Tor placeholders
+        country = None
+
+    store.record_event(
+        body.name,
+        session_id=body.session_id,
+        path=path,
+        country=country,
+        browser=_browser_family(request.headers.get("user-agent", "")),
+        props=_clean_props(body.props),
+        profile_id=profile_id,
+    )
+    return {"ok": True}

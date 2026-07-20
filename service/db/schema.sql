@@ -136,3 +136,35 @@ create table if not exists matches (
 );
 
 create index if not exists idx_matches_profile_status on matches (profile_id, status, score desc);
+
+-- ---------------------------------------------------------------------------
+-- events: first-party, cookieless product analytics (migration 005).
+-- Privacy-minimal by design so the site needs no consent banner: no cookies, no IP
+-- (raw or hashed), country only, coarse browser family, no user free text. session_id
+-- lives in sessionStorage and dies with the tab. See migration_005_events.sql for the
+-- full rationale; retention is handled by service.pipeline.
+-- ---------------------------------------------------------------------------
+create table if not exists events (
+    id          bigserial primary key,
+    name        text not null,
+    occurred_at timestamptz not null default now(),
+    session_id  text,
+    path        text,
+    country     varchar(2),
+    browser     text,
+    props       jsonb not null default '{}'::jsonb,
+    profile_id  uuid references profiles(id) on delete set null
+);
+
+create index if not exists idx_events_name_time on events (name, occurred_at desc);
+create index if not exists idx_events_time      on events (occurred_at);
+create index if not exists idx_events_session   on events (session_id) where session_id is not null;
+
+-- Daily rollup — outlives raw-row retention so long-run trends survive pruning.
+create table if not exists events_daily (
+    day     date not null,
+    name    text not null,
+    country varchar(2),
+    n       int  not null,
+    primary key (day, name, country)
+);

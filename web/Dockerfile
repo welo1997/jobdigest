@@ -13,6 +13,10 @@ ENV NEXT_PUBLIC_API_URL=/api
 # Turnstile site key is public and baked at build time (empty = widget disabled in dev).
 ARG NEXT_PUBLIC_TURNSTILE_SITE_KEY=""
 ENV NEXT_PUBLIC_TURNSTILE_SITE_KEY=${NEXT_PUBLIC_TURNSTILE_SITE_KEY}
+# Cloudflare Web Analytics beacon. Empty = no beacon tag is emitted at all, so a build
+# without the token makes zero third-party requests.
+ARG NEXT_PUBLIC_CF_BEACON_TOKEN=""
+ENV NEXT_PUBLIC_CF_BEACON_TOKEN=${NEXT_PUBLIC_CF_BEACON_TOKEN}
 RUN npm run build
 
 # ---- serve ----

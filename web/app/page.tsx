@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Nav, Footer } from "@/components/SiteChrome";
@@ -9,6 +9,7 @@ import Turnstile, { turnstileEnabled, TurnstileHandle } from "@/components/Turns
 import { useToast } from "@/components/useToast";
 import { cap } from "@/lib/preview";
 import { CVSignals, parseCV, subscribe, SubscribePayload } from "@/lib/api";
+import { track } from "@/lib/analytics";
 
 const ROLE_OPTS = ["Product Manager", "Marketing", "Data Analyst", "Designer", "Software Engineer", "Data Engineer", "DevOps", "Finance"];
 const SKILL_OPTS = ["SQL", "Figma", "Analytics", "Excel", "Python", "SEO", "Looker", "Roadmapping", "Power BI", "dbt"];
@@ -66,6 +67,21 @@ export default function Landing() {
   const [tsToken, setTsToken] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
   const tsRef = useRef<TurnstileHandle>(null);
+  const startedRef = useRef(false);
+
+  // --- analytics: funnel entry + first real interaction ---
+  // landing_view fires once per mount; form_started fires the first time someone moves past
+  // step 0. The gap between the two is the "looked but didn't engage" drop-off.
+  useEffect(() => {
+    track("landing_view");
+  }, []);
+
+  useEffect(() => {
+    if (step > 0 && !startedRef.current) {
+      startedRef.current = true;
+      track("form_started", { step: String(step) });
+    }
+  }, [step]);
 
   // --- set helpers (immutable so React re-renders) ---
   const toggleIn = (set: Set<string>, v: string, setter: (s: Set<string>) => void) => {
@@ -97,8 +113,17 @@ export default function Landing() {
   // --- CV upload -> POST /cv/parse -> prefill ---
   const onCVFile = async (file?: File | null) => {
     if (!file) return;
-    if (!/\.(pdf|docx)$/i.test(file.name)) return show("Please upload a PDF or DOCX file");
-    if (file.size > 8 * 1024 * 1024) return show("That file is too large (max 8 MB)");
+    track("cv_upload_attempted");
+    // Client-side rejections are counted separately from server parse failures — a spike in
+    // "wrong_type" means the upload affordance is unclear, not that parsing is broken.
+    if (!/\.(pdf|docx)$/i.test(file.name)) {
+      track("cv_parse_failed", { reason: "wrong_type" });
+      return show("Please upload a PDF or DOCX file");
+    }
+    if (file.size > 8 * 1024 * 1024) {
+      track("cv_parse_failed", { reason: "too_large" });
+      return show("That file is too large (max 8 MB)");
+    }
     setCvBusy(true);
     try {
       const sig = await parseCV(file, tsToken || undefined);
@@ -124,8 +149,12 @@ export default function Landing() {
       setSkills(nextSkills);
       setCvSignals(sig);
       setCvName(file.name);
+      // Skill count, not the skills themselves — "parsed but found nothing" is a distinct
+      // and important failure mode (e.g. scanned PDFs) that still returns HTTP 200.
+      track("cv_parse_ok", { skills: sig.skills.length });
       show("CV read — we prefilled your profile");
     } catch (e) {
+      track("cv_parse_failed", { reason: "server_rejected" });
       show(e instanceof Error ? e.message : "Couldn't read that file");
     } finally {
       setCvBusy(false);
@@ -163,12 +192,19 @@ export default function Landing() {
   const submit = async () => {
     if (!consent) return show("Please accept the privacy policy first");
     if (!email.trim().includes("@")) return show("Enter a valid email");
-    if (turnstileEnabled && !tsToken) return show("Please complete the verification");
+    // A real person blocked by the bot check is a UX failure worth seeing, not just a stat.
+    if (turnstileEnabled && !tsToken) {
+      track("turnstile_failed");
+      return show("Please complete the verification");
+    }
     setSubmitting(true);
+    track("subscribe_submitted", { skills: skills.size });
     try {
       await subscribe(buildPayload());
+      track("subscribe_ok");
       router.push(`/check-inbox/?email=${encodeURIComponent(email.trim())}`);
     } catch (e) {
+      track("subscribe_error");
       // Turnstile tokens are single-use — mint a fresh one so the retry isn't rejected as duplicate.
       tsRef.current?.reset();
       show(e instanceof Error ? e.message : "Something went wrong — please retry");

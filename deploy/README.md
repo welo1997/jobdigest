@@ -110,6 +110,50 @@ The daily pipeline prunes automatically (`service/pipeline.py`); no setup needed
 Tune with `RETENTION_DESC_DAYS` / `RETENTION_MATCH_DAYS` in `.env`; skip with
 `docker compose run --rm pipeline python -m service.pipeline --no-prune`.
 
+### Analytics (UI/UX)
+Two independent layers, both cookieless and consent-banner-free:
+
+**1. Cloudflare Web Analytics** — aggregate traffic, referrers, top pages, Core Web Vitals.
+Cloudflare dash → Analytics → Web Analytics → add `jobdigest.eu` → copy the token into
+`NEXT_PUBLIC_CF_BEACON_TOKEN` in `.env`, then rebuild the web image. Leave the token empty
+and no beacon tag is emitted at all — the build makes zero third-party requests.
+The CSP in `web/Caddyfile` already allows `static.cloudflareinsights.com` (script) and
+`cloudflareinsights.com` (beacon POST); without both the beacon is silently blocked and
+analytics look "enabled but empty".
+
+**2. First-party funnel events** (`events` table) — answers what Cloudflare can't: where
+people abandon the signup form, and how often CV parsing fails. `POST /api/event` accepts
+only whitelisted event names (`service/webapp.py:EVENT_NAMES`) and whitelisted prop keys,
+so a hostile client can't invent event types or use the table as storage.
+
+Apply the schema on an existing DB:
+```bash
+docker compose exec -T db psql -U jobmatch -d jobmatch < ../service/db/migration_005_events.sql
+```
+
+Privacy design (this is what keeps the site consent-free — don't weaken it casually):
+no cookies; **no IP stored, raw or hashed**; country only (from `CF-IPCountry`); coarse
+browser family, never the user-agent; session id lives in `sessionStorage` and dies with
+the tab; Do Not Track and Global Privacy Control are honoured client-side. Raw events are
+rolled up into `events_daily` then deleted after `RETENTION_EVENT_DAYS` (180) — the rollups
+are kept, so trends outlive the raw rows.
+
+**Add a Cloudflare rate-limit rule on `/api/event`** (e.g. 60 req/min per IP) alongside the
+existing `/api/subscribe` and `/api/cv/parse` rules — it's an unauthenticated write endpoint.
+
+Useful queries (point Metabase at the same Postgres):
+```sql
+-- signup funnel, last 30 days
+select name, count(*) from events
+where occurred_at > now() - interval '30 days'
+  and name in ('landing_view','form_started','subscribe_submitted','subscribe_ok','confirm_clicked')
+group by 1 order by 2 desc;
+
+-- why CV uploads fail — the highest-value UX signal
+select props->>'reason' reason, count(*) from events
+where name = 'cv_parse_failed' group by 1 order by 2 desc;
+```
+
 ### Monitoring
 - **Uptime**: external ping on `https://$SITE_DOMAIN/api/health` (UptimeRobot / n8n).
 - **Errors**: pipeline failures → Telegram via n8n; `docker compose logs -f api`.

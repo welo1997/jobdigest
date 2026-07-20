@@ -9,7 +9,7 @@ export default function Terms() {
       <Nav />
       <main>
         <div className="wrap page-head">
-          <span className="label">Effective 18 July 2026</span>
+          <span className="label">Effective 20 July 2026</span>
           <h1>Terms of Service</h1>
           <p>The agreement between you and JobDigest. Please read it before subscribing.</p>
         </div>
@@ -38,6 +38,14 @@ export default function Terms() {
             redistribute its contents, not to use the service unlawfully, and not to attempt to disrupt
             or gain unauthorised access to it. We may pause or end a subscription that abuses the
             service or these Terms.</p>
+
+          <h2>4a. Improving the service</h2>
+          <p>We record anonymous, cookieless statistics about how the website is used — for example
+            which pages are viewed and where the signup form is abandoned — purely to find and fix
+            what&apos;s confusing or broken. This never includes your IP address, your CV content, or
+            anything that identifies you personally, and we honour your browser&apos;s
+            &quot;Do Not Track&quot; setting. Full detail, and how to object, is in our{" "}
+            <Link href="/privacy/">Privacy Policy</Link>.</p>
 
           <h2>5. Free service</h2>
           <p>JobDigest is currently free to use. We may introduce paid features in the future; if we
