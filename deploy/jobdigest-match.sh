@@ -30,11 +30,35 @@ case "${1:-}" in
     # Google Drive permits duplicate filenames, and the claude.ai routine writes a NEW
     # picks.json each run instead of overwriting — so copies accumulate. Collapse to the
     # newest before pulling, or rclone copyto would pick one non-deterministically.
-    rclone dedupe --dedupe-mode newest "$REMOTE" 2>/dev/null || true
-    rclone copyto "$REMOTE/picks.json" "$EX/picks.json"
+    # Errors are tolerated (|| true) but no longer hidden: `2>/dev/null` previously made a
+    # silently-failing dedupe indistinguishable from a successful one (seen 2026-07-20,
+    # where duplicates survived a service run but collapsed fine when run by hand).
+    rclone dedupe --dedupe-mode newest "$REMOTE" || echo "import: dedupe failed (continuing)" >&2
+
+    # Refuse to run on picks the routine hasn't refreshed. Without this, a routine that
+    # didn't run means yesterday's picks.json is silently re-imported — matches get
+    # re-dated and a digest can go out built from stale shortlists.
+    if ! rclone copyto "$REMOTE/picks.json" "$EX/picks.json"; then
+      echo "import: no picks.json on $REMOTE — routine has not run yet, nothing to do" >&2
+      exit 0
+    fi
+    age_h=$(( ( $(date +%s) - $(date -r "$EX/picks.json" +%s) ) / 3600 ))
+    if [ "$age_h" -gt "${JOBDIGEST_PICKS_MAX_AGE_H:-20}" ]; then
+      echo "import: picks.json is ${age_h}h old (> ${JOBDIGEST_PICKS_MAX_AGE_H:-20}h) — refusing to" \
+           "import stale picks. Check the claude.ai routine." >&2
+      exit 1
+    fi
+
     $COMPOSE run --rm pipeline python -m service.matcher --import /exchange/picks.json
     $COMPOSE run --rm pipeline python -m service.pipeline   # send digests from matches
-    echo "import: picks loaded + digests sent"
+
+    # Archive the consumed file so it can never be re-imported, and so duplicates cannot
+    # accumulate in the first place. This is what actually makes the dedupe above a
+    # belt-and-braces step rather than load-bearing.
+    stamp=$(date -u +%Y%m%d-%H%M%S)
+    rclone moveto "$REMOTE/picks.json" "$REMOTE/processed/picks-$stamp.json" \
+      || echo "import: could not archive picks.json (continuing)" >&2
+    echo "import: picks loaded + digests sent (archived as processed/picks-$stamp.json)"
     ;;
   *)
     echo "usage: $0 export|import" >&2
