@@ -9,7 +9,9 @@ on:
 env:
   SNOWFLAKE_ACCOUNT: ${{ secrets.SNOWFLAKE_ACCOUNT }}
   SNOWFLAKE_USER: ${{ secrets.SNOWFLAKE_USER }}
-  SNOWFLAKE_PASSWORD: ${{ secrets.SNOWFLAKE_PASSWORD }}
+  # No SNOWFLAKE_PASSWORD: the account requires MFA for password auth (account-wide
+  # policy), which a headless CI credential can never satisfy. SNOWFLAKE_PRIVATE_KEY_PATH
+  # is set below, after the "Write Snowflake key" step below writes the key to disk.
   SNOWFLAKE_DATABASE: JOB_MARKET
   SNOWFLAKE_WAREHOUSE: COMPUTE_WH
   # Least privilege: this pipeline only needs to read/write its own database. SYSADMIN can
@@ -41,6 +43,15 @@ jobs:
 
       - name: Install dependencies
         run: pip install -r requirements.txt
+
+      # Keypair auth needs a FILE, but the secret holds PEM content, not a path. Written to
+      # RUNNER_TEMP -- per-job, ephemeral, wiped when the runner is torn down; never a
+      # workflow artifact or cache entry, so it can't leak into a later run or a log.
+      - name: Write Snowflake private key
+        run: |
+          echo "${{ secrets.SNOWFLAKE_PRIVATE_KEY }}" > "$RUNNER_TEMP/snowflake_key.p8"
+          chmod 600 "$RUNNER_TEMP/snowflake_key.p8"
+          echo "SNOWFLAKE_PRIVATE_KEY_PATH=$RUNNER_TEMP/snowflake_key.p8" >> "$GITHUB_ENV"
 
       - name: Step 0 — Migrate schema (idempotent)
         run: python -m ingestion.migrate

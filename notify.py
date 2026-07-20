@@ -140,7 +140,11 @@ def get_snowflake_connection() -> snowflake.connector.SnowflakeConnection:
         user=os.environ["SNOWFLAKE_USER"],
         database=os.environ["SNOWFLAKE_DATABASE"],
         warehouse=os.environ["SNOWFLAKE_WAREHOUSE"],
-        role=os.environ.get("SNOWFLAKE_ROLE", "SYSADMIN"),
+        # No default: SYSADMIN silently used to be the fallback here, contradicting
+        # CLAUDE.md's own "no SYSADMIN" rule the moment this env var was unset. The safe
+        # default belongs in exactly one place (the CI workflow / .env), not duplicated as
+        # a magic string in every connection function that might forget to update it.
+        role=os.environ["SNOWFLAKE_ROLE"],
     )
     if key_path := os.environ.get("SNOWFLAKE_PRIVATE_KEY_PATH"):
         kwargs["private_key_file"] = os.path.expanduser(key_path)

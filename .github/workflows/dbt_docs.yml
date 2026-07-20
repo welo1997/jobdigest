@@ -8,10 +8,16 @@ on:
 env:
   SNOWFLAKE_ACCOUNT: ${{ secrets.SNOWFLAKE_ACCOUNT }}
   SNOWFLAKE_USER: ${{ secrets.SNOWFLAKE_USER }}
-  SNOWFLAKE_PASSWORD: ${{ secrets.SNOWFLAKE_PASSWORD }}
+  # No SNOWFLAKE_PASSWORD: the account requires MFA for password auth (account-wide
+  # policy), which a headless CI credential can never satisfy. Keypair is written to disk
+  # and SNOWFLAKE_PRIVATE_KEY_PATH set below (see "Write Snowflake private key").
   SNOWFLAKE_DATABASE: JOB_MARKET
   SNOWFLAKE_WAREHOUSE: COMPUTE_WH
-  SNOWFLAKE_ROLE: SYSADMIN
+  # This ran as SYSADMIN unconditionally, on a real weekly cron -- not caught when
+  # pipeline.yml was fixed, because this is a second, separate workflow. `dbt docs
+  # generate` only needs to read the already-built catalog; JOB_MARKET_ETL (SELECT on all
+  # tables/views) covers it, and it's the same identity pipeline.yml now uses.
+  SNOWFLAKE_ROLE: ${{ secrets.SNOWFLAKE_ROLE || 'JOB_MARKET_ETL' }}
 
 permissions:
   contents: write   # peaceiris/actions-gh-pages pushes to the gh-pages branch
@@ -31,6 +37,12 @@ jobs:
 
       - name: Install dependencies
         run: pip install -r requirements.txt
+
+      - name: Write Snowflake private key
+        run: |
+          echo "${{ secrets.SNOWFLAKE_PRIVATE_KEY }}" > "$RUNNER_TEMP/snowflake_key.p8"
+          chmod 600 "$RUNNER_TEMP/snowflake_key.p8"
+          echo "SNOWFLAKE_PRIVATE_KEY_PATH=$RUNNER_TEMP/snowflake_key.p8" >> "$GITHUB_ENV"
 
       - name: Generate dbt docs
         working-directory: dbt

@@ -48,14 +48,24 @@ WHEN NOT MATCHED THEN INSERT (
 
 
 def get_connection() -> snowflake.connector.SnowflakeConnection:
-    return snowflake.connector.connect(
+    kwargs = dict(
         account=os.environ["SNOWFLAKE_ACCOUNT"],
         user=os.environ["SNOWFLAKE_USER"],
-        password=os.environ["SNOWFLAKE_PASSWORD"],
         database=os.environ["SNOWFLAKE_DATABASE"],
         warehouse=os.environ["SNOWFLAKE_WAREHOUSE"],
-        role=os.environ.get("SNOWFLAKE_ROLE", "SYSADMIN"),
+        # No default: SYSADMIN silently used to be the fallback here, contradicting
+        # CLAUDE.md's own "no SYSADMIN" rule the moment this env var was unset. The safe
+        # default belongs in exactly one place (the CI workflow / .env), not duplicated as
+        # a magic string in every connection function that might forget to update it.
+        role=os.environ["SNOWFLAKE_ROLE"],
     )
+    # The account requires MFA for password auth (account-wide policy), which a headless
+    # credential can never satisfy -- keypair is the only viable CI/service auth here.
+    if key_path := os.environ.get("SNOWFLAKE_PRIVATE_KEY_PATH"):
+        kwargs["private_key_file"] = os.path.expanduser(key_path)
+    else:
+        kwargs["password"] = os.environ["SNOWFLAKE_PASSWORD"]
+    return snowflake.connector.connect(**kwargs)
 
 
 def _posting_to_row(p: JobPosting) -> dict:

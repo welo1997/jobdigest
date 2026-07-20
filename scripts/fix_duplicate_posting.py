@@ -24,7 +24,9 @@ def conn():
         private_key_file=os.path.expanduser(key_path),
         database=os.environ["SNOWFLAKE_DATABASE"],
         warehouse=os.environ["SNOWFLAKE_WAREHOUSE"],
-        role=os.environ.get("SNOWFLAKE_ROLE", "SYSADMIN"),
+        # No default: matches the pipeline connection functions -- the safe default
+        # belongs in .env, not duplicated as a magic string here.
+        role=os.environ["SNOWFLAKE_ROLE"],
     )
 
 
