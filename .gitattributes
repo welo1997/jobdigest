@@ -1,0 +1,10 @@
+# Shell scripts and systemd units run on Linux (the VPS). CRLF breaks them —
+# a script with CRLF fails at exec with "bad interpreter: /usr/bin/env bash^M",
+# and systemd silently mis-parses unit directives. Force LF regardless of platform.
+*.sh            text eol=lf
+*.service       text eol=lf
+*.timer         text eol=lf
+Dockerfile      text eol=lf
+*.Caddyfile     text eol=lf
+Caddyfile       text eol=lf
+*.sql           text eol=lf
