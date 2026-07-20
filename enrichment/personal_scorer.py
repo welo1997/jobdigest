@@ -75,7 +75,9 @@ def get_snowflake_connection() -> snowflake.connector.SnowflakeConnection:
         # a magic string in every connection function that might forget to update it.
         role=os.environ["SNOWFLAKE_ROLE"],
     )
-    if key_path := os.environ.get("SNOWFLAKE_PRIVATE_KEY_PATH"):
+    # Defaults to the project-standard local key path (matches dbt/profiles.yml's
+    # dev_local target) so this is usable interactively without CI's explicit env var.
+    if key_path := os.environ.get("SNOWFLAKE_PRIVATE_KEY_PATH", "~/.snowflake/rsa_key.p8"):
         kwargs["private_key_file"] = os.path.expanduser(key_path)
     else:
         kwargs["password"] = os.environ["SNOWFLAKE_PASSWORD"]
