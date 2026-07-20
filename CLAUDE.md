@@ -120,6 +120,18 @@ These are not style preferences. Breaking one has consequences outside this repo
    Dumps are encrypted before leaving the box and must never be written into the matcher's
    Drive folder — `jobdigest-backup.sh` enforces this.
 6. **Least privilege.** No SYSADMIN in CI; no root SSH; the API container runs non-root.
+   For Snowflake specifically: **a scoped role granted to a personal admin login does not
+   restrict anything.** Snowflake sessions carry secondary roles by default — the union of
+   every role the connecting user holds — so `role: JOB_MARKET_ETL` on a session
+   authenticated as an `ACCOUNTADMIN`-holding user still has `ACCOUNTADMIN`'s privileges.
+   Verified the hard way (2026-07-20): this let a "restricted" session run
+   `DROP DATABASE JOB_MARKET` for real. CI uses `JOB_MARKET_CI`, a dedicated user with no
+   other role and `DEFAULT_SECONDARY_ROLES = ()` — see README's "Snowflake least-privilege
+   role" for the full DDL and how to verify it's genuinely restricted (connect as the
+   service user itself, not an admin session with `role=` overridden).
+7. **Test the credential, not the grant statement.** `GRANT ... TO ROLE X; SHOW GRANTS TO
+   ROLE X` looking correct is not proof anything is restricted — see rule 6. Connect as the
+   actual identity that will be used and try the operation that should be refused.
 
 ---
 

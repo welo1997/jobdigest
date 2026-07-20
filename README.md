@@ -133,10 +133,24 @@ Filtering happens at the company level, never the role level — nothing is drop
 The analysis layer (`agg_*` models) is deliberately unbuilt. It gets designed after enough
 real data accumulates to show what is actually interesting, rather than guessed at upfront.
 
-### Snowflake least-privilege role
+### Snowflake least-privilege role — and the secondary-roles trap
 
-The pipeline needs its own database and nothing else. Run as `SECURITYADMIN` /`SYSADMIN`,
-then set the `SNOWFLAKE_ROLE` GitHub secret to `JOB_MARKET_ETL`:
+The pipeline authenticates as its own dedicated user (`JOB_MARKET_CI`), not a personal
+login wearing a restricted role. That distinction is load-bearing, not stylistic:
+
+**A role grant on your own admin user does not restrict CI.** Snowflake sessions carry a
+primary role *and*, by default, secondary roles — the union of every role the connecting
+user holds. If CI authenticates as a personal account that also holds `ACCOUNTADMIN` or
+`SYSADMIN`, specifying `role: JOB_MARKET_ETL` in the connector only sets the primary
+role; `current_role()` reports it correctly, but privilege checks still use the union, so
+the admin membership leaks straight through. Verified the hard way (2026-07-20): a role
+with only `USAGE`/`CREATE TABLE`/`CREATE VIEW`/DML grants was still able to run
+`DROP DATABASE` under exactly this setup, because the session testing it was authenticated
+as an `ACCOUNTADMIN`-holding personal login. The only durable fix is a user that holds
+**no other role**, so there is nothing for secondary roles to leak in from — plus
+`DEFAULT_SECONDARY_ROLES = ()` as defence-in-depth against that ever changing.
+
+Run the following as `SECURITYADMIN`/`SYSADMIN`/`ACCOUNTADMIN`:
 
 ```sql
 create role if not exists JOB_MARKET_ETL;
@@ -156,7 +170,32 @@ grant select, insert, update, delete on future tables in database JOB_MARKET to 
 grant select on all views    in database JOB_MARKET to role JOB_MARKET_ETL;
 grant select on future views in database JOB_MARKET to role JOB_MARKET_ETL;
 
-grant role JOB_MARKET_ETL to user <SERVICE_USER>;
+-- A dedicated user, not a personal login: no ACCOUNTADMIN/SYSADMIN membership, no
+-- password (the account requires MFA for password auth, which a headless credential can
+-- never satisfy — keypair only), and DEFAULT_SECONDARY_ROLES = () so this exact bug
+-- can't come back even if a second role is ever granted to it by mistake.
+create user if not exists JOB_MARKET_CI;
+alter user JOB_MARKET_CI set
+    rsa_public_key = '<paste the public key, base64, no PEM header/footer>',
+    default_role = JOB_MARKET_ETL,
+    default_warehouse = COMPUTE_WH,
+    default_secondary_roles = ();
+grant role JOB_MARKET_ETL to user JOB_MARKET_CI;
+```
+
+GitHub secrets: `SNOWFLAKE_USER=JOB_MARKET_CI`, `SNOWFLAKE_ROLE=JOB_MARKET_ETL`,
+`SNOWFLAKE_PRIVATE_KEY` = the matching private key (PEM). No `SNOWFLAKE_PASSWORD` — the
+workflow writes the key secret to a runner-temp file and points
+`SNOWFLAKE_PRIVATE_KEY_PATH` at it (see `.github/workflows/pipeline.yml`).
+
+Verify the identity is actually restricted — not just that the grants look right on
+paper — by connecting **as the service user, with its own credential**, not as an admin
+session with `role=` overridden:
+
+```sql
+-- as JOB_MARKET_CI:
+select current_role(), current_secondary_roles();  -- roles must be empty
+drop database JOB_MARKET;                          -- must be refused
 ```
 
 ---
