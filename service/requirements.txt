@@ -1,0 +1,11 @@
+# Service backend (Phase 1). Layers on top of the repo-root requirements.txt
+# which already pins feedparser / requests / beautifulsoup4 / anthropic for ingestion.
+fastapi==0.115.6
+uvicorn[standard]==0.34.0
+psycopg2-binary==2.9.10
+pydantic==2.10.4
+email-validator==2.2.0     # pydantic EmailStr (public /subscribe)
+python-multipart==0.0.32   # FastAPI UploadFile / Form (CV upload, one-click unsub)
+# CV parsing (parse & discard) — read PDF/DOCX in memory, keep only derived signals.
+pypdf==5.1.0
+python-docx==1.1.2

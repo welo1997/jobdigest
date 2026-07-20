@@ -1,0 +1,12 @@
+# Back up every night at 03:30 — well clear of the 07:00 digest run.
+[Unit]
+Description=Run JobDigest Postgres backup nightly
+
+[Timer]
+OnCalendar=*-*-* 03:30:00
+Persistent=true
+RandomizedDelaySec=300
+Unit=jobdigest-backup.service
+
+[Install]
+WantedBy=timers.target

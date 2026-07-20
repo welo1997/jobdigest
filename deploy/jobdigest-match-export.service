@@ -1,0 +1,17 @@
+# JobDigest matcher — Phase 1: ingest + export shortlists.json to Google Drive.
+# Install (once):
+#   sudo cp deploy/jobdigest-match-*.{service,timer} /etc/systemd/system/
+#   sudo chmod +x deploy/jobdigest-match.sh
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now jobdigest-match-export.timer jobdigest-match-import.timer
+# Requires: rclone configured with a remote (default gdrive:JobDigest) — see matcher-routine.md.
+[Unit]
+Description=JobDigest matcher export (ingest + shortlists -> Drive)
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/jobdigest/deploy
+# Override the Drive remote with: Environment=JOBDIGEST_GDRIVE_REMOTE=gdrive:YourFolder
+ExecStart=/opt/jobdigest/deploy/jobdigest-match.sh export

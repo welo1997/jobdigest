@@ -1,0 +1,12 @@
+# Phase 2 fires at 07:00 UTC — after the claude.ai routine (~06:00) has written picks.json.
+# Supersedes the old single jobdigest-pipeline.timer (which sent without AI matching).
+[Unit]
+Description=JobDigest matcher import + send daily at 07:00
+
+[Timer]
+OnCalendar=*-*-* 07:00:00
+Persistent=true
+Unit=jobdigest-match-import.service
+
+[Install]
+WantedBy=timers.target

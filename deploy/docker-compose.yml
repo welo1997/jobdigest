@@ -1,0 +1,104 @@
+# JobDigest production stack. Run from deploy/:  docker compose up -d --build
+# Secrets come from deploy/.env (copy from .env.example). Nothing is published except the
+# Caddy edge (:80/:443); the API and DB are only reachable inside the compose network.
+
+name: jobdigest
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: jobmatch
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: jobmatch
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      # Seeds the full current schema on first boot (idempotent create-if-not-exists).
+      - ../service/db/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U jobmatch -d jobmatch"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  api:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql://jobmatch:${POSTGRES_PASSWORD}@db:5432/jobmatch
+      # Public bases for email links (Caddy serves the API under /api).
+      SITE_URL: https://${SITE_DOMAIN}
+      API_PUBLIC_URL: https://${SITE_DOMAIN}/api
+    depends_on:
+      db:
+        condition: service_healthy
+    expose:
+      - "8000"
+
+  web:
+    build:
+      context: ../web
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_TURNSTILE_SITE_KEY: ${NEXT_PUBLIC_TURNSTILE_SITE_KEY:-}
+    restart: unless-stopped
+    environment:
+      SITE_DOMAIN: ${SITE_DOMAIN:-localhost}
+      ACME_EMAIL: ${ACME_EMAIL:-admin@example.com}
+      API_UPSTREAM: api:8000
+    depends_on:
+      - api
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - caddy_data:/data
+      - caddy_config:/config
+
+  # Daily pipeline as a one-shot (run by host cron / systemd timer / n8n — see README).
+  # `docker compose run --rm pipeline` builds today's digests and sends them.
+  pipeline:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    profiles: ["manual"]
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql://jobmatch:${POSTGRES_PASSWORD}@db:5432/jobmatch
+      SITE_URL: https://${SITE_DOMAIN}
+      API_PUBLIC_URL: https://${SITE_DOMAIN}/api
+    volumes:
+      # File exchange for the no-API matcher: export writes shortlists.json here, import
+      # reads picks.json. The host copies these to/from Google Drive (see matcher-routine.md).
+      - ../exchange:/exchange
+    depends_on:
+      db:
+        condition: service_healthy
+    command: ["python", "-m", "service.pipeline"]
+
+  # Optional: automation/cron + Telegram alerts (you already run n8n locally). Enable with
+  # `docker compose --profile automation up -d`. Reachable only via the compose network unless
+  # you add a Caddy route; keep it private.
+  n8n:
+    image: n8nio/n8n:latest
+    profiles: ["automation"]
+    restart: unless-stopped
+    environment:
+      N8N_HOST: ${SITE_DOMAIN:-localhost}
+      GENERIC_TIMEZONE: ${TZ:-Europe/Prague}
+      N8N_BASIC_AUTH_ACTIVE: "true"
+      N8N_BASIC_AUTH_USER: ${N8N_USER:-admin}
+      # Set N8N_PASSWORD in .env before enabling the automation profile.
+      N8N_BASIC_AUTH_PASSWORD: ${N8N_PASSWORD:-change-me-before-enabling-n8n}
+    volumes:
+      - n8n_data:/home/node/.n8n
+
+volumes:
+  pgdata:
+  caddy_data:
+  caddy_config:
+  n8n_data:

@@ -1,0 +1,12 @@
+# Phase 1 fires at 05:00 UTC. The claude.ai routine should run ~06:00 (cron min 1h),
+# leaving Phase 2 (import + send) at 07:00 to pick up the routine's picks.json.
+[Unit]
+Description=JobDigest matcher export daily at 05:00
+
+[Timer]
+OnCalendar=*-*-* 05:00:00
+Persistent=true
+Unit=jobdigest-match-export.service
+
+[Install]
+WantedBy=timers.target

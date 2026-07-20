@@ -1,0 +1,11 @@
+# Fire the digest pipeline every morning at 07:00 local time.
+[Unit]
+Description=Run JobDigest pipeline daily at 07:00
+
+[Timer]
+OnCalendar=*-*-* 07:00:00
+Persistent=true
+Unit=jobdigest-pipeline.service
+
+[Install]
+WantedBy=timers.target

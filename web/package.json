@@ -1,0 +1,23 @@
+{
+  "name": "jobdigest-web",
+  "version": "1.0.0",
+  "private": true,
+  "description": "JobDigest — public landing + self-service (Direction A). Talks to service/webapp.py.",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint"
+  },
+  "dependencies": {
+    "next": "^15.5.20",
+    "react": "19.0.0",
+    "react-dom": "19.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "22.10.7",
+    "@types/react": "19.0.7",
+    "@types/react-dom": "19.0.3",
+    "typescript": "5.7.3"
+  }
+}

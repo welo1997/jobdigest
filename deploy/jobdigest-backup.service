@@ -1,0 +1,18 @@
+# Nightly Postgres backup. Install:
+#   sudo cp deploy/jobdigest-backup.* /etc/systemd/system/
+#   sudo install -m 755 deploy/jobdigest-backup.sh /usr/local/bin/jobdigest-backup.sh
+#   sudo systemctl daemon-reload && sudo systemctl enable --now jobdigest-backup.timer
+# Off-box copies: set JOBDIGEST_BACKUP_REMOTE below to an rclone remote.
+[Unit]
+Description=JobDigest Postgres backup (pg_dump -Fc, rotated)
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/jobdigest/deploy
+# Uncomment and point at your rclone remote so backups survive losing the VPS:
+# Environment=JOBDIGEST_BACKUP_REMOTE=gdrive:JobDigest/backups
+Environment=JOBDIGEST_BACKUP_DIR=/var/backups/jobdigest
+Environment=JOBDIGEST_BACKUP_KEEP_DAYS=30
+ExecStart=/usr/local/bin/jobdigest-backup.sh backup

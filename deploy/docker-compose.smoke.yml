@@ -1,0 +1,8 @@
+# Local smoke-test override: serve plain HTTP on an alt port, no ACME, isolated DB.
+# Usage: docker compose -f docker-compose.yml -f docker-compose.smoke.yml up -d db api web
+services:
+  web:
+    environment:
+      SITE_DOMAIN: "http://localhost"
+    ports: !override
+      - "8085:80"

@@ -1,0 +1,12 @@
+# JobDigest matcher — Phase 2: pull picks.json from Drive, load into matches, send digests.
+# Installed together with jobdigest-match-export.* (see that file's header).
+[Unit]
+Description=JobDigest matcher import (Drive picks -> matches -> send)
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/jobdigest/deploy
+# Override the Drive remote with: Environment=JOBDIGEST_GDRIVE_REMOTE=gdrive:YourFolder
+ExecStart=/opt/jobdigest/deploy/jobdigest-match.sh import

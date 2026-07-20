@@ -1,0 +1,14 @@
+# Daily digest run (systemd timer fallback for cron). Install:
+#   sudo cp deploy/jobdigest-pipeline.* /etc/systemd/system/
+#   edit WorkingDirectory below to the repo's deploy/ path, then:
+#   sudo systemctl daemon-reload && sudo systemctl enable --now jobdigest-pipeline.timer
+[Unit]
+Description=JobDigest daily digest pipeline
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/jobdigest/deploy
+# Builds today's digests from existing postings and sends them (dedup + not-twice-a-day).
+ExecStart=/usr/bin/docker compose run --rm pipeline

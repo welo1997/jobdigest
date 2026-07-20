@@ -1,0 +1,10 @@
+# Backend image deps = public API + daily pipeline (digest send + optional ingest).
+# Deliberately excludes the market-intelligence stack (snowflake, dbt, telegram) from the
+# repo-root requirements.txt — the JobDigest container never touches Snowflake.
+-r requirements.txt
+# ingest sources (service.pipeline --ingest -> search_jobs -> ingestion/*)
+feedparser==6.0.11
+requests==2.32.3
+beautifulsoup4==4.13.4
+# AI matcher (service.pipeline --match -> service.matcher -> Claude)
+anthropic==0.96.0
