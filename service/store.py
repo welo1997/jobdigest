@@ -636,6 +636,33 @@ def mark_digest_sent(profile_id: str) -> None:
         cur.execute("update profiles set last_digest_at = now() where id = %s", (profile_id,))
 
 
+def prune_unsubscribed(days: int = 30) -> int:
+    """Delete profiles unsubscribed more than `days` ago. Returns rows removed.
+
+    This is what makes the privacy policy's "your profile is deleted within 30 days" true —
+    `unsubscribe()` only stops the sending, it deliberately leaves the row in place for a
+    window. `matches` and `digest_sends` cascade from the foreign key; `events.profile_id`
+    is set null, so analytics keep their shape without pointing at a person.
+
+    `suppression` is keyed on email in its own table and is NOT pruned: it is the
+    never-contact-again list and has to outlive the profile, otherwise deleting the profile
+    would quietly make the address eligible for signup emails again.
+
+    The delay is a safety property, not laziness. GET /unsubscribe acts on the request, so a
+    mail client or corporate link scanner that pre-fetches links can unsubscribe someone who
+    never clicked; a window keeps that recoverable instead of turning it into irreversible
+    data loss.
+    """
+    with cursor(commit=True) as cur:
+        cur.execute(
+            "delete from profiles where status = 'unsubscribed' "
+            "and unsubscribed_at is not null "
+            "and unsubscribed_at < now() - (%s || ' days')::interval",
+            (int(days),),
+        )
+        return cur.rowcount
+
+
 def add_suppression(email: str, reason: str) -> None:
     with cursor(commit=True) as cur:
         cur.execute("insert into suppression (email, reason) values (%s, %s) "

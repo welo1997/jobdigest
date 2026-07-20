@@ -49,20 +49,38 @@ export default function Privacy() {
 
           <h2>4. Your CV — parse &amp; discard</h2>
           <p>If you choose to upload a CV, we read it <b>once, in memory</b>, to detect relevant skills
-            and roles, and then <b>delete the file immediately</b>. We never store the document itself.
-            Only the derived signals — for example &quot;knows dbt, Snowflake; ~4 years&apos;
-            experience&quot; — are saved, and only to set up better matches. Your CV content is never
-            shared with anyone.</p>
+            and roles, and then <b>delete the file immediately</b>. We never store the document itself,
+            and it is never sent to any third party. Only a short derived summary — for example
+            &quot;Detected: data engineering, dbt, Snowflake · ~4 yrs&quot; — is saved.</p>
+          <p>That summary is part of your matching profile, so it is processed by our matching provider
+            along with your other preferences (section 5). The document itself, and any detail in it we
+            did not summarise — employers, dates, contact details, anything you wrote — is gone the
+            moment the upload finishes and is never stored or transmitted anywhere.</p>
 
           <h2>5. Who processes your data</h2>
-          <p>We use a small number of EU-based service providers (processors) strictly to run the
-            service. Your data stays within the EU:</p>
+          <p>We use a small number of service providers (processors) strictly to run the service.
+            Your subscription and your email address are stored only in the EU:</p>
           <ul>
-            <li><b>Hetzner</b> (Germany) — server hosting and database.</li>
+            <li><b>Hetzner</b> (Germany) — server hosting and database. This is where your
+              subscription lives.</li>
             <li><b>Resend</b> (EU region) — sending our emails.</li>
             <li><b>Cloudflare</b> — DNS, HTTPS, bot protection (Turnstile), and cookieless
               aggregate page-view analytics for the website.</li>
           </ul>
+          <p>Choosing which jobs fit you is done by an AI matching step, and that step runs outside
+            the EU. Once a day we send it a file containing, for each subscriber:</p>
+          <ul>
+            <li>a random identifier — <b>not your email address, and not your name</b>;</li>
+            <li>your stated preferences (roles, skills, region, type of work);</li>
+            <li>your CV-derived summary line, if you uploaded one (section 4);</li>
+            <li>the public job listings we are asking it to rank.</li>
+          </ul>
+          <p>That file is transferred via <b>Google Drive</b> (Google Ireland Ltd / Google LLC) and read
+            by <b>Anthropic</b> (Claude), both of which may process it in the United States. Transfers
+            rely on the European Commission&apos;s Standard Contractual Clauses and the EU–US Data
+            Privacy Framework. The file deliberately contains <b>no email addresses</b>, so it cannot
+            by itself identify you; your address never leaves our EU database. The results come back as
+            a list of job matches against that same random identifier.</p>
 
           <h2>6. Cookies &amp; usage statistics</h2>
           <p>The site sets <b>no advertising or analytics cookies</b>. Cloudflare Turnstile (our
@@ -88,8 +106,15 @@ export default function Privacy() {
 
           <h2>7. How long we keep it</h2>
           <p>We keep your subscription data for as long as you&apos;re subscribed. When you
-            unsubscribe, we remove your active profile and retain only your email address on a
-            suppression list — the minimum needed to make sure we never email you again.</p>
+            unsubscribe, sending stops <b>immediately</b>. Your profile — preferences, CV summary,
+            match history — is then <b>deleted within 30 days</b>. We keep only your email address on a
+            suppression list, indefinitely: it is the minimum needed to guarantee we never email you
+            again, and deleting it would defeat that.</p>
+          <p>The 30-day gap is deliberate rather than a delay for our benefit. Some email clients and
+            corporate security scanners follow links automatically, which can trigger an unsubscribe
+            you never clicked. The window means that is recoverable by mailing us, instead of silently
+            destroying your settings. If you would rather we erase everything right away, ask us and
+            we will (section 8).</p>
           <p>Anonymous usage events (section 6) are deleted after <b>180 days</b>. Before deletion they
             are reduced to daily totals — for example &quot;42 signup forms started on 3 March&quot; —
             which contain no individual records at all.</p>
@@ -104,8 +129,10 @@ export default function Privacy() {
 
           <h2>9. Security</h2>
           <p>All traffic is encrypted over HTTPS, management links use unguessable tokens rather than
-            passwords, and access to our systems is restricted. No system is perfectly secure, but we
-            take reasonable measures to protect your data.</p>
+            passwords, and access to our systems is restricted. We hold no passwords, so there is no
+            password database to breach. Database backups are encrypted before they leave the server,
+            so an off-site copy is useless without a key we hold separately. No system is perfectly
+            secure, but we take reasonable measures to protect your data.</p>
 
           <h2>10. Changes</h2>
           <p>If we materially change this policy we&apos;ll update the effective date above and, where

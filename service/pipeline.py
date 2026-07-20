@@ -36,6 +36,9 @@ RETENTION_DESC_DAYS = int(os.environ.get("RETENTION_DESC_DAYS", "90"))
 RETENTION_MATCH_DAYS = int(os.environ.get("RETENTION_MATCH_DAYS", "180"))
 # Raw analytics events. Rolled up to events_daily first, so pruning loses no trend data.
 RETENTION_EVENT_DAYS = int(os.environ.get("RETENTION_EVENT_DAYS", "180"))
+# Unsubscribed profiles. This one is a promise, not an optimisation: the privacy policy says
+# the profile is deleted within 30 days of unsubscribing. Suppression rows are kept forever.
+RETENTION_UNSUB_DAYS = int(os.environ.get("RETENTION_UNSUB_DAYS", "30"))
 
 
 def _is_due(profile: dict, now: datetime) -> bool:
@@ -70,11 +73,14 @@ def run(ingest: bool = False, cz: bool = False, match: bool = False,
         # retention window and the rollup ever meet.
         rolled = store.rollup_events()
         events = store.prune_events(RETENTION_EVENT_DAYS)
+        unsubbed = store.prune_unsubscribed(RETENTION_UNSUB_DAYS)
         logger.info("Retention: blanked %d description(s) >%dd inactive, "
                     "deleted %d stale match row(s) >%dd, "
-                    "rolled up %d event group(s), deleted %d raw event(s) >%dd",
+                    "rolled up %d event group(s), deleted %d raw event(s) >%dd, "
+                    "erased %d unsubscribed profile(s) >%dd",
                     descs, RETENTION_DESC_DAYS, stale_matches, RETENTION_MATCH_DAYS,
-                    rolled, events, RETENTION_EVENT_DAYS)
+                    rolled, events, RETENTION_EVENT_DAYS,
+                    unsubbed, RETENTION_UNSUB_DAYS)
 
     if match:
         from service.matcher import run as match_run
