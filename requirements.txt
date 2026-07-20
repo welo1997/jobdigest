@@ -1,12 +1,26 @@
 feedparser==6.0.11
-requests==2.32.3
+requests==2.34.2
 beautifulsoup4==4.13.4
+# snowflake-connector-python 3.14.0 blocks two CVE fixes at once, through two independent
+# constraints — checked by actually running `pip install --dry-run`, not just reading
+# version ranges off PyPI, after an initial pass here got it wrong by checking only one of
+# the two:
+#   - pyopenssl: capped <26.0.0, below the fix version (26.0.0) for PYSEC-2026-2268/2269.
+#   - cryptography: no direct ceiling, BUT snowflake-connector also pins cffi<2.0.0, and
+#     every cryptography release >=46.0.0 requires cffi>=2.0.0 — so no cryptography version
+#     that fixes PYSEC-2026-35/36/2141/GHSA-537c-gmf6-5ccf (all >=46.0.5) can install
+#     alongside it, regardless of what pyopenssl itself would allow.
+# Both are TLS-only, outbound to Snowflake's own endpoint — not attacker-reachable input —
+# so this is hygiene debt, not live exposure. snowflake-connector-python 4.x (4.7.1) drops
+# both ceilings, but it's a major version bump to the pipeline's core dependency and needs
+# its own pass against ingestion/load.py's MERGE + migrate.py's DDL before shipping, not a
+# drive-by inside a dependency sweep. Tracked in CLAUDE.md.
 snowflake-connector-python==3.14.0
-python-dotenv==1.1.0
+python-dotenv==1.2.2
 dbt-snowflake==1.9.2
 anthropic==0.52.0
 python-telegram-bot==21.11
-pytest==8.3.5
+pytest==9.0.3
 pytest-mock==3.14.0
-black==25.1.0
+black==26.3.1
 ruff==0.11.6

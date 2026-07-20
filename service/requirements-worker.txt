@@ -4,7 +4,10 @@
 -r requirements.txt
 # ingest sources (service.pipeline --ingest -> search_jobs -> ingestion/*)
 feedparser==6.0.11
-requests==2.32.3
+# 2.32.3 carried a .netrc credential-leak CVE (PYSEC-2026-1872/2275) triggered via a
+# malicious redirect target. We never use .netrc auth, so this was never reachable — bumped
+# as hygiene, not because it was exploitable here.
+requests==2.34.2
 beautifulsoup4==4.13.4
 # AI matcher (service.pipeline --match -> service.matcher -> Claude)
 anthropic==0.96.0

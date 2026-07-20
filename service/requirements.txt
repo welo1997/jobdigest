@@ -1,11 +1,20 @@
 # Service backend (Phase 1). Layers on top of the repo-root requirements.txt
 # which already pins feedparser / requests / beautifulsoup4 / anthropic for ingestion.
-fastapi==0.115.6
+fastapi==0.139.2
+# Pinned explicitly, not just left transitive: fastapi 0.115.6 floored starlette at 0.40.x,
+# which carried 9 CVEs (PYSEC-2026-1941/1942/2280/2281/161/248/249 among them) up to fix
+# version 1.3.1. fastapi>=0.135.0 has no starlette ceiling, so this pin is what actually
+# closes them rather than fastapi's own floor happening to be high enough.
+starlette==1.3.1
 uvicorn[standard]==0.34.0
 psycopg2-binary==2.9.10
 pydantic==2.10.4
 email-validator==2.2.0     # pydantic EmailStr (public /subscribe)
 python-multipart==0.0.32   # FastAPI UploadFile / Form (CV upload, one-click unsub)
 # CV parsing (parse & discard) — read PDF/DOCX in memory, keep only derived signals.
-pypdf==5.1.0
+# 5.1.0 carried 31 CVEs (pip-audit, 2026-07-20); 6.14.2 closes all of them. The 5->6 major
+# bump's only breaking change relevant to our usage (PdfReader / extract_text) is none —
+# see CHANGELOG 6.0.0 (Python 3.8 drop, FlateDecode decompression-size limiting). Covered
+# by service/tests/test_cvparse.py.
+pypdf==6.14.2
 python-docx==1.1.2
