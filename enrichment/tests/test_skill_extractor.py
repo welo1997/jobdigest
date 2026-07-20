@@ -156,3 +156,16 @@ def test_run_succeeds_when_only_some_postings_fail():
 def test_run_does_not_raise_when_there_is_nothing_to_do():
     # No untagged postings is a no-op, not an outage.
     _run_with([], extract_side_effect=Exception("should never be called"))
+
+
+def test_run_skips_cleanly_with_no_api_key():
+    """No key = enrichment runs via the claude.ai routine, not a failed run.
+
+    Must not raise and must not open a Snowflake connection -- the pipeline step has to
+    stay green, and cheaply, when the API path is deliberately switched off.
+    """
+    with patch("enrichment.skill_extractor.get_snowflake_connection") as conn, \
+         patch.dict("os.environ", {}, clear=True):
+        run()  # must not raise
+
+    conn.assert_not_called()

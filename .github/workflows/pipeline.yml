@@ -22,7 +22,16 @@ env:
   # silently falling back to whatever the user's default role happens to be.
   # DDL for the role is in README.md ("Snowflake least-privilege role").
   SNOWFLAKE_ROLE: ${{ secrets.SNOWFLAKE_ROLE || 'JOB_MARKET_ETL' }}
-  ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+  # ANTHROPIC_API_KEY is deliberately NOT set here.
+  #
+  # Enrichment runs on Claude subscription compute via a claude.ai routine, not on metered
+  # API credits — the same model deploy/matcher-routine.md already uses for JobDigest.
+  # Handing this job a key is what would let it spend credits, so the enforcement is the
+  # absence of the variable, not a flag inside the code.
+  #
+  # With it unset: skill extraction and personal scoring log a skip and exit 0, and
+  # notify.py's curator falls back to ranking by score (see notify.py's curate() call).
+  # Nothing fails; the enrichment steps are simply no-ops until the routine feeds them.
   ADZUNA_APP_ID: ${{ secrets.ADZUNA_APP_ID }}
   ADZUNA_API_KEY: ${{ secrets.ADZUNA_API_KEY }}
   TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}

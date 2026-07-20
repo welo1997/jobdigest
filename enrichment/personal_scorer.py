@@ -206,6 +206,15 @@ def store_personal_scores(
 
 def run(limit: Optional[int] = None) -> None:
     """Main entry point: fetch unscored postings, score them, store results."""
+    # See the same check in skill_extractor.run(): a missing key means enrichment is
+    # running via the claude.ai routine on subscription compute, not that the run failed.
+    if not os.environ.get("ANTHROPIC_API_KEY"):
+        logger.info(
+            "No ANTHROPIC_API_KEY set — skipping personal scoring. "
+            "Enrichment is expected to run via the claude.ai routine instead."
+        )
+        return
+
     conn = get_snowflake_connection()
     client = anthropic.Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
 

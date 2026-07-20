@@ -97,7 +97,16 @@ Ingest broadly, store everything, model in dbt, analyse later.
 - **The `agg_*` analysis layer is deliberately unbuilt.** Design it after exploring real
   data, not before. Do not add aggregation models speculatively.
 - Enrichment (`enrichment/`) must be idempotent, must validate Claude's JSON, and must log
-  and skip errors rather than crash the run.
+  and skip errors rather than crash the run. **But a run that enriched *nothing* must fail
+  loudly** — skipping one bad posting is intended, skipping all of them is an outage, and
+  exiting 0 on it hides the cause two steps downstream. Both entry points enforce this.
+- **Enrichment runs on subscription compute, not API credits.** `ANTHROPIC_API_KEY` is
+  deliberately absent from `pipeline.yml`; the LLM work belongs in a claude.ai routine
+  behind a file exchange, the same shape as `deploy/matcher-routine.md`. With no key set,
+  skill extraction and personal scoring log a skip and exit 0, and `notify.py`'s curator
+  falls back to ranking by score. **Do not add the key back to a workflow** — its absence
+  is what enforces the billing decision. The routine side is not built yet; until it is,
+  `raw.skill_tags` and `raw.personal_scores` simply stay empty.
 
 ---
 
