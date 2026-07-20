@@ -196,18 +196,29 @@ def subscribe(body: SubscribeIn) -> dict:
 
 @app.get("/confirm", response_class=HTMLResponse)
 def confirm(token: str) -> HTMLResponse:
-    profile = store.confirm_subscription(token)
+    profile, newly_confirmed = store.confirm_subscription(token)
     if not profile:
         return HTMLResponse(_page("Link expired", f"""
           <div style="font:700 20px {SERIF};margin-bottom:10px;">This link isn't valid</div>
-          <p style="font:400 15px {SANS};color:{C['muted']};">It may have already been used or expired.
+          <p style="font:400 15px {SANS};color:{C['muted']};">It may have expired — confirm links are
+          good for {store.CONFIRM_TOKEN_TTL_DAYS} days.
           Try signing up again at <a href="{SITE_URL}" style="color:{C['brand']};">jobdigest.eu</a>.</p>"""),
           status_code=404)
 
-    # Welcome email (idempotent-ish: confirm is safe to click twice; we send on each confirm).
     manage_url = links.preferences_link(profile["manage_token"])
-    subject, html_body, text = transactional.render_welcome(profile["email"], manage_url)
-    mailer.send(profile["email"], subject, html_body, text)
+
+    # Only on the click that actually confirmed. Sending on every click made a confirm link
+    # an unlimited "email this person" primitive for anyone who obtained one.
+    if newly_confirmed:
+        subject, html_body, text = transactional.render_welcome(profile["email"], manage_url)
+        mailer.send(profile["email"], subject, html_body, text)
+    else:
+        return HTMLResponse(_page("Already confirmed", f"""
+          <div style="font:700 22px {SERIF};margin-bottom:10px;">You're already subscribed</div>
+          <p style="font:400 15px {SANS};color:{C['muted']};line-height:1.55;">
+            This link has already been used — nothing more to do.</p>
+          <p style="margin-top:20px;"><a href="{manage_url}" style="color:{C['brand']};font-weight:700;">
+            Manage your preferences →</a></p>"""))
 
     return HTMLResponse(_page("Confirmed", f"""
       <div style="width:52px;height:52px;border-radius:50%;margin:0 auto 16px;display:grid;place-items:center;

@@ -530,16 +530,47 @@ def get_by_manage_token(token: str) -> Optional[dict]:
     return _get_by("manage_token", token)
 
 
-def confirm_subscription(confirm_token: str) -> Optional[dict]:
-    """Flip pending -> active on confirm-link click. Idempotent for already-active rows."""
+#: How long a confirm link stays valid. Consent that is a year stale is not consent, and an
+#: unbounded token is a permanent credential sitting in an inbox.
+CONFIRM_TOKEN_TTL_DAYS = int(os.environ.get("CONFIRM_TOKEN_TTL_DAYS", "7"))
+
+
+def confirm_subscription(confirm_token: str) -> tuple[Optional[dict], bool]:
+    """Flip pending -> active on confirm-link click.
+
+    Returns ``(profile, newly_confirmed)``. `newly_confirmed` is False when the link was
+    already used — the row is still returned so the page can say "already confirmed"
+    rather than "invalid", but the caller must not re-send the welcome email. Previously
+    every click re-sent it, which made a confirm link an unlimited send-an-email primitive
+    for anyone holding it.
+
+    Expires `CONFIRM_TOKEN_TTL_DAYS` after signup. The window is measured from
+    `created_at` because that is when the token was issued and mailed.
+
+    The CTE captures `confirmed_at` *before* the update; RETURNING alone would report the
+    post-update value and every click would look new.
+    """
     with cursor(commit=True) as cur:
         cur.execute(
-            "update profiles set status = 'active', confirmed_at = coalesce(confirmed_at, now()) "
-            "where confirm_token = %s and status in ('pending','active') returning *",
-            (confirm_token,),
+            """
+            with before as (
+                select id, confirmed_at from profiles where confirm_token = %s
+            )
+            update profiles p
+               set status = 'active', confirmed_at = coalesce(p.confirmed_at, now())
+              from before b
+             where p.id = b.id
+               and p.status in ('pending', 'active')
+               and p.created_at > now() - (%s || ' days')::interval
+            returning p.*, (b.confirmed_at is null) as newly_confirmed
+            """,
+            (confirm_token, int(CONFIRM_TOKEN_TTL_DAYS)),
         )
         row = cur.fetchone()
-        return dict(row) if row else None
+        if not row:
+            return None, False
+        profile = dict(row)
+        return profile, bool(profile.pop("newly_confirmed", False))
 
 
 def update_subscription(manage_token: str, data: dict) -> Optional[dict]:

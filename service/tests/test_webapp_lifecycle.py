@@ -20,13 +20,29 @@ TOKEN = "a-valid-manage-token"
 EMAIL = "person@example.com"
 
 
+CONFIRM = "a-valid-confirm-token"
+
+
 class _FakeStore:
     """Minimal stand-in for service.store covering only what these paths touch."""
+
+    CONFIRM_TOKEN_TTL_DAYS = 7
 
     def __init__(self):
         self.unsubscribed: list[str] = []
         self.events: list[dict] = []
         self.token_lookups = 0
+        self.confirm_calls = 0
+        self.already_confirmed = False       # flip to simulate a second click
+
+    def confirm_subscription(self, token):
+        self.confirm_calls += 1
+        if token != CONFIRM:
+            return None, False
+        profile = {"id": "1", "email": EMAIL, "manage_token": TOKEN}
+        newly = not self.already_confirmed
+        self.already_confirmed = True
+        return profile, newly
 
     def init_pool(self, *a, **k):
         pass
@@ -111,6 +127,42 @@ def test_one_click_with_unknown_token_still_returns_200(client, store):
     assert r.status_code == 200
     assert r.json() == {"ok": True}
     assert store.unsubscribed == []
+
+
+# --------------------------------------------------------------------- confirm --
+
+@pytest.fixture
+def sent(monkeypatch):
+    """Capture outbound mail instead of sending it."""
+    box: list[tuple] = []
+    monkeypatch.setattr(webapp.mailer, "send",
+                        lambda to, subj, html, text, **kw: box.append((to, subj)) or "ok")
+    monkeypatch.setattr(webapp.transactional, "render_welcome",
+                        lambda email, url: ("Welcome", "<p>hi</p>", "hi"))
+    return box
+
+
+def test_first_confirm_sends_the_welcome(client, store, sent):
+    r = client.get("/confirm", params={"token": CONFIRM})
+    assert r.status_code == 200
+    assert len(sent) == 1
+
+
+def test_second_confirm_sends_nothing(client, store, sent):
+    """A confirm link used to re-send the welcome on every click, which made it an
+    unlimited 'email this person' primitive for anyone holding the link."""
+    client.get("/confirm", params={"token": CONFIRM})
+    r = client.get("/confirm", params={"token": CONFIRM})
+
+    assert r.status_code == 200
+    assert "already" in r.text.lower()
+    assert len(sent) == 1                     # still one, not two
+
+
+def test_expired_or_unknown_confirm_token_404s(client, store, sent):
+    r = client.get("/confirm", params={"token": "stale"})
+    assert r.status_code == 404
+    assert sent == []
 
 
 # ----------------------------------------------------------------------- /event --
