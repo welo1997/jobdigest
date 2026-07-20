@@ -1,0 +1,70 @@
+# Dependency vulnerability audit.
+#
+# Dependabot opens PRs for *updates*; this reports what is vulnerable *now*, including
+# transitive dependencies Dependabot has no direct PR for. Runs on pushes that touch a
+# manifest, on PRs, and weekly — because a dependency can become vulnerable on a day
+# nobody touched this repo, which is the case that matters.
+#
+# The audit that counts is service/: pypdf, python-docx and lxml parse attacker-supplied
+# PDF/DOCX on a public unauthenticated endpoint (POST /cv/parse).
+name: Dependency audit
+
+on:
+  push:
+    paths:
+      - "requirements.txt"
+      - "service/requirements*.txt"
+      - "web/package-lock.json"
+      - ".github/workflows/audit.yml"
+  pull_request:
+  schedule:
+    - cron: "0 6 * * 1"      # Mondays 06:00 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  python:
+    name: pip-audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install pip-audit
+
+      # Audited separately so a finding names the surface it belongs to. --strict makes a
+      # vulnerable dependency fail the job rather than scroll past in green.
+      - name: Audit service dependencies (public upload surface)
+        run: pip-audit --strict -r service/requirements.txt -r service/requirements-worker.txt
+
+      # The pipeline runs in CI, not in front of users, so a finding here is worth seeing
+      # without blocking unrelated work.
+      - name: Audit pipeline dependencies
+        continue-on-error: true
+        run: pip-audit -r requirements.txt
+
+  node:
+    name: npm audit
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: npm ci
+      # The site is a static export with no server-side rendering, so build-time dev
+      # dependencies are far less exposed than a running server would be. Fail on high
+      # and above; report the rest.
+      - run: npm audit --audit-level=high
+      - name: Full report (informational)
+        if: always()
+        continue-on-error: true
+        run: npm audit

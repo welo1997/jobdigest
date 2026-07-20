@@ -1,0 +1,44 @@
+# Dependency updates. Four ecosystems because they fail differently:
+#   /            the Snowflake pipeline (anthropic, snowflake-connector, dbt)
+#   /service     the JobDigest API — includes pypdf, python-docx and lxml, which parse
+#                attacker-supplied files on a public endpoint. These matter most.
+#   /web         Next.js; we already had to patch one CVE by hand
+#   actions      pinned action versions rot silently
+version: 2
+updates:
+  - package-ecosystem: "pip"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "chore(deps)"
+
+  - package-ecosystem: "pip"
+    directory: "/service"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "chore(deps)"
+    labels:
+      - "dependencies"
+      - "security-relevant"
+
+  - package-ecosystem: "npm"
+    directory: "/web"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "chore(deps)"
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "monthly"
+    commit-message:
+      prefix: "chore(ci)"
