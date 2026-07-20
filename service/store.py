@@ -418,6 +418,23 @@ def list_profiles(user_id: str) -> list[dict]:
         return [dict(r) for r in cur.fetchall()]
 
 
+def existing_profile_ids(ids: Iterable[str]) -> set[str]:
+    """The subset of `ids` that are real profiles, as text.
+
+    For validating input that crosses a trust boundary (the matcher's picks.json) before it
+    reaches a foreign-key insert. Compares `id::text` rather than casting the input to uuid,
+    so a malformed id is simply absent from the result instead of raising — the caller's
+    input comes from outside, where garbage is expected traffic rather than an error.
+    Casting the column defeats the PK index, which is fine: `profiles` is subscriber-sized.
+    """
+    wanted = [str(i) for i in ids if i]
+    if not wanted:
+        return set()
+    with cursor() as cur:
+        cur.execute("select id::text as id from profiles where id::text = any(%s)", (wanted,))
+        return {r["id"] for r in cur.fetchall()}
+
+
 # --- matches -------------------------------------------------------------------
 
 def upsert_match(profile_id: str, posting_id: str, score: Optional[int],

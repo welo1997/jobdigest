@@ -27,7 +27,6 @@ DB is Supabase). The routine only ever touches the two files.
   "profiles": [
     {
       "profile_id": "uuid",
-      "email": "…",
       "profile": {"label": "...", "role_categories": ["product"], "stack": ["figma","sql"],
                   "seniorities": ["mid"], "regions": ["cz"], "work_types": ["permanent"],
                   "sectors": ["ecommerce"], "years_experience": 3, "cv_summary": "..."},
@@ -52,10 +51,13 @@ DB is Supabase). The routine only ever touches the two files.
 }
 ```
 
-Rules the import step enforces (so the routine can't break the DB): unknown or inactive
-`posting_id`s are dropped, `score` is clamped 0–10, anything below the floor (`MATCH_FLOOR`,
-default **4**) is dropped. `reason` is truncated to 280 chars. The email shows only the strong
-picks (`digest.EMAIL_MIN_SCORE`, default 6); the 4–5s appear on the subscriber's `/matches`
+Rules the import step enforces (so the routine can't break the DB, and so a tampered file
+can't decide what lands in an inbox): unknown or inactive `posting_id`s are dropped, and
+**`profile_id` must be a real subscriber** — picks cannot be attributed to a profile they
+weren't generated for. `score` is clamped 0–10, anything below the floor (`MATCH_FLOOR`,
+default **4**) is dropped, `reason` is truncated to 280 chars, and a malformed entry is
+logged and skipped rather than aborting the run. The email shows only the strong picks
+(`digest.EMAIL_MIN_SCORE`, default 6); the 4–5s appear on the subscriber's `/matches`
 web page.
 
 ## Routine prompt (paste into the claude.ai routine)
@@ -75,8 +77,26 @@ web page.
 
 ## PII note
 
-`shortlists.json` contains subscriber emails + CV summaries. **Do not commit it to the
-public repo** (`exchange/` is gitignored). It travels via a private Google Drive folder.
+`shortlists.json` carries no email addresses — a profile is identified only by its opaque
+uuid. It does still contain each subscriber's stated preferences and their CV-derived
+summary (e.g. "Detected: data engineering, dbt, snowflake · ~4 yrs"), so it is personal
+data: **do not commit it to the public repo** (`exchange/` is gitignored). It travels via a
+private Google Drive folder.
+
+The folder is owner-only (verified 2026-07-20) — but it is still ordinary Drive storage on a
+personal Google account, which has two consequences:
+
+- **Anything in it is readable by any claude.ai session with the Drive connector**, not just
+  the matcher routine. That is fine for job listings and an opaque profile id; it is not fine
+  for a database dump. Backups therefore live *outside* this folder
+  (`gdrive:JobDigest-Backups`) and are encrypted before upload —
+  `jobdigest-backup.sh` refuses to run if pointed inside it. Nothing here should ever hold a
+  credential, and `manage_token` is a credential.
+- **Write access to the folder is write access to inboxes.** Whoever can replace `picks.json`
+  proposes which jobs each subscriber is emailed. The import step bounds the damage — both
+  ids are validated against the DB, so only real active postings can reach real subscribers
+  (see `service/tests/test_matcher_exchange.py`) — but treat the folder's sharing list as a
+  security control and keep it empty.
 
 ## VPS setup (one-time)
 
@@ -89,8 +109,13 @@ from GitHub Actions). Two systemd timers bracket the routine; `rclone` moves the
    rclone config          # n) new remote, name: gdrive, type: drive, follow the OAuth flow
    rclone mkdir gdrive:JobDigest
    ```
-   Share that `JobDigest` Drive folder with the Google account the claude.ai routine uses,
-   so the routine can read `shortlists.json` and write `picks.json` in the same folder.
+   **Leave the folder unshared.** The claude.ai routine reaches it through *your own*
+   account's Drive connector, so it needs no sharing at all — and verified 2026-07-20, the
+   folder's permission list is owner-only. Do not "share it with the account the routine
+   uses": that would be the one action turning a private folder into a third-party-readable
+   one, for a file containing every subscriber's preferences and CV summary. If you ever do
+   move the routine to a separate Google account, share *only* this folder — never a parent —
+   and re-check where backups point (see above).
 
 2. **Install the units + script:**
    ```bash

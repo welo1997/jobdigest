@@ -199,8 +199,12 @@ def export_shortlists(path: str, email: str | None = None, limit_profiles: int |
         shortlist = [c for c in shortlist if c["posting_id"] not in already]
         if not shortlist:
             continue
+        # No email address: the routine matches on the profile, and `import_picks` keys on
+        # profile_id, so the address was never read by anything downstream — it only widened
+        # what a shortlist file discloses if the transport folder were ever exposed. Without
+        # it the export is pseudonymous: an opaque id, stated preferences, and public jobs.
         payload["profiles"].append({
-            "profile_id": str(p["id"]), "email": p.get("email"),
+            "profile_id": str(p["id"]),
             "profile": _profile_export(p),
             "candidates": [_candidate_export(c) for c in shortlist],
         })
@@ -215,34 +219,62 @@ def import_picks(path: str) -> int:
     """Read the routine's picks JSON, validate against the DB, write to `matches`.
 
     Accepts {"picks":[{profile_id, jobs:[{posting_id, score, reason}]}]} (or a bare list).
-    Unknown/inactive posting_ids and score < MATCH_FLOOR are dropped; errors never crash.
+
+    This file crosses a trust boundary: it is written by a claude.ai routine and travels via
+    cloud storage, so nothing in it is taken on faith. BOTH sides of every match are checked
+    against the DB — `posting_id` must be an active posting (so no invented job or URL can
+    reach an inbox) and `profile_id` must be a real subscriber. Validating the profile
+    matters twice over: it stops picks being attributed to a subscriber they were never
+    generated for, and an unknown id would otherwise raise a foreign-key error that aborts
+    the whole import — costing every subscriber that day's digest over one bad record.
+    Scores are clamped, sub-floor picks dropped, and a failing entry is logged and skipped.
     Returns #picks."""
     with open(path, encoding="utf-8") as f:
         data = json.load(f)
     entries = data.get("picks", data) if isinstance(data, dict) else data
+    if not isinstance(entries, list):
+        logger.warning("picks file %s: expected a list of entries, got %s",
+                       path, type(entries).__name__)
+        return 0
+
+    # Resolve every profile the file claims in one lookup, so an invented, stale or
+    # deleted id is dropped before it can reach an insert.
+    claimed = [e.get("profile_id") for e in entries if isinstance(e, dict)]
+    known = store.existing_profile_ids(claimed)
+    for unknown in sorted({str(c) for c in claimed if c} - known):
+        logger.warning("picks file: unknown profile_id %s — entry skipped", unknown)
+
     total = 0
-    for entry in entries or []:
-        pid = entry.get("profile_id")
-        jobs = entry.get("jobs") or entry.get("picks") or []
-        if not pid or not jobs:
+    for entry in entries:
+        if not isinstance(entry, dict):
             continue
-        want = {str(j.get("posting_id")): j for j in jobs if j.get("posting_id")}
+        pid = str(entry.get("profile_id") or "")
+        jobs = entry.get("jobs") or entry.get("picks") or []
+        if pid not in known or not isinstance(jobs, list) or not jobs:
+            continue
+        want = {str(j.get("posting_id")): j for j in jobs
+                if isinstance(j, dict) and j.get("posting_id")}
         if not want:
             continue
-        with store.cursor() as cur:  # validate: only active postings that exist
-            cur.execute("select posting_id from postings where is_active and posting_id = any(%s)",
-                        (list(want),))
-            valid = {r["posting_id"] for r in cur.fetchall()}
-        for posting_id in valid:
-            j = want[posting_id]
-            try:
-                score = max(0, min(10, int(j.get("score", 0))))
-            except (ValueError, TypeError):
-                continue
-            if score < MATCH_FLOOR:
-                continue
-            store.upsert_match(pid, posting_id, score, str(j.get("reason") or "")[:280])
-            total += 1
+        try:
+            with store.cursor() as cur:  # validate: only active postings that exist
+                cur.execute(
+                    "select posting_id from postings where is_active and posting_id = any(%s)",
+                    (list(want),))
+                valid = {r["posting_id"] for r in cur.fetchall()}
+            for posting_id in valid:
+                j = want[posting_id]
+                try:
+                    score = max(0, min(10, int(j.get("score", 0))))
+                except (ValueError, TypeError):
+                    continue
+                if score < MATCH_FLOOR:
+                    continue
+                store.upsert_match(pid, posting_id, score, str(j.get("reason") or "")[:280])
+                total += 1
+        except Exception:
+            logger.exception("picks file: profile %s failed to import, skipping", pid)
+            continue
     logger.info("Imported %d picks from %s", total, path)
     return total
 
