@@ -28,7 +28,7 @@ from datetime import datetime
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from service import links, store  # noqa: E402
+from service import links, store, taxonomy  # noqa: E402
 
 DEFAULT_LIMIT = 5            # curated highlights in the email; the rest live on /matches
 EMAIL_MIN_SCORE = 6         # only strong fits go in the email (4-5s show on the web page)
@@ -99,17 +99,8 @@ def _tags(job: dict) -> list[str]:
     return out[:4]
 
 
-# role_category -> what a human calls it in a subject line.
-_ROLE_WORDS = {
-    "data_engineering": "data engineering",
-    "data_analysis": "data",
-    "machine_learning": "ML",
-    "software_engineering": "engineering",
-    "devops_platform": "platform",
-    "product": "product",
-    "design": "design",
-    "other_tech_function": "tech",
-}
+# role_category -> what a human calls it in a subject line (see service/taxonomy.py).
+_ROLE_WORDS = taxonomy.SUBJECT_WORDS
 
 
 def subject_line(profile: dict, jobs: list[dict]) -> str:

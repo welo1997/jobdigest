@@ -20,6 +20,8 @@ import psycopg2
 import psycopg2.extras
 from psycopg2.pool import ThreadedConnectionPool
 
+from service import taxonomy
+
 _POOL: Optional[ThreadedConnectionPool] = None
 
 
@@ -256,21 +258,9 @@ def count_active() -> int:
 
 # --- retrieval for the AI matcher (retrieve -> rerank) --------------------------
 # Recall-first: cast a wide keyword+role net, let the AI matcher do the precision.
-# Keywords are bilingual (EN + CZ/SK) so localised titles still surface.
-_ROLE_KEYWORDS: dict[str, list[str]] = {
-    "data_engineering": ["data engineer", "analytics engineer", "datový inženýr", "etl", "dbt"],
-    "data_analysis": ["data analyst", "bi analyst", "analytik", "power bi", "reporting"],
-    "machine_learning": ["machine learning", "ml engineer", "data scientist", "ai engineer",
-                         "strojové učení"],
-    "software_engineering": ["software engineer", "developer", "vývojář", "programátor",
-                            "backend", "frontend", "fullstack"],
-    "devops_platform": ["devops", "sre", "platform engineer", "cloud engineer",
-                       "kubernetes", "administrátor"],
-    "product": ["product manager", "product owner", "produktový manažer", "produktový vlastník"],
-    "design": ["designer", "designér", "ux", "ui", "grafik", "návrhář"],
-    "other_tech_function": ["marketing", "marketingový", "obchod", "obchodní", "sales",
-                           "finance", "účetní", "recruiter", "personalista"],
-}
+# Keywords are bilingual (EN + CZ/SK) so localised titles still surface. They live in
+# service/taxonomy.py alongside the classifier they have to stay consistent with.
+_ROLE_KEYWORDS = taxonomy.SHORTLIST_KEYWORDS
 _GENERIC_WORDS = {"my", "search", "digest", "job", "jobs", "the", "and", "a"}
 
 

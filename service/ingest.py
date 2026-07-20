@@ -14,7 +14,6 @@ from __future__ import annotations
 import argparse
 import logging
 import os
-import re
 import sys
 from collections import Counter
 
@@ -25,66 +24,15 @@ from search_jobs import (  # noqa: E402
     dedup_key, eligibility, gather, is_part_time,
     seniority, work_region, work_type,
 )
-from service import store  # noqa: E402
+from service import store, taxonomy  # noqa: E402
 
 logger = logging.getLogger("service.ingest")
 
 # --- role_category ------------------------------------------------------------
-# Full taxonomy (mirrors CLAUDE.md and the frontend ROLE_CAT map in web/app).
-# Ordered most-specific first: data / ML / devops must precede the broad
-# software "engineer" catch-all, and product before design (a "Product Designer"
-# should land in `design`, not `product`). Anything unmatched stays a first-class
-# `uncategorised` row — kept, never dropped.
-# Patterns carry both English and Czech/Slovak terms, because a large share of
-# jobs.cz / profesia titles are localised ("Java vývojář", "Produktový manažer",
-# "Obchodní zástupce", "Účetní"). Without the CZ/SK terms these all fall through to
-# `uncategorised` and never match a subscriber's role filter.
-_ROLE_PATTERNS: tuple[tuple[str, "re.Pattern[str]"], ...] = (
-    ("data_engineering", re.compile(
-        r"data engineer|analytics engineer|dataops|data platform|data warehouse|\betl\b|"
-        r"datov[ýá] inžen|dátový inžinier|data inžinier", re.I)),
-    ("machine_learning", re.compile(
-        r"machine learning|\bml engineer|\bai engineer|data scientist|mlops|"
-        r"deep learning|computer vision|\bnlp\b|strojové uč|"
-        r"umělá inteligence|umelá inteligencia|datov[ýá] v[ěe]dec", re.I)),
-    ("data_analysis", re.compile(
-        r"data analyst|bi analyst|business intelligence|power bi|\btableau\b|\banalyst\b|"
-        r"analytics|analytik|analytičk|analytičc", re.I)),
-    ("devops_platform", re.compile(
-        r"devops|platform engineer|site reliability|\bsre\b|cloud engineer|"
-        r"infrastructure engineer|\bkubernetes\b|cloud architect|"
-        r"správce systém|správca systémov|systémov[ýá] administr|"
-        r"administrátor (?:is|it|systém|sít|server)|síťov[ýá] administr", re.I)),
-    ("product", re.compile(
-        r"product manager|product owner|product lead|product management|\btpm\b|program manager|"
-        r"produktov\w*\s+manaž|produktov\w*\s+vlastník", re.I)),
-    ("design", re.compile(
-        r"designer|\bux\b|\bui\b|user experience|user interface|design lead|"
-        r"designér|dizajnér|grafik|grafičk|návrhá[řr]", re.I)),
-    ("software_engineering", re.compile(
-        r"software engineer|software developer|back[- ]?end|front[- ]?end|full[- ]?stack|"
-        r"web developer|mobile developer|\bios\b|android|\bdeveloper\b|programmer|"
-        r"\bengineer(?:ing)?\b|qa engineer|\bsdet\b|"
-        r"vývojá[řr]|vývojárk|programátor|programátork|softwarov|softvérov", re.I)),
-    ("other_tech_function", re.compile(
-        r"marketing|\bseo\b|growth|\bsales\b|account executive|business development|"
-        r"finance|account(?:ant|ing)|controller|recruit|talent|people ops|"
-        r"human resources|\bhr\b|operations|customer success|content|copywriter|legal|counsel|"
-        r"obchodn|prodejce|predajca|marketingov|marketér|účetní|účtovník|personalist|"
-        r"nábor|právník|právnik|ekonom|nákupčí|nákupca|mzdov", re.I)),
-)
-
-
-def role_category(title: str | None, hint: str | None = None) -> str:
-    """Classify a job title into a broad role_category. Title patterns win; when
-    they match nothing, fall back to the source-profession `hint` (e.g. a jobs.cz
-    "Marketing" field → other_tech_function) which rescues localised CZ/SK titles
-    the English+CZ regex still misses. Only `uncategorised` when neither fires."""
-    t = title or ""
-    for cat, pat in _ROLE_PATTERNS:
-        if pat.search(t):
-            return cat
-    return hint or "uncategorised"
+# The taxonomy itself lives in service/taxonomy.py — it is consumed by the shortlist
+# builder, the digest subject line and the CV parser too, and used to be copy-pasted into
+# each of them. Re-exported under the old name so callers here read unchanged.
+role_category = taxonomy.classify
 
 
 def build_row(p) -> dict:

@@ -19,6 +19,8 @@ import io
 import re
 import zipfile
 
+from service import taxonomy
+
 MAX_BYTES = 8 * 1024 * 1024          # reject anything over 8 MB (compressed / on-the-wire)
 # A DOCX is a ZIP; the 8 MB cap is on the *compressed* size, so a decompression bomb can
 # still expand to gigabytes. Cap the total uncompressed size and the per-entry ratio before
@@ -113,15 +115,9 @@ _SKILLS: dict[str, str] = {
     "scikit-learn": r"scikit[- ]?learn|sklearn",
 }
 
-# role_category -> keyword list (mirrors service.ingest.role_category for consistency).
-_ROLE_RULES = (
-    ("data_engineering", ("data engineer", "analytics engineer", "dataops", "etl",
-                          "data platform", "data pipeline")),
-    ("machine_learning", ("machine learning", "ml engineer", "ai engineer",
-                          "data scientist", "mlops", "deep learning")),
-    ("data_analysis", ("data analyst", "bi analyst", "business intelligence",
-                       "reporting analyst", "insights analyst")),
-)
+# role_category -> keyword list. Defined in service/taxonomy.py (CV_RULES), which also
+# explains why reading a CV uses a deliberately narrower rule set than classifying a title.
+_ROLE_RULES = taxonomy.CV_RULES
 
 _SECTORS = ("fintech", "ecommerce", "e-commerce", "trading", "banking", "insurance",
             "healthcare", "gaming", "logistics", "retail", "saas", "crypto", "marketing")
