@@ -23,6 +23,7 @@ import argparse
 import html
 import os
 import sys
+from collections import Counter
 from datetime import datetime
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -98,13 +99,42 @@ def _tags(job: dict) -> list[str]:
     return out[:4]
 
 
+# role_category -> what a human calls it in a subject line.
+_ROLE_WORDS = {
+    "data_engineering": "data engineering",
+    "data_analysis": "data",
+    "machine_learning": "ML",
+    "software_engineering": "engineering",
+    "devops_platform": "platform",
+    "product": "product",
+    "design": "design",
+    "other_tech_function": "tech",
+}
+
+
 def subject_line(profile: dict, jobs: list[dict]) -> str:
+    """Describe what is actually in *this* email, not what the profile asks for.
+
+    Previously this used the profile's first role_category, which is an unordered Postgres
+    array — so a profile listing several categories got a subject naming whichever happened
+    to sort first, even when no job in the digest matched it (observed 2026-07-20: "3 new
+    product roles" for a digest of three data_analysis jobs). Now the label comes from the
+    most common role_category among the jobs being sent, and is dropped entirely when the
+    digest is mixed, which is honest rather than misleading."""
     n = len(jobs)
-    cats = profile.get("role_categories") or []
-    role = (cats[0].replace("_", " ") if cats else (profile.get("stack") or ["your"])[0])
-    role = role if role != "your" else "matching"
     when = datetime.now().strftime("%-d %b") if os.name != "nt" else datetime.now().strftime("%#d %b")
-    return f"{n} new {role} {'role' if n == 1 else 'roles'} for you — {when}"
+
+    cats = [j.get("role_category") for j in jobs if j.get("role_category")]
+    role = ""
+    if cats:
+        top, hits = Counter(cats).most_common(1)[0]
+        # Only claim a category when it genuinely characterises the digest. A 2-of-5 plurality
+        # would make the subject a lie for most of the email.
+        if hits / len(cats) >= 0.6:
+            role = _ROLE_WORDS.get(top, top.replace("_", " "))
+
+    noun = "role" if n == 1 else "roles"
+    return f"{n} new {role} {noun} for you — {when}" if role else f"{n} new {noun} for you — {when}"
 
 
 # ---------------------------------------------------------------- HTML ---------
