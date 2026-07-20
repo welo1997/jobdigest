@@ -1,8 +1,10 @@
 """Tests for personal scorer with mocked Anthropic client."""
 
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
-from enrichment.personal_scorer import score_posting, store_personal_scores
+import pytest
+
+from enrichment.personal_scorer import run, score_posting, store_personal_scores
 
 
 def _mock_anthropic_response(text: str) -> MagicMock:
@@ -111,3 +113,54 @@ def test_store_personal_scores_skips_none():
     inserted = store_personal_scores(mock_conn, results)
     assert inserted == 0
     mock_cur.execute.assert_not_called()
+
+
+# --- run() must not report success when it scored nothing ---------------------
+# Same guarantee as skill_extractor's: skipping one bad posting is fine, scoring
+# zero of them is an outage and must fail the pipeline step.
+
+
+def _run_with(postings, score_side_effect):
+    with patch("enrichment.personal_scorer.get_snowflake_connection"), \
+         patch("enrichment.personal_scorer.anthropic.Anthropic"), \
+         patch.dict("os.environ", {"ANTHROPIC_API_KEY": "test-key"}), \
+         patch("enrichment.personal_scorer.fetch_unscored_postings", return_value=postings), \
+         patch("enrichment.personal_scorer.store_personal_scores", return_value=len(postings)), \
+         patch("enrichment.personal_scorer.score_posting", side_effect=score_side_effect):
+        run()
+
+
+def _posting(pid):
+    return {
+        "posting_id": pid,
+        "title": "Data Engineer",
+        "company": "ACME",
+        "description": "dbt and Snowflake",
+        "skills_csv": "dbt, snowflake",
+        "location": "Prague",
+        "is_remote": True,
+    }
+
+
+def test_run_raises_when_every_posting_fails():
+    postings = [_posting("a"), _posting("b")]
+
+    with pytest.raises(RuntimeError, match="scored nothing"):
+        _run_with(postings, score_side_effect=Exception("credit balance is too low"))
+
+
+def test_run_succeeds_when_only_some_postings_fail():
+    postings = [_posting("a"), _posting("b")]
+    calls = {"n": 0}
+
+    def mixed(*args, **kwargs):
+        calls["n"] += 1
+        if calls["n"] == 2:
+            raise Exception("unparseable description")
+        return (8, "great fit", '{"score": 8}')
+
+    _run_with(postings, score_side_effect=mixed)  # must not raise
+
+
+def test_run_does_not_raise_when_there_is_nothing_to_do():
+    _run_with([], score_side_effect=Exception("should never be called"))

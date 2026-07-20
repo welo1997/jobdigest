@@ -217,6 +217,8 @@ def run(limit: Optional[int] = None) -> None:
         return
 
     batch_results: list[dict] = []
+    succeeded = 0
+    failed = 0
 
     for i, posting in enumerate(postings):
         try:
@@ -234,6 +236,7 @@ def run(limit: Optional[int] = None) -> None:
                 "personal_score": score,
                 "summary": summary,
             })
+            succeeded += 1
             logger.info(
                 "[%d/%d] %s @ %s -> score=%s",
                 i + 1, len(postings),
@@ -242,6 +245,7 @@ def run(limit: Optional[int] = None) -> None:
                 score,
             )
         except Exception:
+            failed += 1
             logger.exception(
                 "[%d/%d] Failed to score %s, skipping.",
                 i + 1, len(postings), posting["posting_id"],
@@ -257,7 +261,19 @@ def run(limit: Optional[int] = None) -> None:
         logger.info("Stored final batch: %d new scores", stored)
 
     conn.close()
-    logger.info("Personal scoring complete.")
+    logger.info(
+        "Personal scoring: %d succeeded, %d failed, of %d postings",
+        succeeded, failed, len(postings),
+    )
+
+    # See the same guard in skill_extractor.run(): per-posting skips are intentional,
+    # a run that scored nothing at all is an outage and must not exit 0.
+    if succeeded == 0:
+        raise RuntimeError(
+            f"Personal scoring failed for all {failed} postings and scored nothing. "
+            "This is an outage, not a run with skipped rows -- check the error above "
+            "(a repeated identical error usually means credentials, quota, or billing)."
+        )
 
 
 if __name__ == "__main__":

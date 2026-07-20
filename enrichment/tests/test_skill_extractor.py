@@ -2,7 +2,9 @@
 
 from unittest.mock import MagicMock, patch
 
-from enrichment.skill_extractor import extract_skills, store_skill_tags
+import pytest
+
+from enrichment.skill_extractor import extract_skills, run, store_skill_tags
 
 
 def _mock_anthropic_response(text: str) -> MagicMock:
@@ -105,3 +107,52 @@ def test_store_skill_tags_empty_list():
     mock_conn = MagicMock()
     inserted = store_skill_tags(mock_conn, [])
     assert inserted == 0
+
+
+# --- run() must not report success when it enriched nothing -------------------
+#
+# On 2026-07-20 this step exited 0 after failing all 14578 postings (exhausted Anthropic
+# credit balance -> every call 400'd). The per-posting skip is deliberate; reporting
+# success for a run that stored zero rows is not.
+
+
+def _run_with(postings, extract_side_effect):
+    """Call run() with the DB, API client and extraction all mocked out."""
+    with patch("enrichment.skill_extractor.get_snowflake_connection"), \
+         patch("enrichment.skill_extractor.anthropic.Anthropic"), \
+         patch.dict("os.environ", {"ANTHROPIC_API_KEY": "test-key"}), \
+         patch("enrichment.skill_extractor.fetch_untagged_postings", return_value=postings), \
+         patch("enrichment.skill_extractor.store_skill_tags", return_value=len(postings)), \
+         patch("enrichment.skill_extractor.extract_skills", side_effect=extract_side_effect):
+        run()
+
+
+def _posting(pid):
+    return {"posting_id": pid, "title": "Data Engineer", "description": "dbt and Snowflake"}
+
+
+def test_run_raises_when_every_posting_fails():
+    postings = [_posting("a"), _posting("b"), _posting("c")]
+
+    with pytest.raises(RuntimeError, match="enriched nothing"):
+        _run_with(postings, extract_side_effect=Exception("credit balance is too low"))
+
+
+def test_run_succeeds_when_only_some_postings_fail():
+    postings = [_posting("a"), _posting("b")]
+
+    # First succeeds, second raises -- a partial run is still a real run.
+    calls = {"n": 0}
+
+    def mixed(client, title, description):
+        calls["n"] += 1
+        if calls["n"] == 2:
+            raise Exception("unparseable description")
+        return (["dbt"], '["dbt"]')
+
+    _run_with(postings, extract_side_effect=mixed)  # must not raise
+
+
+def test_run_does_not_raise_when_there_is_nothing_to_do():
+    # No untagged postings is a no-op, not an outage.
+    _run_with([], extract_side_effect=Exception("should never be called"))

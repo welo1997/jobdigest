@@ -59,23 +59,38 @@ jobs:
       - name: Step 1 — Ingest all sources
         run: python -m ingestion.run
 
-      - name: Step 2 — Skill extraction (Haiku)
+      # personal_scorer (Step 4) joins raw_staging.stg_job_postings for role_category and
+      # is_remote. That is a dbt view, and it used to be built only by the full dbt run at
+      # the end -- so scoring worked purely because the previous day's view was still
+      # lying around. Rebuilding the database exposed it. The view reads nothing but
+      # raw.job_postings and two macros, so it is built here, right after ingestion.
+      #
+      # Deliberately placed *before* the two enrichment steps rather than just before the
+      # step that needs it: this is the first step that writes to a dbt-managed schema, so
+      # if schemas or grants are wrong it fails within seconds instead of after ~45 minutes
+      # of Haiku calls. The full dbt run still comes after scoring, because the intermediate
+      # and mart models consume raw.personal_scores.
+      - name: Step 2 — dbt run (staging view only, needed by personal scoring)
+        working-directory: dbt
+        run: dbt run --select stg_job_postings --profiles-dir .
+
+      - name: Step 3 — Skill extraction (Haiku)
         run: python -m enrichment.skill_extractor
 
-      - name: Step 3 — Personal scoring (Haiku)
+      - name: Step 4 — Personal scoring (Haiku)
         run: python -m enrichment.personal_scorer
 
-      - name: Step 4 — dbt seed
+      - name: Step 5 — dbt seed
         working-directory: dbt
         run: dbt seed --profiles-dir .
 
-      - name: Step 5 — dbt run
+      - name: Step 6 — dbt run
         working-directory: dbt
         run: dbt run --profiles-dir .
 
-      - name: Step 6 — dbt test
+      - name: Step 7 — dbt test
         working-directory: dbt
         run: dbt test --profiles-dir .
 
-      - name: Step 7 — Telegram notifications
+      - name: Step 8 — Telegram notifications
         run: python notify.py

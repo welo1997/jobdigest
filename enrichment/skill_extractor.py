@@ -154,6 +154,8 @@ def run(limit: Optional[int] = None) -> None:
         return
 
     batch_results: list[dict] = []
+    succeeded = 0
+    failed = 0
 
     for i, posting in enumerate(postings):
         try:
@@ -165,11 +167,13 @@ def run(limit: Optional[int] = None) -> None:
                 "skills": skills,
                 "raw_response": raw_response,
             })
+            succeeded += 1
             logger.info(
                 "[%d/%d] %s -> %d skills",
                 i + 1, len(postings), posting["title"][:50], len(skills),
             )
         except Exception:
+            failed += 1
             logger.exception(
                 "[%d/%d] Failed to extract skills for %s, skipping.",
                 i + 1, len(postings), posting["posting_id"],
@@ -187,6 +191,24 @@ def run(limit: Optional[int] = None) -> None:
         logger.info("Stored final batch: %d new rows", stored)
 
     conn.close()
+
+    logger.info(
+        "Skill extraction: %d succeeded, %d failed, of %d postings",
+        succeeded, failed, len(postings),
+    )
+
+    # Skipping an individual bad posting is deliberate (a single unparseable description
+    # must not abort the run). Skipping *every* posting is not a run that partially worked
+    # -- it is an outage wearing a green checkmark. On 2026-07-20 this step reported success
+    # after failing all 14578 postings, because the Anthropic credit balance was exhausted
+    # and every call 400'd identically; the pipeline only broke two steps later, far from
+    # the cause. A run that enriched nothing must fail loudly.
+    if succeeded == 0:
+        raise RuntimeError(
+            f"Skill extraction failed for all {failed} postings and enriched nothing. "
+            "This is an outage, not a run with skipped rows -- check the error above "
+            "(a repeated identical error usually means credentials, quota, or billing)."
+        )
     logger.info("Skill extraction complete.")
 
 
