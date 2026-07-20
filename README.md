@@ -170,6 +170,16 @@ grant select, insert, update, delete on future tables in database JOB_MARKET to 
 grant select on all views    in database JOB_MARKET to role JOB_MARKET_ETL;
 grant select on future views in database JOB_MARKET to role JOB_MARKET_ETL;
 
+-- ingestion/migrate.py runs ALTER TABLE ... ADD COLUMN IF NOT EXISTS on this one table as
+-- a normal, idempotent part of every pipeline run. Snowflake has no separate DDL-only
+-- privilege for a table's own structure (confirmed against the docs: MODIFY applies to
+-- Database/Schema/Warehouse/etc, not Table) — altering a table requires OWNERSHIP of it.
+-- Scoped to exactly this one table, not the schema or database: this role can still not
+-- drop the database, drop the schema, or touch a table it doesn't own. If a future
+-- migration needs to alter skill_tags or personal_scores, extend this then — don't grant
+-- ownership ahead of actual need.
+grant ownership on table JOB_MARKET.RAW.JOB_POSTINGS to role JOB_MARKET_ETL copy current grants;
+
 -- A dedicated user, not a personal login: no ACCOUNTADMIN/SYSADMIN membership, no
 -- password (the account requires MFA for password auth, which a headless credential can
 -- never satisfy — keypair only), and DEFAULT_SECONDARY_ROLES = () so this exact bug
