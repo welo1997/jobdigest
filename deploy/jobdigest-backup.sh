@@ -140,7 +140,20 @@ do_backup() {
     echo "backup: WARNING — JOBDIGEST_BACKUP_REMOTE unset, backup is on the same VPS only" >&2
   fi
 
-  # Rotate local copies only. Remote retention is the remote's business.
+  # Rotate the remote too. "Remote retention is the remote's business" was true only while
+  # nothing ran it — Drive keeps everything forever, so every nightly dump accumulated. Each
+  # one is a full copy of the subscriber table, so unbounded history is both a storage cost
+  # and a widening disclosure surface. Uses rclone's own age filter; failure is reported but
+  # does not fail the run, since the backup itself already succeeded.
+  if [ -n "$REMOTE" ]; then
+    if rclone delete --min-age "${KEEP_DAYS}d" "$REMOTE"; then
+      echo "backup: pruned remote copies older than ${KEEP_DAYS}d"
+    else
+      echo "backup: WARNING — remote prune failed; $REMOTE may be growing" >&2
+    fi
+  fi
+
+  # Rotate local copies.
   find "$BACKUP_DIR" -name 'jobdigest-*.dump' -mtime "+$KEEP_DAYS" -delete
   find "$BACKUP_DIR" -name 'jobdigest-*.partial' -mtime +1 -delete
   # Ciphertext is transient (removed after upload); this only catches a crash mid-run.

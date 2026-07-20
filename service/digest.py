@@ -78,6 +78,18 @@ def _matches_url(profile: dict) -> str:
     return links.matches_link(profile.get("manage_token", ""))
 
 
+def safe_url(url: str | None) -> str:
+    """Return `url` only if it is a plain http(s) link, else '#'.
+
+    Posting URLs come from third-party feeds we do not control and land in an email `href`.
+    `html.escape` stops attribute breakout but says nothing about the *scheme*, so a feed
+    serving `javascript:` or `data:text/html,...` would ship an active link out under our
+    DKIM signature. Most mail clients block those, which is a reason not to rely on them.
+    """
+    u = (url or "").strip()
+    return u if u[:7].lower() == "http://" or u[:8].lower() == "https://" else "#"
+
+
 def _tags(job: dict) -> list[str]:
     tags = []
     if job.get("region"):
@@ -153,7 +165,7 @@ def _job_html(job: dict) -> str:
             <span style="font-weight:400;color:{C['muted']};">— {esc(job.get('company') or '')}</span></div>
           <div style="margin:6px 0;">{tags}</div>
           <div style="font:400 14px {SANS};color:{C['muted']};">{esc(job.get('summary') or '')}</div>
-          <a href="{esc(job.get('url') or '#')}" style="font:700 12px {SANS};color:{C['brand']};
+          <a href="{esc(safe_url(job.get('url')))}" style="font:700 12px {SANS};color:{C['brand']};
             text-decoration:none;display:inline-block;margin-top:5px;">View &amp; apply →</a>
         </td>
       </tr></table>
@@ -241,7 +253,7 @@ def render_text(profile: dict, jobs: list[dict], base_url: str = BASE_URL,
         tags = " · ".join(_tags(j))
         lines.append(f"[{j['score']}/10] {j.get('title','Role')} — {j.get('company','')}  ({tags})")
         lines.append(f"    {j.get('summary','')}")
-        lines.append(f"    {j.get('url','')}")
+        lines.append(f"    {safe_url(j.get('url'))}")
         lines.append("")
     if total_matches and total_matches > len(jobs):
         lines.append(f"See all {total_matches} matches: {_matches_url(profile)}")

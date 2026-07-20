@@ -217,3 +217,23 @@ def test_export_carries_no_email_address(store, tmp_path):
     assert "email" not in entry
     assert entry["profile_id"] == REAL          # the pseudonymous handle is still there
     assert entry["candidates"][0]["posting_id"] == "real-a"
+
+
+# ------------------------------------------------------------------- safe_url ---
+
+@pytest.mark.parametrize("url,expected", [
+    ("https://jobs.example.com/1", "https://jobs.example.com/1"),
+    ("http://jobs.example.com/1", "http://jobs.example.com/1"),
+    ("HTTPS://Jobs.Example.com/1", "HTTPS://Jobs.Example.com/1"),
+    ("javascript:alert(1)", "#"),
+    ("data:text/html,<script>alert(1)</script>", "#"),
+    ("  javascript:alert(1)", "#"),
+    ("//evil.example.com", "#"),
+    ("", "#"),
+    (None, "#"),
+])
+def test_safe_url_allows_only_http_schemes(url, expected):
+    """Posting URLs come from third-party feeds and land in an email href. html.escape
+    prevents attribute breakout but says nothing about the scheme."""
+    from service.digest import safe_url
+    assert safe_url(url) == expected
