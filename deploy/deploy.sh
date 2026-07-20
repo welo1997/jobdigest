@@ -89,6 +89,12 @@ ship() {   # ship <sha>  — extract the committed tree onto the box
 build_and_check() {
   "${SSH[@]}" "set -e
     cd $REMOTE_DIR/deploy
+    # Scripts run from the deployed tree, but the *units* live in /etc/systemd/system, so
+    # they are the one thing a tree sync cannot update. Sync them here or a changed
+    # schedule/Environment= silently never takes effect.
+    sudo cp $REMOTE_DIR/deploy/jobdigest-*.service $REMOTE_DIR/deploy/jobdigest-*.timer /etc/systemd/system/
+    sudo chmod +x $REMOTE_DIR/deploy/*.sh
+    sudo systemctl daemon-reload
     sudo docker compose build api web pipeline
     sudo docker compose up -d api web
     for i in \$(seq 1 20); do

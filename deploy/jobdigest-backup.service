@@ -29,4 +29,9 @@ Environment=JOBDIGEST_BACKUP_PASSPHRASE_FILE=/etc/jobdigest-backup.pass
 Environment=RCLONE_CONFIG=/home/deploy/.config/rclone/rclone.conf
 Environment=JOBDIGEST_BACKUP_DIR=/var/backups/jobdigest
 Environment=JOBDIGEST_BACKUP_KEEP_DAYS=30
-ExecStart=/usr/local/bin/jobdigest-backup.sh backup
+# Runs the copy in the deployed tree, not an installed duplicate in /usr/local/bin. A second
+# copy is a second thing to forget: deploy.sh updates /opt/jobdigest, so a script living
+# anywhere else silently keeps running the old version (observed 2026-07-20, when the remote
+# prune shipped but the unit kept executing the previous script). Same pattern as the
+# jobdigest-match-* units.
+ExecStart=/opt/jobdigest/deploy/jobdigest-backup.sh backup
