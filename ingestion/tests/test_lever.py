@@ -10,13 +10,13 @@ SAMPLE_POSTINGS = [
         "descriptionPlain": "Build the web.",
         "categories": {"location": "Remote, US"},
         "createdAt": 1744700000000,  # epoch ms
-        "_company_slug": "netlify",
+        "_org": "netlify",
     },
 ]
 
 
 def test_normalize():
-    source = LeverSource(company_slugs=[])
+    source = LeverSource(orgs=[])
     postings = source.normalize(SAMPLE_POSTINGS)
     assert len(postings) == 1
     assert postings[0].title == "Senior Software Engineer"
@@ -26,6 +26,6 @@ def test_normalize():
 
 
 def test_skips_no_url():
-    source = LeverSource(company_slugs=[])
+    source = LeverSource(orgs=[])
     postings = source.normalize([{"text": "Ghost"}])
     assert len(postings) == 0
