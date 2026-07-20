@@ -1,0 +1,6 @@
+# Copy to deploy/.deploy-target (gitignored) and fill in. Never commit the real value:
+# this is a public repo and the origin IP is what the Cloudflare proxy exists to hide.
+JOBDIGEST_HOST=deploy@<VPS_IP>
+# Optional overrides:
+# JOBDIGEST_SSH_KEY=$HOME/.ssh/id_ed25519_personal
+# JOBDIGEST_REMOTE_DIR=/opt/jobdigest
