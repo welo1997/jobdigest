@@ -26,9 +26,11 @@ Run:  DATABASE_URL=... MAIL_BACKEND=file uvicorn service.webapp:app --reload
 from __future__ import annotations
 
 import asyncio
+import html
 import json
 import logging
 import os
+import time
 import urllib.parse
 import urllib.request
 from contextlib import asynccontextmanager
@@ -333,25 +335,64 @@ def _do_unsubscribe(token: str) -> Optional[str]:
     return store.unsubscribe(token)     # returns email or None; also adds suppression
 
 
-@app.get("/unsubscribe", response_class=HTMLResponse)
-def unsubscribe_page(token: str) -> HTMLResponse:
-    email = _do_unsubscribe(token)
-    if email is None:
-        return HTMLResponse(_page("Not found", f"""
-          <div style="font:700 20px {SERIF};margin-bottom:10px;">Nothing to unsubscribe</div>
-          <p style="font:400 15px {SANS};color:{C['muted']};">This link isn't valid or you've already unsubscribed.</p>"""),
-          status_code=404)
-    return HTMLResponse(_page("Unsubscribed", f"""
+def _unsubscribed_page() -> str:
+    return _page("Unsubscribed", f"""
       <div style="font:700 22px {SERIF};margin-bottom:10px;">You've unsubscribed</div>
       <p style="font:400 15px {SANS};color:{C['muted']};line-height:1.55;">
         No more emails — effective immediately. Changed your mind?
-        <a href="{SITE_URL}" style="color:{C['brand']};">Re-subscribe anytime</a>.</p>"""))
+        <a href="{SITE_URL}" style="color:{C['brand']};">Re-subscribe anytime</a>.</p>""")
+
+
+def _bad_link_page() -> str:
+    return _page("Not found", f"""
+      <div style="font:700 20px {SERIF};margin-bottom:10px;">Nothing to unsubscribe</div>
+      <p style="font:400 15px {SANS};color:{C['muted']};">This link isn't valid or you've already unsubscribed.</p>""")
+
+
+@app.get("/unsubscribe", response_class=HTMLResponse)
+def unsubscribe_page(token: str) -> HTMLResponse:
+    """Ask for confirmation — do NOT unsubscribe on the GET itself.
+
+    A GET must not change state, and here that is not pedantry: mail clients, link
+    previewers and corporate security scanners fetch URLs found in messages to check them,
+    which silently unsubscribed people who never clicked. Now the click lands on a button.
+
+    RFC 8058 one-click is unaffected — mail clients POST directly from
+    List-Unsubscribe-Post and never issue this GET.
+    """
+    profile = store.get_by_manage_token(token)
+    if not profile:
+        return HTMLResponse(_bad_link_page(), status_code=404)
+
+    action = f"{links.api_public_url()}/unsubscribe"
+    return HTMLResponse(_page("Unsubscribe", f"""
+      <div style="font:700 22px {SERIF};margin-bottom:10px;">Unsubscribe from JobDigest?</div>
+      <p style="font:400 15px {SANS};color:{C['muted']};line-height:1.55;">
+        This stops the daily digest to <b>{html.escape(profile.get('email') or 'your address')}</b>
+        immediately.</p>
+      <form method="post" action="{html.escape(action)}" style="margin-top:22px;">
+        <input type="hidden" name="token" value="{html.escape(token)}">
+        <input type="hidden" name="confirm" value="1">
+        <button type="submit" style="font:700 14px {SANS};color:#fff;background:{C['brand']};
+          border:0;border-radius:10px;padding:12px 26px;cursor:pointer;">Yes, unsubscribe me</button>
+      </form>
+      <p style="margin-top:18px;font:400 13px {SANS};">
+        <a href="{links.preferences_link(token)}" style="color:{C['brand']};">
+          Or just change how often you hear from us →</a></p>"""))
 
 
 @app.post("/unsubscribe")
-def unsubscribe_oneclick(token: str = Form(...)) -> dict:
-    """RFC 8058 one-click: mail clients POST here from the List-Unsubscribe-Post header."""
-    _do_unsubscribe(token)              # idempotent; always 200 so clients don't retry
+def unsubscribe_oneclick(token: str = Form(...), confirm: Optional[str] = Form(None)):
+    """Perform the unsubscribe. Two callers, two response shapes.
+
+    `confirm` is set only by our own HTML form above, so a person gets a page; RFC 8058
+    one-click posts without it and gets JSON. Always 200, even for an unknown token, so
+    mail clients never retry a one-click that already succeeded."""
+    email = _do_unsubscribe(token)      # idempotent
+    if confirm:
+        if email is None:
+            return HTMLResponse(_bad_link_page(), status_code=404)
+        return HTMLResponse(_unsubscribed_page())
     return {"ok": True}
 
 
@@ -437,6 +478,47 @@ EVENT_NAMES = {
 # what keeps CV text, emails and search terms out of the table by construction.
 EVENT_PROP_KEYS = {"reason", "status", "skills", "count", "variant", "step"}
 
+# Abuse bounds. The whitelist above limits *what* can be written; nothing limited *how
+# much*, so anyone could grow this table indefinitely. Two in-memory fixed-window counters
+# fix that without a dependency or a round trip.
+#
+# Deliberately NOT keyed on IP: the privacy policy promises we never keep your IP, raw or
+# hashed, and a rate-limit map keyed on IP is still keeping it. Keyed on the client-supplied
+# session id instead — which is trivially rotated, so the per-session cap only stops honest
+# runaway loops. The GLOBAL cap is the one that actually bounds table growth against someone
+# inventing new ids, and it is why both exist.
+EVENT_WINDOW_SEC = int(os.environ.get("EVENT_WINDOW_SEC", "60"))
+EVENT_MAX_PER_SESSION = int(os.environ.get("EVENT_MAX_PER_SESSION", "60"))
+EVENT_MAX_GLOBAL = int(os.environ.get("EVENT_MAX_GLOBAL", "2000"))
+
+_event_window_start = 0.0
+_event_counts: dict[str, int] = {}
+_event_total = 0
+
+
+def _event_allowed(session_id: Optional[str]) -> bool:
+    """False when this event should be dropped. Fixed window, process-local.
+
+    Clearing the dict each window also bounds the limiter's own memory, so the thing
+    protecting the box cannot itself become the leak. Single uvicorn process, so this
+    state is coherent; if the API is ever scaled to workers this becomes per-worker and
+    the global cap should move to the edge or to Postgres.
+    """
+    global _event_window_start, _event_total
+    now = time.monotonic()
+    if now - _event_window_start >= EVENT_WINDOW_SEC:
+        _event_window_start = now
+        _event_counts.clear()
+        _event_total = 0
+    if _event_total >= EVENT_MAX_GLOBAL:
+        return False
+    _event_total += 1
+    key = session_id or "-"
+    seen = _event_counts.get(key, 0) + 1
+    _event_counts[key] = seen
+    return seen <= EVENT_MAX_PER_SESSION
+
+
 _BROWSERS = (("edg", "edge"), ("chrome", "chrome"), ("safari", "safari"),
              ("firefox", "firefox"))
 
@@ -481,6 +563,10 @@ async def event(body: EventIn, request: Request) -> dict:
     """
     if body.name not in EVENT_NAMES:
         return {"ok": True}                       # unknown event: silently ignored
+    # Before the token lookup below, which is a DB round trip — otherwise the rate limit
+    # would still let a flood cost us one query per request.
+    if not _event_allowed(body.session_id):
+        return {"ok": True}                       # dropped; the client is told nothing
 
     # A manage token identifies a subscriber on their own pages. Resolve it to a profile_id
     # so engagement can be analysed; the token itself is never stored on the event.
