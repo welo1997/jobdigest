@@ -35,6 +35,10 @@ enriched as (
         coalesce(s.skills_count, 0)                     as skills_count,
         s.posting_id is not null                        as has_skills,
         array_to_string(s.skills, ', ')                 as skills_csv,
+        -- Exposed so fct_postings can tell that enrichment arrived. Skills land DAYS
+        -- after a posting is ingested (ingest -> export -> routine -> import), so a
+        -- downstream incremental keyed only on loaded_at can never see them.
+        s.extracted_at                                  as skills_extracted_at,
 
         -- Personal scoring
         ps.personal_score,
