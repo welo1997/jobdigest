@@ -224,6 +224,18 @@ goes red. A test that cannot fail documents nothing.
   `sysdate()` would silently be off by an hour or two), and anything that changes what
   `loaded_at` *means* needs `fct_postings` rebuilt with the workflow's `full_refresh`
   input, because its incremental watermark is a stored wall-clock value.
+- **`JOB_MARKET_MONITOR` caps Snowflake spend** (added 2026-07-21; there was no monitor at
+  all before). 30 credits/month on `COMPUTE_WH`: notify at 60% and 80%, suspend at 100%,
+  suspend immediately at 125%. Sized from measured usage — ~4.7 credits/30 days, busiest
+  day 0.99 — so the quota is ~6× normal. The threat it guards is not steady state but a
+  warehouse left running: an X-Small burns ~24 credits/day, so a runaway trips this in
+  ~30 hours instead of arriving as a surprise invoice.
+  Scoped to `COMPUTE_WH`, **not the account**, so it cannot suspend `ZALANDO_SCRAPER_WH`,
+  which belongs to a different project. Two things to know: the 100%→125% gap is deliberate
+  (`SUSPEND` lets a mid-flight pipeline run finish rather than leave a half-built mart;
+  only `SUSPEND_IMMEDIATE` kills queries), and **`NOTIFY` only emails account admins who
+  have notifications enabled in their Snowflake profile** — if that was never set up, the
+  60%/80% warnings go nowhere and the first symptom is a suspended warehouse.
 - Metabase is local Docker only; portfolio evidence is screenshots + dbt docs.
 - The claude.ai routine reaches Drive through the **owner's own connector**. The folder is
   owner-only and should stay unshared — sharing it is what would create third-party access.
