@@ -141,6 +141,30 @@ These are not style preferences. Breaking one has consequences outside this repo
 7. **Test the credential, not the grant statement.** `GRANT ... TO ROLE X; SHOW GRANTS TO
    ROLE X` looking correct is not proof anything is restricted — see rule 6. Connect as the
    actual identity that will be used and try the operation that should be refused.
+8. **Never create a Snowflake object as an admin role.** There is no separate dev database:
+   `dev_local` and every script in `scripts/` write to the *same* `JOB_MARKET` that CI
+   writes to. A new object is owned by the **primary role that created it**, and changing
+   an existing object — dbt's `create or replace view`, or an `ALTER TABLE` — requires
+   `OWNERSHIP`, not a `CREATE`-class grant. So one local run as `SYSADMIN` leaves an object
+   `JOB_MARKET_CI` can never rebuild, and CI fails with *"Insufficient privileges to operate
+   on ..."* in a step that has nothing to do with what you changed. This has broken the
+   pipeline twice (2026-07-20, runs `29766309781` and `29773894574`) — the second time it
+   was the run *verifying the first fix* that caused it.
+
+   `dbt/profiles.yml` pins `dev_local` to `role: JOB_MARKET_ETL` for this reason — do not
+   revert it to `env_var('SNOWFLAKE_ROLE')`. The Python entry points are **not** pinned;
+   they read `SNOWFLAKE_ROLE`, which is `SYSADMIN` in a normal local `.env`. Before running
+   anything that does DDL (`setup_snowflake.py`, `ingestion/migrations`, `scripts/fix_*`),
+   set `SNOWFLAKE_ROLE=JOB_MARKET_ETL` for that command. Reserve `SYSADMIN` for work that
+   genuinely needs it, such as the recovery itself:
+
+   ```sql
+   GRANT OWNERSHIP ON <TABLE|VIEW> JOB_MARKET.<schema>.<obj>
+     TO ROLE JOB_MARKET_ETL COPY CURRENT GRANTS;   -- COPY CURRENT GRANTS, or grants are dropped
+   ```
+
+   To audit: `SHOW TABLES`/`SHOW VIEWS` in each schema and check the `owner` column —
+   anything not `JOB_MARKET_ETL` is a future CI failure waiting to happen.
 
 ---
 

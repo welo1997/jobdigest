@@ -17,12 +17,25 @@ job_market:
       schema: raw
       threads: 4
     dev_local:
+      # Writes to the SAME database and schemas as CI -- there is no separate dev
+      # database. That makes the role below load-bearing, not cosmetic.
       type: snowflake
       account: "{{ env_var('SNOWFLAKE_ACCOUNT') }}"
       user: "{{ env_var('SNOWFLAKE_USER') }}"
       private_key_path: "{{ env_var('SNOWFLAKE_PRIVATE_KEY_PATH', '~/.snowflake/rsa_key.p8') }}"
       database: "{{ env_var('SNOWFLAKE_DATABASE') }}"
       warehouse: "{{ env_var('SNOWFLAKE_WAREHOUSE') }}"
-      role: "{{ env_var('SNOWFLAKE_ROLE') }}"
+      # Pinned, NOT env_var('SNOWFLAKE_ROLE') -- locally that is SYSADMIN, and in
+      # Snowflake a new object is owned by the primary role that created it. A local
+      # `dbt run` as SYSADMIN therefore left SYSADMIN-owned objects in the schemas CI
+      # writes to, and dbt emits `create or replace`, which needs OWNERSHIP of the
+      # existing object. CI then failed with "Insufficient privileges to operate on
+      # view 'STG_JOB_POSTINGS'" -- broken by the very run that was verifying the fix
+      # (2026-07-20, pipeline run 29773894574).
+      #
+      # This does NOT make a local run a rehearsal of CI: the session still carries
+      # this login's secondary roles, so it is not privilege-restricted (CLAUDE.md
+      # rules 6 and 7). It only guarantees ownership matches what CI produces.
+      role: JOB_MARKET_ETL
       schema: raw
       threads: 4

@@ -33,4 +33,11 @@ models:
 
 seeds:
   job_market:
-    +schema: raw
+    # No +schema here on purpose. dbt CONCATENATES the profile's schema with the custom
+    # one, so `+schema: raw` on top of the profile's own `schema: raw` asked for a schema
+    # named RAW_RAW -- which has never existed. Creating it needs CREATE SCHEMA on the
+    # database, so `dbt seed` died with "Insufficient privileges to operate on database
+    # 'JOB_MARKET'" (pipeline run 29808474813, 2026-07-21). Omitting it lands the seeds in
+    # RAW, alongside job_postings, which is what the name was reaching for.
+    #
+    # The models below DO set +schema, and that is correct: raw + staging = RAW_STAGING.

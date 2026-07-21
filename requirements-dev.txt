@@ -1,0 +1,21 @@
+# Local development and test tooling. NOT installed by any workflow -- the pipeline and
+# dbt-docs jobs install requirements.txt only, and nothing in CI runs pytest or black.
+#
+# Split out of requirements.txt on 2026-07-21 so that a formatter could not dictate the
+# version of the pipeline's core dependency. See the dbt-core comment in requirements.txt.
+-r requirements.txt
+
+pytest==9.0.3
+pytest-mock==3.14.0
+ruff==0.11.6
+
+# Held at 25.x deliberately. black >=26.1 requires pathspec>=1.0.0, while dbt-core 1.9.x
+# requires pathspec<0.13 -- the two cannot share an environment. 25.12.0 is the newest
+# release that still allows pathspec>=0.9.0, so this keeps ONE working local env with both
+# dbt and the formatter in it.
+#
+# Bumping black past 25.12.0 therefore means either dropping to a `-r`-less dev env or
+# moving dbt-core off 1.9.x. Do not bump it casually; `pip install --dry-run -r` this file
+# first. Note that black 26 ships a new stable style, so that bump also reformats the
+# codebase -- keep it as its own commit, never folded into an unrelated change.
+black==25.12.0

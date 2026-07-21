@@ -13,6 +13,7 @@ on:
   push:
     paths:
       - "requirements.txt"
+      - "requirements-dev.txt"
       - "service/requirements*.txt"
       - "web/package-lock.json"
       - ".github/workflows/audit.yml"
@@ -45,6 +46,13 @@ jobs:
       - name: Audit pipeline dependencies
         continue-on-error: true
         run: pip-audit -r requirements.txt
+
+      # Dev tooling was covered by the step above until it moved to its own file
+      # (2026-07-21). Kept audited so the split did not quietly shrink coverage -- it runs
+      # on a developer's machine, not in CI or production, hence non-blocking.
+      - name: Audit dev tooling
+        continue-on-error: true
+        run: pip-audit -r requirements-dev.txt
 
   node:
     name: npm audit

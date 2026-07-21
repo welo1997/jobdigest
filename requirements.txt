@@ -17,10 +17,17 @@ beautifulsoup4==4.13.4
 # drive-by inside a dependency sweep. Tracked in CLAUDE.md.
 snowflake-connector-python==3.14.0
 python-dotenv==1.2.2
+# dbt-core is pinned EXPLICITLY. dbt-snowflake 1.9.2 declares only `dbt-core>=1.8.0` with
+# no upper bound, so leaving it unpinned let CI resolve dbt-core 1.12.0 against a 1.9.x
+# adapter -- three minor versions apart, chosen by the resolver on the day, with no commit
+# to blame if behaviour changed mid-run. Found in pipeline run 29808474813 (2026-07-21),
+# which logged `Running with dbt=1.12.0 / Registered adapter: snowflake=1.9.2`.
+#
+# It was not free drift: dbt-core <=1.11 requires pathspec<0.13 and black >=26.1 requires
+# pathspec>=1.0.0, so black in this same file FORCED the resolver onto 1.12.0 (the first
+# core release allowing pathspec<1.1). That is why the dev tooling now lives in
+# requirements-dev.txt -- see the note there before bumping black.
+dbt-core==1.9.10
 dbt-snowflake==1.9.2
 anthropic==0.52.0
 python-telegram-bot==21.11
-pytest==9.0.3
-pytest-mock==3.14.0
-black==26.3.1
-ruff==0.11.6
