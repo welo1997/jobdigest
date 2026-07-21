@@ -122,16 +122,22 @@ jobs:
       # routine produced. A missing file is normal (the routine may not have run yet) and
       # must not fail the pipeline -- but a file that exists and yields nothing DOES fail,
       # inside import_enrichment. Those are different conditions; see enrichment/exchange.py.
+      # The routine answers in numbered parts (enrichment-001.json, ...), not one file: its
+      # Drive write truncates at 15000 bytes, silently and mid-string. Observed 2026-07-21,
+      # when a 300-posting reply was severed after exactly 50 records and arrived as
+      # invalid JSON. --max-depth 1 keeps this from re-reading processed/.
       - name: Step 4a — Import enrichment from the routine
         if: steps.rclone.outputs.enabled == 'true'
         run: |
-          if rclone copy gdrive:JobMarket/enrichment.json . 2>/dev/null && [ -f enrichment.json ]; then
-            python -m enrichment.exchange --import enrichment.json
-            # Move it aside so a stale file is never re-imported as if it were fresh.
-            rclone moveto gdrive:JobMarket/enrichment.json \
-                          "gdrive:JobMarket/processed/enrichment-$(date -u +%Y%m%dT%H%M%SZ).json"
+          mkdir -p inbox
+          rclone copy gdrive:JobMarket inbox --include "enrichment*.json" --max-depth 1 || true
+          if compgen -G "inbox/enrichment*.json" > /dev/null; then
+            python -m enrichment.exchange --import inbox
+            # Move aside so a stale part is never re-imported as if it were fresh.
+            rclone move gdrive:JobMarket "gdrive:JobMarket/processed/$(date -u +%Y%m%dT%H%M%SZ)" \
+                        --include "enrichment*.json" --max-depth 1
           else
-            echo "No enrichment.json in Drive yet — nothing to import."
+            echo "No enrichment parts in Drive yet — nothing to import."
           fi
 
       - name: Step 5 — dbt seed

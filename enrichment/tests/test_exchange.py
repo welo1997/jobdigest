@@ -1,8 +1,8 @@
 """Tests for the no-API enrichment exchange.
 
-`enrichment.json` is written by a claude.ai routine and travels through cloud storage, so
-these tests exist to prove the import step does not trust it. They are written to fail if
-a guard is removed -- each one breaks for exactly one reason.
+The enrichment parts are written by a claude.ai routine and travel through cloud storage,
+so these tests exist to prove the import step does not trust them. They are written to fail
+if a guard is removed -- each one breaks for exactly one reason.
 """
 
 from unittest.mock import MagicMock, patch
@@ -12,15 +12,15 @@ import json
 import pytest
 
 from enrichment.exchange import (
-    _clean_score,
     _clean_skills,
+    _part_files,
     export_postings,
     import_enrichment,
 )
 
 
-def _write(tmp_path, payload):
-    p = tmp_path / "enrichment.json"
+def _write(tmp_path, payload, name="enrichment.json"):
+    p = tmp_path / name
     p.write_text(json.dumps(payload), encoding="utf-8")
     return str(p)
 
@@ -28,8 +28,7 @@ def _write(tmp_path, payload):
 def _conn_where_known(known_ids):
     """A fake Snowflake connection whose job_postings contains exactly `known_ids`."""
     conn = MagicMock()
-    cur = conn.cursor.return_value
-    cur.fetchall.return_value = [(i,) for i in known_ids]
+    conn.cursor.return_value.fetchall.return_value = [(i,) for i in known_ids]
     return conn
 
 
@@ -39,53 +38,32 @@ def _conn_where_known(known_ids):
 def test_invented_posting_id_is_dropped(tmp_path):
     """A posting_id the DB has never seen must not reach a MERGE."""
     path = _write(tmp_path, {"enrichment": [
-        {"posting_id": "real", "skills": ["dbt"], "personal_score": 7},
-        {"posting_id": "invented", "skills": ["sql"], "personal_score": 9},
+        {"posting_id": "real", "skills": ["dbt"]},
+        {"posting_id": "invented", "skills": ["sql"]},
     ]})
     conn = _conn_where_known(["real"])
 
     with patch("enrichment.exchange.get_snowflake_connection", return_value=conn), \
-         patch("enrichment.exchange.store_enrichment", return_value=(1, 1)) as store:
+         patch("enrichment.exchange.store_skill_tags", return_value=1) as store:
         assert import_enrichment(path) == 1
 
-    stored = store.call_args[0][1]
-    assert [r["posting_id"] for r in stored] == ["real"]
-
-
-def test_score_is_clamped_not_trusted(tmp_path):
-    """A score outside 0-10 is clamped, so it cannot skew the personal mart."""
-    path = _write(tmp_path, {"enrichment": [
-        {"posting_id": "a", "personal_score": 99},
-        {"posting_id": "b", "personal_score": -5},
-    ]})
-    conn = _conn_where_known(["a", "b"])
-
-    with patch("enrichment.exchange.get_snowflake_connection", return_value=conn), \
-         patch("enrichment.exchange.store_enrichment", return_value=(0, 2)) as store:
-        import_enrichment(path)
-
-    by_id = {r["posting_id"]: r for r in store.call_args[0][1]}
-    assert by_id["a"]["personal_score"] == 10
-    assert by_id["b"]["personal_score"] == 0
+    assert [r["posting_id"] for r in store.call_args[0][1]] == ["real"]
 
 
 def test_malformed_record_does_not_abort_the_batch(tmp_path):
     """One bad record costs its own row, never the whole run."""
     path = _write(tmp_path, {"enrichment": [
         "not a dict",
-        {"posting_id": "a", "skills": "dbt, sql", "personal_score": "seven"},
-        {"posting_id": "b", "skills": ["dbt"], "personal_score": 6},
+        {"posting_id": "a", "skills": "dbt, sql"},     # skills must be a list
+        {"posting_id": "b", "skills": ["dbt"]},
     ]})
     conn = _conn_where_known(["a", "b"])
 
     with patch("enrichment.exchange.get_snowflake_connection", return_value=conn), \
-         patch("enrichment.exchange.store_enrichment", return_value=(1, 1)) as store:
+         patch("enrichment.exchange.store_skill_tags", return_value=1) as store:
         assert import_enrichment(path) == 1
 
-    stored = store.call_args[0][1]
-    # "a" contributed nothing usable: a bare string is not a skills array and "seven" is
-    # not a score, so it is skipped rather than stored as garbage.
-    assert [r["posting_id"] for r in stored] == ["b"]
+    assert [r["posting_id"] for r in store.call_args[0][1]] == ["b"]
 
 
 def test_skills_are_coerced_to_short_lowercase_strings():
@@ -97,53 +75,83 @@ def test_skills_are_coerced_to_short_lowercase_strings():
     assert len(_clean_skills(["x" * 500])[0]) == 60                       # truncated
 
 
-def test_zero_score_is_kept_but_unusable_score_is_none():
-    """0 is a real verdict; None means retry later. Collapsing them loses that."""
-    assert _clean_score(0) == 0
-    assert _clean_score(None) is None
-    assert _clean_score("seven") is None
-    assert _clean_score(True) is None      # bool is an int in Python; not a score
-
-
-def test_a_file_that_stores_nothing_raises(tmp_path):
-    """A parsed file that yields no rows is an outage, not a quiet no-op.
-
-    Mirrors the all-postings-failed guard in skill_extractor: on 2026-07-20 a totally
-    failed enrichment step reported success and the pipeline broke two steps later.
-    """
-    path = _write(tmp_path, {"enrichment": [
-        {"posting_id": "ghost", "skills": ["dbt"], "personal_score": 7},
-    ]})
+def test_files_that_store_nothing_raise(tmp_path):
+    """Parsed files that yield no rows are an outage, not a quiet no-op."""
+    path = _write(tmp_path, {"enrichment": [{"posting_id": "ghost", "skills": ["dbt"]}]})
     conn = _conn_where_known([])          # the DB knows none of them
 
     with patch("enrichment.exchange.get_snowflake_connection", return_value=conn), \
-         patch("enrichment.exchange.store_enrichment") as store:
+         patch("enrichment.exchange.store_skill_tags") as store:
         with pytest.raises(RuntimeError, match="none were usable"):
             import_enrichment(path)
     store.assert_not_called()
 
 
-def test_wrong_shape_returns_zero_without_touching_the_db(tmp_path):
-    path = _write(tmp_path, {"enrichment": {"posting_id": "a"}})   # dict, not list
-    with patch("enrichment.exchange.get_snowflake_connection") as conn:
-        assert import_enrichment(path) == 0
-    conn.assert_not_called()
-
-
 def test_duplicate_posting_id_stores_once(tmp_path):
     path = _write(tmp_path, {"enrichment": [
-        {"posting_id": "a", "skills": ["dbt"], "personal_score": 8},
-        {"posting_id": "a", "skills": ["sql"], "personal_score": 2},
+        {"posting_id": "a", "skills": ["dbt"]},
+        {"posting_id": "a", "skills": ["sql"]},
     ]})
     conn = _conn_where_known(["a"])
 
     with patch("enrichment.exchange.get_snowflake_connection", return_value=conn), \
-         patch("enrichment.exchange.store_enrichment", return_value=(1, 1)) as store:
+         patch("enrichment.exchange.store_skill_tags", return_value=1) as store:
         import_enrichment(path)
 
     stored = store.call_args[0][1]
     assert len(stored) == 1
     assert stored[0]["skills"] == ["dbt"]      # first answer wins
+
+
+# --- the 15000-byte truncation, which actually happened --------------------------------
+
+
+def test_truncated_part_is_skipped_not_fatal(tmp_path):
+    """A severed part must cost only its own postings.
+
+    On 2026-07-21 the routine's Drive write cut off at exactly 15000 bytes mid-string,
+    producing invalid JSON. Letting that raise would abort the whole pipeline run --
+    ingestion, dbt and alerts included -- over a transport glitch in a supplementary step.
+    """
+    good = _write(tmp_path, {"enrichment": [{"posting_id": "b", "skills": ["dbt"]}]},
+                  name="enrichment-002.json")
+    bad = tmp_path / "enrichment-001.json"
+    bad.write_text('{"enrichment": [{"posting_id": "a", "skills": ["dbt", "sq',
+                   encoding="utf-8")          # truncated mid-string, as observed
+    conn = _conn_where_known(["a", "b"])
+
+    with patch("enrichment.exchange.get_snowflake_connection", return_value=conn), \
+         patch("enrichment.exchange.store_skill_tags", return_value=1) as store:
+        assert import_enrichment(str(tmp_path)) == 1
+
+    # The intact part still landed; the truncated one was skipped, not fatal.
+    assert [r["posting_id"] for r in store.call_args[0][1]] == ["b"]
+
+
+def test_all_parts_truncated_raises(tmp_path):
+    """If every part is unreadable, nothing was stored — that IS the outage case."""
+    for n in ("enrichment-001.json", "enrichment-002.json"):
+        (tmp_path / n).write_text('{"enrichment": [{"posting_id": "a", "skil',
+                                  encoding="utf-8")
+
+    with patch("enrichment.exchange.get_snowflake_connection") as conn:
+        assert import_enrichment(str(tmp_path)) == 0    # no usable posting_id at all
+    conn.assert_not_called()
+
+
+def test_parts_are_discovered_and_merged(tmp_path):
+    """The routine answers in numbered parts; all of them must be read."""
+    for i, pid in enumerate(["a", "b", "c"], start=1):
+        _write(tmp_path, {"enrichment": [{"posting_id": pid, "skills": ["dbt"]}]},
+               name=f"enrichment-{i:03d}.json")
+    assert len(_part_files(str(tmp_path))) == 3
+
+    conn = _conn_where_known(["a", "b", "c"])
+    with patch("enrichment.exchange.get_snowflake_connection", return_value=conn), \
+         patch("enrichment.exchange.store_skill_tags", return_value=3) as store:
+        assert import_enrichment(str(tmp_path)) == 3
+
+    assert sorted(r["posting_id"] for r in store.call_args[0][1]) == ["a", "b", "c"]
 
 
 # --- the export ------------------------------------------------------------------------
@@ -167,3 +175,10 @@ def test_export_carries_no_credentials_and_only_public_fields(tmp_path):
     blob = out.read_text(encoding="utf-8").lower()
     for secret in ("snowflake_", "password", "private_key", "anthropic", "api_key"):
         assert secret not in blob
+
+
+def test_export_asks_only_for_postings_without_skills():
+    """Personal scoring was retired 2026-07-21; the query must not join personal_scores."""
+    from enrichment.exchange import FETCH_SQL
+    assert "skill_tags" in FETCH_SQL
+    assert "personal_scores" not in FETCH_SQL
