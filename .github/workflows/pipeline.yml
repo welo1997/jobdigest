@@ -2,6 +2,11 @@ name: Daily Pipeline
 
 on:
   workflow_dispatch:         # Triggered on schedule by the claude.ai cloud routine (gh workflow run)
+    inputs:
+      full_refresh:
+        description: 'Rebuild incremental models from scratch (fct_postings)'
+        type: boolean
+        default: false
   # Fallback scheduler — uncomment if the cloud routine can't dispatch the workflow:
   # schedule:
   #   - cron: '0 7 * * 1-5'  # weekdays 07:00 UTC
@@ -133,9 +138,15 @@ jobs:
         working-directory: dbt
         run: dbt seed --profiles-dir .
 
+      # fct_postings is incremental on `loaded_at > max(loaded_at)`. That watermark is a
+      # stored wall-clock value, so anything that changes what loaded_at *means* -- a
+      # timezone migration, a backfill -- leaves rows below the watermark that will never
+      # be revisited by an ordinary run. Hence a switch rather than a hand-rolled DROP:
+      # the operation is rare but recurring, and dropping a mart by hand is how you find
+      # out it was owned by the wrong role (see CLAUDE.md rule 8).
       - name: Step 6 — dbt run
         working-directory: dbt
-        run: dbt run --profiles-dir .
+        run: dbt run --profiles-dir . ${{ inputs.full_refresh && '--full-refresh' || '' }}
 
       - name: Step 7 — dbt test
         working-directory: dbt

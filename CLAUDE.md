@@ -210,6 +210,20 @@ goes red. A test that cannot fail documents nothing.
   account ban risk. **Greenhouse/Lever/Ashby** curated company list, no domain-wide crawls.
 - **Haiku for both enrichment passes** — well-calibrated at ~10× lower cost than Sonnet.
 - Salary coverage is ~30–40%; no row is dropped for a missing salary.
+- **Snowflake stores Prague wall-clock time, not UTC.** The account `TIMEZONE` is
+  `Europe/Prague` (changed 2026-07-21 from Snowflake's `America/Los_Angeles` default, which
+  had been silently storing US Pacific times in a Czech job-market dataset — `loaded_at`
+  read 7 hours stale on a run that had just finished). `CURRENT_TIMESTAMP()` into a
+  `TIMESTAMP_NTZ` column therefore records the wall clock you'd read in Prague: UTC+1 in
+  winter, UTC+2 in summer. The 16 836 existing rows were converted with `convert_timezone`
+  in the same change, so the column has one basis throughout — **do not "fix" older rows
+  again.** `sysdate()` is the escape hatch when you genuinely need UTC.
+  Two consequences worth knowing before changing anything here: comparisons must stay on
+  one basis (`fct_personal_matches`' freshness filter compares `last_seen_at` against
+  `current_timestamp()`, both session-local, which is correct — comparing against
+  `sysdate()` would silently be off by an hour or two), and anything that changes what
+  `loaded_at` *means* needs `fct_postings` rebuilt with the workflow's `full_refresh`
+  input, because its incremental watermark is a stored wall-clock value.
 - Metabase is local Docker only; portfolio evidence is screenshots + dbt docs.
 - The claude.ai routine reaches Drive through the **owner's own connector**. The folder is
   owner-only and should stay unshared — sharing it is what would create third-party access.
