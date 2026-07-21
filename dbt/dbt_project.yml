@@ -27,9 +27,6 @@ models:
       analysis:
         +schema: marts_analysis
         +materialized: table
-      personal:
-        +schema: marts_personal
-        +materialized: table
 
 seeds:
   job_market:

@@ -11,7 +11,7 @@ the biggest source of mistakes here is assuming there is only one.
 | Store | Snowflake `JOB_MARKET` | Postgres on a Hetzner VPS |
 | Transform | dbt Core | `service/` Python |
 | Runs on | GitHub Actions (`workflow_dispatch`) | systemd timers on the VPS |
-| Output | `fct_postings`, Telegram alerts | Daily digest email, jobdigest.eu |
+| Output | `fct_postings` (analysis dataset) | Daily digest email, jobdigest.eu |
 | Blast radius if broken | A stale dataset | Real people's inboxes and personal data |
 
 Shared: `ingestion/` (source adapters), `search_jobs.py` (classifiers),
@@ -22,7 +22,7 @@ reach into `service/`, and JobDigest must never require Snowflake.
 
 ```
 ingestion/        BaseSource adapters, Snowflake load, migrations
-enrichment/       Claude skill extraction + personal scoring (Snowflake side)
+enrichment/       Claude skill extraction + the routine file exchange (Snowflake side)
 dbt/              staging → intermediate → marts
 service/          JobDigest: webapp, matcher, digest, mailer, store, taxonomy, cvparse
   service/tests/  the tests that matter most — see "Testing"
@@ -93,7 +93,7 @@ Ingest broadly, store everything, model in dbt, analyse later.
   industries via `industry_blocklist.csv`. When in doubt, keep the posting.
 - No row is ever dropped for its `role_category`; `uncategorised` is a first-class value.
 - `stg_job_postings` (view) → `int_postings_enriched`, `int_skill_exploded` (tables) →
-  `fct_postings` (incremental), `fct_personal_matches`.
+  `fct_postings` (incremental). There is no personal/alerting mart — see below.
 - **The `agg_*` analysis layer is deliberately unbuilt.** Design it after exploring real
   data, not before. Do not add aggregation models speculatively.
 - Enrichment (`enrichment/`) must be idempotent, must validate Claude's JSON, and must log
@@ -103,10 +103,18 @@ Ingest broadly, store everything, model in dbt, analyse later.
 - **Enrichment runs on subscription compute, not API credits.** `ANTHROPIC_API_KEY` is
   deliberately absent from `pipeline.yml`; the LLM work belongs in a claude.ai routine
   behind a file exchange, the same shape as `deploy/matcher-routine.md`. With no key set,
-  skill extraction and personal scoring log a skip and exit 0, and `notify.py`'s curator
-  falls back to ranking by score. **Do not add the key back to a workflow** — its absence
-  is what enforces the billing decision. The routine side is not built yet; until it is,
-  `raw.skill_tags` and `raw.personal_scores` simply stay empty.
+  skill extraction logs a skip and exits 0. **Do not add the key back to a workflow** — its
+  absence is what enforces the billing decision. The routine side is built and running:
+  `enrichment/exchange.py` + `enrichment/ROUTINE.md`, Steps 4a and 9 of `pipeline.yml`.
+- **Personal scoring was retired 2026-07-21.** A per-posting "how well does this fit Vojta"
+  score fed a Telegram alert feed; JobDigest, subscribed to as an ordinary user, replaces it.
+  Gone: `fct_personal_matches`, `enrichment/personal_scorer.py`, `enrichment/curator.py`,
+  `notify.py`, `raw.personal_scores`, the `TELEGRAM_*` secrets. The market-intelligence side
+  is now purely an analysis dataset — **do not reintroduce a personal-fit column into it.**
+  `raw.job_postings` keeps its `notified` / `notified_at` columns — they are `FALSE`/`NULL`
+  for all 18 816 rows (the alert feed never actually wrote them back), so there is no history
+  to preserve and no reason to run destructive DDL on the one table the pipeline depends on.
+  The dbt models deliberately no longer select them; treat them as vestigial.
 
 ---
 
@@ -219,9 +227,9 @@ goes red. A test that cannot fail documents nothing.
   in the same change, so the column has one basis throughout — **do not "fix" older rows
   again.** `sysdate()` is the escape hatch when you genuinely need UTC.
   Two consequences worth knowing before changing anything here: comparisons must stay on
-  one basis (`fct_personal_matches`' freshness filter compares `last_seen_at` against
-  `current_timestamp()`, both session-local, which is correct — comparing against
-  `sysdate()` would silently be off by an hour or two), and anything that changes what
+  one basis — a freshness filter comparing `last_seen_at` against `current_timestamp()` is
+  correct because both resolve session-local, whereas comparing against `sysdate()` would
+  silently be off by an hour or two — and anything that changes what
   `loaded_at` *means* needs `fct_postings` rebuilt with the workflow's `full_refresh`
   input, because its incremental watermark is a stored wall-clock value.
 - **`JOB_MARKET_MONITOR` caps Snowflake spend** (added 2026-07-21; there was no monitor at

@@ -146,9 +146,9 @@ def run(limit: Optional[int] = None) -> None:
     # No key configured is a deliberate no-op, not a failure: this project is moving
     # enrichment off metered API credits and onto subscription compute via a claude.ai
     # routine (the pattern deploy/matcher-routine.md already uses for JobDigest), so the
-    # pipeline must stay green with no key present. Matches enrichment/curator.py's
-    # existing convention. This is distinct from the all-postings-failed guard at the end
-    # of this function: that one fires only when work was attempted and none of it landed.
+    # pipeline must stay green with no key present. This is distinct from the
+    # all-postings-failed guard at the end of this function: that one fires only when work
+    # was attempted and none of it landed.
     if not os.environ.get("ANTHROPIC_API_KEY"):
         logger.info(
             "No ANTHROPIC_API_KEY set — skipping skill extraction. "

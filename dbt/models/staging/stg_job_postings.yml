@@ -19,13 +19,6 @@ sources:
             tests:
               - not_null
               - unique
-      - name: personal_scores
-        description: "Claude Sonnet personal fit scores per posting"
-        columns:
-          - name: posting_id
-            tests:
-              - not_null
-              - unique
 
 models:
   - name: stg_job_postings

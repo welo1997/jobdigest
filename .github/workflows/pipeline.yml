@@ -34,13 +34,10 @@ env:
   # Handing this job a key is what would let it spend credits, so the enforcement is the
   # absence of the variable, not a flag inside the code.
   #
-  # With it unset: skill extraction and personal scoring log a skip and exit 0, and
-  # notify.py's curator falls back to ranking by score (see notify.py's curate() call).
-  # Nothing fails; the enrichment steps are simply no-ops until the routine feeds them.
+  # With it unset, skill extraction logs a skip and exits 0. Nothing fails; the enrichment
+  # step is simply a no-op until the routine feeds it.
   ADZUNA_APP_ID: ${{ secrets.ADZUNA_APP_ID }}
   ADZUNA_API_KEY: ${{ secrets.ADZUNA_API_KEY }}
-  TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
-  TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
 
 jobs:
   pipeline:
@@ -73,29 +70,24 @@ jobs:
       - name: Step 1 — Ingest all sources
         run: python -m ingestion.run
 
-      # personal_scorer (Step 4) joins raw_staging.stg_job_postings for role_category and
-      # is_remote. That is a dbt view, and it used to be built only by the full dbt run at
-      # the end -- so scoring worked purely because the previous day's view was still
-      # lying around. Rebuilding the database exposed it. The view reads nothing but
-      # raw.job_postings and two macros, so it is built here, right after ingestion.
+      # This is a fail-fast probe, not a dependency: it is the first step that writes to a
+      # dbt-managed schema, so if schemas, grants or ownership are wrong it fails within
+      # seconds rather than midway through the enrichment exchange. The view reads nothing
+      # but raw.job_postings and two macros, so it is cheap to build twice; Step 6 rebuilds
+      # it along with everything else.
       #
-      # Deliberately placed *before* the two enrichment steps rather than just before the
-      # step that needs it: this is the first step that writes to a dbt-managed schema, so
-      # if schemas or grants are wrong it fails within seconds instead of after ~45 minutes
-      # of Haiku calls. The full dbt run still comes after scoring, because the intermediate
-      # and mart models consume raw.personal_scores.
-      - name: Step 2 — dbt run (staging view only, needed by personal scoring)
+      # It was originally here because personal_scorer joined raw_staging.stg_job_postings
+      # and only worked because the previous day's view was lying around. That consumer was
+      # retired 2026-07-21 — the early build is kept purely for the fail-fast property.
+      - name: Step 2 — dbt run (staging view only, fail-fast on schema/grants)
         working-directory: dbt
         run: dbt run --select stg_job_postings --profiles-dir .
 
       - name: Step 3 — Skill extraction (Haiku)
         run: python -m enrichment.skill_extractor
 
-      - name: Step 4 — Personal scoring (Haiku)
-        run: python -m enrichment.personal_scorer
-
       # --- the no-API enrichment exchange (see enrichment/ROUTINE.md) ------------------
-      # Steps 3 and 4 above are no-ops with no ANTHROPIC_API_KEY set. The real enrichment
+      # Step 3 above is a no-op with no ANTHROPIC_API_KEY set. The real enrichment
       # happens in a claude.ai routine between runs, so one pipeline run handles BOTH ends:
       # it imports the batch the routine produced since last time, then exports a fresh one.
       #
@@ -165,9 +157,6 @@ jobs:
       - name: Step 7 — dbt test
         working-directory: dbt
         run: dbt test --profiles-dir .
-
-      - name: Step 8 — Telegram notifications
-        run: python notify.py
 
       # Export last, after ingestion has landed today's postings, so the batch the routine
       # reads next is as fresh as possible. Deliberately not `continue-on-error`: if the

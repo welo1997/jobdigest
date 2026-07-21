@@ -2,7 +2,7 @@ version: 2
 
 models:
   - name: int_postings_enriched
-    description: "Job postings joined with skill tags and personal scores"
+    description: "Job postings joined with extracted skill tags"
     columns:
       - name: posting_id
         tests:

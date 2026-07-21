@@ -15,17 +15,6 @@ skill_tags as (
 
 ),
 
-personal_scores as (
-
-    select
-        posting_id,
-        personal_score,
-        summary as personal_summary,
-        scored_at
-    from {{ source('raw', 'personal_scores') }}
-
-),
-
 enriched as (
 
     select
@@ -39,17 +28,10 @@ enriched as (
         -- Exposed so fct_postings can tell that enrichment arrived. Skills land DAYS
         -- after a posting is ingested (ingest -> export -> routine -> import), so a
         -- downstream incremental keyed only on loaded_at can never see them.
-        s.extracted_at                                  as skills_extracted_at,
-
-        -- Personal scoring
-        ps.personal_score,
-        ps.personal_summary,
-        ps.scored_at                                    as personal_scored_at,
-        ps.posting_id is not null                       as has_personal_score
+        s.extracted_at                                  as skills_extracted_at
 
     from postings p
     left join skill_tags s on p.posting_id = s.posting_id
-    left join personal_scores ps on p.posting_id = ps.posting_id
 
 )
 

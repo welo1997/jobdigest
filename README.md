@@ -31,7 +31,7 @@ Postgres and runs on a VPS.
    │ dbt staging/int/mart │                   │  ▼                     │
    │  ▼                   │                   │ digest → Resend email  │
    │ fct_postings         │                   │ Next.js + Caddy + CF   │
-   │ → Telegram alerts    │                   │                        │
+   │                      │                   │                        │
    └──────────────────────┘                   └────────────────────────┘
 ```
 
@@ -112,18 +112,16 @@ The original pipeline: ingest broadly, store everything, model in dbt, analyse l
 | Ingestion | Python 3.12 — `requests`, `feedparser`, `beautifulsoup4` |
 | Warehouse | Snowflake (`JOB_MARKET`) |
 | Transform | dbt Core |
-| Enrichment | Claude Haiku — skill extraction + personal fit scoring |
+| Enrichment | Claude skill extraction, via a claude.ai routine (no metered API) |
 | Orchestration | GitHub Actions |
-| Alerts | Telegram Bot API |
 
 ```
 JOB_MARKET
-├── RAW            job_postings · skill_tags · personal_scores
+├── RAW            job_postings · skill_tags
 ├── STAGING        stg_job_postings                    (views)
 ├── INTERMEDIATE   int_postings_enriched · int_skill_exploded
 └── MARTS
-    ├── ANALYSIS   fct_postings
-    └── PERSONAL   fct_personal_matches → Telegram
+    └── ANALYSIS   fct_postings
 ```
 
 Scope is deliberately broad: **all roles at tech companies**, not just engineering titles.
@@ -163,7 +161,6 @@ grant usage, create table, create view on schema JOB_MARKET.RAW            to ro
 grant usage, create table, create view on schema JOB_MARKET.STAGING        to role JOB_MARKET_ETL;
 grant usage, create table, create view on schema JOB_MARKET.INTERMEDIATE   to role JOB_MARKET_ETL;
 grant usage, create table, create view on schema JOB_MARKET.MARTS_ANALYSIS to role JOB_MARKET_ETL;
-grant usage, create table, create view on schema JOB_MARKET.MARTS_PERSONAL to role JOB_MARKET_ETL;
 
 grant select, insert, update, delete on all    tables in database JOB_MARKET to role JOB_MARKET_ETL;
 grant select, insert, update, delete on future tables in database JOB_MARKET to role JOB_MARKET_ETL;
@@ -176,7 +173,7 @@ grant select on future views in database JOB_MARKET to role JOB_MARKET_ETL;
 -- Database/Schema/Warehouse/etc, not Table) — altering a table requires OWNERSHIP of it.
 -- Scoped to exactly this one table, not the schema or database: this role can still not
 -- drop the database, drop the schema, or touch a table it doesn't own. If a future
--- migration needs to alter skill_tags or personal_scores, extend this then — don't grant
+-- migration needs to alter skill_tags, extend this then — don't grant
 -- ownership ahead of actual need.
 grant ownership on table JOB_MARKET.RAW.JOB_POSTINGS to role JOB_MARKET_ETL copy current grants;
 
@@ -232,7 +229,7 @@ for 7 days are marked inactive rather than deleted.
 
 ```
 ingestion/        source adapters (BaseSource) + Snowflake load
-enrichment/       Claude skill extraction + personal scoring
+enrichment/       Claude skill extraction + the routine file exchange
 dbt/              staging → intermediate → marts
 service/          JobDigest: API, matcher, digest, mailer, store, taxonomy
 web/              Next.js landing + preferences/matches pages

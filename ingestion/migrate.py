@@ -17,9 +17,9 @@ from ingestion.load import get_connection
 logger = logging.getLogger(__name__)
 
 MIGRATIONS = [
-    # last_seen_at is bumped on every re-ingest (see load.py MERGE). It lets
-    # stale/filled postings age out of fct_personal_matches. Backfill existing
-    # rows from loaded_at so nothing is null after the column is added.
+    # last_seen_at is bumped on every re-ingest (see load.py MERGE), so stale or
+    # filled postings can be aged out downstream. Backfill existing rows from
+    # loaded_at so nothing is null after the column is added.
     "ALTER TABLE RAW.JOB_POSTINGS ADD COLUMN IF NOT EXISTS last_seen_at TIMESTAMP_NTZ",
     "UPDATE RAW.JOB_POSTINGS SET last_seen_at = loaded_at WHERE last_seen_at IS NULL",
 ]

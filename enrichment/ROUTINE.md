@@ -20,10 +20,9 @@ One pipeline run does both ends: it imports whatever the routine produced since 
 (Step 4a, before the dbt run, so today's models are built on it), then exports a fresh
 batch after ingestion (Step 9). The routine runs in between.
 
-`ANTHROPIC_API_KEY` is **deliberately absent** from `pipeline.yml`. With no key, Steps 3
-and 4 (`skill_extractor`, `personal_scorer`) log a skip and exit 0, and this exchange does
-the work instead. Step 4 is a no-op for a second reason now — personal scoring is retired. Do not add the key back — its absence is what enforces the billing
-decision.
+`ANTHROPIC_API_KEY` is **deliberately absent** from `pipeline.yml`. With no key, Step 3
+(`skill_extractor`) logs a skip and exits 0, and this exchange does the work instead. Do not
+add the key back — its absence is what enforces the billing decision.
 
 ## postings.json (input to the routine)
 
@@ -64,10 +63,11 @@ and arrived as invalid JSON. Drive itself is fine — the export step pushes a 1
 `postings.json` through rclone without trouble — the limit is on the routine's write path.
 Do not "simplify" this back to a single file.
 
-**Skills only.** Personal scoring was retired 2026-07-21: its only consumer was a Telegram
-alert feed, replaced by using JobDigest itself as a subscriber. Dropping `personal_score`
-and `summary` also cut the record from ~300 bytes to ~100, which is what makes the part
-sizes workable.
+**Skills only.** Personal scoring was retired 2026-07-21 — its only consumer was a Telegram
+alert feed, replaced by using JobDigest itself as a subscriber — and the whole path was
+deleted from the repo. Dropping `personal_score` and `summary` also cut the record from
+~300 bytes to ~100, which is what makes the part sizes workable. Do not add a score field
+back: there is nothing downstream to read it.
 
 ## What the import step enforces
 

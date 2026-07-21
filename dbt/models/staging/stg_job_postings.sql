@@ -63,7 +63,7 @@ staged as (
             else 'uncategorised'
         end                                             as role_category,
 
-        -- Work region — coarse geography for the personal alert (international-first).
+        -- Work region — coarse geography for analysis (international-first).
         -- Derived from country_code + free-text location; 'worldwide' = remote-anywhere.
         case
             when upper(coalesce(country_code, '')) = 'CZ'
@@ -99,9 +99,7 @@ staged as (
 
         posted_at,
         loaded_at,
-        last_seen_at,
-        notified,
-        notified_at
+        last_seen_at
 
     from source
 

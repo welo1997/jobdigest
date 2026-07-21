@@ -53,19 +53,10 @@ select
     -- max(skills_extracted_at) from this table, so the column has to exist here.
     skills_extracted_at,
 
-    -- Personal scoring
-    has_personal_score,
-    personal_score,
-    personal_summary,
-
     -- Time dimensions
     posted_at,
     loaded_at,
     date_trunc('week', coalesce(posted_at, loaded_at::date))    as posting_week,
-    date_trunc('month', coalesce(posted_at, loaded_at::date))   as posting_month,
-
-    -- Notification
-    notified,
-    notified_at
+    date_trunc('month', coalesce(posted_at, loaded_at::date))   as posting_month
 
 from enriched
