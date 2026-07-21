@@ -9,7 +9,8 @@ skill_tags as (
     select
         posting_id,
         skills,
-        array_size(skills) as skills_count
+        array_size(skills) as skills_count,
+        extracted_at
     from {{ source('raw', 'skill_tags') }}
 
 ),
