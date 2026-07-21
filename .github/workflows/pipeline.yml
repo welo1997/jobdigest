@@ -133,9 +133,17 @@ jobs:
           rclone copy gdrive:JobMarket inbox --include "enrichment*.json" --max-depth 1 || true
           if compgen -G "inbox/enrichment*.json" > /dev/null; then
             python -m enrichment.exchange --import inbox
-            # Move aside so a stale part is never re-imported as if it were fresh.
-            rclone move gdrive:JobMarket "gdrive:JobMarket/processed/$(date -u +%Y%m%dT%H%M%SZ)" \
-                        --include "enrichment*.json" --max-depth 1
+            # Archive so a stale part is never re-imported as if it were fresh. Done file
+            # by file with `moveto`, NOT `rclone move`: processed/ lives inside JobMarket,
+            # and rclone refuses a directory move onto an overlapping remote ("can't sync
+            # or move files on overlapping remotes"). Re-importing would be harmless
+            # anyway -- the MERGE is INSERT-only -- so archiving must never fail the run.
+            ts=$(date -u +%Y%m%dT%H%M%SZ)
+            for f in inbox/enrichment*.json; do
+              b=$(basename "$f")
+              rclone moveto "gdrive:JobMarket/$b" "gdrive:JobMarket/processed/$ts/$b" || \
+                echo "warning: could not archive $b (already imported; safe to ignore)"
+            done
           else
             echo "No enrichment parts in Drive yet — nothing to import."
           fi
