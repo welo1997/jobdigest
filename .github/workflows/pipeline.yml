@@ -89,6 +89,46 @@ jobs:
       - name: Step 4 — Personal scoring (Haiku)
         run: python -m enrichment.personal_scorer
 
+      # --- the no-API enrichment exchange (see enrichment/ROUTINE.md) ------------------
+      # Steps 3 and 4 above are no-ops with no ANTHROPIC_API_KEY set. The real enrichment
+      # happens in a claude.ai routine between runs, so one pipeline run handles BOTH ends:
+      # it imports the batch the routine produced since last time, then exports a fresh one.
+      #
+      # Both steps are skipped entirely when RCLONE_CONFIG is absent, so the pipeline stays
+      # green before Drive is wired up -- the same "missing credential is a clean skip, not
+      # a failure" convention the enrichment modules already follow.
+      - name: Configure rclone (skipped without the secret)
+        id: rclone
+        env:
+          RCLONE_CONFIG_CONTENT: ${{ secrets.RCLONE_CONFIG }}
+        run: |
+          if [ -z "$RCLONE_CONFIG_CONTENT" ]; then
+            echo "No RCLONE_CONFIG secret — enrichment exchange steps will be skipped."
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          sudo apt-get install -y rclone
+          mkdir -p ~/.config/rclone
+          printf '%s' "$RCLONE_CONFIG_CONTENT" > ~/.config/rclone/rclone.conf
+          chmod 600 ~/.config/rclone/rclone.conf
+          echo "enabled=true" >> "$GITHUB_OUTPUT"
+
+      # Import BEFORE the dbt run below, so today's models are built on the enrichment the
+      # routine produced. A missing file is normal (the routine may not have run yet) and
+      # must not fail the pipeline -- but a file that exists and yields nothing DOES fail,
+      # inside import_enrichment. Those are different conditions; see enrichment/exchange.py.
+      - name: Step 4a — Import enrichment from the routine
+        if: steps.rclone.outputs.enabled == 'true'
+        run: |
+          if rclone copy gdrive:JobMarket/enrichment.json . 2>/dev/null && [ -f enrichment.json ]; then
+            python -m enrichment.exchange --import enrichment.json
+            # Move it aside so a stale file is never re-imported as if it were fresh.
+            rclone moveto gdrive:JobMarket/enrichment.json \
+                          "gdrive:JobMarket/processed/enrichment-$(date -u +%Y%m%dT%H%M%SZ).json"
+          else
+            echo "No enrichment.json in Drive yet — nothing to import."
+          fi
+
       - name: Step 5 — dbt seed
         working-directory: dbt
         run: dbt seed --profiles-dir .
@@ -103,3 +143,13 @@ jobs:
 
       - name: Step 8 — Telegram notifications
         run: python notify.py
+
+      # Export last, after ingestion has landed today's postings, so the batch the routine
+      # reads next is as fresh as possible. Deliberately not `continue-on-error`: if the
+      # export breaks, enrichment quietly stops for good, and an empty raw.skill_tags looks
+      # identical to "the routine hasn't run yet" two steps downstream.
+      - name: Step 9 — Export the next enrichment batch
+        if: steps.rclone.outputs.enabled == 'true'
+        run: |
+          python -m enrichment.exchange --export postings.json
+          rclone copy postings.json gdrive:JobMarket/
