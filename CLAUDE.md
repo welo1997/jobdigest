@@ -257,10 +257,12 @@ reopen): confirm-token expiry *and* single-use — the token is consumed on conf
 replayed confirm link can no longer be exchanged for the manage token
 (`store.confirm_subscription`); job-`url` scheme validation in both the digest email
 (`safe_url`) and the `/matches` page (`web/lib/url.ts` `safeHref`); `pip-audit` / `npm audit`
-/ Dependabot in CI (`.github/workflows/audit.yml`, `.github/dependabot.yml`).
+/ Dependabot in CI (`.github/workflows/audit.yml`, `.github/dependabot.yml`); off-box backup
+retention — `jobdigest-backup.sh` prunes both local and the encrypted Drive copies past
+`KEEP_DAYS` (30), verified running on the VPS 2026-07-22.
 
 Still open:
 
-- Off-box backup retention is the remote's business — nothing prunes it yet.
 - Cert renewal: Caddy's LE cert cannot renew behind the Cloudflare proxy. Switch to a
   Cloudflare Origin Certificate before ~mid-Sept 2026 — runbook: `deploy/cert-renewal.md`.
+  **This is the only item left.**
