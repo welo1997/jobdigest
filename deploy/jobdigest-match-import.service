@@ -4,6 +4,9 @@
 Description=JobDigest matcher import (Drive picks -> matches -> send)
 After=docker.service
 Requires=docker.service
+# Email an alert if this fails — this is the job that actually sends the daily digest, so a
+# silent failure means subscribers get nothing. See deploy/jobdigest-alert@.service.
+OnFailure=jobdigest-alert@%n.service
 
 [Service]
 Type=oneshot

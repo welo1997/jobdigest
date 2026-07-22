@@ -9,6 +9,9 @@
 Description=JobDigest matcher export (ingest + shortlists -> Drive)
 After=docker.service
 Requires=docker.service
+# Email an alert if this fails — no shortlists reach the matcher routine, so no picks and no
+# digest the next morning. See deploy/jobdigest-alert@.service.
+OnFailure=jobdigest-alert@%n.service
 
 [Service]
 Type=oneshot

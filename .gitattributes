@@ -8,3 +8,4 @@ Dockerfile      text eol=lf
 *.Caddyfile     text eol=lf
 Caddyfile       text eol=lf
 *.sql           text eol=lf
+deploy/*.py     text eol=lf

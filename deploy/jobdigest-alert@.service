@@ -1,0 +1,17 @@
+# Emails an alert via Resend when a JobDigest job fails.
+#
+# Wired to the job units with `OnFailure=jobdigest-alert@%n.service`: %n is the failing
+# unit's full name, which systemd passes here as the instance %i. Templated (one @-unit)
+# so every job shares a single alerter rather than each carrying its own copy.
+#
+# Install (once), alongside the job units:
+#   sudo cp deploy/jobdigest-alert@.service /etc/systemd/system/
+#   sudo systemctl daemon-reload
+# Set the recipient in /opt/jobdigest/deploy/.env (kept out of git):
+#   JOBDIGEST_ALERT_EMAIL=you@example.com
+[Unit]
+Description=JobDigest failure alert for %i
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/env python3 /opt/jobdigest/deploy/jobdigest-alert.py %i

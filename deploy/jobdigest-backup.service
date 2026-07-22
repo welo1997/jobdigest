@@ -7,6 +7,9 @@
 Description=JobDigest Postgres backup (pg_dump -Fc, rotated)
 After=docker.service
 Requires=docker.service
+# Email an alert if the nightly backup fails — the pgdata volume is the only copy of every
+# subscriber and the digest_sends ledger. See deploy/jobdigest-alert@.service.
+OnFailure=jobdigest-alert@%n.service
 
 [Service]
 Type=oneshot
