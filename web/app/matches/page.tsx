@@ -6,6 +6,7 @@ import Link from "next/link";
 import { Nav, Footer } from "@/components/SiteChrome";
 import { getMatches, MatchesResponse, MatchJob } from "@/lib/api";
 import { track } from "@/lib/analytics";
+import { safeHref } from "@/lib/url";
 
 const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
@@ -29,6 +30,8 @@ function jobTags(j: MatchJob): { text: string; fl?: boolean }[] {
 function MatchRow({ j, token }: { j: MatchJob; token: string }) {
   const score = j.score ?? 0;
   const strong = score >= 6;
+  // Feed URLs are untrusted; a non-http(s) scheme (javascript:, data:) renders no link.
+  const href = safeHref(j.url);
   return (
     <div className={`match${strong ? " top" : ""}`}>
       <div className="sc">
@@ -47,10 +50,10 @@ function MatchRow({ j, token }: { j: MatchJob; token: string }) {
           ))}
         </div>
         {j.summary && <div className="why">{j.summary}</div>}
-        {j.url && (
+        {href && (
           <a
             className="apply"
-            href={j.url}
+            href={href}
             target="_blank"
             rel="noopener noreferrer"
             // Score only — never the job, company or URL. Tells us whether the ranking is
