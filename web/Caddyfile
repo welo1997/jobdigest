@@ -1,6 +1,7 @@
 # Edge for JobDigest. Serves the static Next.js export and proxies /api/* to the backend.
-# TLS: with a real {$SITE_DOMAIN} Caddy auto-provisions Let's Encrypt certs. Behind
-# Cloudflare, prefer Full (strict) with a Cloudflare Origin Certificate (see deploy/README).
+# TLS: with a real {$SITE_DOMAIN} Caddy auto-provisions Let's Encrypt certs. That does NOT
+# renew behind the Cloudflare proxy — switch to a Cloudflare Origin Certificate before
+# ~mid-Sept 2026. Step-by-step: deploy/cert-renewal.md (adds a `tls` line here on the box).
 
 {
 	email {$ACME_EMAIL:admin@example.com}

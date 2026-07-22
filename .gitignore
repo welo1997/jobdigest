@@ -15,7 +15,16 @@ candidates.json
 candidates_*.json
 service/outbox/
 design/email-preview.html
-exchange/                    # matcher shortlists.json / picks.json — contains subscriber PII
+# A gitignore `#` only starts a comment at the START of a line — an inline `#` after a
+# pattern becomes part of the pattern. These were silently broken as trailing-comment
+# lines, so the guards below never matched. Keep comments on their own lines.
+
+# matcher shortlists.json / picks.json — contains subscriber PII
+exchange/
+# Cloudflare Origin Certificate + private key (see deploy/cert-renewal.md)
+deploy/origin/
+# never commit a certificate or private key
+*.pem
 
 # Local-only infrastructure reference (VPS IP, Cloudflare zone/account IDs).
 # Public notes refer to these by placeholder; see notes/INFRA.local.md.

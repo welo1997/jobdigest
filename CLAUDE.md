@@ -252,12 +252,15 @@ goes red. A test that cannot fail documents nothing.
 
 ## Open items
 
-Tracked from `notes/2026-07-18-security-review.md`:
+Tracked from `notes/2026-07-18-security-review.md`. **Resolved since that review** (do not
+reopen): confirm-token expiry *and* single-use — the token is consumed on confirm, so a
+replayed confirm link can no longer be exchanged for the manage token
+(`store.confirm_subscription`); job-`url` scheme validation in both the digest email
+(`safe_url`) and the `/matches` page (`web/lib/url.ts` `safeHref`); `pip-audit` / `npm audit`
+/ Dependabot in CI (`.github/workflows/audit.yml`, `.github/dependabot.yml`).
 
-- `GET /unsubscribe` fixed, but **confirm-token expiry/single-use** is still open.
-- Job `url` from third-party feeds is HTML-escaped but not scheme-validated before going
-  into an email `href`.
-- No `pip-audit` / `npm audit` / Dependabot in CI.
+Still open:
+
 - Off-box backup retention is the remote's business — nothing prunes it yet.
 - Cert renewal: Caddy's LE cert cannot renew behind the Cloudflare proxy. Switch to a
-  Cloudflare Origin Certificate before ~mid-Sept 2026.
+  Cloudflare Origin Certificate before ~mid-Sept 2026 — runbook: `deploy/cert-renewal.md`.
