@@ -1,0 +1,16 @@
+# JobDigest liveness watchdog. Driven by jobdigest-healthcheck.timer (every ~5 min).
+# Install (once):
+#   sudo cp deploy/jobdigest-healthcheck.{service,timer} /etc/systemd/system/
+#   sudo chmod +x deploy/jobdigest-healthcheck.sh
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now jobdigest-healthcheck.timer
+# Alerts go via jobdigest-alert.py (Telegram + email, config in deploy/.env).
+[Unit]
+Description=JobDigest liveness health check (API + containers)
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/jobdigest/deploy
+ExecStart=/opt/jobdigest/deploy/jobdigest-healthcheck.sh

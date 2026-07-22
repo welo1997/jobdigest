@@ -1,22 +1,22 @@
 #!/usr/bin/env python3
-"""Push a JobDigest ops alert when a job fails — to Telegram and/or email.
+"""Push a JobDigest ops alert to Telegram and/or email.
 
-Invoked by `jobdigest-alert@.service`, wired to the JobDigest job units with
-`OnFailure=jobdigest-alert@%n.service`. The moment match-export, match-import or the nightly
-backup exits non-zero, you get an alert with the failed unit and its last log lines.
+Two callers:
+  * systemd OnFailure — `jobdigest-alert.py <unit>` builds a "unit failed" alert with the
+    unit's last journal lines. Wired to the job units via jobdigest-alert@.service.
+  * the health watchdog — `jobdigest-alert.py --subject "..." --message "..."` sends an
+    arbitrary message (site down / recovered).
 
 Deliberately standalone (stdlib only) and NOT importing `service.mailer`: it runs on the
-HOST, not inside the app container, and must still work when the app itself is broken — which
-is exactly when it matters.
+HOST, not inside the app container, and must still work when the app itself is broken.
 
 Channels (configure either or both in deploy/.env, or the environment):
   TELEGRAM_BOT_TOKEN + TELEGRAM_CHAT_ID   -> instant phone push via a Telegram bot
   RESEND_API_KEY + JOBDIGEST_ALERT_EMAIL  -> email (MAIL_FROM optional, reuses the app's)
-At least one channel must be configured. A failure to send on one channel does not stop the
-other.
+At least one must be configured; a failure on one channel does not stop the other.
 
 Setup helper:  `jobdigest-alert.py --telegram-chatid`  prints the chat id(s) that have
-messaged your bot, so you can drop TELEGRAM_CHAT_ID into .env.
+messaged your bot.
 """
 from __future__ import annotations
 
@@ -32,7 +32,6 @@ TG_API = "https://api.telegram.org"
 
 
 def from_env(key: str, default: str | None = None) -> str | None:
-    """Prefer a real environment variable; fall back to the deploy .env file."""
     if os.environ.get(key):
         return os.environ[key]
     try:
@@ -47,7 +46,6 @@ def from_env(key: str, default: str | None = None) -> str | None:
 
 
 def send_telegram(token: str, chat_id: str, text: str) -> str:
-    # Telegram caps a message at 4096 chars; keep well under with room for headers.
     payload = json.dumps({
         "chat_id": chat_id, "text": text[:3800], "disable_web_page_preview": True,
     }).encode()
@@ -72,7 +70,6 @@ def send_email(subject: str, html: str, text: str, *, api_key: str, mail_from: s
         headers={
             "Authorization": f"Bearer {api_key}",
             "Content-Type": "application/json",
-            # Resend is behind Cloudflare, which 403s urllib's default UA (see service/mailer).
             "User-Agent": "JobDigest-watchdog/1.0 (+https://jobdigest.eu)",
         },
     )
@@ -82,47 +79,46 @@ def send_email(subject: str, html: str, text: str, *, api_key: str, mail_from: s
 
 
 def print_telegram_chatids() -> int:
-    """Setup helper: list the chats that have messaged the bot (message it once first)."""
     token = from_env("TELEGRAM_BOT_TOKEN")
     if not token:
         print(f"no TELEGRAM_BOT_TOKEN in env or {ENV_FILE}", file=sys.stderr)
         return 1
     with urllib.request.urlopen(f"{TG_API}/bot{token}/getUpdates", timeout=20) as resp:
         data = json.loads(resp.read().decode())
-    results = data.get("result", [])
-    if not results:
-        print("No updates yet — open Telegram, send your bot any message, then re-run.")
-        return 1
     seen = set()
-    for upd in results:
-        msg = upd.get("message") or upd.get("channel_post") or {}
-        chat = msg.get("chat", {})
+    for upd in data.get("result", []):
+        chat = (upd.get("message") or upd.get("channel_post") or {}).get("chat", {})
         cid = chat.get("id")
         if cid is None or cid in seen:
             continue
         seen.add(cid)
         who = chat.get("username") or chat.get("title") or chat.get("first_name") or "?"
         print(f"  TELEGRAM_CHAT_ID={cid}   ({chat.get('type')}, {who})")
-    print("\nAdd the right line above to /opt/jobdigest/deploy/.env")
+    if not seen:
+        print("No updates yet — message your bot once, then re-run.")
+        return 1
     return 0
 
 
-def main() -> int:
-    if len(sys.argv) > 1 and sys.argv[1] == "--telegram-chatid":
-        return print_telegram_chatids()
+def _arg(flag: str) -> str | None:
+    a = sys.argv[1:]
+    return a[a.index(flag) + 1] if flag in a and a.index(flag) + 1 < len(a) else None
+
+
+def build_message(host: str) -> tuple[str, str]:
+    """Return (subject, text) from either --message/--subject or a unit name."""
+    msg = _arg("--message")
+    if msg is not None:
+        subject = _arg("--subject") or "⚠ JobDigest alert"
+        return subject, msg
 
     unit = sys.argv[1] if len(sys.argv) > 1 else "a JobDigest job"
-    host = os.uname().nodename
-
     log = subprocess.run(
         ["journalctl", "-u", unit, "-n", "20", "--no-pager"],
         capture_output=True, text=True,
     ).stdout.strip() or "(no journal output)"
     stamp = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
-
     subject = f"⚠ JobDigest: {unit} failed on {host}"
-    # No `ssh <host>` line: `host` is the box's internal name and won't resolve from a laptop.
-    # The systemctl/journalctl commands are what you run once you're on the VPS.
     text = (
         f"{unit} failed at {stamp} on {host}.\n\n"
         f"Last log lines:\n{log}\n\n"
@@ -130,6 +126,15 @@ def main() -> int:
         f"  systemctl status {unit}\n"
         f"  journalctl -u {unit} -n 50 --no-pager"
     )
+    return subject, text
+
+
+def main() -> int:
+    if len(sys.argv) > 1 and sys.argv[1] == "--telegram-chatid":
+        return print_telegram_chatids()
+
+    host = os.uname().nodename
+    subject, text = build_message(host)
     esc = text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
     html = f"<pre style='font:13px/1.5 ui-monospace,monospace;white-space:pre-wrap'>{esc}</pre>"
 
@@ -142,8 +147,8 @@ def main() -> int:
     results, errors = [], []
     if tg_token and tg_chat:
         try:
-            results.append(send_telegram(tg_token, tg_chat, text))
-        except Exception as exc:  # noqa: BLE001 — try the other channel, don't crash
+            results.append(send_telegram(tg_token, tg_chat, f"{subject}\n\n{text}"))
+        except Exception as exc:  # noqa: BLE001
             errors.append(f"telegram: {exc}")
     if api_key and to:
         try:
@@ -153,16 +158,15 @@ def main() -> int:
             errors.append(f"email: {exc}")
 
     if not tg_token and not api_key:
-        print("jobdigest-alert: no channel configured (set TELEGRAM_BOT_TOKEN+TELEGRAM_CHAT_ID "
+        print("jobdigest-alert: no channel configured (TELEGRAM_BOT_TOKEN+TELEGRAM_CHAT_ID "
               f"or RESEND_API_KEY+JOBDIGEST_ALERT_EMAIL in {ENV_FILE})", file=sys.stderr)
         return 1
-
     for e in errors:
         print(f"jobdigest-alert: {e}", file=sys.stderr)
     if results:
         print("jobdigest-alert sent:", ", ".join(results))
         return 0
-    return 1  # everything configured failed to send
+    return 1
 
 
 if __name__ == "__main__":

@@ -1,0 +1,11 @@
+# Runs the JobDigest liveness watchdog every 5 minutes (first run 3 min after boot).
+[Unit]
+Description=Run the JobDigest health check every 5 minutes
+
+[Timer]
+OnBootSec=3min
+OnUnitActiveSec=5min
+Unit=jobdigest-healthcheck.service
+
+[Install]
+WantedBy=timers.target
