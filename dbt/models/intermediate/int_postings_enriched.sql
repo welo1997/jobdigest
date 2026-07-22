@@ -23,7 +23,11 @@ enriched as (
         -- Skills
         s.skills                                        as skills_array,
         coalesce(s.skills_count, 0)                     as skills_count,
-        s.posting_id is not null                        as has_skills,
+        -- "has skills" means >=1 extracted skill, NOT merely "has a skill_tags row".
+        -- A processed no-skill posting (a manager, a warehouse role) now has a row with an
+        -- empty array so it stops re-exporting; `posting_id is not null` would count those
+        -- as enriched-with-skills and inflate every skill-demand aggregate.
+        coalesce(s.skills_count, 0) > 0                  as has_skills,
         array_to_string(s.skills, ', ')                 as skills_csv,
         -- Exposed so fct_postings can tell that enrichment arrived. Skills land DAYS
         -- after a posting is ingested (ingest -> export -> routine -> import), so a

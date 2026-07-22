@@ -246,8 +246,9 @@ def import_enrichment(path: str) -> int:
     via cloud storage, so nothing in them is taken on faith. `posting_id` is checked against
     `raw.job_postings` -- an invented or stale id is dropped, so the routine cannot conjure
     rows for postings that were never ingested. Skills are coerced to a list of short
-    lowercase strings, and a malformed record is skipped rather than aborting the batch
-    (`import_picks`'s rule: one bad record must not cost the whole run).
+    lowercase strings; an empty-but-valid list is stored (it marks the posting processed so
+    it stops re-exporting), while a malformed, non-list skills field is skipped rather than
+    aborting the batch (`import_picks`'s rule: one bad record must not cost the whole run).
 
     Returns the number of postings stored.
     """
@@ -277,10 +278,19 @@ def import_enrichment(path: str) -> int:
             # A duplicated id would MERGE twice for no gain; the first answer wins.
             if pid not in known or pid in seen:
                 continue
-            skills = _clean_skills(entry.get("skills"))
-            if not skills:
+            raw_skills = entry.get("skills")
+            # A valid answer is a *list*, possibly EMPTY. Storing the empty case is what
+            # lets a no-skill posting leave the backlog: raw.skill_tags is the only record
+            # that a posting was ever processed, and fetch_untagged_postings re-exports
+            # anything without a row. Most of a tech-company-wide dataset is non-technical
+            # roles (managers, sales, warehouse) that correctly extract to []; dropping
+            # those meant they re-exported on every run, forever, and the backlog could
+            # never drain. Skip only a *malformed* skills field (a string, a dict, a null)
+            # -- that is a bad answer to retry, not an empty one to record as done.
+            if not isinstance(raw_skills, list):
                 continue
             seen.add(pid)
+            skills = _clean_skills(raw_skills)
             records.append({
                 "posting_id": pid,
                 "skills": skills,
@@ -288,10 +298,11 @@ def import_enrichment(path: str) -> int:
             })
 
         if not records:
-            # Same reasoning as the API path's all-postings-failed guard: files that were
-            # produced, transported and parsed, yet yielded nothing, are an outage wearing a
-            # green checkmark -- most likely every part was truncated, or the batch belongs
-            # to a database that has since been rebuilt.
+            # Files that were produced, transported and parsed, yet matched no live posting,
+            # are an outage wearing a green checkmark -- every posting_id was unknown (the
+            # batch belongs to a database that has since been rebuilt) or every skills field
+            # was malformed. A legitimately all-empty batch does NOT reach here: those store
+            # as [] above. Same reasoning as the API path's all-postings-failed guard.
             raise RuntimeError(
                 f"enrichment parts held {len(entries)} record(s) but none were usable — "
                 "nothing was stored. Check the warnings above: unknown posting_ids mean "

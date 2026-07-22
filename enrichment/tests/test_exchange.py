@@ -87,6 +87,69 @@ def test_files_that_store_nothing_raise(tmp_path):
     store.assert_not_called()
 
 
+def test_empty_skills_are_stored_so_the_posting_leaves_the_backlog(tmp_path):
+    """A posting the routine correctly tags [] must be recorded as processed.
+
+    raw.skill_tags is the ONLY marker that a posting was ever enriched, and
+    fetch_untagged_postings re-exports anything without a row. Most of a
+    tech-company-wide dataset is non-technical roles (managers, sales, warehouse) that
+    extract to []; if the empty result were dropped they would re-export on every run
+    forever and the backlog could never drain. The empty list must be stored, not skipped.
+    """
+    path = _write(tmp_path, {"enrichment": [
+        {"posting_id": "a", "skills": []},
+        {"posting_id": "b", "skills": ["dbt"]},
+    ]})
+    conn = _conn_where_known(["a", "b"])
+
+    with patch("enrichment.exchange.get_snowflake_connection", return_value=conn), \
+         patch("enrichment.exchange.store_skill_tags", return_value=2) as store:
+        assert import_enrichment(path) == 2
+
+    stored = {r["posting_id"]: r["skills"] for r in store.call_args[0][1]}
+    assert stored == {"a": [], "b": ["dbt"]}          # the empty one was recorded, not dropped
+
+
+def test_all_empty_batch_stores_and_does_not_raise(tmp_path):
+    """A batch that is legitimately all no-skill postings is not an outage.
+
+    Before empties were stored every record was dropped, `records` ended empty, and the
+    truncation guard fired -- so a valid all-empty batch failed the whole pipeline run. It
+    must now store the rows and return normally; only a batch that matches NO live posting
+    (test_files_that_store_nothing_raise) is the real outage.
+    """
+    path = _write(tmp_path, {"enrichment": [
+        {"posting_id": "a", "skills": []},
+        {"posting_id": "b", "skills": []},
+    ]})
+    conn = _conn_where_known(["a", "b"])
+
+    with patch("enrichment.exchange.get_snowflake_connection", return_value=conn), \
+         patch("enrichment.exchange.store_skill_tags", return_value=2) as store:
+        assert import_enrichment(path) == 2
+    assert [r["posting_id"] for r in store.call_args[0][1]] == ["a", "b"]
+
+
+def test_malformed_non_list_skills_is_not_recorded_as_processed(tmp_path):
+    """A string/dict skills field is a bad answer to retry, not an empty one to store.
+
+    The distinction is load-bearing: _clean_skills collapses both a malformed field and a
+    genuine [] to [], so the store decision keys on `isinstance(skills, list)` upstream.
+    A malformed record must be skipped (no row) so the posting re-exports and is retried.
+    """
+    path = _write(tmp_path, {"enrichment": [
+        {"posting_id": "a", "skills": "dbt, sql"},     # malformed: not a list
+        {"posting_id": "b", "skills": []},             # valid empty: store it
+    ]})
+    conn = _conn_where_known(["a", "b"])
+
+    with patch("enrichment.exchange.get_snowflake_connection", return_value=conn), \
+         patch("enrichment.exchange.store_skill_tags", return_value=1) as store:
+        assert import_enrichment(path) == 1
+
+    assert [r["posting_id"] for r in store.call_args[0][1]] == ["b"]   # "a" not marked done
+
+
 def test_duplicate_posting_id_stores_once(tmp_path):
     path = _write(tmp_path, {"enrichment": [
         {"posting_id": "a", "skills": ["dbt"]},
