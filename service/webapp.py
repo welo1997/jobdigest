@@ -198,11 +198,16 @@ def subscribe(body: SubscribeIn) -> dict:
 def confirm(token: str) -> HTMLResponse:
     profile, newly_confirmed = store.confirm_subscription(token)
     if not profile:
-        return HTMLResponse(_page("Link expired", f"""
-          <div style="font:700 20px {SERIF};margin-bottom:10px;">This link isn't valid</div>
-          <p style="font:400 15px {SANS};color:{C['muted']};">It may have expired — confirm links are
-          good for {store.CONFIRM_TOKEN_TTL_DAYS} days.
-          Try signing up again at <a href="{SITE_URL}" style="color:{C['brand']};">jobdigest.eu</a>.</p>"""),
+        # A confirm link is single-use and TTL-bounded, so `None` means used, expired, or
+        # never valid — indistinguishable by design (don't reveal whether a token existed).
+        # Reassure a just-confirmed user rather than only pushing them to sign up again.
+        return HTMLResponse(_page("Link no longer active", f"""
+          <div style="font:700 20px {SERIF};margin-bottom:10px;">This confirmation link is no longer active</div>
+          <p style="font:400 15px {SANS};color:{C['muted']};line-height:1.55;">
+          A confirm link works once and is good for {store.CONFIRM_TOKEN_TTL_DAYS} days, so this one has
+          already been used or has expired. If you've already confirmed, you're all set — manage your
+          subscription from the link in your welcome email. Otherwise
+          <a href="{SITE_URL}" style="color:{C['brand']};">sign up again at jobdigest.eu</a>.</p>"""),
           status_code=404)
 
     manage_url = links.preferences_link(profile["manage_token"])

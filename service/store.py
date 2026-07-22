@@ -536,19 +536,28 @@ CONFIRM_TOKEN_TTL_DAYS = int(os.environ.get("CONFIRM_TOKEN_TTL_DAYS", "7"))
 
 
 def confirm_subscription(confirm_token: str) -> tuple[Optional[dict], bool]:
-    """Flip pending -> active on confirm-link click.
+    """Flip pending -> active on confirm-link click, consuming the token (single-use).
 
-    Returns ``(profile, newly_confirmed)``. `newly_confirmed` is False when the link was
-    already used — the row is still returned so the page can say "already confirmed"
-    rather than "invalid", but the caller must not re-send the welcome email. Previously
-    every click re-sent it, which made a confirm link an unlimited send-an-email primitive
-    for anyone holding it.
+    Returns ``(profile, newly_confirmed)``. `newly_confirmed` is False only for a
+    transitional row confirmed by the pre-single-use code that still carries a token; the
+    caller must not re-send the welcome email in that case. Previously every click re-sent
+    it, which made a confirm link an unlimited send-an-email primitive for anyone holding it.
+
+    **Single-use:** the confirming update nulls `confirm_token`. A confirm link is not just
+    a "please activate" signal — `/confirm` answers it with the subscriber's `manage_token`
+    (a full-control bearer credential) in the page. Leaving the token live for the whole TTL
+    meant a leaked or link-scanned confirm URL could be exchanged for that manage token for
+    days after the real user confirmed. Consuming it closes that window and keeps a spent
+    credential out of the DB and its backups. The trade-off is that a *repeat* click can no
+    longer be tied back to a profile, so the page shows a generic "link no longer active"
+    message instead of a personalised one — accepted, and arguably more private.
 
     Expires `CONFIRM_TOKEN_TTL_DAYS` after signup. The window is measured from
     `created_at` because that is when the token was issued and mailed.
 
     The CTE captures `confirmed_at` *before* the update; RETURNING alone would report the
-    post-update value and every click would look new.
+    post-update value and every click would look new. The partial unique index on
+    `confirm_token` is `where confirm_token is not null`, so nulling never collides.
     """
     with cursor(commit=True) as cur:
         cur.execute(
@@ -557,7 +566,9 @@ def confirm_subscription(confirm_token: str) -> tuple[Optional[dict], bool]:
                 select id, confirmed_at from profiles where confirm_token = %s
             )
             update profiles p
-               set status = 'active', confirmed_at = coalesce(p.confirmed_at, now())
+               set status = 'active',
+                   confirmed_at = coalesce(p.confirmed_at, now()),
+                   confirm_token = null
               from before b
              where p.id = b.id
                and p.status in ('pending', 'active')

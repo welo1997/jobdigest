@@ -33,16 +33,17 @@ class _FakeStore:
         self.events: list[dict] = []
         self.token_lookups = 0
         self.confirm_calls = 0
-        self.already_confirmed = False       # flip to simulate a second click
+        self.confirm_consumed = False        # the real query nulls the token on first use
 
     def confirm_subscription(self, token):
         self.confirm_calls += 1
-        if token != CONFIRM:
+        # Single-use: the confirming UPDATE nulls confirm_token, so a second click with the
+        # same token matches no row. Model that here rather than returning an "already
+        # confirmed" profile the way the pre-single-use code did.
+        if token != CONFIRM or self.confirm_consumed:
             return None, False
-        profile = {"id": "1", "email": EMAIL, "manage_token": TOKEN}
-        newly = not self.already_confirmed
-        self.already_confirmed = True
-        return profile, newly
+        self.confirm_consumed = True
+        return {"id": "1", "email": EMAIL, "manage_token": TOKEN}, True
 
     def init_pool(self, *a, **k):
         pass
@@ -146,17 +147,25 @@ def test_first_confirm_sends_the_welcome(client, store, sent):
     r = client.get("/confirm", params={"token": CONFIRM})
     assert r.status_code == 200
     assert len(sent) == 1
+    assert TOKEN in r.text                     # the manage link is surfaced on first confirm
 
 
-def test_second_confirm_sends_nothing(client, store, sent):
-    """A confirm link used to re-send the welcome on every click, which made it an
-    unlimited 'email this person' primitive for anyone holding the link."""
-    client.get("/confirm", params={"token": CONFIRM})
-    r = client.get("/confirm", params={"token": CONFIRM})
+def test_confirm_token_is_single_use(client, store, sent):
+    """A confirm link works exactly once.
 
-    assert r.status_code == 200
-    assert "already" in r.text.lower()
-    assert len(sent) == 1                     # still one, not two
+    Two things ride on this. The historical one: every click used to re-send the welcome,
+    making the link an unlimited 'email this person' primitive. The bigger one: /confirm
+    answers with the subscriber's manage_token (a full-control credential) in the page, so a
+    replayed link — leaked, bookmarked, or fetched by a mail/security scanner — must not be
+    exchangeable for that token after the real user has confirmed."""
+    first = client.get("/confirm", params={"token": CONFIRM})
+    assert first.status_code == 200
+    assert TOKEN in first.text                 # legit first click gets the manage link
+
+    second = client.get("/confirm", params={"token": CONFIRM})
+    assert second.status_code == 404           # token consumed -> no longer active
+    assert TOKEN not in second.text            # manage token NOT re-derivable from a spent link
+    assert len(sent) == 1                      # welcome sent once, not twice
 
 
 def test_expired_or_unknown_confirm_token_404s(client, store, sent):
