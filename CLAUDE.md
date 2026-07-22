@@ -18,6 +18,15 @@ Shared: `ingestion/` (source adapters), `search_jobs.py` (classifiers),
 `service/taxonomy.py` (role taxonomy). Nothing else is shared — Snowflake code must never
 reach into `service/`, and JobDigest must never require Snowflake.
 
+> **Status (2026-07-22): the market-intelligence / Snowflake side is DECOMMISSIONED.** The
+> `JOB_MARKET` database, the `JOB_MARKET_CI` user and `JOB_MARKET_ETL` role were dropped, and
+> the two cloud routines (pipeline trigger, skill extraction) are paused. `COMPUTE_WH` and
+> `JOB_MARKET_MONITOR` were kept — the warehouse is shared with other projects. The `dbt/`,
+> `enrichment/`, `ingestion/` and workflow code is **kept as a portfolio snapshot** and no
+> longer runs; `dbt_docs.yml`'s schedule is disabled. **JobDigest is the sole live system.**
+> To revive market-intel you'd re-create the Snowflake objects (`setup_snowflake.py`) and
+> re-enable the routines. Do not spend effort maintaining this side — see the memory note.
+
 **JobDigest handles real personal data.** Treat changes there with the care that implies.
 
 ```

@@ -1,8 +1,11 @@
 name: dbt Docs
 
 on:
-  schedule:
-    - cron: '30 7 * * 5'  # Friday 07:30 UTC — after pipeline
+  # Archived 2026-07-22: the market-intel Snowflake pipeline is decommissioned (JOB_MARKET
+  # dropped, cloud routines paused), so a scheduled build would only fail. Kept as portfolio
+  # evidence and runnable by hand if a Snowflake instance is ever restored.
+  # schedule:
+  #   - cron: '30 7 * * 5'  # Friday 07:30 UTC — after pipeline
   workflow_dispatch:
 
 env:
