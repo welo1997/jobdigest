@@ -31,7 +31,8 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from service import links, store, taxonomy  # noqa: E402
 
 DEFAULT_LIMIT = 5            # curated highlights in the email; the rest live on /matches
-EMAIL_MIN_SCORE = 6         # only strong fits go in the email (4-5s show on the web page)
+EMAIL_MIN_SCORE = 6         # a "strong" fit — a digest of these is the normal, headline case
+FALLBACK_LIMIT = int(os.environ.get("DIGEST_FALLBACK_LIMIT", "3"))  # weaker picks shown on a quiet day
 BASE_URL = os.environ.get("BASE_URL", "https://jobdigest.eu")
 
 # Direction-A palette (kept in sync with design/prototype.html)
@@ -57,9 +58,24 @@ def build_digest(profile: dict, limit: int = DEFAULT_LIMIT) -> list[dict]:
         return []
     picks = store.matched_jobs(profile["id"], limit=limit * 6)
     already = store.already_sent_ids(profile["id"])
-    fresh = [j for j in picks
-             if j["posting_id"] not in already and (j.get("score") or 0) >= EMAIL_MIN_SCORE]
-    return fresh[:limit]
+    unsent = [j for j in picks if j["posting_id"] not in already]
+    strong = [j for j in unsent if (j.get("score") or 0) >= EMAIL_MIN_SCORE]
+    if strong:
+        return strong[:limit]
+    # Quiet day: no strong (>= EMAIL_MIN_SCORE) match. Rather than skip the send entirely,
+    # surface the best of the weaker (4-5) matches so the subscriber still gets a daily
+    # signal. They are all sub-threshold, which the renderer detects (see `_is_weak`) and
+    # labels honestly rather than dressing them up as strong fits. Only a genuinely empty
+    # pick list — the matcher found nothing new at all — still returns [] and skips.
+    return unsent[:FALLBACK_LIMIT]
+
+
+def _is_weak(jobs: list[dict]) -> bool:
+    """True when this is a quiet-day digest: every job is below EMAIL_MIN_SCORE.
+
+    build_digest returns either all-strong or all-weak, never a mix, so checking the
+    scores is enough — no separate flag has to be threaded through the renderers."""
+    return bool(jobs) and all((j.get("score") or 0) < EMAIL_MIN_SCORE for j in jobs)
 
 
 # ---------------------------------------------------------------- helpers ------
@@ -127,6 +143,11 @@ def subject_line(profile: dict, jobs: list[dict]) -> str:
     n = len(jobs)
     when = datetime.now().strftime("%-d %b") if os.name != "nt" else datetime.now().strftime("%#d %b")
 
+    # Quiet day: don't claim "N new roles for you" when nothing cleared the bar — say so.
+    if _is_weak(jobs):
+        thing = "role" if n == 1 else "roles"
+        return f"No strong matches today — {n} {thing} to explore — {when}"
+
     cats = [j.get("role_category") for j in jobs if j.get("role_category")]
     role = ""
     if cats:
@@ -191,6 +212,21 @@ def _see_all_html(profile: dict, shown: int, total_matches: int | None) -> str:
     </td></tr>"""
 
 
+def _greeting_html(jobs: list[dict]) -> str:
+    """The line under the subject. On a quiet day it is honest about *why* the picks are
+    thinner, rather than calling weak matches 'fresh matches ranked for you'."""
+    n = len(jobs)
+    if _is_weak(jobs):
+        thing = "one worth a look" if n == 1 else f"{n} worth a look"
+        return (f'<p style="font:400 14px {SANS};color:{C["muted"]};margin:12px 0 4px;">'
+                f'Good morning. <b style="color:{C["ink"]};">No strong matches today</b> — '
+                f'but here {"is" if n == 1 else "are"} {thing}, and the full list is on your '
+                f'matches page.</p>')
+    return (f'<p style="font:400 14px {SANS};color:{C["muted"]};margin:12px 0 4px;">'
+            f'Good morning. <b style="color:{C["ink"]};">{n} fresh '
+            f'{"match" if n == 1 else "matches"}</b> today, ranked for you.</p>')
+
+
 def render_html(profile: dict, jobs: list[dict], base_url: str = BASE_URL,
                 total_matches: int | None = None) -> str:
     esc = html.escape
@@ -220,9 +256,7 @@ def render_html(profile: dict, jobs: list[dict], base_url: str = BASE_URL,
     <!-- subject + greeting -->
     <tr><td style="padding:8px 26px 4px;">
       <div style="font:700 21px {SERIF};color:{C['ink']};letter-spacing:-.01em;">{esc(subject)}</div>
-      <p style="font:400 14px {SANS};color:{C['muted']};margin:12px 0 4px;">
-        Good morning. <b style="color:{C['ink']};">{len(jobs)} fresh {'match' if len(jobs)==1 else 'matches'}</b>
-        today, ranked for you.</p>
+      {_greeting_html(jobs)}
     </td></tr>
     <!-- jobs -->
     <tr><td style="padding:6px 26px 18px;">
@@ -247,8 +281,13 @@ def render_html(profile: dict, jobs: list[dict], base_url: str = BASE_URL,
 
 def render_text(profile: dict, jobs: list[dict], base_url: str = BASE_URL,
                 total_matches: int | None = None) -> str:
-    lines = [subject_line(profile, jobs), "",
-             f"Good morning. {len(jobs)} fresh {'match' if len(jobs)==1 else 'matches'} today.", ""]
+    if _is_weak(jobs):
+        greeting = (f"Good morning. No strong matches today — "
+                    f"{len(jobs)} weaker {'one' if len(jobs)==1 else 'ones'} to explore below, "
+                    f"and the full list is on your matches page.")
+    else:
+        greeting = f"Good morning. {len(jobs)} fresh {'match' if len(jobs)==1 else 'matches'} today."
+    lines = [subject_line(profile, jobs), "", greeting, ""]
     for j in jobs:
         tags = " · ".join(_tags(j))
         lines.append(f"[{j['score']}/10] {j.get('title','Role')} — {j.get('company','')}  ({tags})")

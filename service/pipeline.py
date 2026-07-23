@@ -99,7 +99,7 @@ def run(ingest: bool = False, cz: bool = False, match: bool = False,
             continue
         jobs = digestmod.build_digest(p, limit=digestmod.DEFAULT_LIMIT)
         if not jobs:
-            skipped_nojobs += 1                        # quality over cadence: send nothing
+            skipped_nojobs += 1                        # only when the matcher found nothing new
             continue
 
         total = store.match_count(p["id"])           # all matches, for the "see all N" CTA
