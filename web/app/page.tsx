@@ -209,13 +209,16 @@ export default function Landing() {
   const submit = async () => {
     if (!consent) return show("Please accept the privacy policy first");
     if (!email.trim().includes("@")) return show("Enter a valid email");
+    if (levels.size === 0) return show("Pick at least one seniority level");
     // A real person blocked by the bot check is a UX failure worth seeing, not just a stat.
     if (turnstileEnabled && !tsToken) {
       track("turnstile_failed");
       return show("Please complete the verification");
     }
     setSubmitting(true);
-    track("subscribe_submitted", { skills: skills.size });
+    // `variant` carries the chosen seniority levels (e.g. "junior+mid") — reuses an existing
+    // whitelisted event + prop key, so no server-side analytics change is needed.
+    track("subscribe_submitted", { skills: skills.size, variant: [...levelCodes].join("+") || "none" });
     try {
       await subscribe(buildPayload());
       track("subscribe_ok");
@@ -227,6 +230,19 @@ export default function Landing() {
       show(e instanceof Error ? e.message : "Something went wrong — please retry");
       setSubmitting(false);
     }
+  };
+
+  const levelCodes = new Set([...levels].map((l) => SENIORITY_CODE[l]).filter(Boolean));
+  // Seniority is a hard filter now, so a one-level + one-role + single-country search can
+  // starve matches. Flag the tightest combos so we can nudge (not block) before submit.
+  const narrow = levels.size === 1 && roles.size <= 1 && region === "Czechia";
+
+  // Per-step guard: advancing shouldn't leave a required choice empty (which would silently
+  // fall back to defaults and mismatch what the user thinks they picked).
+  const goNext = () => {
+    if (step === 0 && roles.size === 0) return show("Pick at least one role to continue");
+    if (step === 2 && levels.size === 0) return show("Pick at least one level to continue");
+    setStep((s) => Math.min(LAST, s + 1));
   };
 
   const progress = `${(step + 1) * 25}%`;
@@ -368,6 +384,11 @@ export default function Landing() {
                         <Chip key={o} label={o} on={levels.has(o)} toggle={() => toggleIn(levels, o, setLevels)} />
                       ))}
                     </div>
+                    {narrow && (
+                      <p className="wz-hint" style={{ marginTop: 10, color: "var(--gold, #C98A18)" }}>
+                        That&apos;s a narrow search — you may get few matches. Add a level, role, or widen your region to see more.
+                      </p>
+                    )}
                   </div>
                 )}
 
@@ -404,7 +425,7 @@ export default function Landing() {
                   )}
                   <span className="spacer" />
                   {step < LAST ? (
-                    <button className="btn" onClick={() => setStep((s) => Math.min(LAST, s + 1))}>
+                    <button className="btn" onClick={goNext}>
                       Next →
                     </button>
                   ) : (
@@ -418,7 +439,7 @@ export default function Landing() {
               {/* LIVE PREVIEW */}
               <div className="peek">
                 <span className="cap">Live preview</span>
-                <EmailPreview roles={roles} skills={skills} work={work} email={email} limit={3} />
+                <EmailPreview roles={roles} skills={skills} work={work} levels={levelCodes} email={email} limit={3} />
               </div>
             </div>
 
