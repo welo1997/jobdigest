@@ -130,6 +130,54 @@ def test_one_click_with_unknown_token_still_returns_200(client, store):
     assert store.unsubscribed == []
 
 
+# --------------------------------------------------------------------- preview --
+# The instant post-signup preview: read-only, keyword-ranked, no score, no writes. These pin
+# the two guarantees that matter — a mismatched-seniority role can't slip in, and the endpoint
+# never claims an AI "score" it didn't compute.
+
+def _cand(pid, title, desc="", seniority="mid", region="eu"):
+    return {"posting_id": pid, "title": title, "company": "Co", "url": "https://ex.com/" + pid,
+            "location": "Remote", "region": region, "seniority": seniority,
+            "work_type": "permanent", "salary_raw": None, "description": desc}
+
+
+def test_preview_ranks_by_keyword_overlap_and_carries_no_score(client, store):
+    store.query_shortlist = lambda profile, limit=60: [
+        _cand("a", "Data role", "we use pandas"),
+        _cand("b", "Python Engineer", "python and sql all day"),
+        _cand("c", "Analyst", "excel only"),
+    ]
+    r = client.post("/preview", json={"stack": ["python", "sql"], "seniorities": ["mid"]})
+    assert r.status_code == 200
+    body = r.json()
+    ids = [j["posting_id"] for j in body["jobs"]]
+    assert ids[0] == "b"                              # two term hits ranks first
+    assert set(ids) == {"a", "b", "c"}
+    assert all("score" not in j for j in body["jobs"])   # keyword preview never claims a score
+    assert body["jobs"][0]["why"].lower().startswith("mentions")
+
+
+def test_preview_applies_seniority_hard_filter_but_keeps_unknown(client, store):
+    store.query_shortlist = lambda profile, limit=60: [
+        _cand("jr", "Junior", seniority="junior"),
+        _cand("sr", "Senior", seniority="senior"),
+        _cand("uk", "Unknown", seniority=None),
+    ]
+    r = client.post("/preview", json={"stack": [], "seniorities": ["junior"]})
+    ids = {j["posting_id"] for j in r.json()["jobs"]}
+    assert "jr" in ids and "uk" in ids               # target level + unknown-level both pass
+    assert "sr" not in ids                            # clearly-mismatched senior is dropped
+
+
+def test_preview_is_read_only_and_bounded(client, store):
+    store.query_shortlist = lambda profile, limit=60: [_cand(str(i), "Role") for i in range(30)]
+    r = client.post("/preview", json={"stack": ["python"]})
+    assert r.status_code == 200
+    body = r.json()
+    assert body["count"] == 30                        # honest total
+    assert len(body["jobs"]) == webapp.PREVIEW_LIMIT  # but only a handful are returned
+
+
 # --------------------------------------------------------------------- confirm --
 
 @pytest.fixture

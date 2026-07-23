@@ -72,6 +72,26 @@ export interface MatchesResponse {
   jobs: MatchJob[];
 }
 
+// Instant keyword preview shown right after signup (POST /preview). No score — this is
+// keyword relevance, not the AI's judged fit (that arrives by email the next morning).
+export interface PreviewJobCard {
+  posting_id: string;
+  title: string | null;
+  company: string | null;
+  url: string | null;
+  location: string | null;
+  region: string | null;
+  seniority: string | null;
+  work_type: string | null;
+  tags: string[];
+  why: string;
+}
+
+export interface PreviewResponse {
+  count: number;
+  jobs: PreviewJobCard[];
+}
+
 async function req<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${API_URL}${path}`, {
     headers: { "Content-Type": "application/json", ...(init?.headers || {}) },
@@ -92,6 +112,15 @@ export function subscribe(payload: SubscribePayload) {
   return req<{ ok: boolean; status: string; message: string }>("/subscribe", {
     method: "POST",
     body: JSON.stringify(payload),
+  });
+}
+
+// Best-effort: never send the Turnstile token here (it's single-use and consumed by
+// /subscribe). Callers should treat a rejection as "no instant matches", not an error.
+export function preview(payload: SubscribePayload) {
+  return req<PreviewResponse>("/preview", {
+    method: "POST",
+    body: JSON.stringify({ ...payload, cf_turnstile_token: null }),
   });
 }
 
