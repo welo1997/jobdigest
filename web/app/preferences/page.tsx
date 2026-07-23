@@ -6,8 +6,27 @@ import Link from "next/link";
 import { Nav, Footer } from "@/components/SiteChrome";
 import { useToast } from "@/components/useToast";
 import { getPreferences, pause, Preferences, resume, unsubscribeUrl, updatePreferences } from "@/lib/api";
+import { cap } from "@/lib/preview";
 
 const FREqS = ["daily", "weekdays", "weekly"];
+// Chip vocabularies mirror the signup wizard (web/app/page.tsx) so both forms speak the same
+// role_category language — free-text boxes let a user type a "role" that maps to no category.
+const ROLE_OPTS = ["Product Manager", "Marketing", "Data Analyst", "Designer", "Software Engineer", "Data Engineer", "DevOps", "Finance"];
+const SKILL_OPTS = ["SQL", "Figma", "Analytics", "Excel", "Python", "SEO", "Looker", "Roadmapping", "Power BI", "dbt"];
+const ROLE_CAT: Record<string, string> = {
+  "Data Engineer": "data_engineering", "Data Analyst": "data_analysis",
+  "Software Engineer": "software_engineering", "DevOps": "devops_platform",
+  "Product Manager": "product", "Designer": "design",
+  "Marketing": "other_tech_function", "Finance": "other_tech_function",
+};
+// slug -> a representative display label for preselecting chips on load. other_tech_function
+// is a bucket (Marketing/Finance both map to it); we show "Marketing" and accept the minor
+// lossiness — no worse than the old prettified "Other Tech Function", and better for the rest.
+const LABEL_FOR_SLUG: Record<string, string> = {
+  data_engineering: "Data Engineer", data_analysis: "Data Analyst",
+  software_engineering: "Software Engineer", devops_platform: "DevOps",
+  product: "Product Manager", design: "Designer", other_tech_function: "Marketing",
+};
 const REGION_LABEL_TO_CODES: Record<string, string[]> = {
   "Czechia": ["cz"], "EU remote": ["cz", "eu"], "Worldwide remote": ["cz", "eu", "worldwide"],
 };
@@ -20,6 +39,10 @@ function regionLabel(codes: string[]): string {
 const prettify = (c: string) => c.replace(/_/g, " ").replace(/\b\w/g, (m) => m.toUpperCase());
 const slugify = (s: string) => s.trim().toLowerCase().replace(/\s+/g, "_");
 
+const SENIORITY_OPTS = ["Intern / Junior", "Mid", "Senior"];
+const SENIORITY_CODE: Record<string, string> = { "Intern / Junior": "junior", "Mid": "mid", "Senior": "senior" };
+const CODE_SENIORITY: Record<string, string> = { junior: "Intern / Junior", mid: "Mid", senior: "Senior" };
+
 function Inner() {
   const token = useSearchParams().get("token") || "";
   const { show, element: toast } = useToast();
@@ -28,20 +51,47 @@ function Inner() {
   const [saving, setSaving] = useState(false);
 
   // editable fields
-  const [roles, setRoles] = useState("");
-  const [skills, setSkills] = useState("");
+  const [roleOpts, setRoleOpts] = useState<string[]>(ROLE_OPTS);
+  const [roleSet, setRoleSet] = useState<Set<string>>(new Set());
+  const [skillOpts, setSkillOpts] = useState<string[]>(SKILL_OPTS);
+  const [skillSet, setSkillSet] = useState<Set<string>>(new Set());
+  const [addRole, setAddRole] = useState("");
+  const [addSkill, setAddSkill] = useState("");
   const [freq, setFreq] = useState("daily");
   const [regionSel, setRegionSel] = useState("EU remote");
+  const [levels, setLevels] = useState<Set<string>>(new Set());
+
+  type SetSetter = (updater: (prev: Set<string>) => Set<string>) => void;
+  const toggleInSet = (setter: SetSetter, o: string) =>
+    setter((prev) => {
+      const next = new Set(prev);
+      next.has(o) ? next.delete(o) : next.add(o);
+      return next;
+    });
+  const addChip = (
+    val: string, opts: string[], setOpts: (a: string[]) => void, setSet: SetSetter, clear: () => void
+  ) => {
+    const v = val.trim();
+    if (!v) return;
+    if (!opts.includes(v)) setOpts([...opts, v]);
+    setSet((prev) => new Set(prev).add(v));
+    clear();
+  };
 
   useEffect(() => {
     if (!token) { setErr("This link is missing its token."); return; }
     getPreferences(token)
       .then((p) => {
         setPrefs(p);
-        setRoles(p.role_categories.map(prettify).join(", "));
-        setSkills(p.stack.join(", "));
+        const roleLabels = p.role_categories.map((c) => LABEL_FOR_SLUG[c] || prettify(c));
+        setRoleOpts([...new Set([...ROLE_OPTS, ...roleLabels])]);
+        setRoleSet(new Set(roleLabels));
+        const skillLabels = p.stack.map((s) => cap(s));
+        setSkillOpts([...new Set([...SKILL_OPTS, ...skillLabels])]);
+        setSkillSet(new Set(skillLabels));
         setFreq(FREqS.includes(p.frequency) ? p.frequency : "daily");
         setRegionSel(regionLabel(p.regions));
+        setLevels(new Set((p.seniorities || []).map((c) => CODE_SENIORITY[c]).filter(Boolean)));
       })
       .catch((e) => setErr(e instanceof Error ? e.message : "Unknown or expired link."));
   }, [token]);
@@ -49,11 +99,17 @@ function Inner() {
   const save = async () => {
     setSaving(true);
     try {
+      // Empty selection means "any level" — send all three rather than an empty target,
+      // which the hard-filter matcher would read as "nothing matches".
+      const seniorities = [...levels].map((l) => SENIORITY_CODE[l]).filter(Boolean);
+      // Dedup slugs: Marketing + Finance both map to other_tech_function.
+      const roleSlugs = [...new Set([...roleSet].map((l) => ROLE_CAT[l] || slugify(l)).filter(Boolean))];
       const updated = await updatePreferences(token, {
-        role_categories: roles.split(",").map(slugify).filter(Boolean),
-        stack: skills.split(",").map((s) => s.trim().toLowerCase()).filter(Boolean),
+        role_categories: roleSlugs,
+        stack: [...skillSet].map((s) => s.trim().toLowerCase()).filter(Boolean),
         frequency: freq,
         regions: REGION_LABEL_TO_CODES[regionSel] || ["cz", "eu", "worldwide"],
+        seniorities: seniorities.length ? seniorities : ["junior", "mid", "senior"],
       });
       setPrefs(updated);
       show("Preferences saved");
@@ -117,12 +173,43 @@ function Inner() {
             <div className="note" style={{ margin: "0 0 16px" }}>{prefs.cv_summary}</div>
           )}
           <div className="field">
-            <label htmlFor="p-roles">Roles</label>
-            <input id="p-roles" type="text" value={roles} onChange={(e) => setRoles(e.target.value)} />
+            <label>Roles</label>
+            <div className="chips">
+              {roleOpts.map((o) => (
+                <button key={o} type="button" className="chip" aria-pressed={roleSet.has(o)}
+                  onClick={() => toggleInSet(setRoleSet, o)}>{o}</button>
+              ))}
+            </div>
+            <div className="addwrap">
+              <input type="text" value={addRole} onChange={(e) => setAddRole(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addChip(addRole, roleOpts, setRoleOpts, setRoleSet, () => setAddRole("")); } }}
+                placeholder="Add a role…" aria-label="Add a role" />
+              <button type="button" onClick={() => addChip(addRole, roleOpts, setRoleOpts, setRoleSet, () => setAddRole(""))}>Add</button>
+            </div>
           </div>
           <div className="field">
-            <label htmlFor="p-skills">Skills / keywords</label>
-            <input id="p-skills" type="text" value={skills} onChange={(e) => setSkills(e.target.value)} />
+            <label>Skills / keywords</label>
+            <div className="chips">
+              {skillOpts.map((o) => (
+                <button key={o} type="button" className="chip" aria-pressed={skillSet.has(o)}
+                  onClick={() => toggleInSet(setSkillSet, o)}>{o}</button>
+              ))}
+            </div>
+            <div className="addwrap">
+              <input type="text" value={addSkill} onChange={(e) => setAddSkill(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addChip(addSkill, skillOpts, setSkillOpts, setSkillSet, () => setAddSkill("")); } }}
+                placeholder="Add a skill…" aria-label="Add a skill" />
+              <button type="button" onClick={() => addChip(addSkill, skillOpts, setSkillOpts, setSkillSet, () => setAddSkill(""))}>Add</button>
+            </div>
+          </div>
+          <div className="field">
+            <label>Seniority — we only send roles at the levels you pick</label>
+            <div className="chips">
+              {SENIORITY_OPTS.map((o) => (
+                <button key={o} type="button" className="chip" aria-pressed={levels.has(o)}
+                  onClick={() => toggleInSet(setLevels, o)}>{o}</button>
+              ))}
+            </div>
           </div>
           <div className="row2">
             <div className="field">

@@ -65,7 +65,12 @@ web page.
 > You are JobDigest's daily job matcher. Read `shortlists.json`. For EACH subscriber, read
 > their `profile` and their `candidates`, and pick the postings that genuinely fit that
 > specific person — weigh the whole context (role type, seniority, skills/stack, work setup,
-> location/region, sector interest), not just keyword overlap. Postings may be in Czech,
+> location/region, sector interest), not just keyword overlap. Treat **seniority as a hard
+> filter**: exclude any posting whose level clearly differs from the subscriber's target
+> seniority level(s) — a senior/lead role for a junior-only subscriber, or a
+> junior/graduate/intern role for a senior-only subscriber — even if the role, skills and
+> location fit perfectly (omit it, or score it below 4); only score postings whose level
+> matches a target, or whose level is genuinely unstated/ambiguous. Postings may be in Czech,
 > Slovak, or English; judge them equally (a "Vývojář" is a developer, "Obchodní zástupce" a
 > sales rep, "Účetní" an accountant). Score each posting 0–10 on overall fit (9–10 excellent,
 > 6–7 solid, 4–5 plausible-but-weaker) — be honest, use the full range. Include every posting

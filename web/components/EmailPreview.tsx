@@ -6,6 +6,7 @@ interface Props {
   roles: Set<string>;
   skills: Set<string>;
   work: Set<string>;
+  levels: Set<string>; // seniority codes (junior|mid|senior) the visitor picked
   email: string;
   limit?: number;
 }
@@ -31,11 +32,11 @@ function reason(job: PreviewJob, skills: Set<string>) {
   );
 }
 
-export default function EmailPreview({ roles, skills, work, email, limit = 3 }: Props) {
+export default function EmailPreview({ roles, skills, work, levels, email, limit = 3 }: Props) {
   // One role → name it ("3 new Product Manager roles"); several → stay generic ("3 new roles").
   const role = roles.size === 1 ? `${[...roles][0]} ` : "";
   const to = email || "you@example.com";
-  const jobs = pickJobs(skills, work, limit);
+  const jobs = pickJobs(skills, work, levels, limit);
   const cnt = jobs.length;
   const dateStr = new Date().toLocaleDateString("en-GB", { day: "numeric", month: "short" });
 
@@ -63,6 +64,8 @@ export default function EmailPreview({ roles, skills, work, email, limit = 3 }: 
       <div className="mail-body">
         {roles.size === 0 ? (
           <div className="mail-empty">Pick a role to see your matches →</div>
+        ) : cnt === 0 ? (
+          <div className="mail-empty">No matches for this combo — widen your levels or work type →</div>
         ) : (
           <>
             <p className="greet">

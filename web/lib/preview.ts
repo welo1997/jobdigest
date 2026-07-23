@@ -10,17 +10,19 @@ export interface PreviewJob {
   skills: string[];
   sector: string;
   fl: boolean;
+  seniority: string; // junior | mid | senior — mirrors the real hard seniority filter
 }
 
 // A deliberately mixed set (product, marketing, data, design, engineering) so the preview
-// reads as "jobs for everyone at tech companies", not just data/engineering roles.
+// reads as "jobs for everyone at tech companies", not just data/engineering roles. Seniority
+// is spread across all three levels so toggling a level visibly changes the preview.
 export const JOBS: PreviewJob[] = [
-  { score: 9, title: "Product Manager", co: "Notion", tags: ["EU", "Remote", "Perm"], skills: ["roadmapping", "sql", "figma"], sector: "SaaS", fl: false },
-  { score: 8, title: "Marketing Lead", co: "Revolut", tags: ["EU", "Remote", "Perm"], skills: ["seo", "analytics", "content"], sector: "fintech", fl: false },
-  { score: 7, title: "Data Analyst", co: "Mollie", tags: ["EU", "Remote", "Perm"], skills: ["sql", "looker", "excel"], sector: "fintech", fl: false },
-  { score: 7, title: "Product Designer", co: "Pitch", tags: ["EU", "Remote", "Perm"], skills: ["figma", "research"], sector: "SaaS", fl: false },
-  { score: 6, title: "Data Engineer", co: "Bitpanda", tags: ["EU", "Remote", "Perm"], skills: ["snowflake", "python", "dbt"], sector: "trading", fl: false },
-  { score: 6, title: "Growth Marketer", co: "Productboard", tags: ["Remote", "Freelance"], skills: ["ads", "analytics"], sector: "SaaS", fl: true },
+  { score: 9, title: "Product Manager", co: "Notion", tags: ["EU", "Remote", "Perm"], skills: ["roadmapping", "sql", "figma"], sector: "SaaS", fl: false, seniority: "mid" },
+  { score: 8, title: "Marketing Lead", co: "Revolut", tags: ["EU", "Remote", "Perm"], skills: ["seo", "analytics", "content"], sector: "fintech", fl: false, seniority: "senior" },
+  { score: 7, title: "Data Analyst", co: "Mollie", tags: ["EU", "Remote", "Perm"], skills: ["sql", "looker", "excel"], sector: "fintech", fl: false, seniority: "mid" },
+  { score: 7, title: "Junior Product Designer", co: "Pitch", tags: ["EU", "Remote", "Perm"], skills: ["figma", "research"], sector: "SaaS", fl: false, seniority: "junior" },
+  { score: 6, title: "Junior Data Engineer", co: "Bitpanda", tags: ["EU", "Remote", "Perm"], skills: ["snowflake", "python", "dbt"], sector: "trading", fl: false, seniority: "junior" },
+  { score: 6, title: "Senior Growth Marketer", co: "Productboard", tags: ["Remote", "Freelance"], skills: ["ads", "analytics"], sector: "SaaS", fl: true, seniority: "senior" },
 ];
 
 const CAP: Record<string, string> = {
@@ -28,13 +30,24 @@ const CAP: Record<string, string> = {
   looker: "Looker", django: "Django", pandas: "pandas", spark: "Spark", aws: "AWS",
   figma: "Figma", roadmapping: "Roadmapping", seo: "SEO", analytics: "Analytics",
   content: "Content", excel: "Excel", research: "Research", ads: "Ads", notion: "Notion",
+  "power bi": "Power BI",
 };
 export const cap = (s: string) => CAP[s.toLowerCase()] || s;
 
-export function pickJobs(skills: Set<string>, work: Set<string>, limit: number): PreviewJob[] {
+export function pickJobs(
+  skills: Set<string>,
+  work: Set<string>,
+  levels: Set<string>,
+  limit: number
+): PreviewJob[] {
   let jobs = JOBS.slice();
   if (work.has("Freelance") && !work.has("Full-time") && !work.has("Part-time")) {
     jobs = jobs.filter((j) => j.fl);
+  }
+  // Seniority is a hard filter in the real matcher; mirror that here so the preview honestly
+  // reflects what the subscriber would receive. `levels` holds codes (junior|mid|senior).
+  if (levels.size) {
+    jobs = jobs.filter((j) => levels.has(j.seniority));
   }
   const us = new Set([...skills].map((s) => s.toLowerCase()));
   const overlap = (j: PreviewJob) => j.skills.filter((s) => us.has(s.toLowerCase())).length;
