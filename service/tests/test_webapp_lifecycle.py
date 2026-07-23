@@ -34,6 +34,30 @@ class _FakeStore:
         self.token_lookups = 0
         self.confirm_calls = 0
         self.confirm_consumed = False        # the real query nulls the token on first use
+        # subscribe path
+        self.created: list[str] = []
+        self.live_emails: set[str] = set()   # addresses that already have a live subscription
+        self.suppressed: set[str] = set()
+
+    # -- subscribe path --
+    def is_suppressed(self, email):
+        return email.strip().lower() in self.suppressed
+
+    def live_subscription_exists(self, email):
+        return email.strip().lower() in self.live_emails
+
+    def recent_signup_exists(self, email, within_minutes):
+        return False
+
+    def create_email_subscription(self, email, data):
+        # The real insert is rejected by the unique index when a live row already exists;
+        # model that so the "already subscribed" guard can be tested end to end.
+        e = email.strip().lower()
+        if e in self.live_emails:
+            return None
+        self.created.append(e)
+        self.live_emails.add(e)
+        return {"id": "new-id", "email": e, "confirm_token": "ctok", "manage_token": "mtok"}
 
     def confirm_subscription(self, token):
         self.confirm_calls += 1
@@ -128,6 +152,34 @@ def test_one_click_with_unknown_token_still_returns_200(client, store):
     assert r.status_code == 200
     assert r.json() == {"ok": True}
     assert store.unsubscribed == []
+
+
+# ------------------------------------------------------------------- subscribe --
+# One address = one subscription. The bug (2026-07-23): re-submitting an already-subscribed
+# email created a second pending row, and confirming it double-sent the digest. These pin the
+# guard — a live address is a silent no-op — and that the generic reply never leaks status.
+
+def test_subscribe_creates_a_row_and_sends_one_confirm(client, store, sent):
+    r = client.post("/subscribe", json={"email": "new@example.com"})
+    assert r.status_code == 200
+    assert store.created == ["new@example.com"]
+    assert len(sent) == 1                             # exactly one confirmation email
+
+
+def test_subscribe_is_a_noop_for_an_already_live_address(client, store, sent):
+    store.live_emails.add("taken@example.com")
+    r = client.post("/subscribe", json={"email": "taken@example.com"})
+    assert r.status_code == 200
+    assert r.json()["status"] == "pending"           # same generic reply — no status leak
+    assert store.created == []                        # NO duplicate row
+    assert sent == []                                 # and NO second confirm email
+
+
+def test_subscribe_noop_for_suppressed_address(client, store, sent):
+    store.suppressed.add("gone@example.com")
+    r = client.post("/subscribe", json={"email": "gone@example.com"})
+    assert r.status_code == 200
+    assert store.created == [] and sent == []
 
 
 # --------------------------------------------------------------------- preview --
