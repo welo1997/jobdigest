@@ -20,6 +20,10 @@ function regionLabel(codes: string[]): string {
 const prettify = (c: string) => c.replace(/_/g, " ").replace(/\b\w/g, (m) => m.toUpperCase());
 const slugify = (s: string) => s.trim().toLowerCase().replace(/\s+/g, "_");
 
+const SENIORITY_OPTS = ["Intern / Junior", "Mid", "Senior"];
+const SENIORITY_CODE: Record<string, string> = { "Intern / Junior": "junior", "Mid": "mid", "Senior": "senior" };
+const CODE_SENIORITY: Record<string, string> = { junior: "Intern / Junior", mid: "Mid", senior: "Senior" };
+
 function Inner() {
   const token = useSearchParams().get("token") || "";
   const { show, element: toast } = useToast();
@@ -32,6 +36,15 @@ function Inner() {
   const [skills, setSkills] = useState("");
   const [freq, setFreq] = useState("daily");
   const [regionSel, setRegionSel] = useState("EU remote");
+  const [levels, setLevels] = useState<Set<string>>(new Set());
+
+  const toggleLevel = (o: string) => {
+    setLevels((prev) => {
+      const next = new Set(prev);
+      next.has(o) ? next.delete(o) : next.add(o);
+      return next;
+    });
+  };
 
   useEffect(() => {
     if (!token) { setErr("This link is missing its token."); return; }
@@ -42,6 +55,7 @@ function Inner() {
         setSkills(p.stack.join(", "));
         setFreq(FREqS.includes(p.frequency) ? p.frequency : "daily");
         setRegionSel(regionLabel(p.regions));
+        setLevels(new Set((p.seniorities || []).map((c) => CODE_SENIORITY[c]).filter(Boolean)));
       })
       .catch((e) => setErr(e instanceof Error ? e.message : "Unknown or expired link."));
   }, [token]);
@@ -49,11 +63,15 @@ function Inner() {
   const save = async () => {
     setSaving(true);
     try {
+      // Empty selection means "any level" — send all three rather than an empty target,
+      // which the hard-filter matcher would read as "nothing matches".
+      const seniorities = [...levels].map((l) => SENIORITY_CODE[l]).filter(Boolean);
       const updated = await updatePreferences(token, {
         role_categories: roles.split(",").map(slugify).filter(Boolean),
         stack: skills.split(",").map((s) => s.trim().toLowerCase()).filter(Boolean),
         frequency: freq,
         regions: REGION_LABEL_TO_CODES[regionSel] || ["cz", "eu", "worldwide"],
+        seniorities: seniorities.length ? seniorities : ["junior", "mid", "senior"],
       });
       setPrefs(updated);
       show("Preferences saved");
@@ -123,6 +141,22 @@ function Inner() {
           <div className="field">
             <label htmlFor="p-skills">Skills / keywords</label>
             <input id="p-skills" type="text" value={skills} onChange={(e) => setSkills(e.target.value)} />
+          </div>
+          <div className="field">
+            <label>Seniority — we only send roles at the levels you pick</label>
+            <div className="chips">
+              {SENIORITY_OPTS.map((o) => (
+                <button
+                  key={o}
+                  type="button"
+                  className="chip"
+                  aria-pressed={levels.has(o)}
+                  onClick={() => toggleLevel(o)}
+                >
+                  {o}
+                </button>
+              ))}
+            </div>
           </div>
           <div className="row2">
             <div className="field">

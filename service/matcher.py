@@ -49,6 +49,12 @@ this specific person, and rank them best-first.
 How to judge fit:
 - Weigh the whole context, not just keyword overlap: role type, seniority, skills/stack, \
 work setup (remote/hybrid/onsite), location/region, and sector interest.
+- Seniority is a HARD filter, not a soft signal. The profile lists target seniority level(s) \
+(junior/mid/senior). Exclude any posting whose level clearly differs from every target — a \
+senior/lead/principal role for a junior-only subscriber, or a junior/graduate/intern role for \
+a senior-only subscriber — even if the role, skills and location fit perfectly; give it a \
+score below 4 so it is dropped. Only when the posting's level matches a target, or its level \
+is genuinely unstated/ambiguous, score it on overall fit.
 - Postings may be in Czech, Slovak, or English — judge them equally; a "Vývojář" is a \
 developer, "Obchodní zástupce" is a sales rep, "Účetní" is an accountant.
 - Rank best-first and be honest with the scores: a 9-10 is an excellent fit, a 6-7 solid, \
@@ -150,7 +156,12 @@ def match_profile(client, profile: dict, shortlist: list[dict]) -> list[dict]:
 ROUTINE_INSTRUCTIONS = (
     "You are JobDigest's daily matcher. For EACH subscriber below, read their profile and "
     "candidate postings and pick the jobs that genuinely fit them (whole context: role, "
-    "seniority, skills, work setup, location, sector — not just keywords). Postings may be "
+    "seniority, skills, work setup, location, sector — not just keywords). Treat seniority as "
+    "a HARD filter: exclude any posting whose level clearly differs from the subscriber's "
+    "target seniority level(s) — a senior/lead role for a junior-only subscriber, or a "
+    "junior/graduate/intern role for a senior-only subscriber — even if everything else fits "
+    "(omit it / score it below 4); only score postings whose level matches a target or is "
+    "genuinely unstated/ambiguous. Postings may be "
     "Czech/Slovak/English; judge them equally. Score each pick 0-10 on overall fit "
     "(9-10 excellent, 6-7 solid, 4-5 plausible-but-weaker); include every posting scoring 4+ "
     "(skip only clear non-fits); order best-first; max 20 per subscriber; never invent a posting_id. "

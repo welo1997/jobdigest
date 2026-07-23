@@ -15,6 +15,17 @@ const ROLE_OPTS = ["Product Manager", "Marketing", "Data Analyst", "Designer", "
 const SKILL_OPTS = ["SQL", "Figma", "Analytics", "Excel", "Python", "SEO", "Looker", "Roadmapping", "Power BI", "dbt"];
 const REGION_OPTS = ["Czechia", "EU remote", "Worldwide", "Hybrid Prague"];
 const WORK_OPTS = ["Full-time", "Freelance", "Part-time"];
+const SENIORITY_OPTS = ["Intern / Junior", "Mid", "Senior"];
+
+// display level <-> stored seniority code (postings & profiles use junior|mid|senior;
+// intern/graduate/trainee fold into junior). Matching treats seniority as a hard filter,
+// so this is what stops a junior search surfacing senior roles and vice versa.
+const SENIORITY_CODE: Record<string, string> = {
+  "Intern / Junior": "junior", "Mid": "mid", "Senior": "senior",
+};
+const CODE_SENIORITY: Record<string, string> = {
+  junior: "Intern / Junior", mid: "Mid", senior: "Senior",
+};
 
 // display role -> role_category (mirrors service.ingest role rules)
 const ROLE_CAT: Record<string, string> = {
@@ -54,6 +65,7 @@ export default function Landing() {
   const [skills, setSkills] = useState<Set<string>>(new Set(["SQL", "Figma", "Analytics"]));
   const [region, setRegion] = useState("EU remote");
   const [work, setWork] = useState<Set<string>>(new Set(["Full-time", "Freelance"]));
+  const [levels, setLevels] = useState<Set<string>>(new Set(["Intern / Junior", "Mid"]));
   const [email, setEmail] = useState("");
   const [consent, setConsent] = useState(true);
   const [addRole, setAddRole] = useState("");
@@ -147,6 +159,10 @@ export default function Landing() {
       setRoles(nextRoles);
       setSkillOpts(nextSkillOpts);
       setSkills(nextSkills);
+      // prefill seniority from the CV's detected level(s), so the level selector reflects
+      // the résumé too — the user can still override it before subscribing.
+      const cvLevels = (sig.seniorities || []).map((c) => CODE_SENIORITY[c]).filter(Boolean);
+      if (cvLevels.length) setLevels(new Set(cvLevels));
       setCvSignals(sig);
       setCvName(file.name);
       // Skill count, not the skills themselves — "parsed but found nothing" is a distinct
@@ -172,6 +188,7 @@ export default function Landing() {
     const workTypes: string[] = [];
     if (work.has("Full-time")) workTypes.push("permanent");
     if (work.has("Freelance")) workTypes.push("freelance/contract");
+    const seniorities = [...levels].map((l) => SENIORITY_CODE[l]).filter(Boolean);
     return {
       email: email.trim(),
       label: "My digest",
@@ -181,7 +198,7 @@ export default function Landing() {
       work_types: workTypes.length ? workTypes : ["permanent", "freelance/contract"],
       part_time_only: work.has("Part-time"),
       sectors: cvSignals?.sectors || [],
-      seniorities: cvSignals?.seniorities || ["junior", "mid"],
+      seniorities: seniorities.length ? seniorities : ["junior", "mid"],
       min_score: 6,
       frequency: "daily",
       cv_signals: cvSignals,
@@ -343,6 +360,12 @@ export default function Landing() {
                     <div className="chips">
                       {WORK_OPTS.map((o) => (
                         <Chip key={o} label={o} on={work.has(o)} toggle={() => toggleIn(work, o, setWork)} />
+                      ))}
+                    </div>
+                    <p className="wz-hint" style={{ marginTop: 16 }}>Your level — we only send roles at the levels you pick.</p>
+                    <div className="chips">
+                      {SENIORITY_OPTS.map((o) => (
+                        <Chip key={o} label={o} on={levels.has(o)} toggle={() => toggleIn(levels, o, setLevels)} />
                       ))}
                     </div>
                   </div>
