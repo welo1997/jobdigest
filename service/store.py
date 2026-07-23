@@ -464,9 +464,14 @@ _SUBSCRIBER_FIELDS = ["label", "stack", "seniorities", "regions", "role_categori
                       "min_score", "frequency"]
 
 
-def create_email_subscription(email: str, data: dict) -> dict:
+def create_email_subscription(email: str, data: dict) -> Optional[dict]:
     """Create a pending (unconfirmed) subscription with fresh tokens. Double opt-in:
-    the row is not emailed a digest until `confirm_subscription` flips it to active."""
+    the row is not emailed a digest until `confirm_subscription` flips it to active.
+
+    Returns None if a live subscription for this address already exists — the partial unique
+    index `uq_profiles_live_email` rejects the duplicate insert. The caller (webapp.subscribe)
+    normally checks `live_subscription_exists` first; this handles the rare concurrent-signup
+    race, so one address can never fan out into two rows (which would mean two digests)."""
     email = email.strip().lower()
     confirm_token = secrets.token_urlsafe(32)
     manage_token = secrets.token_urlsafe(32)
@@ -487,10 +492,30 @@ def create_email_subscription(email: str, data: dict) -> dict:
         data.get("has_cv", False), data.get("cv_summary"), data.get("years_experience"),
     ]
     placeholders = ",".join(["%s"] * len(cols))
-    with cursor(commit=True) as cur:
-        cur.execute(f"insert into profiles ({','.join(cols)}) values ({placeholders}) "
-                    "returning *", vals)
-        return dict(cur.fetchone())
+    try:
+        with cursor(commit=True) as cur:
+            cur.execute(f"insert into profiles ({','.join(cols)}) values ({placeholders}) "
+                        "returning *", vals)
+            return dict(cur.fetchone())
+    except psycopg2.errors.UniqueViolation:
+        # The partial unique index `uq_profiles_live_email` rejected a duplicate live row for
+        # this address (a concurrent second signup). cursor() has already rolled back; report
+        # "no row created" so the caller returns the same generic reply.
+        return None
+
+
+def live_subscription_exists(email: str) -> bool:
+    """True if this address already has a non-unsubscribed subscription (pending, active or
+    paused). Guards /subscribe against creating a second row for an already-subscribed
+    address — re-submitting the form must not fan out into multiple digests. Unsubscribed
+    rows don't count, so a genuine re-subscribe (once suppression is cleared) still works."""
+    with cursor() as cur:
+        cur.execute(
+            "select 1 from profiles where lower(email) = %s "
+            "and status <> 'unsubscribed' limit 1",
+            (email.strip().lower(),),
+        )
+        return cur.fetchone() is not None
 
 
 def recent_signup_exists(email: str, within_minutes: int) -> bool:

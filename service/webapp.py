@@ -167,6 +167,13 @@ def subscribe(body: SubscribeIn) -> dict:
     if store.is_suppressed(email):
         return generic
 
+    # One subscription per address. If a live (pending/active/paused) row already exists, do
+    # not create a duplicate or send another email — return the same generic reply, which
+    # never reveals whether the address is subscribed. This is the graceful path; the partial
+    # unique index (uq_profiles_live_email) is the hard backstop against a concurrent race.
+    if store.live_subscription_exists(email):
+        return generic
+
     # Per-email cooldown: if we already emailed a confirm to this address very recently,
     # don't send another (or create another pending row). Blunts inbox-flooding a victim
     # and duplicate rows on rapid retries. Same generic response either way.
@@ -178,6 +185,10 @@ def subscribe(body: SubscribeIn) -> dict:
         cvparse.merge_into_profile(data, body.cv_signals)
 
     profile = store.create_email_subscription(email, data)
+    if profile is None:
+        # Lost a race with a concurrent signup for the same address — the unique index
+        # rejected the duplicate. Same generic reply, no second confirm email.
+        return generic
     confirm_url = links.confirm_link(profile["confirm_token"])
     subject, html_body, text = transactional.render_confirm(email, confirm_url)
     try:

@@ -94,6 +94,9 @@ create table if not exists profiles (
 
 create index if not exists idx_profiles_user  on profiles (user_id);
 create index if not exists idx_profiles_email on profiles (lower(email));
+-- One live subscription per address: pending/active/paused are unique per email, unsubscribed
+-- rows excluded so a genuine re-subscribe still works (see migration_006_unique_email.sql).
+create unique index if not exists uq_profiles_live_email on profiles (lower(email)) where status <> 'unsubscribed';
 create unique index if not exists uq_profiles_confirm_token on profiles (confirm_token) where confirm_token is not null;
 create unique index if not exists uq_profiles_manage_token  on profiles (manage_token)  where manage_token  is not null;
 create index if not exists idx_profiles_sendable on profiles (status, last_digest_at) where status = 'active';
