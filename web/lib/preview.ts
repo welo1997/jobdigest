@@ -30,6 +30,7 @@ const CAP: Record<string, string> = {
   looker: "Looker", django: "Django", pandas: "pandas", spark: "Spark", aws: "AWS",
   figma: "Figma", roadmapping: "Roadmapping", seo: "SEO", analytics: "Analytics",
   content: "Content", excel: "Excel", research: "Research", ads: "Ads", notion: "Notion",
+  "power bi": "Power BI",
 };
 export const cap = (s: string) => CAP[s.toLowerCase()] || s;
 
