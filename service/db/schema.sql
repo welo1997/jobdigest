@@ -83,6 +83,7 @@ create table if not exists profiles (
     last_digest_at  timestamptz,
     paused_until    timestamptz,
     unsubscribed_at timestamptz,
+    manage_link_sent_at timestamptz,   -- rate-limits the "email me my settings link" path (migration 007)
 
     -- CV-derived signals (parse & discard: the raw CV file is never stored)
     has_cv           boolean not null default false,

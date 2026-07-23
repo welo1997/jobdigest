@@ -38,6 +38,9 @@ class _FakeStore:
         self.created: list[str] = []
         self.live_emails: set[str] = set()   # addresses that already have a live subscription
         self.suppressed: set[str] = set()
+        # manage-link path: addresses with an active/paused sub, and a per-address cooldown flag
+        self.manageable: dict[str, str] = {}   # email -> manage_token
+        self.manage_link_cooldown: set[str] = set()  # emails currently inside the cooldown window
 
     # -- subscribe path --
     def is_suppressed(self, email):
@@ -58,6 +61,16 @@ class _FakeStore:
         self.created.append(e)
         self.live_emails.add(e)
         return {"id": "new-id", "email": e, "confirm_token": "ctok", "manage_token": "mtok"}
+
+    def request_manage_link(self, email, cooldown_min):
+        # Models the atomic claim-and-set in store.request_manage_link: return the profile only
+        # for an active/paused address that isn't already inside the cooldown window, and mark
+        # it in-cooldown so an immediate second call returns None (no second email).
+        e = email.strip().lower()
+        if e not in self.manageable or e in self.manage_link_cooldown:
+            return None
+        self.manage_link_cooldown.add(e)
+        return {"id": "mid", "email": e, "manage_token": self.manageable[e]}
 
     def confirm_subscription(self, token):
         self.confirm_calls += 1
@@ -182,6 +195,41 @@ def test_subscribe_noop_for_suppressed_address(client, store, sent):
     assert store.created == [] and sent == []
 
 
+# ------------------------------------------------------------------ manage-link --
+# The passwordless "email me my settings link" recovery path. Three properties are load-bearing
+# and each test breaks if the corresponding guard is removed: the link reaches only the owner's
+# inbox, a repeat request can't flood it, and the response can't be used to enumerate subscribers.
+
+def test_manage_link_emails_the_settings_link_to_a_subscriber(client, store, sent):
+    store.manageable["me@example.com"] = TOKEN
+    r = client.post("/manage-link", json={"email": "me@example.com"})
+    assert r.status_code == 200
+    assert len(sent) == 1                                  # exactly one email
+    to, _subj, html_body, text = sent[0]
+    assert to == "me@example.com"                          # only ever to the owner's own inbox
+    assert TOKEN in html_body and TOKEN in text            # the manage link (the credential) is in it
+
+
+def test_manage_link_second_request_is_rate_limited(client, store, sent):
+    """Knowing an address must not let you flood its inbox — the per-address cooldown caps it."""
+    store.manageable["me@example.com"] = TOKEN
+    first = client.post("/manage-link", json={"email": "me@example.com"})
+    second = client.post("/manage-link", json={"email": "me@example.com"})
+    assert first.json() == second.json()                  # identical reply both times
+    assert len(sent) == 1                                 # but only ONE email actually went out
+
+
+def test_manage_link_does_not_enumerate_subscribers(client, store, sent):
+    """The response for an unknown/never-subscribed address must be byte-identical to a real
+    one, or the endpoint becomes an oracle for 'is this person a subscriber?'."""
+    store.manageable["me@example.com"] = TOKEN
+    subscribed = client.post("/manage-link", json={"email": "me@example.com"})
+    unknown = client.post("/manage-link", json={"email": "nobody@example.com"})
+    assert unknown.status_code == subscribed.status_code
+    assert unknown.json() == subscribed.json()            # same message, no status leak
+    assert len(sent) == 1                                 # nothing sent for the unknown address
+
+
 # --------------------------------------------------------------------- preview --
 # The instant post-signup preview: read-only, keyword-ranked, no score, no writes. These pin
 # the two guarantees that matter — a mismatched-seniority role can't slip in, and the endpoint
@@ -234,10 +282,11 @@ def test_preview_is_read_only_and_bounded(client, store):
 
 @pytest.fixture
 def sent(monkeypatch):
-    """Capture outbound mail instead of sending it."""
+    """Capture outbound mail instead of sending it. Records the full (to, subject, html, text)
+    so a test can assert what actually reached the body, not just that a send happened."""
     box: list[tuple] = []
     monkeypatch.setattr(webapp.mailer, "send",
-                        lambda to, subj, html, text, **kw: box.append((to, subj)) or "ok")
+                        lambda to, subj, html, text, **kw: box.append((to, subj, html, text)) or "ok")
     monkeypatch.setattr(webapp.transactional, "render_welcome",
                         lambda email, url: ("Welcome", "<p>hi</p>", "hi"))
     return box

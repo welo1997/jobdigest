@@ -122,7 +122,9 @@ export default function Privacy() {
           <h2>8. Your rights</h2>
           <p>Under the GDPR you have the right to access, correct, delete, restrict, or port your data,
             and to object to or withdraw consent for processing. The secure link in every email lets
-            you edit your preferences or unsubscribe with no password. For any other request, email
+            you edit your preferences or unsubscribe with no password; if you lose it, you can ask us
+            to email that link to your address again from the <b>Manage subscription</b> page. For any
+            other request, email
             <b> hello@jobdigest.eu</b> and we&apos;ll respond promptly. You also have the right to lodge
             a complaint with your data protection authority (in the Czech Republic, the Úřad pro
             ochranu osobních údajů, uoou.gov.cz).</p>
