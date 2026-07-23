@@ -12,7 +12,10 @@ export function Nav() {
             <span className="sun" aria-hidden="true" />
             Job<em>Digest</em>
           </Link>
-          <ThemeToggle />
+          <span className="nav-actions">
+            <Link className="nav-link" href="/manage">Manage subscription</Link>
+            <ThemeToggle />
+          </span>
         </div>
       </header>
     </>
@@ -29,6 +32,7 @@ export function Footer() {
         </span>
         <span>© 2026 · Made in the EU</span>
         <span className="links">
+          <Link href="/manage">Manage subscription</Link>
           <Link href="/privacy">Privacy</Link>
           <Link href="/terms">Terms</Link>
         </span>

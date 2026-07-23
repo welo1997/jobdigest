@@ -57,7 +57,10 @@ button{font-family:inherit;}
   background:radial-gradient(circle at 50% 120%,var(--gold) 0 55%,var(--brand) 56% 100%);
   box-shadow:0 0 0 3px color-mix(in srgb,var(--gold) 25%,transparent);}
 .brand em{font-style:normal;color:var(--brand);}
-.themebtn{margin-left:auto;flex:none;width:38px;height:38px;border-radius:50%;border:1px solid var(--line);
+.nav-actions{margin-left:auto;display:flex;align-items:center;gap:14px;}
+.nav-link{font-size:var(--fs-sm);font-weight:600;color:var(--muted);white-space:nowrap;}
+.nav-link:hover{color:var(--brand);text-decoration:none;}
+.themebtn{flex:none;width:38px;height:38px;border-radius:50%;border:1px solid var(--line);
   background:var(--surface);color:var(--ink);cursor:pointer;font-size:1rem;display:grid;place-items:center;}
 .themebtn:hover{border-color:var(--brand);}
 
@@ -289,4 +292,6 @@ button{font-family:inherit;}
 }
 @media (max-width:560px){.hero{padding:32px 0 12px;}.row2{grid-template-columns:1fr;}.wizard{padding:20px;}
   .wz-q{font-size:1.3rem;}.brand{font-size:1.15rem;}
-  .hero .lede{font-size:1.05rem;max-width:38ch;}}
+  .hero .lede{font-size:1.05rem;max-width:38ch;}
+  /* free the top bar on phones — the same link stays in the footer */
+  .nav-link{display:none;}}

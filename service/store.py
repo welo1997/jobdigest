@@ -534,6 +534,39 @@ def recent_signup_exists(email: str, within_minutes: int) -> bool:
         return cur.fetchone() is not None
 
 
+def request_manage_link(email: str, cooldown_min: int) -> Optional[dict]:
+    """Atomically claim the right to email a subscriber their own manage link.
+
+    Returns the profile (carrying its `manage_token`) only when a link *should* be sent, else
+    None. Two conditions are enforced together in one UPDATE — so there is no check-then-act
+    race — and both are load-bearing for the endpoint's safety:
+
+    * The address must have a live, confirmed subscription: status `active` or `paused`. A
+      `pending` row hasn't completed double opt-in (it re-confirms via /subscribe), and an
+      `unsubscribed` address must never be re-contacted.
+    * No manage link may have been emailed to it within the last `cooldown_min` minutes. This
+      is what stops /manage-link being an inbox-flooding primitive: knowing an address yields
+      at most one email per window, and only ever to that address's own inbox.
+
+    `uq_profiles_live_email` guarantees at most one live row per address, so the UPDATE touches
+    at most one profile. `cooldown_min` is a server-controlled int, never user input."""
+    with cursor(commit=True) as cur:
+        cur.execute(
+            """
+            update profiles
+               set manage_link_sent_at = now()
+             where lower(email) = %s
+               and status in ('active', 'paused')
+               and (manage_link_sent_at is null
+                    or manage_link_sent_at < now() - make_interval(mins => %s))
+            returning *
+            """,
+            (email.strip().lower(), int(cooldown_min)),
+        )
+        row = cur.fetchone()
+        return dict(row) if row else None
+
+
 def _get_by(field: str, token: str) -> Optional[dict]:
     with cursor() as cur:
         cur.execute(f"select * from profiles where {field} = %s", (token,))

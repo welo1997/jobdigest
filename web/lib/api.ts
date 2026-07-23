@@ -142,6 +142,16 @@ export async function parseCV(
   return (await res.json()).signals as CVSignals;
 }
 
+// Passwordless "email me my settings link" — for a subscriber who lost their private link.
+// The API always returns the same generic message whether or not the address is subscribed
+// (no enumeration), so the UI shows that message regardless of the address entered.
+export function requestManageLink(email: string) {
+  return req<{ ok: boolean; message: string }>("/manage-link", {
+    method: "POST",
+    body: JSON.stringify({ email }),
+  });
+}
+
 export function getPreferences(token: string) {
   return req<Preferences>(`/preferences?token=${encodeURIComponent(token)}`);
 }

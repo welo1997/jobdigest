@@ -6,6 +6,7 @@ exposed in v1). Everything a subscriber can do is reachable with a token from th
 there is never a password.
 
     POST /subscribe          create a PENDING subscription + send the confirm email
+    POST /manage-link        email an existing subscriber their private settings link
     GET  /confirm            double opt-in — activate + send welcome (HTML page)
     GET  /preferences        current settings for a manage token (JSON)
     POST /preferences        update settings
@@ -56,6 +57,10 @@ CV_PARSE_TIMEOUT = float(os.environ.get("CV_PARSE_TIMEOUT", "10"))   # seconds, 
 # Minutes before another confirm email may be sent to the same pending address. Blunts
 # "joe-job" flooding of a victim's inbox and stops duplicate pending rows (review M1/L5).
 SUBSCRIBE_COOLDOWN_MIN = int(os.environ.get("SUBSCRIBE_COOLDOWN_MIN", "10"))
+# Minutes before a subscriber's manage link may be re-emailed to the same address via
+# /manage-link (the passwordless "email me my settings link" recovery path). This cooldown is
+# the primary abuse control there: it caps a victim's inbox at one such email per window.
+MANAGE_LINK_COOLDOWN_MIN = int(os.environ.get("MANAGE_LINK_COOLDOWN_MIN", "30"))
 
 
 @asynccontextmanager
@@ -200,6 +205,58 @@ def subscribe(body: SubscribeIn) -> dict:
         raise HTTPException(
             502, "We couldn't send the confirmation email just now. Please try again in a moment."
         )
+    return generic
+
+
+# --------------------------------------------------------------- manage link ---
+
+class ManageLinkIn(BaseModel):
+    email: EmailStr
+    cf_turnstile_token: Optional[str] = None
+
+
+@app.post("/manage-link")
+def manage_link(body: ManageLinkIn) -> dict:
+    """Email a subscriber the private link to manage their existing subscription — the
+    passwordless "log me back in" path for someone who lost their link.
+
+    Why this cannot be abused (the reason it's safe to expose an email box publicly):
+
+    * **No enumeration.** The response is identical whether or not the address is subscribed,
+      so it can't be used to learn who has an account.
+    * **No hijack.** The link only ever goes to the address's *own* inbox and the token in it
+      is the credential — knowing an email but not controlling the inbox grants nothing, exactly
+      like a password reset. There is no endpoint that turns an email into a token in a response.
+    * **No inbox flooding.** `store.request_manage_link` atomically enforces a per-address
+      cooldown, so repeated requests for one address send at most one email per window.
+    * **Confirmed subs only.** Only `active`/`paused` subscriptions qualify (a `pending` row
+      re-confirms via /subscribe; an `unsubscribed` address is never re-contacted).
+
+    Turnstile is optional here (this is a standalone one-field form with no widget minted): a
+    token, if present, is still validated; a missing one is allowed because the per-address
+    cooldown and the generic response — not the bot check — are what actually bound abuse."""
+    _verify_turnstile(body.cf_turnstile_token, required=False)
+    email = str(body.email).strip().lower()
+
+    generic = {"ok": True,
+               "message": "If that address has a subscription, we've emailed its settings link."}
+
+    profile = store.request_manage_link(email, MANAGE_LINK_COOLDOWN_MIN)
+    if profile is None:
+        # No live subscription, or one already emailed within the cooldown window. Say exactly
+        # the same thing either way so the response reveals nothing about the address.
+        return generic
+
+    manage_url = links.preferences_link(profile["manage_token"])
+    subject, html_body, text = transactional.render_manage_link(email, manage_url)
+    try:
+        mailer.send(email, subject, html_body, text)
+    except Exception:
+        # Log, but still return the generic reply: a distinct error response would only appear
+        # for an address that *is* subscribed (a non-subscriber never reaches the send), which
+        # would turn a mail hiccup into a weak enumeration signal. The user can retry after the
+        # cooldown window.
+        logging.exception("manage-link email send failed for %s", email)
     return generic
 
 
