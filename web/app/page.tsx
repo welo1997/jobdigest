@@ -8,7 +8,7 @@ import EmailPreview from "@/components/EmailPreview";
 import Turnstile, { turnstileEnabled, TurnstileHandle } from "@/components/Turnstile";
 import { useToast } from "@/components/useToast";
 import { cap } from "@/lib/preview";
-import { CVSignals, parseCV, subscribe, SubscribePayload } from "@/lib/api";
+import { CVSignals, parseCV, preview, subscribe, SubscribePayload } from "@/lib/api";
 import { track } from "@/lib/analytics";
 
 const ROLE_OPTS = ["Product Manager", "Marketing", "Data Analyst", "Designer", "Software Engineer", "Data Engineer", "DevOps", "Finance"];
@@ -219,9 +219,17 @@ export default function Landing() {
     // `variant` carries the chosen seniority levels (e.g. "junior+mid") — reuses an existing
     // whitelisted event + prop key, so no server-side analytics change is needed.
     track("subscribe_submitted", { skills: skills.size, variant: [...levelCodes].join("+") || "none" });
+    const payload = buildPayload();
+    // Instant keyword preview, fired in parallel with the signup. Best-effort: if it fails
+    // or is slow, we still complete signup — check-inbox just won't show instant matches.
+    const previewDone = preview(payload)
+      .then((r) => { try { sessionStorage.setItem("jd_preview", JSON.stringify(r)); } catch {} })
+      .catch(() => {});
     try {
-      await subscribe(buildPayload());
+      await subscribe(payload);
       track("subscribe_ok");
+      // Give the preview a brief moment to land, but never block the redirect on it.
+      await Promise.race([previewDone, new Promise((res) => setTimeout(res, 2500))]);
       router.push(`/check-inbox/?email=${encodeURIComponent(email.trim())}`);
     } catch (e) {
       track("subscribe_error");

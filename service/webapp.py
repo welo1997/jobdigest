@@ -192,6 +192,104 @@ def subscribe(body: SubscribeIn) -> dict:
     return generic
 
 
+# --------------------------------------------------------------- preview -------
+# Instant, no-AI keyword preview shown right after signup. It runs the SAME cheap prefilter
+# the daily matcher uses (store.query_shortlist), applies the seniority hard-filter locally
+# (the AI normally enforces that), and ranks by how many of the person's skills each posting
+# mentions. It is read-only: no email, no DB writes, no `matches` rows, no score. The daily
+# digest still delivers the real AI-ranked version — this is only a "here are live jobs now"
+# first impression. Deliberately key-less, so it never touches the billing decision.
+
+class PreviewIn(BaseModel):
+    label: str = "My digest"
+    stack: list[str] = Field(default_factory=list)
+    seniorities: list[str] = Field(default_factory=lambda: ["junior", "mid"])
+    regions: list[str] = Field(default_factory=lambda: ["cz", "eu", "worldwide"])
+    role_categories: list[str] = Field(default_factory=list)
+    work_types: list[str] = Field(default_factory=lambda: ["permanent", "freelance/contract"])
+    part_time_only: bool = False
+    eligible_only: bool = True
+    sectors: list[str] = Field(default_factory=list)
+    cv_signals: Optional[dict] = None
+    cf_turnstile_token: Optional[str] = None
+
+PREVIEW_SHORTLIST = 60      # candidates pulled from the prefilter before ranking
+PREVIEW_LIMIT = 8           # cards returned to the browser
+
+
+def _preview_view(j: dict, terms: list[str]) -> dict:
+    """Public card for the instant preview — same non-sensitive fields as a match, plus a
+    plain 'why' from the keyword overlap. No score: this is keyword relevance, not judged fit,
+    and dressing an overlap count up as a 0-10 would be dishonest."""
+    hay = f"{j.get('title') or ''} {j.get('description') or ''}".lower()
+    matched = [t for t in terms if t and t in hay]
+    tags: list[str] = []
+    if j.get("region"):
+        tags.append(str(j["region"]).upper())
+    if j.get("region") in ("eu", "worldwide"):
+        tags.append("Remote")
+    if j.get("seniority"):
+        tags.append(str(j["seniority"]).capitalize())
+    if j.get("work_type") == "freelance/contract":
+        tags.append("Freelance")
+    if j.get("salary_raw"):
+        tags.append(str(j["salary_raw"]))
+    # de-dup, preserve order
+    seen, dedup = set(), []
+    for t in tags:
+        if t.lower() not in seen:
+            seen.add(t.lower())
+            dedup.append(t)
+    why = ("Mentions " + ", ".join(list(dict.fromkeys(matched))[:4])) if matched \
+        else "Recent role matching your search"
+    return {
+        "posting_id": j.get("posting_id"),
+        "title": j.get("title"),
+        "company": j.get("company"),
+        "url": j.get("url"),
+        "location": j.get("location"),
+        "region": j.get("region"),
+        "seniority": j.get("seniority"),
+        "work_type": j.get("work_type"),
+        "tags": dedup[:5],
+        "why": why,
+    }
+
+
+@app.post("/preview")
+def preview(body: PreviewIn) -> dict:
+    """Instant keyword matches for a just-completed signup. See the section note above.
+
+    Turnstile is optional here (the token minted for /subscribe is single-use and consumed
+    there, so the browser deliberately doesn't send it to /preview). The endpoint is bounded
+    by one indexed prefilter query and edge rate-limiting; it writes nothing."""
+    _verify_turnstile(body.cf_turnstile_token, required=False)
+    data = body.model_dump(exclude={"cf_turnstile_token", "cv_signals"})
+    if body.cv_signals:
+        cvparse.merge_into_profile(data, body.cv_signals)
+
+    candidates = store.query_shortlist(data, limit=PREVIEW_SHORTLIST)
+
+    # Seniority hard-filter, applied here because query_shortlist doesn't (the AI normally
+    # does). Keep a posting when its level is one the person wants, OR when it's unknown —
+    # never drop an ambiguous role, matching the "soft/AI" choice for the daily path.
+    levels = {str(x).lower() for x in (data.get("seniorities") or [])}
+    if levels:
+        candidates = [c for c in candidates
+                      if not c.get("seniority") or str(c["seniority"]).lower() in levels]
+
+    # Rank by how many of the person's skills each posting mentions; stable sort preserves
+    # the prefilter's recency order within an equal-overlap group.
+    terms = [str(s).strip().lower() for s in (data.get("stack") or []) if str(s).strip()]
+    def _overlap(j: dict) -> int:
+        hay = f"{j.get('title') or ''} {j.get('description') or ''}".lower()
+        return sum(1 for t in terms if t in hay)
+    candidates.sort(key=_overlap, reverse=True)
+
+    return {"count": len(candidates),
+            "jobs": [_preview_view(c, terms) for c in candidates[:PREVIEW_LIMIT]]}
+
+
 # --------------------------------------------------------------- confirm -------
 
 @app.get("/confirm", response_class=HTMLResponse)
