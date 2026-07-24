@@ -83,9 +83,15 @@ export default function Privacy() {
             a list of job matches against that same random identifier.</p>
 
           <h2>6. Cookies &amp; usage statistics</h2>
-          <p>The site sets <b>no advertising or analytics cookies</b>. Cloudflare Turnstile (our
-            no-CAPTCHA bot check) may set a strictly necessary token to verify you&apos;re human when
-            you sign up.</p>
+          <p>The site sets <b>no advertising or analytics cookies</b>. It sets one
+            <b> strictly necessary cookie</b>, and only if you log in: when you open a link we
+            emailed you, we set a session cookie so you stay signed in on that device without
+            re-opening the link each time. It contains a random token (no email, no personal
+            data), is <b>not used for tracking</b>, and is cleared when you log out. We store only
+            a one-way hash of that token, alongside your subscription, for at most <b>30 days</b> of
+            inactivity — so a copy of our database never reveals a usable login. Cloudflare Turnstile
+            (our no-CAPTCHA bot check) may also set a strictly necessary token to verify you&apos;re
+            human when you sign up.</p>
           <p>To improve the site we record a small number of anonymous events — for example
             &quot;landing page viewed&quot;, &quot;signup form started&quot;, or &quot;CV upload
             failed&quot;. This is done <b>without cookies</b>, and specifically:</p>
@@ -106,8 +112,9 @@ export default function Privacy() {
 
           <h2>7. How long we keep it</h2>
           <p>We keep your subscription data for as long as you&apos;re subscribed. When you
-            unsubscribe, sending stops <b>immediately</b>. Your profile — preferences, CV summary,
-            match history — is then <b>deleted within 30 days</b>. We keep only your email address on a
+            unsubscribe, sending stops <b>immediately</b> and any active login sessions are
+            ended. Your profile — preferences, CV summary, match history — is then
+            <b> deleted within 30 days</b>, and its login sessions with it. We keep only your email address on a
             suppression list, indefinitely: it is the minimum needed to guarantee we never email you
             again, and deleting it would defeat that.</p>
           <p>The 30-day gap is deliberate rather than a delay for our benefit. Some email clients and

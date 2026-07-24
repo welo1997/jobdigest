@@ -8,6 +8,7 @@ module-level connection pool. Connection string comes from DATABASE_URL, e.g.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
 import os
@@ -586,6 +587,87 @@ def get_by_confirm_token(token: str) -> Optional[dict]:
 
 def get_by_manage_token(token: str) -> Optional[dict]:
     return _get_by("manage_token", token)
+
+
+# --- sessions (persisted magic-link login) -------------------------------------
+#
+# JobDigest stays passwordless; a session just lets a browser keep the identity it already
+# proved by clicking a magic link, so returning visits need no token in the URL. The raw
+# cookie token is a bearer credential, so we store only its SHA-256 — a DB/backup leak then
+# yields no usable session (the same reason we hash passwords, applied to a product that has
+# none). See migration_008_sessions.sql.
+
+#: Idle timeout for a login session, slid forward on each use. Also the ceiling on how long
+#: a logged-in browser stays authenticated without touching a magic link again.
+SESSION_TTL_DAYS = int(os.environ.get("SESSION_TTL_DAYS", "30"))
+
+
+def _hash_session(raw: str) -> str:
+    return hashlib.sha256(raw.encode()).hexdigest()
+
+
+def create_session(profile_id: str, ttl_days: int = SESSION_TTL_DAYS) -> str:
+    """Mint a session for a profile and return the RAW cookie token.
+
+    Only the hash is stored, so the returned value exists nowhere in the DB. Callers must put
+    it in a cookie and never persist it server-side."""
+    raw = secrets.token_urlsafe(32)
+    with cursor(commit=True) as cur:
+        cur.execute(
+            "insert into sessions (id, profile_id, expires_at) "
+            "values (%s, %s, now() + make_interval(days => %s))",
+            (_hash_session(raw), profile_id, int(ttl_days)),
+        )
+    return raw
+
+
+def session_profile(raw: str, ttl_days: int = SESSION_TTL_DAYS) -> Optional[dict]:
+    """Resolve a raw cookie token to its profile, sliding the expiry forward.
+
+    Returns the full profile row, or None if the token is unknown or expired. Lookup and
+    slide happen in one UPDATE so they can't race, and an expired row is never revived
+    (`expires_at > now()` in the WHERE clause)."""
+    if not raw:
+        return None
+    with cursor(commit=True) as cur:
+        cur.execute(
+            """
+            update sessions
+               set last_seen_at = now(),
+                   expires_at   = now() + make_interval(days => %s)
+             where id = %s and expires_at > now()
+            returning profile_id
+            """,
+            (int(ttl_days), _hash_session(raw)),
+        )
+        row = cur.fetchone()
+        if not row:
+            return None
+        cur.execute("select * from profiles where id = %s", (row["profile_id"],))
+        prof = cur.fetchone()
+        return dict(prof) if prof else None
+
+
+def revoke_session(raw: str) -> None:
+    """Delete a single session (log out this browser)."""
+    if not raw:
+        return
+    with cursor(commit=True) as cur:
+        cur.execute("delete from sessions where id = %s", (_hash_session(raw),))
+
+
+def revoke_profile_sessions(profile_id: str) -> int:
+    """Delete every session for a profile — used when a subscriber unsubscribes."""
+    with cursor(commit=True) as cur:
+        cur.execute("delete from sessions where profile_id = %s", (profile_id,))
+        return cur.rowcount
+
+
+def prune_expired_sessions() -> int:
+    """Delete sessions past their idle timeout. Returns rows removed."""
+    with cursor(commit=True) as cur:
+        cur.execute("delete from sessions where expires_at < now()")
+        return cur.rowcount
 
 
 #: How long a confirm link stays valid. Consent that is a year stale is not consent, and an

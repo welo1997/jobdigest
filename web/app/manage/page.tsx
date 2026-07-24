@@ -57,10 +57,10 @@ export default function ManagePage() {
             ) : (
               <>
                 <div className="ic">🔑</div>
-                <h1>Manage your subscription</h1>
+                <h1>Log in to JobDigest</h1>
                 <p style={{ marginBottom: 20 }}>
-                  JobDigest has no passwords — you manage everything from a secure link we email
-                  you. Lost it? Enter your address and we&apos;ll send it again.
+                  No passwords here. Enter your address and we&apos;ll email you a secure link —
+                  click it and you&apos;re signed in, and you&apos;ll stay signed in on this device.
                 </p>
                 <form onSubmit={submit} style={{ textAlign: "left" }}>
                   <div className="field">

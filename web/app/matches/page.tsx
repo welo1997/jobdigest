@@ -1,10 +1,10 @@
 "use client";
 
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Nav, Footer } from "@/components/SiteChrome";
-import { getMatches, MatchesResponse, MatchJob } from "@/lib/api";
+import { establishSession, getMatches, MatchesResponse, MatchJob } from "@/lib/api";
 import { track } from "@/lib/analytics";
 import { safeHref } from "@/lib/url";
 
@@ -27,7 +27,7 @@ function jobTags(j: MatchJob): { text: string; fl?: boolean }[] {
   });
 }
 
-function MatchRow({ j, token }: { j: MatchJob; token: string }) {
+function MatchRow({ j, token }: { j: MatchJob; token?: string }) {
   const score = j.score ?? 0;
   const strong = score >= 6;
   // Feed URLs are untrusted; a non-http(s) scheme (javascript:, data:) renders no link.
@@ -58,7 +58,7 @@ function MatchRow({ j, token }: { j: MatchJob; token: string }) {
             rel="noopener noreferrer"
             // Score only — never the job, company or URL. Tells us whether the ranking is
             // trusted (are low-scored matches ever clicked?) without profiling anyone.
-            onClick={() => track("match_clicked", { count: score }, token)}
+            onClick={() => track("match_clicked", { count: score }, token || undefined)}
           >
             View &amp; apply →
           </a>
@@ -69,21 +69,53 @@ function MatchRow({ j, token }: { j: MatchJob; token: string }) {
 }
 
 function Inner() {
-  const token = useSearchParams().get("token") || "";
+  const urlToken = useSearchParams().get("token") || "";
+  // Same login model as /preferences: trade the one-time token for a session cookie, then
+  // ride the cookie. Stays set only in the cookie-refused fallback.
+  const tokenRef = useRef<string>(urlToken);
   const [data, setData] = useState<MatchesResponse | null>(null);
   const [err, setErr] = useState("");
 
   useEffect(() => {
-    if (!token) { setErr("This link is missing its token."); return; }
-    getMatches(token)
-      .then((d) => {
-        setData(d);
-        // How many matches the page actually had — a page that routinely shows 0 or 1 is
-        // a product problem, not a UI one.
-        track("matches_viewed", { count: d.count }, token);
-      })
-      .catch((e) => setErr(e instanceof Error ? e.message : "Unknown or expired link."));
-  }, [token]);
+    let cancelled = false;
+    const done = (d: MatchesResponse) => {
+      if (cancelled) return;
+      setData(d);
+      // How many matches the page actually had — a page that routinely shows 0 or 1 is
+      // a product problem, not a UI one.
+      track("matches_viewed", { count: d.count }, tokenRef.current || undefined);
+    };
+    const load = async () => {
+      try {
+        if (urlToken) {
+          try {
+            await establishSession(urlToken);
+            tokenRef.current = "";
+            if (typeof window !== "undefined")
+              window.history.replaceState(null, "", "/matches");
+            done(await getMatches());
+          } catch {
+            done(await getMatches(urlToken));
+          }
+          return;
+        }
+        done(await getMatches());
+      } catch (e) {
+        if (cancelled) return;
+        setErr(
+          urlToken
+            ? e instanceof Error ? e.message : "Unknown or expired link."
+            : "Open your matches from the link in your email — or use “Manage subscription” to get a fresh one."
+        );
+      }
+    };
+    load();
+    return () => { cancelled = true; };
+  }, [urlToken]);
+
+  const prefsHref = tokenRef.current
+    ? `/preferences?token=${encodeURIComponent(tokenRef.current)}`
+    : "/preferences";
 
   if (err) {
     return (
@@ -104,7 +136,7 @@ function Inner() {
   return (
     <>
       <div className="wrap page-head">
-        <span className="label">Your matches · no login needed</span>
+        <span className="label">Your matches · signed in</span>
         <h1>{data.count > 0 ? `${data.count} matches for you` : "No matches yet"}</h1>
         <p>
           Everything we found for <b>{data.email}</b>, ranked best-first. We email you the
@@ -118,17 +150,17 @@ function Inner() {
             <h1>Nothing yet</h1>
             <p>Your first matches are found overnight — check back after tomorrow&apos;s 7:00 digest.</p>
             <p style={{ marginTop: 16 }}>
-              <Link href={`/preferences?token=${encodeURIComponent(token)}`}>Adjust your preferences →</Link>
+              <Link href={prefsHref}>Adjust your preferences →</Link>
             </p>
           </div>
         </div>
       ) : (
         <>
           <div className="matches">
-            {data.jobs.map((j) => <MatchRow key={j.posting_id} j={j} token={token} />)}
+            {data.jobs.map((j) => <MatchRow key={j.posting_id} j={j} token={tokenRef.current || undefined} />)}
           </div>
           <div className="wrap" style={{ textAlign: "center", marginBottom: 60 }}>
-            <Link href={`/preferences?token=${encodeURIComponent(token)}`}
+            <Link href={prefsHref}
               style={{ fontSize: "var(--fs-sm)", color: "var(--muted)" }}>
               Not quite right? Adjust your roles &amp; skills →
             </Link>

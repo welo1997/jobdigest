@@ -1,11 +1,14 @@
 "use client";
 
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Nav, Footer } from "@/components/SiteChrome";
 import { useToast } from "@/components/useToast";
-import { getPreferences, pause, Preferences, resume, unsubscribeUrl, updatePreferences } from "@/lib/api";
+import {
+  establishSession, getPreferences, logout, pause, Preferences, resume,
+  unsubscribeSession, unsubscribeUrl, updatePreferences,
+} from "@/lib/api";
 import { cap } from "@/lib/preview";
 
 const FREqS = ["daily", "weekdays", "weekly"];
@@ -44,11 +47,16 @@ const SENIORITY_CODE: Record<string, string> = { "Intern / Junior": "junior", "M
 const CODE_SENIORITY: Record<string, string> = { junior: "Intern / Junior", mid: "Mid", senior: "Senior" };
 
 function Inner() {
-  const token = useSearchParams().get("token") || "";
+  const urlToken = useSearchParams().get("token") || "";
+  // The magic-link token is used once to mint a session, then dropped from the URL. After
+  // that this ref is "" and every call authenticates by cookie. It stays set only in the
+  // fallback where the browser refused the cookie, so token-based calls keep the page working.
+  const tokenRef = useRef<string>(urlToken);
   const { show, element: toast } = useToast();
   const [prefs, setPrefs] = useState<Preferences | null>(null);
   const [err, setErr] = useState("");
   const [saving, setSaving] = useState(false);
+  const [confirmUnsub, setConfirmUnsub] = useState(false);
 
   // editable fields
   const [roleOpts, setRoleOpts] = useState<string[]>(ROLE_OPTS);
@@ -79,22 +87,52 @@ function Inner() {
   };
 
   useEffect(() => {
-    if (!token) { setErr("This link is missing its token."); return; }
-    getPreferences(token)
-      .then((p) => {
-        setPrefs(p);
-        const roleLabels = p.role_categories.map((c) => LABEL_FOR_SLUG[c] || prettify(c));
-        setRoleOpts([...new Set([...ROLE_OPTS, ...roleLabels])]);
-        setRoleSet(new Set(roleLabels));
-        const skillLabels = p.stack.map((s) => cap(s));
-        setSkillOpts([...new Set([...SKILL_OPTS, ...skillLabels])]);
-        setSkillSet(new Set(skillLabels));
-        setFreq(FREqS.includes(p.frequency) ? p.frequency : "daily");
-        setRegionSel(regionLabel(p.regions));
-        setLevels(new Set((p.seniorities || []).map((c) => CODE_SENIORITY[c]).filter(Boolean)));
-      })
-      .catch((e) => setErr(e instanceof Error ? e.message : "Unknown or expired link."));
-  }, [token]);
+    let cancelled = false;
+    const hydrate = (p: Preferences) => {
+      if (cancelled) return;
+      setPrefs(p);
+      const roleLabels = p.role_categories.map((c) => LABEL_FOR_SLUG[c] || prettify(c));
+      setRoleOpts([...new Set([...ROLE_OPTS, ...roleLabels])]);
+      setRoleSet(new Set(roleLabels));
+      const skillLabels = p.stack.map((s) => cap(s));
+      setSkillOpts([...new Set([...SKILL_OPTS, ...skillLabels])]);
+      setSkillSet(new Set(skillLabels));
+      setFreq(FREqS.includes(p.frequency) ? p.frequency : "daily");
+      setRegionSel(regionLabel(p.regions));
+      setLevels(new Set((p.seniorities || []).map((c) => CODE_SENIORITY[c]).filter(Boolean)));
+    };
+
+    const load = async () => {
+      try {
+        if (urlToken) {
+          // Trade the one-time magic-link token for a session cookie, then strip it from the
+          // URL so it doesn't linger in history or a referrer. If the browser refuses the
+          // cookie, keep using the token so the page still works.
+          try {
+            const p = await establishSession(urlToken);
+            tokenRef.current = "";
+            if (typeof window !== "undefined")
+              window.history.replaceState(null, "", "/preferences");
+            hydrate(p);
+          } catch {
+            hydrate(await getPreferences(urlToken));
+          }
+          return;
+        }
+        // No token in the URL — rely on an existing session cookie from a prior visit.
+        hydrate(await getPreferences());
+      } catch (e) {
+        if (cancelled) return;
+        setErr(
+          urlToken
+            ? e instanceof Error ? e.message : "Unknown or expired link."
+            : "Open your preferences from the link in your email — or use “Manage subscription” to get a fresh one."
+        );
+      }
+    };
+    load();
+    return () => { cancelled = true; };
+  }, [urlToken]);
 
   const save = async () => {
     setSaving(true);
@@ -104,13 +142,13 @@ function Inner() {
       const seniorities = [...levels].map((l) => SENIORITY_CODE[l]).filter(Boolean);
       // Dedup slugs: Marketing + Finance both map to other_tech_function.
       const roleSlugs = [...new Set([...roleSet].map((l) => ROLE_CAT[l] || slugify(l)).filter(Boolean))];
-      const updated = await updatePreferences(token, {
+      const updated = await updatePreferences({
         role_categories: roleSlugs,
         stack: [...skillSet].map((s) => s.trim().toLowerCase()).filter(Boolean),
         frequency: freq,
         regions: REGION_LABEL_TO_CODES[regionSel] || ["cz", "eu", "worldwide"],
         seniorities: seniorities.length ? seniorities : ["junior", "mid", "senior"],
-      });
+      }, tokenRef.current || undefined);
       setPrefs(updated);
       show("Preferences saved");
     } catch (e) {
@@ -122,7 +160,7 @@ function Inner() {
 
   const doPause = async () => {
     try {
-      const r = await pause(token, 14);
+      const r = await pause(14, tokenRef.current || undefined);
       setPrefs((p) => (p ? { ...p, status: "paused", paused_until: r.paused_until } : p));
       show("Digest paused for 2 weeks");
     } catch (e) {
@@ -131,11 +169,29 @@ function Inner() {
   };
   const doResume = async () => {
     try {
-      await resume(token);
+      await resume(tokenRef.current || undefined);
       setPrefs((p) => (p ? { ...p, status: "active", paused_until: null } : p));
       show("Digest resumed");
     } catch (e) {
       show(e instanceof Error ? e.message : "Couldn't resume");
+    }
+  };
+
+  const doLogout = async () => {
+    try { await logout(); } catch { /* clearing the cookie is best-effort */ }
+    if (typeof window !== "undefined") window.location.href = "/";
+  };
+
+  const doUnsubscribe = async () => {
+    // Cookie-authenticated, in-page unsubscribe (no token in the URL). Two-step: the first
+    // click arms it, the second performs it — a click is a POST, never a GET, so a link
+    // scanner can't trigger it.
+    try {
+      await unsubscribeSession();
+      show("You've unsubscribed");
+      if (typeof window !== "undefined") setTimeout(() => (window.location.href = "/"), 900);
+    } catch (e) {
+      show(e instanceof Error ? e.message : "Couldn't unsubscribe");
     }
   };
 
@@ -159,13 +215,16 @@ function Inner() {
   return (
     <>
       <div className="wrap page-head">
-        <span className="label">Manage · no login needed</span>
+        <span className="label">Signed in</span>
         <h1>Your preferences</h1>
-        <p>Signed in via your secure email link, as <b>{prefs.email}</b>. Change anything, pause, or leave.</p>
+        <p>
+          Signed in as <b>{prefs.email}</b>. Change anything, pause, or leave —
+          {" "}<button type="button" className="linkbtn" onClick={doLogout}>log out</button>.
+        </p>
       </div>
       <div className="note">
-        <b>Token-based.</b> The link in your email carries a private token, so you edit your digest
-        without a password.
+        <b>No password.</b> Clicking your email link signed you in and keeps you signed in on
+        this device, so you won&apos;t need the link again here. Log out any time.
       </div>
       <div className="panel">
         <div className="card">
@@ -250,9 +309,22 @@ function Inner() {
             {saving ? "Saving…" : "Save changes"}
           </button>
           <div style={{ textAlign: "center", marginTop: 14 }}>
-            <a href={unsubscribeUrl(token)} style={{ fontSize: "var(--fs-sm)", color: "var(--muted)" }}>
-              Unsubscribe from all emails
-            </a>
+            {tokenRef.current ? (
+              // Fallback (cookie refused): use the token-based confirm page.
+              <a href={unsubscribeUrl(tokenRef.current)} style={{ fontSize: "var(--fs-sm)", color: "var(--muted)" }}>
+                Unsubscribe from all emails
+              </a>
+            ) : confirmUnsub ? (
+              <button type="button" className="linkbtn danger" onClick={doUnsubscribe}
+                style={{ fontSize: "var(--fs-sm)" }}>
+                Click again to confirm — unsubscribe from all emails
+              </button>
+            ) : (
+              <button type="button" className="linkbtn" onClick={() => setConfirmUnsub(true)}
+                style={{ fontSize: "var(--fs-sm)", color: "var(--muted)" }}>
+                Unsubscribe from all emails
+              </button>
+            )}
           </div>
         </div>
       </div>

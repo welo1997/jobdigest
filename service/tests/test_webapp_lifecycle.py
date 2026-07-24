@@ -18,6 +18,7 @@ from service import webapp
 
 TOKEN = "a-valid-manage-token"
 EMAIL = "person@example.com"
+PROFILE_ID = "11111111-1111-1111-1111-111111111111"
 
 
 CONFIRM = "a-valid-confirm-token"
@@ -41,6 +42,11 @@ class _FakeStore:
         # manage-link path: addresses with an active/paused sub, and a per-address cooldown flag
         self.manageable: dict[str, str] = {}   # email -> manage_token
         self.manage_link_cooldown: set[str] = set()  # emails currently inside the cooldown window
+        # session path (persisted magic-link login)
+        self.sessions: dict[str, str] = {}     # raw cookie token -> profile_id
+        self.expired: set[str] = set()         # raw tokens forced past their idle timeout
+        self.revoked_profiles: list[str] = []  # profile_ids whose sessions were bulk-revoked
+        self.updates: list[dict] = []          # preference changes applied via update_subscription
 
     # -- subscribe path --
     def is_suppressed(self, email):
@@ -101,6 +107,34 @@ class _FakeStore:
         self.unsubscribed.append(token)
         return EMAIL
 
+    def update_subscription(self, manage_token, data):
+        if manage_token != TOKEN:
+            return None
+        self.updates.append(data)
+        return {"id": PROFILE_ID, "email": EMAIL, "manage_token": TOKEN, **data}
+
+    # -- session path --
+    SESSION_TTL_DAYS = 30
+
+    def create_session(self, profile_id, ttl_days=30):
+        raw = f"sess-{len(self.sessions)}-{profile_id}"
+        self.sessions[raw] = profile_id
+        return raw
+
+    def session_profile(self, raw, ttl_days=30):
+        if not raw or raw in self.expired or raw not in self.sessions:
+            return None
+        return {"id": self.sessions[raw], "email": EMAIL, "manage_token": TOKEN}
+
+    def revoke_session(self, raw):
+        self.sessions.pop(raw, None)
+
+    def revoke_profile_sessions(self, profile_id):
+        n = len([r for r, p in self.sessions.items() if p == profile_id])
+        self.sessions = {r: p for r, p in self.sessions.items() if p != profile_id}
+        self.revoked_profiles.append(profile_id)
+        return n
+
     def record_event(self, name, **kw):
         self.events.append({"name": name, **kw})
 
@@ -109,6 +143,9 @@ class _FakeStore:
 def store(monkeypatch):
     fake = _FakeStore()
     monkeypatch.setattr(webapp, "store", fake)
+    # TestClient talks plain http://testserver; a Secure cookie would never be resent, so the
+    # session flow can't be exercised. Turn the flag off for tests only (prod stays Secure).
+    monkeypatch.setattr(webapp, "SESSION_COOKIE_SECURE", False)
     # Reset the process-local rate-limit window so tests don't leak into each other.
     monkeypatch.setattr(webapp, "_event_window_start", 0.0)
     monkeypatch.setattr(webapp, "_event_total", 0)
@@ -165,6 +202,94 @@ def test_one_click_with_unknown_token_still_returns_200(client, store):
     assert r.status_code == 200
     assert r.json() == {"ok": True}
     assert store.unsubscribed == []
+
+
+# --------------------------------------------------------------------- sessions --
+# Session-persisted magic links: clicking a magic link once mints a session cookie so the
+# browser stays logged in. The system is still passwordless — the manage_token is the only
+# credential typed. Each test breaks if its guard is removed (mutation-checked):
+#   * a magic-link token still authenticates every read/write (email links must never break);
+#   * a cookie-authed *write* is refused without the CSRF header (the CSRF defense);
+#   * logout and expiry actually stop the cookie from authenticating.
+
+
+def test_session_login_sets_cookie_and_whoami_works(client, store):
+    login = client.post("/session", json={"token": TOKEN})
+    assert login.status_code == 200
+    assert login.json()["email"] == EMAIL
+    assert webapp.SESSION_COOKIE in login.cookies          # a session cookie was set
+    # The TestClient jar now carries it; whoami resolves the browser to the subscriber.
+    who = client.get("/session")
+    assert who.status_code == 200
+    assert who.json()["email"] == EMAIL
+
+
+def test_session_login_rejects_an_unknown_token(client, store):
+    r = client.post("/session", json={"token": "nope"})
+    assert r.status_code == 404
+    assert webapp.SESSION_COOKIE not in r.cookies          # no session minted for a bad token
+    assert store.sessions == {}
+
+
+def test_whoami_401s_without_a_session(client, store):
+    assert client.get("/session").status_code == 401
+
+
+def test_logout_revokes_the_session(client, store):
+    client.post("/session", json={"token": TOKEN})
+    assert store.sessions                                   # logged in
+    out = client.post("/logout")
+    assert out.status_code == 200
+    assert store.sessions == {}                            # server-side session gone
+    assert client.get("/session").status_code == 401        # cookie no longer authenticates
+
+
+def test_expired_session_is_rejected(client, store):
+    client.post("/session", json={"token": TOKEN})
+    store.expired = set(store.sessions)                    # force the session past its idle timeout
+    assert client.get("/session").status_code == 401
+
+
+def test_cookie_write_requires_the_csrf_header(client, store):
+    client.post("/session", json={"token": TOKEN})
+    # Cookie is sent automatically by the jar; without the CSRF header the write is refused.
+    blocked = client.post("/preferences", json={"label": "New name"})
+    assert blocked.status_code == 403
+    assert store.updates == []                             # nothing was written
+    # With the header it goes through.
+    ok = client.post("/preferences", json={"label": "New name"},
+                     headers={"X-JobDigest-Auth": "1"})
+    assert ok.status_code == 200
+    assert store.updates == [{"label": "New name"}]
+
+
+def test_cookie_read_needs_no_csrf_header(client, store):
+    client.post("/session", json={"token": TOKEN})
+    r = client.get("/preferences")                          # cookie only, no header
+    assert r.status_code == 200
+    assert r.json()["email"] == EMAIL
+
+
+def test_magic_link_token_still_authenticates_without_a_session(client, store):
+    """Email links carry the manage_token and must keep working with no cookie at all."""
+    assert client.get("/preferences", params={"token": TOKEN}).status_code == 200
+    upd = client.post("/preferences", json={"token": TOKEN, "label": "X"})   # no CSRF header needed
+    assert upd.status_code == 200
+    assert store.updates == [{"label": "X"}]
+
+
+def test_cookie_unsubscribe_revokes_sessions_and_needs_csrf(client, store):
+    client.post("/session", json={"token": TOKEN})
+    # Without the CSRF header the logged-in unsubscribe is refused and nothing happens.
+    refused = client.post("/unsubscribe")
+    assert refused.status_code == 403
+    assert store.unsubscribed == [] and store.sessions
+    # With it: the subscription is dropped and every session for that profile is torn down.
+    done = client.post("/unsubscribe", headers={"X-JobDigest-Auth": "1"})
+    assert done.status_code == 200
+    assert store.unsubscribed == [TOKEN]
+    assert PROFILE_ID in store.revoked_profiles
+    assert store.sessions == {}
 
 
 # ------------------------------------------------------------------- subscribe --

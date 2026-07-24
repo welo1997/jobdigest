@@ -7,8 +7,11 @@ there is never a password.
 
     POST /subscribe          create a PENDING subscription + send the confirm email
     POST /manage-link        email an existing subscriber their private settings link
+    POST /session            exchange a magic-link token for a login-session cookie
+    GET  /session            who is this browser logged in as? (cookie -> profile)
+    POST /logout             revoke this browser's session + clear the cookie
     GET  /confirm            double opt-in — activate + send welcome (HTML page)
-    GET  /preferences        current settings for a manage token (JSON)
+    GET  /preferences        current settings — magic-link token OR session cookie (JSON)
     POST /preferences        update settings
     POST /pause              pause N days without unsubscribing
     POST /resume             resume a paused subscription
@@ -38,7 +41,7 @@ from contextlib import asynccontextmanager
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
-from fastapi import FastAPI, Form, HTTPException, Request, UploadFile
+from fastapi import FastAPI, Form, HTTPException, Request, Response, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, EmailStr, Field
@@ -62,6 +65,18 @@ SUBSCRIBE_COOLDOWN_MIN = int(os.environ.get("SUBSCRIBE_COOLDOWN_MIN", "10"))
 # the primary abuse control there: it caps a victim's inbox at one such email per window.
 MANAGE_LINK_COOLDOWN_MIN = int(os.environ.get("MANAGE_LINK_COOLDOWN_MIN", "30"))
 
+# --- login sessions (persisted magic links) ------------------------------------
+# JobDigest is still passwordless: clicking a magic link is the only way to authenticate. A
+# session just lets the browser keep that identity so return visits need no token in the URL.
+SESSION_COOKIE = os.environ.get("SESSION_COOKIE_NAME", "jd_session")
+# Secure flag on by default; set SESSION_COOKIE_SECURE=0 for plain-http local dev only.
+SESSION_COOKIE_SECURE = os.environ.get("SESSION_COOKIE_SECURE", "1") != "0"
+# A cookie-authenticated *write* must carry this header. Browsers forbid a cross-site page
+# from setting a custom header without a CORS preflight our allow-list refuses, so its mere
+# presence proves the request came from our own origin — this is the CSRF defense for cookie
+# auth. Token-in-body callers (email links, RFC 8058 clients) don't need it.
+CSRF_HEADER = "x-jobdigest-auth"
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -80,7 +95,11 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=[o.strip() for o in _origins if o.strip()],
     allow_methods=["GET", "POST"],
-    allow_headers=["Content-Type"],
+    # X-JobDigest-Auth is the CSRF header carried on cookie-authenticated writes.
+    allow_headers=["Content-Type", "X-JobDigest-Auth"],
+    # Let the browser send/receive the session cookie on cross-origin dev calls. In prod the
+    # frontend and API are same-origin (jobdigest.eu + /api) so this is a no-op there.
+    allow_credentials=True,
 )
 
 
@@ -113,6 +132,51 @@ def _verify_turnstile(
         raise HTTPException(502, "Bot check unavailable — please retry.")
     if not ok:
         raise HTTPException(400, "Bot check failed — please retry.")
+
+
+# --------------------------------------------------------------- sessions ------
+
+def _set_session_cookie(response: Response, raw: str) -> None:
+    response.set_cookie(
+        SESSION_COOKIE, raw,
+        max_age=store.SESSION_TTL_DAYS * 86400,
+        httponly=True,                 # JS can't read it — it isn't an XSS-exfiltratable token
+        secure=SESSION_COOKIE_SECURE,
+        samesite="lax",                # not sent on cross-site sub-requests; belt to the CSRF header
+        path="/",
+    )
+
+
+def _clear_session_cookie(response: Response) -> None:
+    response.delete_cookie(SESSION_COOKIE, path="/")
+
+
+def _cookie_profile(request: Request) -> Optional[dict]:
+    return store.session_profile(request.cookies.get(SESSION_COOKIE) or "")
+
+
+def _resolve_subscriber(
+    request: Request, token: Optional[str], *, mutating: bool
+) -> Optional[dict]:
+    """Identify the subscriber behind a self-service call, by either credential.
+
+    Priority order:
+      * an explicit ``manage_token`` (from a magic link or an RFC 8058 client) — always
+        accepted, so email links keep working exactly as before;
+      * otherwise the session cookie (a logged-in browser). A *mutating* cookie-authed
+        request must also carry the CSRF header (see ``CSRF_HEADER``) or it's refused; reads
+        need no header.
+
+    Returns the full profile row — including ``manage_token``, which the caller uses
+    server-side to drive the existing token-keyed store functions — or None."""
+    if token:
+        return store.get_by_manage_token(token)
+    profile = _cookie_profile(request)
+    if profile is None:
+        return None
+    if mutating and request.headers.get(CSRF_HEADER) is None:
+        raise HTTPException(403, "Missing CSRF header for cookie-authenticated request.")
+    return profile
 
 
 # --------------------------------------------------------------- html pages ----
@@ -415,7 +479,9 @@ def _public_view(profile: dict) -> dict:
 
 
 class PreferencesIn(BaseModel):
-    token: str
+    # Optional now: a logged-in browser authenticates by session cookie and sends no token.
+    # A magic-link visit still passes its manage_token, which always wins (see _resolve_subscriber).
+    token: Optional[str] = None
     label: Optional[str] = None
     stack: Optional[list[str]] = None
     seniorities: Optional[list[str]] = None
@@ -429,9 +495,46 @@ class PreferencesIn(BaseModel):
     frequency: Optional[str] = None
 
 
+class SessionIn(BaseModel):
+    token: str
+
+
+@app.post("/session")
+def session_login(body: SessionIn, response: Response) -> dict:
+    """Exchange a valid manage token (from a magic link) for a session cookie.
+
+    The frontend calls this once when it lands on a page carrying ``?token=``, then drops the
+    token from the URL and rides the cookie. The token is still the credential — a session is
+    only minted for one that resolves to a real subscriber."""
+    profile = store.get_by_manage_token(body.token)
+    if not profile:
+        raise HTTPException(404, "Unknown or expired link.")
+    raw = store.create_session(profile["id"])
+    _set_session_cookie(response, raw)
+    return _public_view(profile)
+
+
+@app.get("/session")
+def session_whoami(request: Request) -> dict:
+    """Who is this browser logged in as? Resolves the session cookie; 401 if none/expired."""
+    profile = _cookie_profile(request)
+    if not profile:
+        raise HTTPException(401, "Not logged in.")
+    return _public_view(profile)
+
+
+@app.post("/logout")
+def logout(request: Request, response: Response) -> dict:
+    """Revoke this browser's session and clear the cookie. No CSRF header required: a forged
+    logout only logs you out, which is a nuisance rather than a vulnerability."""
+    store.revoke_session(request.cookies.get(SESSION_COOKIE) or "")
+    _clear_session_cookie(response)
+    return {"ok": True}
+
+
 @app.get("/preferences")
-def get_preferences(token: str) -> dict:
-    profile = store.get_by_manage_token(token)
+def get_preferences(request: Request, token: Optional[str] = None) -> dict:
+    profile = _resolve_subscriber(request, token, mutating=False)
     if not profile:
         raise HTTPException(404, "Unknown or expired link.")
     return _public_view(profile)
@@ -461,10 +564,10 @@ def _match_view(j: dict) -> dict:
 
 
 @app.get("/matches")
-def get_matches(token: str) -> dict:
+def get_matches(request: Request, token: Optional[str] = None) -> dict:
     """Everything the matcher found for this subscriber (not just the emailed few),
-    ranked best-first. Token-based, same private link as /preferences — no login."""
-    profile = store.get_by_manage_token(token)
+    ranked best-first. Authenticated by the private magic-link token or the session cookie."""
+    profile = _resolve_subscriber(request, token, mutating=False)
     if not profile:
         raise HTTPException(404, "Unknown or expired link.")
     jobs = store.matched_jobs(profile["id"], limit=MATCHES_PAGE_LIMIT)
@@ -477,37 +580,42 @@ def get_matches(token: str) -> dict:
 
 
 @app.post("/preferences")
-def update_preferences(body: PreferencesIn) -> dict:
-    changes = body.model_dump(exclude={"token"}, exclude_none=True)
-    profile = store.update_subscription(body.token, changes)
+def update_preferences(body: PreferencesIn, request: Request) -> dict:
+    profile = _resolve_subscriber(request, body.token, mutating=True)
     if not profile:
         raise HTTPException(404, "Unknown or expired link.")
-    return _public_view(profile)
+    changes = body.model_dump(exclude={"token"}, exclude_none=True)
+    updated = store.update_subscription(profile["manage_token"], changes)
+    if not updated:
+        raise HTTPException(404, "Unknown or expired link.")
+    return _public_view(updated)
 
 
 class PauseIn(BaseModel):
-    token: str
+    token: Optional[str] = None
     days: int = 14
 
 
 @app.post("/pause")
-def pause(body: PauseIn) -> dict:
-    if not store.get_by_manage_token(body.token):
+def pause(body: PauseIn, request: Request) -> dict:
+    profile = _resolve_subscriber(request, body.token, mutating=True)
+    if not profile:
         raise HTTPException(404, "Unknown or expired link.")
     until = datetime.now(timezone.utc) + timedelta(days=max(1, body.days))
-    store.pause_subscription(body.token, until)
+    store.pause_subscription(profile["manage_token"], until)
     return {"ok": True, "status": "paused", "paused_until": until.isoformat()}
 
 
 class TokenIn(BaseModel):
-    token: str
+    token: Optional[str] = None
 
 
 @app.post("/resume")
-def resume(body: TokenIn) -> dict:
-    if not store.get_by_manage_token(body.token):
+def resume(body: TokenIn, request: Request) -> dict:
+    profile = _resolve_subscriber(request, body.token, mutating=True)
+    if not profile:
         raise HTTPException(404, "Unknown or expired link.")
-    store.resume_subscription(body.token)
+    store.resume_subscription(profile["manage_token"])
     return {"ok": True, "status": "active"}
 
 
@@ -564,17 +672,37 @@ def unsubscribe_page(token: str) -> HTMLResponse:
 
 
 @app.post("/unsubscribe")
-def unsubscribe_oneclick(token: str = Form(...), confirm: Optional[str] = Form(None)):
-    """Perform the unsubscribe. Two callers, two response shapes.
+def unsubscribe_oneclick(
+    request: Request,
+    response: Response,
+    token: Optional[str] = Form(None),
+    confirm: Optional[str] = Form(None),
+):
+    """Perform the unsubscribe. Three callers, two response shapes.
 
-    `confirm` is set only by our own HTML form above, so a person gets a page; RFC 8058
-    one-click posts without it and gets JSON. Always 200, even for an unknown token, so
-    mail clients never retry a one-click that already succeeded."""
-    email = _do_unsubscribe(token)      # idempotent
-    if confirm:
-        if email is None:
-            return HTMLResponse(_bad_link_page(), status_code=404)
-        return HTMLResponse(_unsubscribed_page())
+    * Email link / RFC 8058: `token` in the form body. `confirm` is set only by our own HTML
+      form, so a person gets a page; RFC 8058 one-click posts without it and gets JSON.
+      Always 200 for a token so mail clients never retry a one-click that already succeeded.
+    * Logged-in browser: no token — the session cookie identifies the subscriber, and (being
+      a mutating cookie-authed request) it must carry the CSRF header. Its sessions are then
+      revoked and the cookie cleared, because the subscription it authenticated is gone."""
+    if token:
+        email = _do_unsubscribe(token)      # idempotent
+        if confirm:
+            if email is None:
+                return HTMLResponse(_bad_link_page(), status_code=404)
+            return HTMLResponse(_unsubscribed_page())
+        return {"ok": True}
+
+    # Cookie path.
+    profile = _cookie_profile(request)
+    if profile is None:
+        raise HTTPException(404, "Unknown or expired link.")
+    if request.headers.get(CSRF_HEADER) is None:
+        raise HTTPException(403, "Missing CSRF header for cookie-authenticated request.")
+    _do_unsubscribe(profile["manage_token"])
+    store.revoke_profile_sessions(profile["id"])
+    _clear_session_cookie(response)
     return {"ok": True}
 
 
