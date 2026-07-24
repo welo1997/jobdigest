@@ -91,8 +91,10 @@ function Inner() {
           try {
             await establishSession(urlToken);
             tokenRef.current = "";
-            if (typeof window !== "undefined")
+            if (typeof window !== "undefined") {
               window.history.replaceState(null, "", "/matches");
+              window.dispatchEvent(new Event("jd-auth-changed"));   // nav: re-check, we're in
+            }
             done(await getMatches());
           } catch {
             done(await getMatches(urlToken));

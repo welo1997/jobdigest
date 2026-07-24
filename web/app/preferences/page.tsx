@@ -111,8 +111,10 @@ function Inner() {
           try {
             const p = await establishSession(urlToken);
             tokenRef.current = "";
-            if (typeof window !== "undefined")
+            if (typeof window !== "undefined") {
               window.history.replaceState(null, "", "/preferences");
+              window.dispatchEvent(new Event("jd-auth-changed"));   // nav: re-check, we're in
+            }
             hydrate(p);
           } catch {
             hydrate(await getPreferences(urlToken));

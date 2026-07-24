@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Nav, Footer } from "@/components/SiteChrome";
 import GoogleButton from "@/components/GoogleButton";
-import { requestManageLink } from "@/lib/api";
+import { GOOGLE_AUTH_ENABLED, requestManageLink } from "@/lib/api";
 
 // "Lost your link?" — the passwordless way back into an existing subscription. We ask only for
 // the email, then POST /manage-link, which mails the private settings link to that address if
@@ -81,8 +81,12 @@ export default function ManagePage() {
                     {googleNote}
                   </p>
                 )}
-                <GoogleButton label="Sign in with Google" />
-                <div className="or-divider"><span>or</span></div>
+                {GOOGLE_AUTH_ENABLED && (
+                  <>
+                    <GoogleButton label="Sign in with Google" />
+                    <div className="or-divider"><span>or</span></div>
+                  </>
+                )}
                 <form onSubmit={submit} style={{ textAlign: "left" }}>
                   <div className="field">
                     <label htmlFor="jd-email">Your email address</label>
