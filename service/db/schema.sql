@@ -188,3 +188,17 @@ create table if not exists sessions (
 );
 create index if not exists idx_sessions_profile on sessions (profile_id);
 create index if not exists idx_sessions_expires on sessions (expires_at);
+
+-- ---------------------------------------------------------------------------
+-- signup_intents: short-lived proof that an email was Google-verified (migration 009),
+-- so "Sign in with Google" can also *sign up* a new user — create an active subscription
+-- with no confirm email, since Google already proved they control the address. `id` is the
+-- SHA-256 of the raw cookie token; the row holds the email for ~30 min then is pruned.
+-- ---------------------------------------------------------------------------
+create table if not exists signup_intents (
+    id          text primary key,                    -- sha256(raw cookie token), hex
+    email       text not null,                        -- the Google-verified address
+    created_at  timestamptz not null default now(),
+    expires_at  timestamptz not null
+);
+create index if not exists idx_signup_intents_expires on signup_intents (expires_at);

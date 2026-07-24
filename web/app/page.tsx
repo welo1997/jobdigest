@@ -6,9 +6,13 @@ import Link from "next/link";
 import { Nav, Footer } from "@/components/SiteChrome";
 import EmailPreview from "@/components/EmailPreview";
 import Turnstile, { turnstileEnabled, TurnstileHandle } from "@/components/Turnstile";
+import GoogleButton from "@/components/GoogleButton";
 import { useToast } from "@/components/useToast";
 import { cap } from "@/lib/preview";
-import { CVSignals, parseCV, preview, subscribe, SubscribePayload } from "@/lib/api";
+import {
+  CVSignals, GOOGLE_AUTH_ENABLED, googleAuthUrl, googleSignupPending, parseCV, preview,
+  subscribe, subscribeGoogle, SubscribePayload,
+} from "@/lib/api";
 import { track } from "@/lib/analytics";
 
 const ROLE_OPTS = ["Product Manager", "Marketing", "Data Analyst", "Designer", "Software Engineer", "Data Engineer", "DevOps", "Finance"];
@@ -77,6 +81,10 @@ export default function Landing() {
   const [drag, setDrag] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [tsToken, setTsToken] = useState("");
+  // Google-verified signup mode: entered after the OAuth round-trip for a new user. The email
+  // is fixed (Google-verified), so we skip the email box + Turnstile and submit to /subscribe/google.
+  const [googleMode, setGoogleMode] = useState(false);
+  const [googleEmail, setGoogleEmail] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
   const tsRef = useRef<TurnstileHandle>(null);
   const startedRef = useRef(false);
@@ -94,6 +102,53 @@ export default function Landing() {
       track("form_started", { step: String(step) });
     }
   }, [step]);
+
+  // --- Google-verified signup: survive the full-page OAuth redirect ---
+  // Clicking "Sign up with Google" leaves the SPA entirely, so stash the picks first and
+  // restore them when Google sends the user back to /?google=signup.
+  const saveWizardState = () => {
+    try {
+      sessionStorage.setItem("jd_google_wiz", JSON.stringify({
+        roleOpts, skillOpts, roles: [...roles], skills: [...skills], region,
+        work: [...work], levels: [...levels], cvSignals, step,
+      }));
+    } catch {}
+  };
+  const googleStart = () => {
+    saveWizardState();
+    window.location.href = googleAuthUrl();
+  };
+
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get("google") !== "signup") return;
+    try {
+      const s = JSON.parse(sessionStorage.getItem("jd_google_wiz") || "null");
+      if (s) {
+        setRoleOpts(s.roleOpts || ROLE_OPTS);
+        setSkillOpts(s.skillOpts || SKILL_OPTS);
+        setRoles(new Set<string>(s.roles || []));
+        setSkills(new Set<string>(s.skills || []));
+        setRegion(s.region || "EU remote");
+        setWork(new Set<string>(s.work || []));
+        setLevels(new Set<string>(s.levels || []));
+        setCvSignals(s.cvSignals || null);
+      }
+    } catch {}
+    // Confirm the intent is still live and learn which verified address it's for.
+    googleSignupPending()
+      .then((r) => {
+        setGoogleEmail(r.email);
+        setEmail(r.email);
+        setGoogleMode(true);
+        setStep(LAST);
+        try { sessionStorage.removeItem("jd_google_wiz"); } catch {}
+      })
+      .catch(() => {
+        show("Your Google sign-in expired — please try again.");
+        window.history.replaceState(null, "", "/");
+      });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // --- set helpers (immutable so React re-renders) ---
   const toggleIn = (set: Set<string>, v: string, setter: (s: Set<string>) => void) => {
@@ -206,7 +261,24 @@ export default function Landing() {
     };
   }
 
+  const submitGoogle = async () => {
+    if (!consent) return show("Please accept the privacy policy first");
+    if (levels.size === 0) return show("Pick at least one seniority level");
+    setSubmitting(true);
+    track("subscribe_submitted", { skills: skills.size, variant: [...levelCodes].join("+") || "none" });
+    try {
+      await subscribeGoogle(buildPayload());   // email comes from the server-side intent
+      track("subscribe_ok");
+      router.push("/preferences");             // active + logged in — no inbox step
+    } catch (e) {
+      track("subscribe_error");
+      show(e instanceof Error ? e.message : "Something went wrong — please retry");
+      setSubmitting(false);
+    }
+  };
+
   const submit = async () => {
+    if (googleMode) return submitGoogle();
     if (!consent) return show("Please accept the privacy policy first");
     if (!email.trim().includes("@")) return show("Enter a valid email");
     if (levels.size === 0) return show("Pick at least one seniority level");
@@ -403,24 +475,46 @@ export default function Landing() {
                 {/* step 4: email */}
                 {step === 3 && (
                   <div className="wz-panel">
-                    <div className="wz-q">Where do we send it?</div>
-                    <p className="wz-hint">One confirmation email first — then your daily digest at 7:00.</p>
-                    <input
-                      type="email"
-                      className="emailin"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      placeholder="you@example.com"
-                      aria-label="Your email"
-                    />
-                    <label className="consent">
-                      <input type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)} />
-                      I agree to the <Link href="/privacy">privacy policy</Link> and to the daily digest.
-                    </label>
-                    <Turnstile ref={tsRef} onVerify={setTsToken} />
-                    <div className="turnstile">
-                      <span className="box">✓</span> Protected by Cloudflare Turnstile — no CAPTCHA
-                    </div>
+                    {googleMode ? (
+                      <>
+                        <div className="wz-q">Confirm your digest</div>
+                        <p className="wz-hint">
+                          Signing up as <b>{googleEmail}</b> — verified with Google, so there&apos;s
+                          no confirmation email. Your first digest lands at 7:00 tomorrow.
+                        </p>
+                        <label className="consent">
+                          <input type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)} />
+                          I agree to the <Link href="/privacy">privacy policy</Link> and to the daily digest.
+                        </label>
+                      </>
+                    ) : (
+                      <>
+                        <div className="wz-q">Where do we send it?</div>
+                        <p className="wz-hint">One confirmation email first — then your daily digest at 7:00.</p>
+                        {GOOGLE_AUTH_ENABLED && (
+                          <>
+                            <GoogleButton label="Sign up with Google" onClick={googleStart} />
+                            <div className="or-divider"><span>or</span></div>
+                          </>
+                        )}
+                        <input
+                          type="email"
+                          className="emailin"
+                          value={email}
+                          onChange={(e) => setEmail(e.target.value)}
+                          placeholder="you@example.com"
+                          aria-label="Your email"
+                        />
+                        <label className="consent">
+                          <input type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)} />
+                          I agree to the <Link href="/privacy">privacy policy</Link> and to the daily digest.
+                        </label>
+                        <Turnstile ref={tsRef} onVerify={setTsToken} />
+                        <div className="turnstile">
+                          <span className="box">✓</span> Protected by Cloudflare Turnstile — no CAPTCHA
+                        </div>
+                      </>
+                    )}
                   </div>
                 )}
 

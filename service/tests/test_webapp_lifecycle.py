@@ -47,6 +47,7 @@ class _FakeStore:
         self.expired: set[str] = set()         # raw tokens forced past their idle timeout
         self.revoked_profiles: list[str] = []  # profile_ids whose sessions were bulk-revoked
         self.updates: list[dict] = []          # preference changes applied via update_subscription
+        self.signup_intents: dict[str, str] = {}   # raw token -> Google-verified email
 
     # -- subscribe path --
     def is_suppressed(self, email):
@@ -58,7 +59,7 @@ class _FakeStore:
     def recent_signup_exists(self, email, within_minutes):
         return False
 
-    def create_email_subscription(self, email, data):
+    def create_email_subscription(self, email, data, confirmed=False):
         # The real insert is rejected by the unique index when a live row already exists;
         # model that so the "already subscribed" guard can be tested end to end.
         e = email.strip().lower()
@@ -66,7 +67,10 @@ class _FakeStore:
             return None
         self.created.append(e)
         self.live_emails.add(e)
-        return {"id": "new-id", "email": e, "confirm_token": "ctok", "manage_token": "mtok"}
+        return {"id": "new-id", "email": e,
+                "confirm_token": None if confirmed else "ctok",
+                "manage_token": "mtok",
+                "status": "active" if confirmed else "pending"}
 
     def request_manage_link(self, email, cooldown_min):
         # Models the atomic claim-and-set in store.request_manage_link: return the profile only
@@ -139,6 +143,20 @@ class _FakeStore:
         if email.strip().lower() == EMAIL.lower():
             return {"id": PROFILE_ID, "email": EMAIL, "manage_token": TOKEN}
         return None
+
+    # -- Google-verified signup intents --
+    SIGNUP_INTENT_TTL_MIN = 30
+
+    def create_signup_intent(self, email, ttl_min=30):
+        raw = f"intent-{len(self.signup_intents)}-{email.strip().lower()}"
+        self.signup_intents[raw] = email.strip().lower()
+        return raw
+
+    def signup_intent_email(self, raw):
+        return self.signup_intents.get(raw)
+
+    def consume_signup_intent(self, raw):
+        return self.signup_intents.pop(raw, None)
 
     def record_event(self, name, **kw):
         self.events.append({"name": name, **kw})
@@ -356,14 +374,74 @@ def test_google_callback_unverified_email_is_refused(client, store, monkeypatch)
     assert store.sessions == {}
 
 
-def test_google_callback_unknown_email_bounces_to_signup(client, store, monkeypatch):
+def test_google_callback_new_email_starts_a_signup(client, store, monkeypatch):
+    """A verified address with no subscription is sent into the wizard with a signup intent —
+    NOT logged in, and NOT auto-subscribed."""
     _enable_google(monkeypatch)
     monkeypatch.setattr(webapp, "_google_verify_code",
                         lambda code: {"email": "stranger@example.com", "email_verified": True})
     r = client.get("/auth/google/callback", params={"code": "x", "state": "S"},
                    cookies={webapp.OAUTH_STATE_COOKIE: "S"}, follow_redirects=False)
-    assert "google=nosub" in r.headers["location"]       # verified, but not a subscriber
-    assert store.sessions == {}
+    assert r.status_code == 302 and "google=signup" in r.headers["location"]
+    assert webapp.SIGNUP_COOKIE in r.cookies              # an intent cookie was issued
+    assert "stranger@example.com" in store.signup_intents.values()
+    assert store.sessions == {}                           # not logged in yet
+    assert store.created == []                            # and nothing subscribed yet
+
+
+def test_google_callback_suppressed_email_is_refused(client, store, monkeypatch):
+    """A previously-unsubscribed address must not be silently re-signed-up via Google."""
+    _enable_google(monkeypatch)
+    store.suppressed.add("gone@example.com")
+    monkeypatch.setattr(webapp, "_google_verify_code",
+                        lambda code: {"email": "gone@example.com", "email_verified": True})
+    r = client.get("/auth/google/callback", params={"code": "x", "state": "S"},
+                   cookies={webapp.OAUTH_STATE_COOKIE: "S"}, follow_redirects=False)
+    assert "google=suppressed" in r.headers["location"]
+    assert store.signup_intents == {} and store.created == []
+
+
+# ------------------------------------------------------------- google signup ----
+# The intent bridges "Google verified this email" and "wizard submitted". The email is taken
+# from the server-side intent, never the request body, and creating an active subscription
+# skips the confirm email because Google already proved the address.
+
+
+def test_google_pending_returns_the_verified_email_with_the_cookie(client, store):
+    raw = store.create_signup_intent("newbie@example.com")
+    r = client.get("/auth/google/pending", cookies={webapp.SIGNUP_COOKIE: raw})
+    assert r.status_code == 200 and r.json()["email"] == "newbie@example.com"
+
+
+def test_google_pending_401s_without_an_intent(client, store):
+    assert client.get("/auth/google/pending").status_code == 401
+
+
+def test_subscribe_google_creates_active_sub_and_logs_in(client, store, sent):
+    raw = store.create_signup_intent("newbie@example.com")
+    r = client.post("/subscribe/google", json={"stack": ["python"]},
+                    cookies={webapp.SIGNUP_COOKIE: raw})
+    assert r.status_code == 200 and r.json()["status"] == "active"
+    assert store.created == ["newbie@example.com"]        # a subscription was created
+    assert webapp.SESSION_COOKIE in r.cookies             # and they're logged in
+    assert store.sessions                                 # server-side session exists
+    assert store.signup_intents == {}                     # intent consumed (single-use)
+    assert len(sent) == 1                                 # welcome email (not a confirm email)
+
+
+def test_subscribe_google_without_intent_is_refused(client, store, sent):
+    r = client.post("/subscribe/google", json={"stack": ["python"]})
+    assert r.status_code == 400
+    assert store.created == [] and store.sessions == {}
+
+
+def test_subscribe_google_email_comes_from_intent_not_body(client, store, sent):
+    """The subscribed address is the Google-verified one, even if the body says otherwise."""
+    raw = store.create_signup_intent("verified@example.com")
+    client.post("/subscribe/google",
+                json={"stack": ["python"], "email": "attacker@example.com"},
+                cookies={webapp.SIGNUP_COOKIE: raw})
+    assert store.created == ["verified@example.com"]      # body email ignored entirely
 
 
 # ------------------------------------------------------------------- subscribe --

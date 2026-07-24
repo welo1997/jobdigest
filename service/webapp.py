@@ -11,7 +11,9 @@ there is never a password.
     GET  /session            who is this browser logged in as? (cookie -> profile)
     POST /logout             revoke this browser's session + clear the cookie
     GET  /auth/google/start  begin "Sign in with Google" (optional; 404 if unconfigured)
-    GET  /auth/google/callback  Google OAuth return -> session for an existing subscriber
+    GET  /auth/google/callback  Google OAuth return -> session (existing) or signup intent (new)
+    GET  /auth/google/pending   the Google-verified email awaiting a wizard submission
+    POST /subscribe/google   finish a Google-verified signup -> active subscription + session
     GET  /confirm            double opt-in — activate + send welcome (HTML page)
     GET  /preferences        current settings — magic-link token OR session cookie (JSON)
     POST /preferences        update settings
@@ -97,6 +99,8 @@ GOOGLE_AUTH_ENDPOINT = "https://accounts.google.com/o/oauth2/v2/auth"
 GOOGLE_TOKEN_ENDPOINT = "https://oauth2.googleapis.com/token"
 # Short-lived cookie holding the OAuth `state`, checked on callback to defeat login CSRF.
 OAUTH_STATE_COOKIE = "jd_oauth_state"
+# Cookie carrying a Google-verified *signup* intent while the user finishes the wizard.
+SIGNUP_COOKIE = os.environ.get("SIGNUP_COOKIE_NAME", "jd_signup")
 
 
 def _google_configured() -> bool:
@@ -174,6 +178,10 @@ def _set_session_cookie(response: Response, raw: str) -> None:
 
 def _clear_session_cookie(response: Response) -> None:
     response.delete_cookie(SESSION_COOKIE, path="/")
+
+
+def _clear_signup_cookie(response: Response) -> None:
+    response.delete_cookie(SIGNUP_COOKIE, path="/")
 
 
 def _cookie_profile(request: Request) -> Optional[dict]:
@@ -639,11 +647,16 @@ def google_callback(
     state: Optional[str] = None,
     error: Optional[str] = None,
 ):
-    """Google sends the user back here. On success mint a session and land them logged in.
+    """Google sends the user back here. Three outcomes:
 
-    Login only: a verified address with no live subscription is bounced to the login page with
-    `google=nosub` (we deliberately do not auto-create a subscription — that needs the
-    preference wizard + consent). Any failure lands on `google=error`, never a stack trace."""
+    * an existing subscriber -> mint a session, land on /preferences logged in;
+    * a new, verified address -> start a signup intent and send them into the wizard
+      (`/?google=signup`) to pick preferences — the confirm email is skipped since Google
+      proved the address;
+    * a previously-unsubscribed address -> `/manage?google=suppressed` (a Google login must
+      not silently re-subscribe someone who left).
+
+    Any failure lands on `google=error`, never a stack trace."""
     if not _google_configured():
         raise HTTPException(404, "Google sign-in is not enabled.")
 
@@ -662,14 +675,104 @@ def google_callback(
         return bounce("error")
 
     profile = store.get_live_profile_by_email(info["email"])
-    if not profile:
-        return bounce("nosub")
+    if profile:
+        # Existing subscriber -> log straight in.
+        raw = store.create_session(profile["id"])
+        r = RedirectResponse(f"{SITE_URL}/preferences", status_code=302)
+        r.delete_cookie(OAUTH_STATE_COOKIE, path="/")
+        _set_session_cookie(r, raw)
+        return r
 
-    raw = store.create_session(profile["id"])
-    r = RedirectResponse(f"{SITE_URL}/preferences", status_code=302)
+    # Not subscribed. An unsubscribed/bounced address must not be re-signed-up silently — that
+    # would defeat the never-contact list. Send them to the login page with a clear note.
+    if store.is_suppressed(info["email"]):
+        return bounce("suppressed")
+
+    # New user: begin a Google-verified signup. Stash a short-lived intent and send them into
+    # the wizard to pick preferences; the confirm email is skipped because Google verified them.
+    raw = store.create_signup_intent(info["email"])
+    r = RedirectResponse(f"{SITE_URL}/?google=signup", status_code=302)
     r.delete_cookie(OAUTH_STATE_COOKIE, path="/")
-    _set_session_cookie(r, raw)
+    r.set_cookie(
+        SIGNUP_COOKIE, raw, max_age=store.SIGNUP_INTENT_TTL_MIN * 60, httponly=True,
+        secure=SESSION_COOKIE_SECURE, samesite="lax", path="/",
+    )
     return r
+
+
+@app.get("/auth/google/pending")
+def google_pending(request: Request) -> dict:
+    """The Google-verified email awaiting a wizard submission, for the signup page to display.
+    401 if there is no live intent (nothing to sign up)."""
+    email = store.signup_intent_email(request.cookies.get(SIGNUP_COOKIE) or "")
+    if not email:
+        raise HTTPException(401, "No pending Google signup.")
+    return {"email": email}
+
+
+class GoogleSubscribeIn(BaseModel):
+    label: str = "My digest"
+    stack: list[str] = Field(default_factory=list)
+    seniorities: list[str] = Field(default_factory=lambda: ["junior", "mid"])
+    regions: list[str] = Field(default_factory=lambda: ["cz", "eu", "worldwide"])
+    role_categories: list[str] = Field(default_factory=list)
+    work_types: list[str] = Field(default_factory=lambda: ["permanent", "freelance/contract"])
+    part_time_only: bool = False
+    eligible_only: bool = True
+    sectors: list[str] = Field(default_factory=list)
+    min_score: int = 6
+    frequency: str = "daily"
+    cv_signals: Optional[dict] = None
+
+
+@app.post("/subscribe/google")
+def subscribe_google(body: GoogleSubscribeIn, request: Request, response: Response) -> dict:
+    """Finish a Google-verified signup: create an ACTIVE subscription (no confirm email) and
+    log the user in.
+
+    The email is read from the server-side signup intent keyed by the ``jd_signup`` cookie,
+    never from the request body — so a caller can only ever subscribe the address they actually
+    verified with Google. The intent is consumed here (single-use)."""
+    email = store.consume_signup_intent(request.cookies.get(SIGNUP_COOKIE) or "")
+    if not email:
+        raise HTTPException(400, "Your Google sign-in expired — please start again.")
+    _clear_signup_cookie(response)
+
+    # Respect the never-contact list even here: a Google login can't override an unsubscribe.
+    if store.is_suppressed(email):
+        raise HTTPException(409, "This address can't be subscribed. Contact us to re-subscribe.")
+
+    def _login(profile_id: str) -> dict:
+        _set_session_cookie(response, store.create_session(profile_id))
+        return {"ok": True, "status": "active"}
+
+    # Already subscribed (e.g. signed up in another tab meanwhile) -> just log in.
+    existing = store.get_live_profile_by_email(email)
+    if existing:
+        return _login(existing["id"])
+
+    data = body.model_dump(exclude={"cv_signals"})
+    if body.cv_signals:
+        cvparse.merge_into_profile(data, body.cv_signals)
+
+    profile = store.create_email_subscription(email, data, confirmed=True)
+    if profile is None:
+        # Lost a concurrent-signup race; the row now exists — log into it.
+        existing = store.get_live_profile_by_email(email)
+        if existing:
+            return _login(existing["id"])
+        raise HTTPException(409, "Couldn't complete signup. Please try again.")
+
+    # Welcome email carries their manage link as a backup credential — best-effort, never fatal
+    # (they're already logged in via the session).
+    try:
+        manage_url = links.preferences_link(profile["manage_token"])
+        subject, html_body, text = transactional.render_welcome(email, manage_url)
+        mailer.send(email, subject, html_body, text)
+    except Exception:
+        logging.exception("welcome email failed for google signup %s", email)
+
+    return _login(profile["id"])
 
 
 @app.get("/preferences")

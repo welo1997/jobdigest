@@ -24,6 +24,8 @@ export default function ManagePage() {
     const g = new URLSearchParams(window.location.search).get("google");
     if (g === "nosub")
       setGoogleNote("That Google account isn't subscribed yet. Sign up first, then you can sign in with Google.");
+    else if (g === "suppressed")
+      setGoogleNote("That address previously unsubscribed, so we can't re-subscribe it automatically. Contact us if you'd like to return.");
     else if (g === "error")
       setGoogleNote("Google sign-in didn't complete. Please try again, or use your email link below.");
   }, []);

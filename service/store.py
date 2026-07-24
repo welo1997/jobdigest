@@ -465,23 +465,30 @@ _SUBSCRIBER_FIELDS = ["label", "stack", "seniorities", "regions", "role_categori
                       "min_score", "frequency"]
 
 
-def create_email_subscription(email: str, data: dict) -> Optional[dict]:
-    """Create a pending (unconfirmed) subscription with fresh tokens. Double opt-in:
-    the row is not emailed a digest until `confirm_subscription` flips it to active.
+def create_email_subscription(email: str, data: dict, *, confirmed: bool = False) -> Optional[dict]:
+    """Create a subscription with fresh tokens.
+
+    Default (double opt-in): a `pending` row with a `confirm_token`, not emailed a digest until
+    `confirm_subscription` flips it to active. With ``confirmed=True`` (Google-verified signup):
+    an `active` row from the start, `confirmed_at` set and no `confirm_token` — because Google
+    has already proved the user controls the address, so the confirm email is redundant.
 
     Returns None if a live subscription for this address already exists — the partial unique
-    index `uq_profiles_live_email` rejects the duplicate insert. The caller (webapp.subscribe)
-    normally checks `live_subscription_exists` first; this handles the rare concurrent-signup
-    race, so one address can never fan out into two rows (which would mean two digests)."""
+    index `uq_profiles_live_email` rejects the duplicate insert. The caller normally checks
+    `live_subscription_exists` first; this handles the rare concurrent-signup race, so one
+    address can never fan out into two rows (which would mean two digests)."""
     email = email.strip().lower()
-    confirm_token = secrets.token_urlsafe(32)
+    now = datetime.now(timezone.utc)
+    confirm_token = None if confirmed else secrets.token_urlsafe(32)
     manage_token = secrets.token_urlsafe(32)
+    status = "active" if confirmed else "pending"
+    confirmed_at = now if confirmed else None
     # CV-derived signals (parse & discard): stored alongside, never the raw file.
     cv_cols = ["has_cv", "cv_summary", "years_experience"]
-    cols = (["email", "status", "consent_at", "confirm_token", "manage_token"]
+    cols = (["email", "status", "consent_at", "confirmed_at", "confirm_token", "manage_token"]
             + _SUBSCRIBER_FIELDS + cv_cols)
     vals = [
-        email, "pending", datetime.now(timezone.utc), confirm_token, manage_token,
+        email, status, now, confirmed_at, confirm_token, manage_token,
         data.get("label", "My digest"), data.get("stack", []),
         data.get("seniorities", ["junior", "mid"]),
         data.get("regions", ["cz", "eu", "worldwide"]),
@@ -618,7 +625,9 @@ def get_by_manage_token(token: str) -> Optional[dict]:
 SESSION_TTL_DAYS = int(os.environ.get("SESSION_TTL_DAYS", "30"))
 
 
-def _hash_session(raw: str) -> str:
+def _hash_token(raw: str) -> str:
+    """SHA-256 of a raw cookie token. We store only this — for sessions and signup intents
+    alike — so a DB/backup leak never yields a usable credential."""
     return hashlib.sha256(raw.encode()).hexdigest()
 
 
@@ -632,7 +641,7 @@ def create_session(profile_id: str, ttl_days: int = SESSION_TTL_DAYS) -> str:
         cur.execute(
             "insert into sessions (id, profile_id, expires_at) "
             "values (%s, %s, now() + make_interval(days => %s))",
-            (_hash_session(raw), profile_id, int(ttl_days)),
+            (_hash_token(raw), profile_id, int(ttl_days)),
         )
     return raw
 
@@ -654,7 +663,7 @@ def session_profile(raw: str, ttl_days: int = SESSION_TTL_DAYS) -> Optional[dict
              where id = %s and expires_at > now()
             returning profile_id
             """,
-            (int(ttl_days), _hash_session(raw)),
+            (int(ttl_days), _hash_token(raw)),
         )
         row = cur.fetchone()
         if not row:
@@ -669,7 +678,7 @@ def revoke_session(raw: str) -> None:
     if not raw:
         return
     with cursor(commit=True) as cur:
-        cur.execute("delete from sessions where id = %s", (_hash_session(raw),))
+        cur.execute("delete from sessions where id = %s", (_hash_token(raw),))
 
 
 def revoke_profile_sessions(profile_id: str) -> int:
@@ -683,6 +692,64 @@ def prune_expired_sessions() -> int:
     """Delete sessions past their idle timeout. Returns rows removed."""
     with cursor(commit=True) as cur:
         cur.execute("delete from sessions where expires_at < now()")
+        return cur.rowcount
+
+
+# --- Google-verified signup intents --------------------------------------------
+#
+# A short-lived server-side proof that Google confirmed an email, so the signup wizard can
+# create an ACTIVE subscription without the double-opt-in confirm email. The raw token lives in
+# a cookie; only its hash is stored. See migration_009_signup_intents.sql.
+
+#: How long a Google-verified signup stays claimable — long enough to finish the wizard, short
+#: enough that a stray cookie is quickly worthless.
+SIGNUP_INTENT_TTL_MIN = int(os.environ.get("SIGNUP_INTENT_TTL_MIN", "30"))
+
+
+def create_signup_intent(email: str, ttl_min: int = SIGNUP_INTENT_TTL_MIN) -> str:
+    """Record that `email` was just Google-verified; return the RAW cookie token."""
+    raw = secrets.token_urlsafe(32)
+    with cursor(commit=True) as cur:
+        cur.execute(
+            "insert into signup_intents (id, email, expires_at) "
+            "values (%s, %s, now() + make_interval(mins => %s))",
+            (_hash_token(raw), email.strip().lower(), int(ttl_min)),
+        )
+    return raw
+
+
+def signup_intent_email(raw: str) -> Optional[str]:
+    """The verified email for a live (unexpired) intent, without consuming it — used to show
+    the user which address they're signing up. None if unknown or expired."""
+    if not raw:
+        return None
+    with cursor() as cur:
+        cur.execute(
+            "select email from signup_intents where id = %s and expires_at > now()",
+            (_hash_token(raw),),
+        )
+        row = cur.fetchone()
+        return row["email"] if row else None
+
+
+def consume_signup_intent(raw: str) -> Optional[str]:
+    """Atomically claim-and-delete an intent, returning its verified email or None. Single-use:
+    the row is gone after this, so a replayed cookie can't create a second subscription."""
+    if not raw:
+        return None
+    with cursor(commit=True) as cur:
+        cur.execute(
+            "delete from signup_intents where id = %s and expires_at > now() returning email",
+            (_hash_token(raw),),
+        )
+        row = cur.fetchone()
+        return row["email"] if row else None
+
+
+def prune_expired_signup_intents() -> int:
+    """Delete signup intents past their TTL. Returns rows removed."""
+    with cursor(commit=True) as cur:
+        cur.execute("delete from signup_intents where expires_at < now()")
         return cur.rowcount
 
 
