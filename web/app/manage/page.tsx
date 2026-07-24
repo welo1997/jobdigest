@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Nav, Footer } from "@/components/SiteChrome";
+import GoogleButton from "@/components/GoogleButton";
 import { requestManageLink } from "@/lib/api";
 
 // "Lost your link?" — the passwordless way back into an existing subscription. We ask only for
@@ -15,6 +16,17 @@ export default function ManagePage() {
   const [sent, setSent] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // A Google sign-in that couldn't log you in redirects back here with ?google=nosub|error.
+  // Read it from the URL directly (not useSearchParams) to avoid a Suspense boundary in this
+  // otherwise-static page.
+  const [googleNote, setGoogleNote] = useState<string | null>(null);
+  useEffect(() => {
+    const g = new URLSearchParams(window.location.search).get("google");
+    if (g === "nosub")
+      setGoogleNote("That Google account isn't subscribed yet. Sign up first, then you can sign in with Google.");
+    else if (g === "error")
+      setGoogleNote("Google sign-in didn't complete. Please try again, or use your email link below.");
+  }, []);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -62,6 +74,13 @@ export default function ManagePage() {
                   No passwords here. Enter your address and we&apos;ll email you a secure link —
                   click it and you&apos;re signed in, and you&apos;ll stay signed in on this device.
                 </p>
+                {googleNote && (
+                  <p style={{ color: "var(--danger, #c0392b)", fontSize: "var(--fs-sm)", marginBottom: 16, textAlign: "left" }}>
+                    {googleNote}
+                  </p>
+                )}
+                <GoogleButton label="Sign in with Google" />
+                <div className="or-divider"><span>or</span></div>
                 <form onSubmit={submit} style={{ textAlign: "left" }}>
                   <div className="field">
                     <label htmlFor="jd-email">Your email address</label>

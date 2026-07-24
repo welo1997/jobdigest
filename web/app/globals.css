@@ -66,6 +66,15 @@ button.nav-link{background:none;border:0;padding:0;cursor:pointer;font-family:in
   color:var(--brand);text-decoration:underline;text-underline-offset:2px;}
 .linkbtn:hover{opacity:.8;}
 .linkbtn.danger{color:#c0392b;}
+/* "Continue with Google" — neutral surface button, brand-agnostic per Google's guidelines */
+.gbtn{display:flex;align-items:center;justify-content:center;gap:10px;width:100%;
+  padding:11px 16px;border:1px solid var(--line);border-radius:10px;background:var(--surface);
+  color:var(--ink);font-weight:600;font-size:var(--fs-sm);cursor:pointer;text-decoration:none;}
+.gbtn:hover{border-color:var(--brand);text-decoration:none;}
+.gmark{flex:none;}
+.or-divider{display:flex;align-items:center;gap:12px;margin:16px 0;color:var(--muted);
+  font-size:var(--fs-sm);}
+.or-divider::before,.or-divider::after{content:"";flex:1;height:1px;background:var(--line);}
 .themebtn{flex:none;width:38px;height:38px;border-radius:50%;border:1px solid var(--line);
   background:var(--surface);color:var(--ink);cursor:pointer;font-size:1rem;display:grid;place-items:center;}
 .themebtn:hover{border-color:var(--brand);}

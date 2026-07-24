@@ -17,6 +17,10 @@ ENV NEXT_PUBLIC_TURNSTILE_SITE_KEY=${NEXT_PUBLIC_TURNSTILE_SITE_KEY}
 # without the token makes zero third-party requests.
 ARG NEXT_PUBLIC_CF_BEACON_TOKEN=""
 ENV NEXT_PUBLIC_CF_BEACON_TOKEN=${NEXT_PUBLIC_CF_BEACON_TOKEN}
+# "1" shows the "Sign in with Google" button. Pair with GOOGLE_CLIENT_ID/SECRET in the API's
+# .env; empty = no button (and the backend endpoints 404), so the two gates fail closed together.
+ARG NEXT_PUBLIC_GOOGLE_AUTH=""
+ENV NEXT_PUBLIC_GOOGLE_AUTH=${NEXT_PUBLIC_GOOGLE_AUTH}
 RUN npm run build
 
 # ---- serve ----

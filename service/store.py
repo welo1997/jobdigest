@@ -519,6 +519,22 @@ def live_subscription_exists(email: str) -> bool:
         return cur.fetchone() is not None
 
 
+def get_live_profile_by_email(email: str) -> Optional[dict]:
+    """The single active/paused subscription for an address, or None.
+
+    Used by Google sign-in to log an existing subscriber in by their verified email. Only a
+    *live* row counts: a `pending` (unconfirmed consent) or `unsubscribed` address is not a
+    login. `uq_profiles_live_email` guarantees at most one such row, so `limit 1` is exact."""
+    with cursor() as cur:
+        cur.execute(
+            "select * from profiles where lower(email) = %s "
+            "and status in ('active', 'paused') limit 1",
+            (email.strip().lower(),),
+        )
+        row = cur.fetchone()
+        return dict(row) if row else None
+
+
 def recent_signup_exists(email: str, within_minutes: int) -> bool:
     """True if a pending/active row for this email was created within the window.
 
