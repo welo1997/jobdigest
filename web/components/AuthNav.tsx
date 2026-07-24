@@ -18,10 +18,16 @@ export default function AuthNav() {
 
   useEffect(() => {
     let alive = true;
-    getSession()
-      .then(() => alive && setState("in"))
-      .catch(() => alive && setState("out"));
-    return () => { alive = false; };
+    const check = () =>
+      getSession()
+        .then(() => alive && setState("in"))
+        .catch(() => alive && setState("out"));
+    check();
+    // A page that establishes a session from a magic-link token (or logs out) fires this, so
+    // the nav re-checks instead of showing a stale control from its first-load probe.
+    const onChange = () => check();
+    window.addEventListener("jd-auth-changed", onChange);
+    return () => { alive = false; window.removeEventListener("jd-auth-changed", onChange); };
   }, []);
 
   if (state === "loading") return null;
