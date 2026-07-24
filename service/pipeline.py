@@ -74,13 +74,15 @@ def run(ingest: bool = False, cz: bool = False, match: bool = False,
         rolled = store.rollup_events()
         events = store.prune_events(RETENTION_EVENT_DAYS)
         unsubbed = store.prune_unsubscribed(RETENTION_UNSUB_DAYS)
+        sessions = store.prune_expired_sessions()
         logger.info("Retention: blanked %d description(s) >%dd inactive, "
                     "deleted %d stale match row(s) >%dd, "
                     "rolled up %d event group(s), deleted %d raw event(s) >%dd, "
-                    "erased %d unsubscribed profile(s) >%dd",
+                    "erased %d unsubscribed profile(s) >%dd, "
+                    "pruned %d expired session(s)",
                     descs, RETENTION_DESC_DAYS, stale_matches, RETENTION_MATCH_DAYS,
                     rolled, events, RETENTION_EVENT_DAYS,
-                    unsubbed, RETENTION_UNSUB_DAYS)
+                    unsubbed, RETENTION_UNSUB_DAYS, sessions)
 
     if match:
         from service.matcher import run as match_run

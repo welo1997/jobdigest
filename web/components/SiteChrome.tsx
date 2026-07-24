@@ -1,5 +1,6 @@
 import Link from "next/link";
 import ThemeToggle from "./ThemeToggle";
+import AuthNav from "./AuthNav";
 
 /** Shared top bar (dawn gradient + brand + theme toggle) used on every page. */
 export function Nav() {
@@ -13,7 +14,7 @@ export function Nav() {
             Job<em>Digest</em>
           </Link>
           <span className="nav-actions">
-            <Link className="nav-link" href="/manage">Manage subscription</Link>
+            <AuthNav />
             <ThemeToggle />
           </span>
         </div>

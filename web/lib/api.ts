@@ -94,8 +94,16 @@ export interface PreviewResponse {
 
 async function req<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${API_URL}${path}`, {
-    headers: { "Content-Type": "application/json", ...(init?.headers || {}) },
+    // Send/receive the session cookie (same-origin in prod, CORS-credentialed in dev).
+    credentials: "include",
     ...init,
+    headers: {
+      "Content-Type": "application/json",
+      // CSRF token for cookie-authenticated writes. Harmless on reads and on token-in-body
+      // calls; the backend only requires it when auth comes from the cookie on a write.
+      "X-JobDigest-Auth": "1",
+      ...(init?.headers || {}),
+    },
   });
   if (!res.ok) {
     let detail = `Request failed (${res.status})`;
@@ -152,32 +160,69 @@ export function requestManageLink(email: string) {
   });
 }
 
-export function getPreferences(token: string) {
-  return req<Preferences>(`/preferences?token=${encodeURIComponent(token)}`);
-}
+// --- login sessions (persisted magic links) -------------------------------------
+// JobDigest stays passwordless. Clicking a magic link is the login: the page trades its
+// one-time `?token=` for a session cookie via establishSession, drops the token from the URL,
+// then rides the cookie. All the calls below accept an optional token so they still work if
+// cookies are blocked (the magic-link fallback) — omit it and the cookie authenticates.
 
-export function getMatches(token: string) {
-  return req<MatchesResponse>(`/matches?token=${encodeURIComponent(token)}`);
-}
-
-export function updatePreferences(token: string, changes: Partial<Preferences>) {
-  return req<Preferences>("/preferences", {
-    method: "POST",
-    body: JSON.stringify({ token, ...changes }),
-  });
-}
-
-export function pause(token: string, days = 14) {
-  return req<{ ok: boolean; status: string; paused_until: string }>("/pause", {
-    method: "POST",
-    body: JSON.stringify({ token, days }),
-  });
-}
-
-export function resume(token: string) {
-  return req<{ ok: boolean; status: string }>("/resume", {
+// Exchange a magic-link token for a session cookie. Returns the subscriber's public profile.
+export function establishSession(token: string) {
+  return req<Preferences>("/session", {
     method: "POST",
     body: JSON.stringify({ token }),
+  });
+}
+
+// Who is this browser logged in as? Rejects (401) if there is no valid session cookie.
+export function getSession() {
+  return req<Preferences>("/session");
+}
+
+export function logout() {
+  return req<{ ok: boolean }>("/logout", { method: "POST" });
+}
+
+const tokenQuery = (token?: string) =>
+  token ? `?token=${encodeURIComponent(token)}` : "";
+
+export function getPreferences(token?: string) {
+  return req<Preferences>(`/preferences${tokenQuery(token)}`);
+}
+
+export function getMatches(token?: string) {
+  return req<MatchesResponse>(`/matches${tokenQuery(token)}`);
+}
+
+export function updatePreferences(changes: Partial<Preferences>, token?: string) {
+  return req<Preferences>("/preferences", {
+    method: "POST",
+    body: JSON.stringify(token ? { token, ...changes } : changes),
+  });
+}
+
+export function pause(days = 14, token?: string) {
+  return req<{ ok: boolean; status: string; paused_until: string }>("/pause", {
+    method: "POST",
+    body: JSON.stringify(token ? { token, days } : { days }),
+  });
+}
+
+export function resume(token?: string) {
+  return req<{ ok: boolean; status: string }>("/resume", {
+    method: "POST",
+    body: JSON.stringify(token ? { token } : {}),
+  });
+}
+
+// Logged-in unsubscribe: no token, authenticated by the session cookie. The backend tears
+// down every session for the profile and clears the cookie, so we send it form-encoded
+// (the endpoint parses form fields) with no token and no `confirm` -> JSON reply.
+export function unsubscribeSession() {
+  return req<{ ok: boolean }>("/unsubscribe", {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: "",
   });
 }
 

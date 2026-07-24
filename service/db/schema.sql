@@ -172,3 +172,19 @@ create table if not exists events_daily (
     n       int  not null,
     primary key (day, name, country)
 );
+
+-- ---------------------------------------------------------------------------
+-- sessions: keep a browser logged in after it clicks a magic link once (migration 008).
+-- Still passwordless — the manage_token link is the only credential typed. `id` is the
+-- SHA-256 of the raw cookie token (never the raw token), so a backup carries no usable
+-- session credential. Rows cascade on profile delete, so retention needs no extra step.
+-- ---------------------------------------------------------------------------
+create table if not exists sessions (
+    id           text primary key,                    -- sha256(raw cookie token), hex
+    profile_id   uuid not null references profiles(id) on delete cascade,
+    created_at   timestamptz not null default now(),
+    last_seen_at timestamptz not null default now(),
+    expires_at   timestamptz not null
+);
+create index if not exists idx_sessions_profile on sessions (profile_id);
+create index if not exists idx_sessions_expires on sessions (expires_at);

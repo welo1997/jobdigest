@@ -60,6 +60,12 @@ button{font-family:inherit;}
 .nav-actions{margin-left:auto;display:flex;align-items:center;gap:14px;}
 .nav-link{font-size:var(--fs-sm);font-weight:600;color:var(--muted);white-space:nowrap;}
 .nav-link:hover{color:var(--brand);text-decoration:none;}
+/* a <button> that should look and sit like a nav link / inline text link */
+button.nav-link{background:none;border:0;padding:0;cursor:pointer;font-family:inherit;}
+.linkbtn{background:none;border:0;padding:0;cursor:pointer;font-family:inherit;font-weight:600;
+  color:var(--brand);text-decoration:underline;text-underline-offset:2px;}
+.linkbtn:hover{opacity:.8;}
+.linkbtn.danger{color:#c0392b;}
 .themebtn{flex:none;width:38px;height:38px;border-radius:50%;border:1px solid var(--line);
   background:var(--surface);color:var(--ink);cursor:pointer;font-size:1rem;display:grid;place-items:center;}
 .themebtn:hover{border-color:var(--brand);}
