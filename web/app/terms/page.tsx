@@ -22,8 +22,8 @@ export default function Terms() {
 
           <h2>2. Eligibility</h2>
           <p>You must be at least 16 years old and provide an email address you control. You subscribe
-            using double opt-in — no account or password is required; you manage everything through the
-            secure link in each email.</p>
+            using double opt-in, or by verifying your address with Google — no account or password is
+            required; you manage everything through the secure link in each email.</p>
 
           <h2>3. Where the jobs come from</h2>
           <p>Postings are gathered from public sources and third-party job boards and are provided for

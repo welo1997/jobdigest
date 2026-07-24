@@ -235,6 +235,21 @@ export function googleAuthUrl() {
   return `${API_URL}/auth/google/start`;
 }
 
+// The Google-verified email waiting to finish signup (set after the OAuth round-trip for a new
+// user). Rejects (401) if there's no live intent.
+export function googleSignupPending() {
+  return req<{ email: string }>("/auth/google/pending");
+}
+
+// Finish a Google-verified signup: creates an active subscription (no confirm email) and logs
+// the user in. The email comes from the server-side intent (jd_signup cookie), not this payload.
+export function subscribeGoogle(payload: SubscribePayload) {
+  return req<{ ok: boolean; status: string }>("/subscribe/google", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
 export function confirmUrl(token: string) {
   return `${API_URL}/confirm?token=${encodeURIComponent(token)}`;
 }

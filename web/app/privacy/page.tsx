@@ -36,9 +36,10 @@ export default function Privacy() {
             websites. We do not buy or sell personal data.</p>
 
           <h2>3. Legal basis &amp; how we use it</h2>
-          <p>We process your data on the basis of your <b>consent</b> (given via double opt-in when you
-            confirm your subscription) to send you the daily job digest and the transactional emails
-            required to manage it. You can withdraw consent at any time by unsubscribing — one click,
+          <p>We process your data on the basis of your <b>consent</b> — given either via double
+            opt-in (you confirm a link we email you) or, if you sign up with Google, by Google
+            verifying that you control the address — to send you the daily job digest and the
+            transactional emails required to manage it. You can withdraw consent at any time by unsubscribing — one click,
             from any email — which stops all sending immediately.</p>
           <p>The anonymous usage statistics in section 6 are processed on the basis of our
             <b> legitimate interest</b> (Art. 6(1)(f) GDPR) in understanding which parts of our own
@@ -67,11 +68,12 @@ export default function Privacy() {
             <li><b>Cloudflare</b> — DNS, HTTPS, bot protection (Turnstile), and cookieless
               aggregate page-view analytics for the website.</li>
             <li><b>Google</b> (Google Ireland Ltd / Google LLC) — <i>only if</i> you choose
-              &quot;Sign in with Google&quot;. Google confirms your email address to us so we can
-              log you into your existing subscription. We <b>request only your email</b>, and we
-              <b> store nothing extra</b> from Google — not your name, not a Google account id;
-              we simply match the confirmed address to your subscription. If you never use it,
-              Google processes nothing.</li>
+              &quot;Continue with Google&quot;. Google confirms your email address to us so we can
+              log you in, or — for a new user — verify your address so you can sign up without a
+              separate confirmation email. We <b>request only your email</b>, and we <b>store
+              nothing extra</b> from Google — not your name, not a Google account id; we simply
+              match the confirmed address to a subscription. If you never use it, Google
+              processes nothing.</li>
           </ul>
           <p>Choosing which jobs fit you is done by an AI matching step, and that step runs outside
             the EU. Once a day we send it a file containing, for each subscriber:</p>
