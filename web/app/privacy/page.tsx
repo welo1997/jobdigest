@@ -66,6 +66,12 @@ export default function Privacy() {
             <li><b>Resend</b> (EU region) — sending our emails.</li>
             <li><b>Cloudflare</b> — DNS, HTTPS, bot protection (Turnstile), and cookieless
               aggregate page-view analytics for the website.</li>
+            <li><b>Google</b> (Google Ireland Ltd / Google LLC) — <i>only if</i> you choose
+              &quot;Sign in with Google&quot;. Google confirms your email address to us so we can
+              log you into your existing subscription. We <b>request only your email</b>, and we
+              <b> store nothing extra</b> from Google — not your name, not a Google account id;
+              we simply match the confirmed address to your subscription. If you never use it,
+              Google processes nothing.</li>
           </ul>
           <p>Choosing which jobs fit you is done by an AI matching step, and that step runs outside
             the EU. Once a day we send it a file containing, for each subscriber:</p>

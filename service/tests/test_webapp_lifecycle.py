@@ -135,6 +135,11 @@ class _FakeStore:
         self.revoked_profiles.append(profile_id)
         return n
 
+    def get_live_profile_by_email(self, email):
+        if email.strip().lower() == EMAIL.lower():
+            return {"id": PROFILE_ID, "email": EMAIL, "manage_token": TOKEN}
+        return None
+
     def record_event(self, name, **kw):
         self.events.append({"name": name, **kw})
 
@@ -289,6 +294,75 @@ def test_cookie_unsubscribe_revokes_sessions_and_needs_csrf(client, store):
     assert done.status_code == 200
     assert store.unsubscribed == [TOKEN]
     assert PROFILE_ID in store.revoked_profiles
+    assert store.sessions == {}
+
+
+# --------------------------------------------------------------- google sign-in --
+# "Sign in with Google" logs in an *existing* subscriber by their Google-verified email. It is
+# dormant unless GOOGLE_CLIENT_ID/SECRET are set. Each test breaks if its guard is removed:
+#   * unconfigured -> the endpoints don't exist (404), so a box with no client is inert;
+#   * the OAuth `state` cookie must match what Google echoes back (login-CSRF defense);
+#   * only a *verified* email that maps to a *live* subscription mints a session.
+
+
+def _enable_google(monkeypatch):
+    monkeypatch.setattr(webapp, "GOOGLE_CLIENT_ID", "test-client-id")
+    monkeypatch.setattr(webapp, "GOOGLE_CLIENT_SECRET", "test-secret")
+
+
+def test_google_start_404s_when_unconfigured(client, store):
+    assert client.get("/auth/google/start", follow_redirects=False).status_code == 404
+
+
+def test_google_start_redirects_to_google_with_state(client, store, monkeypatch):
+    _enable_google(monkeypatch)
+    r = client.get("/auth/google/start", follow_redirects=False)
+    assert r.status_code == 302
+    loc = r.headers["location"]
+    assert loc.startswith(webapp.GOOGLE_AUTH_ENDPOINT)
+    assert "test-client-id" in loc and "state=" in loc
+    assert webapp.OAUTH_STATE_COOKIE in r.cookies       # state stashed for the callback to check
+
+
+def test_google_callback_logs_in_existing_subscriber(client, store, monkeypatch):
+    _enable_google(monkeypatch)
+    monkeypatch.setattr(webapp, "_google_verify_code",
+                        lambda code: {"email": EMAIL, "email_verified": True})
+    r = client.get("/auth/google/callback", params={"code": "x", "state": "S"},
+                   cookies={webapp.OAUTH_STATE_COOKIE: "S"}, follow_redirects=False)
+    assert r.status_code == 302
+    assert r.headers["location"].endswith("/preferences")
+    assert webapp.SESSION_COOKIE in r.cookies           # a session cookie was set
+    assert store.sessions                                # and a server-side session created
+
+
+def test_google_callback_state_mismatch_is_refused(client, store, monkeypatch):
+    _enable_google(monkeypatch)
+    monkeypatch.setattr(webapp, "_google_verify_code",
+                        lambda code: {"email": EMAIL, "email_verified": True})
+    r = client.get("/auth/google/callback", params={"code": "x", "state": "EVIL"},
+                   cookies={webapp.OAUTH_STATE_COOKIE: "S"}, follow_redirects=False)
+    assert r.status_code == 302 and "google=error" in r.headers["location"]
+    assert store.sessions == {}                          # no login when state doesn't match
+
+
+def test_google_callback_unverified_email_is_refused(client, store, monkeypatch):
+    _enable_google(monkeypatch)
+    monkeypatch.setattr(webapp, "_google_verify_code",
+                        lambda code: {"email": EMAIL, "email_verified": False})
+    r = client.get("/auth/google/callback", params={"code": "x", "state": "S"},
+                   cookies={webapp.OAUTH_STATE_COOKIE: "S"}, follow_redirects=False)
+    assert "google=error" in r.headers["location"]
+    assert store.sessions == {}
+
+
+def test_google_callback_unknown_email_bounces_to_signup(client, store, monkeypatch):
+    _enable_google(monkeypatch)
+    monkeypatch.setattr(webapp, "_google_verify_code",
+                        lambda code: {"email": "stranger@example.com", "email_verified": True})
+    r = client.get("/auth/google/callback", params={"code": "x", "state": "S"},
+                   cookies={webapp.OAUTH_STATE_COOKIE: "S"}, follow_redirects=False)
+    assert "google=nosub" in r.headers["location"]       # verified, but not a subscriber
     assert store.sessions == {}
 
 

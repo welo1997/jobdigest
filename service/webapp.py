@@ -10,6 +10,8 @@ there is never a password.
     POST /session            exchange a magic-link token for a login-session cookie
     GET  /session            who is this browser logged in as? (cookie -> profile)
     POST /logout             revoke this browser's session + clear the cookie
+    GET  /auth/google/start  begin "Sign in with Google" (optional; 404 if unconfigured)
+    GET  /auth/google/callback  Google OAuth return -> session for an existing subscriber
     GET  /confirm            double opt-in — activate + send welcome (HTML page)
     GET  /preferences        current settings — magic-link token OR session cookie (JSON)
     POST /preferences        update settings
@@ -30,10 +32,12 @@ Run:  DATABASE_URL=... MAIL_BACKEND=file uvicorn service.webapp:app --reload
 from __future__ import annotations
 
 import asyncio
+import base64
 import html
 import json
 import logging
 import os
+import secrets
 import time
 import urllib.parse
 import urllib.request
@@ -43,7 +47,7 @@ from typing import Optional
 
 from fastapi import FastAPI, Form, HTTPException, Request, Response, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, RedirectResponse
 from pydantic import BaseModel, EmailStr, Field
 
 from service import cvparse, links, mailer, store, transactional
@@ -76,6 +80,27 @@ SESSION_COOKIE_SECURE = os.environ.get("SESSION_COOKIE_SECURE", "1") != "0"
 # presence proves the request came from our own origin — this is the CSRF defense for cookie
 # auth. Token-in-body callers (email links, RFC 8058 clients) don't need it.
 CSRF_HEADER = "x-jobdigest-auth"
+
+# --- Google sign-in (optional) -------------------------------------------------
+# "Sign in with Google" is a *login* for existing subscribers: Google confirms the user's
+# email, we match it to a live subscription and mint the same session as a magic link. We
+# store nothing extra from Google — not even the Google account id — so it adds no new personal
+# data, only a processor during the handshake. The whole feature is dormant until
+# GOOGLE_CLIENT_ID + GOOGLE_CLIENT_SECRET are set (same optional-by-absence pattern as
+# Turnstile), so a box with no credentials simply 404s the endpoints and hides the button.
+GOOGLE_CLIENT_ID = os.environ.get("GOOGLE_CLIENT_ID")
+GOOGLE_CLIENT_SECRET = os.environ.get("GOOGLE_CLIENT_SECRET")
+GOOGLE_REDIRECT_URI = os.environ.get(
+    "GOOGLE_REDIRECT_URI", f"{links.api_public_url()}/auth/google/callback"
+)
+GOOGLE_AUTH_ENDPOINT = "https://accounts.google.com/o/oauth2/v2/auth"
+GOOGLE_TOKEN_ENDPOINT = "https://oauth2.googleapis.com/token"
+# Short-lived cookie holding the OAuth `state`, checked on callback to defeat login CSRF.
+OAUTH_STATE_COOKIE = "jd_oauth_state"
+
+
+def _google_configured() -> bool:
+    return bool(GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET)
 
 
 @asynccontextmanager
@@ -530,6 +555,121 @@ def logout(request: Request, response: Response) -> dict:
     store.revoke_session(request.cookies.get(SESSION_COOKIE) or "")
     _clear_session_cookie(response)
     return {"ok": True}
+
+
+# ----------------------------------------------------------- google sign-in ----
+
+def _decode_jwt_claims(token: str) -> Optional[dict]:
+    """Base64url-decode a JWT's payload segment. No signature check here — see below."""
+    try:
+        payload_b64 = token.split(".")[1]
+        payload_b64 += "=" * (-len(payload_b64) % 4)      # restore base64 padding
+        return json.loads(base64.urlsafe_b64decode(payload_b64).decode())
+    except Exception:
+        return None
+
+
+def _google_verify_code(code: str) -> Optional[dict]:
+    """Exchange an auth code with Google; return {'email', 'email_verified'} or None.
+
+    The id_token is read straight from Google's HTTPS token endpoint in a server-to-server
+    call authenticated by our client secret, so TLS guarantees its provenance and we validate
+    its claims (aud/iss/exp) without a separate signature check — exactly the case Google's
+    docs say local signature verification is unnecessary. We still check aud/iss/exp so a token
+    minted for a different app or an expired one is rejected."""
+    data = urllib.parse.urlencode({
+        "code": code,
+        "client_id": GOOGLE_CLIENT_ID,
+        "client_secret": GOOGLE_CLIENT_SECRET,
+        "redirect_uri": GOOGLE_REDIRECT_URI,
+        "grant_type": "authorization_code",
+    }).encode()
+    try:
+        req = urllib.request.Request(GOOGLE_TOKEN_ENDPOINT, data=data)
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            payload = json.loads(resp.read().decode())
+    except Exception:
+        return None
+    claims = _decode_jwt_claims(payload.get("id_token") or "")
+    if not claims:
+        return None
+    if claims.get("aud") != GOOGLE_CLIENT_ID:
+        return None
+    if claims.get("iss") not in ("accounts.google.com", "https://accounts.google.com"):
+        return None
+    if int(claims.get("exp", 0)) < int(time.time()):
+        return None
+    email = (claims.get("email") or "").strip().lower()
+    if not email:
+        return None
+    return {"email": email, "email_verified": claims.get("email_verified") in (True, "true")}
+
+
+@app.get("/auth/google/start")
+def google_start():
+    """Kick off the OAuth dance: set a state cookie and redirect to Google's consent screen.
+
+    Scope is the minimum — `openid email` — because all we want is a verified address to match
+    to an existing subscription. `prompt=select_account` lets a user pick which Google account;
+    `access_type=online` because we never need offline/refresh access."""
+    if not _google_configured():
+        raise HTTPException(404, "Google sign-in is not enabled.")
+    state = secrets.token_urlsafe(24)
+    params = urllib.parse.urlencode({
+        "client_id": GOOGLE_CLIENT_ID,
+        "redirect_uri": GOOGLE_REDIRECT_URI,
+        "response_type": "code",
+        "scope": "openid email",
+        "state": state,
+        "access_type": "online",
+        "prompt": "select_account",
+    })
+    redirect = RedirectResponse(f"{GOOGLE_AUTH_ENDPOINT}?{params}", status_code=302)
+    redirect.set_cookie(
+        OAUTH_STATE_COOKIE, state, max_age=600, httponly=True,
+        secure=SESSION_COOKIE_SECURE, samesite="lax", path="/",
+    )
+    return redirect
+
+
+@app.get("/auth/google/callback")
+def google_callback(
+    request: Request,
+    code: Optional[str] = None,
+    state: Optional[str] = None,
+    error: Optional[str] = None,
+):
+    """Google sends the user back here. On success mint a session and land them logged in.
+
+    Login only: a verified address with no live subscription is bounced to the login page with
+    `google=nosub` (we deliberately do not auto-create a subscription — that needs the
+    preference wizard + consent). Any failure lands on `google=error`, never a stack trace."""
+    if not _google_configured():
+        raise HTTPException(404, "Google sign-in is not enabled.")
+
+    def bounce(flag: str) -> RedirectResponse:
+        r = RedirectResponse(f"{SITE_URL}/manage?google={flag}", status_code=302)
+        r.delete_cookie(OAUTH_STATE_COOKIE, path="/")
+        return r
+
+    # Login CSRF: the state Google echoes back must match the one we stashed in the cookie.
+    cookie_state = request.cookies.get(OAUTH_STATE_COOKIE)
+    if error or not code or not state or not cookie_state or not secrets.compare_digest(state, cookie_state):
+        return bounce("error")
+
+    info = _google_verify_code(code)
+    if not info or not info["email_verified"]:
+        return bounce("error")
+
+    profile = store.get_live_profile_by_email(info["email"])
+    if not profile:
+        return bounce("nosub")
+
+    raw = store.create_session(profile["id"])
+    r = RedirectResponse(f"{SITE_URL}/preferences", status_code=302)
+    r.delete_cookie(OAUTH_STATE_COOKIE, path="/")
+    _set_session_cookie(r, raw)
+    return r
 
 
 @app.get("/preferences")

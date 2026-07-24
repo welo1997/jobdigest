@@ -46,6 +46,8 @@ services:
       args:
         NEXT_PUBLIC_TURNSTILE_SITE_KEY: ${NEXT_PUBLIC_TURNSTILE_SITE_KEY:-}
         NEXT_PUBLIC_CF_BEACON_TOKEN: ${NEXT_PUBLIC_CF_BEACON_TOKEN:-}
+        # Set to 1 (with GOOGLE_CLIENT_ID/SECRET in .env) to show "Sign in with Google".
+        NEXT_PUBLIC_GOOGLE_AUTH: ${NEXT_PUBLIC_GOOGLE_AUTH:-}
     restart: unless-stopped
     environment:
       SITE_DOMAIN: ${SITE_DOMAIN:-localhost}

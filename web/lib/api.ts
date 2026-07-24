@@ -226,6 +226,15 @@ export function unsubscribeSession() {
   });
 }
 
+// "Sign in with Google" — a login for existing subscribers. Gated at build time so a copy
+// without a Google OAuth client shows no dead button; the backend endpoints 404 when the
+// server-side credentials are absent, so the two gates fail closed together.
+export const GOOGLE_AUTH_ENABLED = process.env.NEXT_PUBLIC_GOOGLE_AUTH === "1";
+
+export function googleAuthUrl() {
+  return `${API_URL}/auth/google/start`;
+}
+
 export function confirmUrl(token: string) {
   return `${API_URL}/confirm?token=${encodeURIComponent(token)}`;
 }
