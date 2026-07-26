@@ -245,6 +245,12 @@ export default function Landing() {
     const workTypes: string[] = [];
     if (work.has("Full-time")) workTypes.push("permanent");
     if (work.has("Freelance")) workTypes.push("freelance/contract");
+    // "Type of work — tap all that fit" is an inclusive multi-select, and Full-time ships
+    // pre-selected. Tapping Part-time therefore means "part-time fits me too", never "only
+    // part-time" — so it is only "only" when Full-time is not also selected. Sending the bare
+    // `work.has("Part-time")` recorded part_time_only on subscribers who had Full-time visibly
+    // ticked, and the matcher then penalised every full-time role it showed them.
+    const partTimeOnly = work.has("Part-time") && !work.has("Full-time");
     const seniorities = [...levels].map((l) => SENIORITY_CODE[l]).filter(Boolean);
     return {
       email: email.trim(),
@@ -253,7 +259,7 @@ export default function Landing() {
       role_categories: [...roles].map((r) => ROLE_CAT[r]).filter(Boolean),
       regions: REGION_CODES[region] || ["cz", "eu", "worldwide"],
       work_types: workTypes.length ? workTypes : ["permanent", "freelance/contract"],
-      part_time_only: work.has("Part-time"),
+      part_time_only: partTimeOnly,
       sectors: cvSignals?.sectors || [],
       seniorities: seniorities.length ? seniorities : ["junior", "mid"],
       min_score: 6,

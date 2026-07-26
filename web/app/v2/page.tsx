@@ -143,6 +143,10 @@ export default function Landing() {
     const workTypes: string[] = [];
     if (work.has("Full-time")) workTypes.push("permanent");
     if (work.has("Freelance")) workTypes.push("freelance/contract");
+    // Inclusive multi-select with Full-time pre-selected — "Part-time" means it also fits,
+    // so it is only "only" when Full-time is unticked. See web/app/page.tsx for the bug this
+    // caused in production.
+    const partTimeOnly = work.has("Part-time") && !work.has("Full-time");
     return {
       email: email.trim(),
       label: "My digest",
@@ -150,7 +154,7 @@ export default function Landing() {
       role_categories: [...roles].map((r) => ROLE_CAT[r]).filter(Boolean),
       regions: REGION_CODES[region] || ["cz", "eu", "worldwide"],
       work_types: workTypes.length ? workTypes : ["permanent", "freelance/contract"],
-      part_time_only: work.has("Part-time"),
+      part_time_only: partTimeOnly,
       sectors: cvSignals?.sectors || [],
       seniorities: cvSignals?.seniorities || ["junior", "mid"],
       min_score: 6,

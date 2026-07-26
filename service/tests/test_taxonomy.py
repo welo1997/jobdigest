@@ -129,3 +129,28 @@ def test_frontend_maps_only_reference_real_categories():
         referenced |= set(re.findall(r"^\s*([a-z_]+):", body, re.M))
     unknown = referenced - set(taxonomy.CATEGORIES)
     assert not unknown, f"web/app/page.tsx references unknown role_category values: {sorted(unknown)}"
+
+
+SIGNUP_FORMS = [WEB_PAGE, ROOT / "web" / "app" / "v2" / "page.tsx"]
+
+
+@pytest.mark.parametrize("form", SIGNUP_FORMS, ids=lambda p: p.parent.name)
+def test_part_time_only_is_not_read_straight_off_the_chip(form):
+    """The work-type chips are an inclusive multi-select — the form says "tap all that fit"
+    and ships with Full-time pre-selected. So tapping Part-time means "this fits too", and
+    `part_time_only: work.has("Part-time")` records the opposite of what the user was shown:
+    subscribers with Full-time visibly ticked were stored as part-time-only, and the matcher
+    then penalised every full-time role in their digest. It is only "only" when Full-time is
+    not also selected.
+
+    Asserted as text because this is TSX the test suite cannot import — same approach, and
+    same reason, as the role_category drift tests above.
+    """
+    text = form.read_text(encoding="utf-8")
+    assert 'part_time_only: work.has("Part-time")' not in text, (
+        f"{form.name} maps part_time_only straight off the chip — a subscriber who also "
+        "selected Full-time is recorded as part-time-only."
+    )
+    assert 'work.has("Part-time") && !work.has("Full-time")' in text, (
+        f"{form.name} must derive part_time_only from Part-time selected AND Full-time not."
+    )
