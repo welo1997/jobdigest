@@ -293,6 +293,20 @@ def query_shortlist(profile: dict, limit: int = 120) -> list[dict]:
     role_category filter is *not* a hard gate — `uncategorised` and cross-language hits
     are included, and the AI pass decides what actually fits. One row per dedup_key.
 
+    Slots are allocated round-robin across the profile's selected role_categories rather
+    than handed to whichever category happens to be freshest. The categories differ in size
+    by orders of magnitude — `other_tech_function` spans marketing, sales, finance, HR and
+    legal (~7k active CZ rows) while `design` has ~120 — so a global freshest-first window
+    gave a subscriber who picked product + design + social_media + marketing a shortlist of
+    117 marketing/admin rows, 2 design and 1 social (observed 2026-07-26, and the matcher
+    correctly returned zero picks from it). Ranking within each category and then taking
+    rank 1 of every category, rank 2 of every category, and so on spreads the window evenly
+    and self-balances: a category with only 4 postings contributes 4 and stops, its unused
+    slots going to the categories that still have rows. Postings that matched on keywords
+    rather than a selected category share one `__other__` bucket, so they cannot crowd out
+    the categories the subscriber actually chose. With no role_categories set there is a
+    single bucket and this degenerates to the old freshest-first behaviour.
+
     `part_time_only` sorts rather than filters. Part-time is ~2% of inventory (200 of 11k
     active CZ postings), so a hard gate would leave such a subscriber with a near-empty
     shortlist and no digest — but leaving the ordering alone is worse in practice, because
@@ -301,11 +315,11 @@ def query_shortlist(profile: dict, limit: int = 120) -> list[dict]:
     actually asked for in front of the model, which then applies the preference in scoring.
     """
     where = ["p.is_active"]
-    params: list[Any] = []
+    where_params: list[Any] = []
 
     if profile.get("regions"):
         where.append("p.region = any(%s)")
-        params.append(profile["regions"])
+        where_params.append(profile["regions"])
     if profile.get("eligible_only", True):
         where.append("p.eligibility in ('eligible','verify UK right-to-work','unknown')")
 
@@ -313,17 +327,23 @@ def query_shortlist(profile: dict, limit: int = 120) -> list[dict]:
     recall, terms = [], _shortlist_terms(profile)
     if profile.get("role_categories"):
         recall.append("p.role_category = any(%s)")
-        params.append(profile["role_categories"])
+        where_params.append(profile["role_categories"])
     if terms:
         tsq = " || ".join(["plainto_tsquery('simple', %s)"] * len(terms))
         recall.append(f"p.search_tsv @@ ({tsq})")
-        params.extend(terms)
+        where_params.extend(terms)
     if recall:
         where.append("(" + " or ".join(recall) + ")")
 
-    params.append(limit)
-    # Inner query dedups (one row per dedup_key); outer takes the freshest `limit` so
-    # the AI always sees current roles rather than an arbitrary alphabetical slice.
+    # Bucket = the posting's role_category when the subscriber selected it, else `__other__`.
+    # Passed even when empty: an empty array matches nothing, everything lands in one bucket,
+    # and the round-robin collapses to plain freshest-first.
+    #
+    # psycopg2 binds %s positionally by where it appears in the SQL *text*, and the partition
+    # clause is written above the inner WHERE — so this parameter has to come first, ahead of
+    # the where params, regardless of the order the fragments were built in.
+    params: list[Any] = [profile.get("role_categories") or [], *where_params, limit]
+    # Freshest-first *within* a bucket; part-time first for a part-time-only subscriber.
     order = ("d.is_part_time desc, d.last_seen_at desc" if profile.get("part_time_only")
              else "d.last_seen_at desc")
     sql = f"""
@@ -331,16 +351,24 @@ def query_shortlist(profile: dict, limit: int = 120) -> list[dict]:
                region, eligibility, seniority, work_type, is_part_time,
                role_category, salary_raw, currency, posted_at, description
         from (
-            select distinct on (coalesce(p.dedup_key, p.posting_id))
-                   p.posting_id, p.source, p.title, p.company, p.url, p.location,
-                   p.region, p.eligibility, p.seniority, p.work_type, p.is_part_time,
-                   p.role_category, p.salary_raw, p.currency, p.posted_at, p.description,
-                   p.last_seen_at
-            from postings p
-            where {' and '.join(where)}
-            order by coalesce(p.dedup_key, p.posting_id), p.last_seen_at desc
-        ) d
-        order by {order}
+            select d.*,
+                   row_number() over (
+                       partition by case when d.role_category = any(%s)
+                                         then d.role_category else '__other__' end
+                       order by {order}
+                   ) as bucket_rank
+            from (
+                select distinct on (coalesce(p.dedup_key, p.posting_id))
+                       p.posting_id, p.source, p.title, p.company, p.url, p.location,
+                       p.region, p.eligibility, p.seniority, p.work_type, p.is_part_time,
+                       p.role_category, p.salary_raw, p.currency, p.posted_at, p.description,
+                       p.last_seen_at
+                from postings p
+                where {' and '.join(where)}
+                order by coalesce(p.dedup_key, p.posting_id), p.last_seen_at desc
+            ) d
+        ) r
+        order by r.bucket_rank, {order.replace('d.', 'r.')}
         limit %s
     """
     with cursor() as cur:

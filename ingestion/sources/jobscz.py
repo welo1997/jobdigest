@@ -41,7 +41,13 @@ FIELD_CATEGORIES: dict[str, tuple[str, str | None]] = {
     "Pojistovnictvi":          ("200900022", "other_tech_function"),
     "Pravni sluzby":           ("200900025", "other_tech_function"),
     "Personalistika a HR":     ("200900021", "other_tech_function"),
-    "Administrativa":          ("200900001", "other_tech_function"),
+    # Clerical/office admin is not a tech function. Mapping it to other_tech_function put
+    # ~7k "Administrativní pracovník" rows into the same bucket as marketing and sales, and
+    # since the bucket is selected by anyone who ticks "Marketing", they drowned every
+    # narrower category in the shortlist. Titles that *are* categorisable still classify
+    # from their own text ("Marketing Administrator" still hits the marketing pattern);
+    # the rest become `uncategorised`, which is a first-class value, not a dropped row.
+    "Administrativa":          ("200900001", None),
     "Kultura/umeni/tvurci":    ("200900014", "design"),
 }
 MAX_PAGES = 30  # per field; the "no new listings" guard usually stops earlier

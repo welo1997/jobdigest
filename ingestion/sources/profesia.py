@@ -47,7 +47,9 @@ SITES = [
             ("pojistovnictvi", "other_tech_function"),
             ("pravo-a-legislativa", "other_tech_function"),
             ("personalistika-a-lidske-zdroje", "other_tech_function"),
-            ("administrativa", "other_tech_function"),
+            # Clerical office admin is not a tech function -- see jobscz.py for the
+            # shortlist flooding this caused. Falls through to `uncategorised`.
+            ("administrativa", None),
         ],
     },
     {
@@ -67,7 +69,9 @@ SITES = [
             ("poistovnictvo", "other_tech_function"),
             ("pravo-a-legislativa", "other_tech_function"),
             ("personalistika-a-ludske-zdroje", "other_tech_function"),
-            ("administrativa", "other_tech_function"),
+            # Clerical office admin is not a tech function -- see jobscz.py for the
+            # shortlist flooding this caused. Falls through to `uncategorised`.
+            ("administrativa", None),
         ],
     },
 ]
