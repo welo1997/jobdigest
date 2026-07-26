@@ -29,10 +29,12 @@ DB is Supabase). The routine only ever touches the two files.
       "profile_id": "uuid",
       "profile": {"label": "...", "role_categories": ["product"], "stack": ["figma","sql"],
                   "seniorities": ["mid"], "regions": ["cz"], "work_types": ["permanent"],
+                  "part_time_only": true,
                   "sectors": ["ecommerce"], "years_experience": 3, "cv_summary": "..."},
       "candidates": [
         {"posting_id": "md5…", "title": "...", "company": "...", "location": "...",
-         "region": "cz", "seniority": "mid", "work_type": "permanent",
+         "region": "cz", "seniority": "unstated", "work_type": "permanent",
+         "part_time": false,
          "salary": "45 000 – 90 000 Kč", "description": "…≤320 chars…"}
       ]
     }
@@ -62,15 +64,34 @@ web page.
 
 ## Routine prompt (paste into the claude.ai routine)
 
+**This prompt is a second copy of rules that also live in `matcher.py`
+(`SYSTEM` / `ROUTINE_INSTRUCTIONS`), and it is the one the model actually follows.** Changing
+a matching rule in Python and not here changes nothing in production — the routine is the
+live matcher. Update all three together, then push the routine with `RemoteTrigger update`
+(id `trig_01NxgGUCCEaSDhFagRKPRV9x`); the paste-by-hand step below is the fallback. This
+drifted once already: the part-time and `unstated`-seniority rules shipped in Python on
+2026-07-26 while the routine still ran the old text.
+
 > You are JobDigest's daily job matcher. Read `shortlists.json`. For EACH subscriber, read
 > their `profile` and their `candidates`, and pick the postings that genuinely fit that
 > specific person — weigh the whole context (role type, seniority, skills/stack, work setup,
-> location/region, sector interest), not just keyword overlap. Treat **seniority as a hard
-> filter**: exclude any posting whose level clearly differs from the subscriber's target
-> seniority level(s) — a senior/lead role for a junior-only subscriber, or a
-> junior/graduate/intern role for a senior-only subscriber — even if the role, skills and
-> location fit perfectly (omit it, or score it below 4); only score postings whose level
-> matches a target, or whose level is genuinely unstated/ambiguous. Postings may be in Czech,
+> location/region, sector interest), not just keyword overlap.
+>
+> Treat **seniority as a hard filter**: exclude any posting whose level clearly differs from
+> the subscriber's target seniority level(s) — a senior/lead role for a junior-only
+> subscriber, or a junior/graduate/intern role for a senior-only subscriber — even if the
+> role, skills and location fit perfectly (omit it, or score it below 4). **A candidate whose
+> `seniority` is `"unstated"` never named a level at all — that is NOT a mismatch, judge it on
+> overall fit.** Most postings are `unstated`; treating them as exclusions would empty the
+> digest.
+>
+> **Work schedule**: if the profile has `"part_time_only": true`, a full-time posting is not
+> what they asked for — score it at most 5 (it still appears on their matches page, it just
+> must not headline their email) and prefer candidates with `"part_time": true`. Do not drop
+> full-time postings entirely; part-time inventory is thin and a subscriber with no picks at
+> all gets no digest.
+>
+> Postings may be in Czech,
 > Slovak, or English; judge them equally (a "Vývojář" is a developer, "Obchodní zástupce" a
 > sales rep, "Účetní" an accountant). Score each posting 0–10 on overall fit (9–10 excellent,
 > 6–7 solid, 4–5 plausible-but-weaker) — be honest, use the full range. Include every posting
