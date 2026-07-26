@@ -50,9 +50,9 @@ from typing import Optional
 from fastapi import FastAPI, Form, HTTPException, Request, Response, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, RedirectResponse
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, EmailStr, Field, field_validator
 
-from service import cvparse, links, mailer, store, transactional
+from service import cvparse, links, mailer, store, taxonomy, transactional
 from service.digest import C, SANS, SERIF
 
 # Where users land back (frontend). Used for the "homepage" links on API-served pages.
@@ -230,6 +230,29 @@ def _page(title: str, body_html: str) -> str:
 
 # --------------------------------------------------------------- subscribe -----
 
+def _check_role_categories(v: Optional[list[str]]) -> Optional[list[str]]:
+    """Reject role_category values the taxonomy doesn't define.
+
+    Both forms used to accept any string, and the preferences page slugified free-text role
+    chips straight into this field. A value like `social_media_specialist` is not a category:
+    no posting carries it, so `role_category = any(...)` never fires and the subscriber holds
+    a filter that silently matches nothing. Failing the request is the only outcome the user
+    can see — dropping the value server-side would reproduce the same silence one layer down.
+    `uncategorised` is excluded deliberately: it is a real stored value but selecting it as a
+    preference means "postings we failed to classify", which nobody wants as a search.
+    """
+    if v is None:
+        return v
+    allowed = set(taxonomy.CATEGORIES) - {taxonomy.UNCATEGORISED}
+    unknown = sorted({c for c in v if c not in allowed})
+    if unknown:
+        raise ValueError(
+            f"unknown role_categories: {', '.join(unknown)}. "
+            f"Valid values: {', '.join(sorted(allowed))}"
+        )
+    return v
+
+
 class SubscribeIn(BaseModel):
     email: EmailStr
     label: str = "My digest"
@@ -246,6 +269,8 @@ class SubscribeIn(BaseModel):
     # optional CV signals from a prior POST /cv/parse (merged server-side)
     cv_signals: Optional[dict] = None
     cf_turnstile_token: Optional[str] = None
+
+    _valid_roles = field_validator("role_categories")(_check_role_categories)
 
 
 @app.get("/health")
@@ -377,6 +402,9 @@ class PreviewIn(BaseModel):
     sectors: list[str] = Field(default_factory=list)
     cv_signals: Optional[dict] = None
     cf_turnstile_token: Optional[str] = None
+
+    _valid_roles = field_validator("role_categories")(_check_role_categories)
+
 
 PREVIEW_SHORTLIST = 60      # candidates pulled from the prefilter before ranking
 PREVIEW_LIMIT = 8           # cards returned to the browser
@@ -526,6 +554,8 @@ class PreferencesIn(BaseModel):
     sectors: Optional[list[str]] = None
     min_score: Optional[int] = None
     frequency: Optional[str] = None
+
+    _valid_roles = field_validator("role_categories")(_check_role_categories)
 
 
 class SessionIn(BaseModel):
@@ -723,6 +753,8 @@ class GoogleSubscribeIn(BaseModel):
     min_score: int = 6
     frequency: str = "daily"
     cv_signals: Optional[dict] = None
+
+    _valid_roles = field_validator("role_categories")(_check_role_categories)
 
 
 @app.post("/subscribe/google")

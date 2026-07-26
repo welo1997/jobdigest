@@ -94,6 +94,19 @@ def seniority(title: Optional[str]) -> str:
     return "mid"
 
 
+def seniority_stated(title: Optional[str]) -> bool:
+    """True when the title actually names a level, rather than falling through to 'mid'.
+
+    `seniority()` returns 'mid' for two very different postings: one that says "Mid-level
+    Analyst" and one that says nothing at all — and most titles say nothing at all. Anything
+    treating the stored value as a fact the poster asserted will mis-handle the second kind.
+    The matcher uses this to show the model "seniority=unstated" instead of a confident
+    "mid", so its hard seniority filter drops genuine level mismatches without also dropping
+    every unlabelled posting from a junior-only subscriber's digest."""
+    t = title or ""
+    return bool(_JUNIOR_RE.search(t) or _SENIOR_RE.search(t))
+
+
 def work_type(title: Optional[str], description: Optional[str]) -> str:
     """Classify a posting as 'freelance/contract' or 'permanent' from its text."""
     text = f"{title or ''} {description or ''}".lower()

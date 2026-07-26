@@ -15,7 +15,7 @@ import {
 } from "@/lib/api";
 import { track } from "@/lib/analytics";
 
-const ROLE_OPTS = ["Product Manager", "Marketing", "Data Analyst", "Designer", "Software Engineer", "Data Engineer", "DevOps", "Finance"];
+const ROLE_OPTS = ["Product Manager", "Marketing", "Social Media", "Data Analyst", "Designer", "Software Engineer", "Data Engineer", "DevOps", "Finance"];
 const SKILL_OPTS = ["SQL", "Figma", "Analytics", "Excel", "Python", "SEO", "Looker", "Roadmapping", "Power BI", "dbt"];
 const REGION_OPTS = ["Czechia", "EU remote", "Worldwide", "Hybrid Prague"];
 const WORK_OPTS = ["Full-time", "Freelance", "Part-time"];
@@ -36,6 +36,7 @@ const ROLE_CAT: Record<string, string> = {
   "Data Engineer": "data_engineering", "Data Analyst": "data_analysis",
   "Software Engineer": "software_engineering", "DevOps": "devops_platform",
   "Product Manager": "product", "Designer": "design",
+  "Social Media": "social_media",
   "Marketing": "other_tech_function", "Finance": "other_tech_function",
 };
 const REGION_CODES: Record<string, string[]> = {
@@ -46,6 +47,7 @@ const CV_ROLE_LABEL: Record<string, string> = {
   data_engineering: "Data Engineer", data_analysis: "Data Analyst",
   machine_learning: "ML Engineer", software_engineering: "Software Engineer",
   devops_platform: "DevOps", product: "Product Manager", design: "Designer",
+  social_media: "Social Media",
 };
 
 const LAST = 3;

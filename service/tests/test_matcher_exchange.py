@@ -219,6 +219,72 @@ def test_export_carries_no_email_address(store, tmp_path):
     assert entry["candidates"][0]["posting_id"] == "real-a"
 
 
+# --------------------------------------------- preferences the model must see ---
+# A preference stored on the profile but never rendered into the prompt is worse than one
+# that was never offered: the form promised it, the subscriber believes it applies, and no
+# error is raised anywhere. These pin the two that were being dropped.
+
+def _one_profile_export(store, tmp_path, profile: dict, candidates: list[dict]) -> dict:
+    store.profiles_out = [{"id": REAL, "email": "s@example.com", **profile}]
+    store.shortlist_out = candidates
+    path = str(tmp_path / "shortlists.json")
+    assert matcher.export_shortlists(path) == 1
+    return json.loads(open(path, encoding="utf-8").read())["profiles"][0]
+
+
+def test_part_time_only_reaches_the_routine(store, tmp_path):
+    """Shipped for months without this: the profile said part-time only and the export said
+    nothing, so subscribers were emailed roles with "HPP" (full-time) in the title."""
+    entry = _one_profile_export(
+        store, tmp_path,
+        {"label": "My digest", "part_time_only": True, "regions": ["cz"]},
+        [{"posting_id": "real-a", "title": "Grafik", "is_part_time": True},
+         {"posting_id": "real-b", "title": "Grafik na HPP", "is_part_time": False}],
+    )
+    assert entry["profile"]["part_time_only"] is True
+    assert entry["candidates"][0]["part_time"] is True
+    assert entry["candidates"][1]["part_time"] is False
+
+
+def test_part_time_only_is_omitted_when_false(store, tmp_path):
+    entry = _one_profile_export(
+        store, tmp_path, {"label": "My digest", "part_time_only": False},
+        [{"posting_id": "real-a", "title": "Grafik"}],
+    )
+    assert "part_time_only" not in entry["profile"]
+
+
+def test_part_time_only_is_also_in_the_api_prompt(store):
+    """The API path (`match_profile`) and the routine path share nothing but this module —
+    a preference added to one export is easy to forget in the other."""
+    assert "PART-TIME ONLY" in matcher._profile_block({"part_time_only": True})
+    assert "PART-TIME" not in matcher._profile_block({"part_time_only": False})
+    block, _ = matcher._candidates_block([{"posting_id": "x", "title": "Grafik",
+                                           "is_part_time": True}])
+    assert "part_time=yes" in block
+
+
+@pytest.mark.parametrize("title,expected", [
+    ("Senior Data Engineer", "senior"),      # the title says so
+    ("Junior Data Engineer", "junior"),
+    ("2D Grafik marketing", "unstated"),     # no level word -> stored 'mid' is a default
+])
+def test_unstated_seniority_is_not_reported_as_mid(store, tmp_path, title, expected):
+    """`seniority()` returns 'mid' both for a stated mid-level role and for the ~majority of
+    titles that name no level at all. Sending the default as a fact to a model told seniority
+    is a HARD filter makes it either drop unlabelled postings or treat them as licence to
+    email mid-level roles to a junior-only subscriber. Neither is what the column means."""
+    stored = "senior" if expected == "senior" else "junior" if expected == "junior" else "mid"
+    entry = _one_profile_export(
+        store, tmp_path, {"label": "My digest", "seniorities": ["junior"]},
+        [{"posting_id": "real-a", "title": title, "seniority": stored}],
+    )
+    assert entry["candidates"][0]["seniority"] == expected
+    block, _ = matcher._candidates_block([{"posting_id": "real-a", "title": title,
+                                           "seniority": stored}])
+    assert f"seniority={expected}" in block
+
+
 # ------------------------------------------------------------------- safe_url ---
 
 @pytest.mark.parametrize("url,expected", [

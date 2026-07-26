@@ -292,6 +292,13 @@ def query_shortlist(profile: dict, limit: int = 120) -> list[dict]:
     scope the net so a CZ-only user isn't flooded with US-onsite roles, but the
     role_category filter is *not* a hard gate — `uncategorised` and cross-language hits
     are included, and the AI pass decides what actually fits. One row per dedup_key.
+
+    `part_time_only` sorts rather than filters. Part-time is ~2% of inventory (200 of 11k
+    active CZ postings), so a hard gate would leave such a subscriber with a near-empty
+    shortlist and no digest — but leaving the ordering alone is worse in practice, because
+    the freshest-first window of `limit` rows fills with full-time roles before a single
+    part-time one appears. Sorting them to the front puts the postings the subscriber
+    actually asked for in front of the model, which then applies the preference in scoring.
     """
     where = ["p.is_active"]
     params: list[Any] = []
@@ -317,6 +324,8 @@ def query_shortlist(profile: dict, limit: int = 120) -> list[dict]:
     params.append(limit)
     # Inner query dedups (one row per dedup_key); outer takes the freshest `limit` so
     # the AI always sees current roles rather than an arbitrary alphabetical slice.
+    order = ("d.is_part_time desc, d.last_seen_at desc" if profile.get("part_time_only")
+             else "d.last_seen_at desc")
     sql = f"""
         select posting_id, source, title, company, url, location,
                region, eligibility, seniority, work_type, is_part_time,
@@ -331,7 +340,7 @@ def query_shortlist(profile: dict, limit: int = 120) -> list[dict]:
             where {' and '.join(where)}
             order by coalesce(p.dedup_key, p.posting_id), p.last_seen_at desc
         ) d
-        order by d.last_seen_at desc
+        order by {order}
         limit %s
     """
     with cursor() as cur:

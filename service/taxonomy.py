@@ -58,6 +58,13 @@ PATTERNS: tuple[tuple[str, "re.Pattern[str]"], ...] = (
         r"web developer|mobile developer|\bios\b|android|\bdeveloper\b|programmer|"
         r"\bengineer(?:ing)?\b|qa engineer|\bsdet\b|"
         r"vývojá[řr]|vývojárk|programátor|programátork|softwarov|softvérov", re.I)),
+    # Must precede other_tech_function: nearly every social title also says "marketing" or
+    # "content", so without this it lands in the catch-all and a subscriber who asked for
+    # social media gets the whole marketing/sales/finance/HR bucket instead.
+    ("social_media", re.compile(
+        r"social[ -]?media|\bsmm\b|community manager|influencer|content creator|"
+        r"paid social|social ads|"
+        r"sociáln\w*\s+(?:sít|siet|médi|medi)", re.I)),
     ("other_tech_function", re.compile(
         r"marketing|\bseo\b|growth|\bsales\b|account executive|business development|"
         r"finance|account(?:ant|ing)|controller|recruit|talent|people ops|"
@@ -102,6 +109,9 @@ SHORTLIST_KEYWORDS: dict[str, list[str]] = {
                         "kubernetes", "administrátor"],
     "product": ["product manager", "product owner", "produktový manažer", "produktový vlastník"],
     "design": ["designer", "designér", "ux", "ui", "grafik", "návrhář"],
+    "social_media": ["social media", "sociální sítě", "sociálních sítí", "sociálne siete",
+                     "community manager", "influencer", "content creator", "smm",
+                     "instagram", "tiktok"],
     "other_tech_function": ["marketing", "marketingový", "obchod", "obchodní", "sales",
                             "finance", "účetní", "recruiter", "personalista"],
 }
@@ -116,6 +126,7 @@ SUBJECT_WORDS: dict[str, str] = {
     "devops_platform": "platform",
     "product": "product",
     "design": "design",
+    "social_media": "social media",
     "other_tech_function": "tech",
 }
 
@@ -123,7 +134,7 @@ SUBJECT_WORDS: dict[str, str] = {
 # Substring rules for reading a role out of an uploaded CV. Deliberately a SUBSET of the
 # categories: a CV is prose, and the broad patterns above would fire on almost any tech CV
 # ("engineer" appears in most of them), producing a profile that asks for everything. These
-# three are the ones a CV states clearly enough to act on. Kept here rather than in
+# few are the ones a CV states clearly enough to act on. Kept here rather than in
 # cvparse.py so the divergence from PATTERNS is visible next to what it diverges from.
 CV_RULES: tuple[tuple[str, tuple[str, ...]], ...] = (
     ("data_engineering", ("data engineer", "analytics engineer", "dataops", "etl",
@@ -132,4 +143,8 @@ CV_RULES: tuple[tuple[str, tuple[str, ...]], ...] = (
                           "data scientist", "mlops", "deep learning")),
     ("data_analysis", ("data analyst", "bi analyst", "business intelligence",
                        "reporting analyst", "insights analyst")),
+    # Unambiguous in prose: nobody writes "social media manager" on a CV by accident, and
+    # without this a social/community CV reads as no role at all (see the "Detected: r" bug).
+    ("social_media", ("social media", "sociální sítě", "sociálních sítí", "sociálne siete",
+                      "community manager", "influencer marketing", "content creator")),
 )

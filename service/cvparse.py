@@ -108,7 +108,13 @@ _SKILLS: dict[str, str] = {
     "docker": r"\bdocker\b", "kubernetes": r"\bkubernetes\b|\bk8s\b",
     "terraform": r"\bterraform\b", "postgres": r"postgres(?:ql)?",
     "bigquery": r"\bbigquery\b", "redshift": r"\bredshift\b", "databricks": r"\bdatabricks\b",
-    "r": r"(?<![a-z])r(?![a-z])", "java": r"\bjava\b", "scala": r"\bscala\b",
+    # A bare "r" is the hardest skill in this list to detect: one letter, and the obvious
+    # `(?<![a-z])r(?![a-z])` fires on the r in "s.r.o." — which is on essentially every
+    # Czech CV, since it's the local Ltd. suffix in every employer's name. It also fires on
+    # "R&D". Excluding a neighbouring dot or ampersand kills both without losing "R, Python",
+    # "(R)" or "R/SQL". Real case seen in production: a Czech designer's CV came back as
+    # "Detected: r" and nothing else, so the matcher was told they were an R programmer.
+    "r": r"(?<![\w.])r(?![\w.&])", "java": r"\bjava\b", "scala": r"\bscala\b",
     "typescript": r"\btypescript\b", "javascript": r"\bjavascript\b", "react": r"\breact\b",
     "excel": r"\bexcel\b", "git": r"\bgit\b", "fivetran": r"\bfivetran\b",
     "metabase": r"\bmetabase\b", "pytorch": r"\bpytorch\b", "tensorflow": r"\btensorflow\b",

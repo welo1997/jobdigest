@@ -301,6 +301,43 @@ def test_magic_link_token_still_authenticates_without_a_session(client, store):
     assert store.updates == [{"label": "X"}]
 
 
+# ------------------------------------------------------- role_category validation --
+# `role_categories` used to be an unvalidated list[str], and the preferences form slugified
+# free-text chips straight into it. A live subscriber ended up with `social_media_specialist`:
+# no posting carries that value, so `role_category = any(...)` never fired and they held a
+# filter that matched nothing, with no error on any side. A stored value that cannot match
+# is worse than a rejected request, because only the request is visible to the user.
+
+def test_unknown_role_category_is_rejected(client, store):
+    r = client.post("/preferences", json={"token": TOKEN,
+                                          "role_categories": ["social_media_specialist"]})
+    assert r.status_code == 422
+    assert "social_media_specialist" in r.text
+    assert store.updates == []                # nothing was written
+
+
+def test_known_role_categories_are_accepted(client, store):
+    r = client.post("/preferences", json={"token": TOKEN,
+                                          "role_categories": ["social_media", "design"]})
+    assert r.status_code == 200
+    assert store.updates == [{"role_categories": ["social_media", "design"]}]
+
+
+def test_uncategorised_is_not_selectable_as_a_preference(client, store):
+    """A real stored value, but as a *search* it means "postings we failed to classify"."""
+    r = client.post("/preferences", json={"token": TOKEN, "role_categories": ["uncategorised"]})
+    assert r.status_code == 422
+    assert store.updates == []
+
+
+def test_signup_rejects_an_unknown_role_category_too(client, store):
+    """Four request models carry role_categories; a guard on only the one you remembered
+    leaves the other three as the way in."""
+    r = client.post("/subscribe", json={"email": "new@example.com",
+                                        "role_categories": ["not_a_category"]})
+    assert r.status_code == 422
+
+
 def test_cookie_unsubscribe_revokes_sessions_and_needs_csrf(client, store):
     client.post("/session", json={"token": TOKEN})
     # Without the CSRF header the logged-in unsubscribe is refused and nothing happens.

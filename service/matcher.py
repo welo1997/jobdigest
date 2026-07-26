@@ -29,6 +29,7 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+from search_jobs import seniority_stated  # noqa: E402
 from service import store  # noqa: E402
 
 logger = logging.getLogger("service.matcher")
@@ -53,8 +54,12 @@ work setup (remote/hybrid/onsite), location/region, and sector interest.
 (junior/mid/senior). Exclude any posting whose level clearly differs from every target — a \
 senior/lead/principal role for a junior-only subscriber, or a junior/graduate/intern role for \
 a senior-only subscriber — even if the role, skills and location fit perfectly; give it a \
-score below 4 so it is dropped. Only when the posting's level matches a target, or its level \
-is genuinely unstated/ambiguous, score it on overall fit.
+score below 4 so it is dropped. Candidates whose level the posting never stated are marked \
+`seniority=unstated`: those are NOT mismatches, so judge them on overall fit like any other.
+- Work schedule: if the profile says "part-time only", a posting that is full-time (or does \
+not offer a part-time option) is not what this person asked for. Score it at most 5 — it can \
+still appear on their matches page as a weaker option, but it must not headline their email. \
+Candidates offering part-time are marked `part_time=yes`; prefer them.
 - Postings may be in Czech, Slovak, or English — judge them equally; a "Vývojář" is a \
 developer, "Obchodní zástupce" is a sales rep, "Účetní" is an accountant.
 - Rank best-first and be honest with the scores: a 9-10 is an excellent fit, a 6-7 solid, \
@@ -82,11 +87,27 @@ def _profile_block(p: dict) -> str:
         f"Work types: {_join('work_types')}",
         f"Sectors of interest: {_join('sectors')}",
     ]
+    # Stated on the signup form but, until now, never shown to the model or used in the SQL
+    # prefilter — subscribers who ticked "part-time only" were being emailed full-time roles.
+    if p.get("part_time_only"):
+        lines.append("Work schedule: PART-TIME ONLY (a full-time role is not what they asked for)")
     if p.get("years_experience") is not None:
         lines.append(f"Years experience: {p['years_experience']}")
     if p.get("cv_summary"):
         lines.append(f"CV summary: {p['cv_summary']}")
     return "\n".join(lines)
+
+
+def _seniority_for_model(c: dict) -> str:
+    """The candidate's level as the model should read it — 'unstated' when the title never
+    said one. `search_jobs.seniority()` defaults to 'mid', so a plain "2D Grafik" is stored
+    as mid and used to reach the model as a confident claim; against a hard seniority filter
+    that quietly reads as a mismatch for a junior-only subscriber (or, worse, as a licence to
+    email them mid-level roles). Recomputed from the title rather than stored, because the
+    column cannot express the difference."""
+    if not seniority_stated(c.get("title")):
+        return "unstated"
+    return c.get("seniority") or "unstated"
 
 
 def _candidates_block(shortlist: list[dict]) -> tuple[str, dict[int, str]]:
@@ -100,7 +121,8 @@ def _candidates_block(shortlist: list[dict]) -> tuple[str, dict[int, str]]:
         rows.append(
             f"[{i}] {c.get('title') or '?'} @ {c.get('company') or '?'}\n"
             f"    location={c.get('location') or '?'} region={c.get('region') or '?'} "
-            f"seniority={c.get('seniority') or '?'} work={c.get('work_type') or '?'}"
+            f"seniority={_seniority_for_model(c)} work={c.get('work_type') or '?'}"
+            + (" part_time=yes" if c.get("is_part_time") else "")
             + (f" salary={salary}" if salary else "")
             + (f"\n    {desc}" if desc else "")
         )
@@ -160,8 +182,11 @@ ROUTINE_INSTRUCTIONS = (
     "a HARD filter: exclude any posting whose level clearly differs from the subscriber's "
     "target seniority level(s) — a senior/lead role for a junior-only subscriber, or a "
     "junior/graduate/intern role for a senior-only subscriber — even if everything else fits "
-    "(omit it / score it below 4); only score postings whose level matches a target or is "
-    "genuinely unstated/ambiguous. Postings may be "
+    "(omit it / score it below 4). A candidate with \"seniority\":\"unstated\" never named a "
+    "level and is NOT a mismatch — judge it on overall fit. "
+    "If the profile has \"part_time_only\":true, a full-time posting is not what they asked "
+    "for: score it at most 5 (it still shows on their matches page, it just must not headline "
+    "the email) and prefer candidates with \"part_time\":true. Postings may be "
     "Czech/Slovak/English; judge them equally. Score each pick 0-10 on overall fit "
     "(9-10 excellent, 6-7 solid, 4-5 plausible-but-weaker); include every posting scoring 4+ "
     "(skip only clear non-fits); order best-first; max 20 per subscriber; never invent a posting_id. "
@@ -173,7 +198,12 @@ ROUTINE_INSTRUCTIONS = (
 def _profile_export(p: dict) -> dict:
     keys = ["label", "role_categories", "stack", "seniorities", "regions",
             "work_types", "sectors", "years_experience", "cv_summary"]
-    return {k: p.get(k) for k in keys if p.get(k) not in (None, [], "")}
+    out = {k: p.get(k) for k in keys if p.get(k) not in (None, [], "")}
+    # Only when true: an explicit "part_time_only": false in every profile is noise the model
+    # has to read past, and false is already the default reading of its absence.
+    if p.get("part_time_only"):
+        out["part_time_only"] = True
+    return out
 
 
 def _candidate_export(c: dict) -> dict:
@@ -181,7 +211,8 @@ def _candidate_export(c: dict) -> dict:
     return {
         "posting_id": c["posting_id"], "title": c.get("title"), "company": c.get("company"),
         "location": c.get("location"), "region": c.get("region"),
-        "seniority": c.get("seniority"), "work_type": c.get("work_type"),
+        "seniority": _seniority_for_model(c), "work_type": c.get("work_type"),
+        "part_time": bool(c.get("is_part_time")),
         "salary": c.get("salary_raw"), "description": desc,
     }
 

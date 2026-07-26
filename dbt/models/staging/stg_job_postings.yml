@@ -40,7 +40,7 @@ models:
         tests:
           - not_null
           - accepted_values:
-              values: ['data_engineering', 'data_analysis', 'machine_learning', 'software_engineering', 'devops_platform', 'product', 'design', 'other_tech_function', 'uncategorised']
+              values: ['data_engineering', 'data_analysis', 'machine_learning', 'software_engineering', 'devops_platform', 'product', 'design', 'social_media', 'other_tech_function', 'uncategorised']
       - name: is_remote
         description: "Whether the posting is remote"
         tests:

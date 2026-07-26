@@ -14,12 +14,13 @@ import { cap } from "@/lib/preview";
 const FREqS = ["daily", "weekdays", "weekly"];
 // Chip vocabularies mirror the signup wizard (web/app/page.tsx) so both forms speak the same
 // role_category language — free-text boxes let a user type a "role" that maps to no category.
-const ROLE_OPTS = ["Product Manager", "Marketing", "Data Analyst", "Designer", "Software Engineer", "Data Engineer", "DevOps", "Finance"];
+const ROLE_OPTS = ["Product Manager", "Marketing", "Social Media", "Data Analyst", "Designer", "Software Engineer", "Data Engineer", "DevOps", "Finance"];
 const SKILL_OPTS = ["SQL", "Figma", "Analytics", "Excel", "Python", "SEO", "Looker", "Roadmapping", "Power BI", "dbt"];
 const ROLE_CAT: Record<string, string> = {
   "Data Engineer": "data_engineering", "Data Analyst": "data_analysis",
   "Software Engineer": "software_engineering", "DevOps": "devops_platform",
   "Product Manager": "product", "Designer": "design",
+  "Social Media": "social_media",
   "Marketing": "other_tech_function", "Finance": "other_tech_function",
 };
 // slug -> a representative display label for preselecting chips on load. other_tech_function
@@ -28,7 +29,8 @@ const ROLE_CAT: Record<string, string> = {
 const LABEL_FOR_SLUG: Record<string, string> = {
   data_engineering: "Data Engineer", data_analysis: "Data Analyst",
   software_engineering: "Software Engineer", devops_platform: "DevOps",
-  product: "Product Manager", design: "Designer", other_tech_function: "Marketing",
+  product: "Product Manager", design: "Designer", social_media: "Social Media",
+  other_tech_function: "Marketing",
 };
 const REGION_LABEL_TO_CODES: Record<string, string[]> = {
   "Czechia": ["cz"], "EU remote": ["cz", "eu"], "Worldwide remote": ["cz", "eu", "worldwide"],
@@ -40,7 +42,6 @@ function regionLabel(codes: string[]): string {
   return "Worldwide remote";
 }
 const prettify = (c: string) => c.replace(/_/g, " ").replace(/\b\w/g, (m) => m.toUpperCase());
-const slugify = (s: string) => s.trim().toLowerCase().replace(/\s+/g, "_");
 
 const SENIORITY_OPTS = ["Intern / Junior", "Mid", "Senior"];
 const SENIORITY_CODE: Record<string, string> = { "Intern / Junior": "junior", "Mid": "mid", "Senior": "senior" };
@@ -143,10 +144,16 @@ function Inner() {
       // which the hard-filter matcher would read as "nothing matches".
       const seniorities = [...levels].map((l) => SENIORITY_CODE[l]).filter(Boolean);
       // Dedup slugs: Marketing + Finance both map to other_tech_function.
-      const roleSlugs = [...new Set([...roleSet].map((l) => ROLE_CAT[l] || slugify(l)).filter(Boolean))];
+      // A typed role chip that maps to no category used to be slugified into one anyway
+      // ("Social media specialist" -> social_media_specialist), producing a filter no posting
+      // could ever match and no error anywhere — the user saw a selected chip doing nothing.
+      // Unmapped chips now become search keywords instead, which the shortlist full-text
+      // query does use, so the words still steer retrieval and nothing is silently dead.
+      const roleSlugs = [...new Set([...roleSet].map((l) => ROLE_CAT[l]).filter(Boolean))];
+      const freeRoles = [...roleSet].filter((l) => !ROLE_CAT[l]);
       const updated = await updatePreferences({
         role_categories: roleSlugs,
-        stack: [...skillSet].map((s) => s.trim().toLowerCase()).filter(Boolean),
+        stack: [...new Set([...skillSet, ...freeRoles].map((s) => s.trim().toLowerCase()).filter(Boolean))],
         frequency: freq,
         regions: REGION_LABEL_TO_CODES[regionSel] || ["cz", "eu", "worldwide"],
         seniorities: seniorities.length ? seniorities : ["junior", "mid", "senior"],

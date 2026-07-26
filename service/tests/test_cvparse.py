@@ -116,3 +116,39 @@ def test_end_to_end_pdf_to_signals():
     assert signals["years_experience"] == 4
     assert "fintech" in signals["sectors"]
     assert signals["summary"].startswith("Detected:")
+
+
+# ------------------------------------------------------------------ skill detection --
+# A one-letter skill needs its neighbours checked, not just its word boundaries. Seen in
+# production: a Czech designer's CV produced `cv_summary = "Detected: r"` and nothing else,
+# because "s.r.o." — the local Ltd. suffix, on essentially every Czech CV — contains a
+# standalone "r". The matcher was then told this person was an R programmer.
+
+@pytest.mark.parametrize("text", [
+    "Grafik ve firmě Nějaká Firma s.r.o., Figma a Canva",   # the real false positive
+    "Vedoucí týmu, ACME s. r. o.",
+    "Worked in R&D at a hardware company",
+    "Front-end developer",                                   # the r in "front-end"
+])
+def test_bare_r_is_not_detected_in_ordinary_prose(text):
+    assert "r" not in cvparse.extract_signals(text)["skills"]
+
+
+@pytest.mark.parametrize("text", [
+    "Skills: R, Python, SQL",
+    "Statistical modelling in R and Stata",
+    "R/SQL reporting",
+    "Proficient in (R)",
+])
+def test_r_is_still_detected_when_it_is_the_language(text):
+    assert "r" in cvparse.extract_signals(text)["skills"]
+
+
+def test_a_czech_social_media_cv_reads_as_social_media():
+    """The profile behind the "Detected: r" bug: nothing in CV_RULES matched a social/
+    community CV, so the parse contributed one wrong skill and no role at all."""
+    signals = cvparse.extract_signals(
+        "Specialistka sociálních sítí, správa Instagramu a TikToku pro Nějaká Firma s.r.o."
+    )
+    assert signals["role_categories"] == ["social_media"]
+    assert signals["skills"] == []

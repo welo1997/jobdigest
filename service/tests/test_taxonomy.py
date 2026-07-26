@@ -36,10 +36,27 @@ WEB_PAGE = ROOT / "web" / "app" / "page.tsx"
     ("Java vývojář", "software_engineering"),  # CZ title
     ("Účetní", "other_tech_function"),         # CZ title
     ("Backend Engineer", "software_engineering"),
+    ("Social Media Manager", "social_media"),
+    ("Specialista sociálních sítí", "social_media"),          # CZ
+    ("Náborár pre projekty, Marketing | Sociálne siete", "social_media"),  # SK
+    ("Community Manager", "social_media"),
+    ("Influencer Marketing Specialist", "social_media"),
     ("Lighthouse Keeper", "uncategorised"),
 ])
 def test_classify(title, expected):
     assert taxonomy.classify(title) == expected
+
+
+def test_social_media_beats_the_catch_all():
+    """Almost every social title also says "marketing" or "content", so without the ordering
+    they all land in other_tech_function — and a subscriber who asked for social media gets
+    the entire marketing/sales/finance/HR bucket instead. This is the same class of bug as
+    test_specificity_order_holds, one layer down."""
+    assert taxonomy.classify("Social Media Marketing Specialist") == "social_media"
+    assert taxonomy.classify("Content Creator") == "social_media"
+    assert taxonomy.classify("Marketing Specialist") == "other_tech_function"
+    # ...but a designer who also runs the socials is still a designer.
+    assert taxonomy.classify("Grafik a správa sociálních sítí") == "design"
 
 
 def test_specificity_order_holds():
