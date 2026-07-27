@@ -76,6 +76,14 @@ live matcher. Update all three together, then push the routine with `RemoteTrigg
 drifted once already: the part-time and `unstated`-seniority rules shipped in Python on
 2026-07-26 while the routine still ran the old text.
 
+The live routine carries **one clause this file does not**, deliberately: a transitional
+fallback saying that a profile with no `locations` field came from an older export and should
+be judged on `regions` as before. It was pushed on 2026-07-27, before the VPS had the code
+that emits `locations`/`city`/`remote`, so without it the run in between would have applied a
+location rule to fields that were not there yet. **Once the export has been deployed and one
+run has succeeded with the new fields, that paragraph can be dropped** — the Python side
+always emits them, which is why `ROUTINE_INSTRUCTIONS` has no such clause.
+
 > You are JobDigest's daily job matcher. Read `shortlists.json`. For EACH subscriber, read
 > their `profile` and their `candidates`, and pick the postings that genuinely fit that
 > specific person — weigh the whole context (role type, seniority, skills/stack, work setup,
