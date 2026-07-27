@@ -31,24 +31,40 @@ class _RecordingCursor:
         return False
 
     def execute(self, sql, params=None):
-        self._sink["sql"] = sql
-        self._sink["params"] = list(params or [])
+        call = {"sql": sql, "params": list(params or [])}
+        self._sink["calls"].append(call)
+        # `sql`/`params` alias the FIRST statement, which is the one every test written
+        # before the retrieval floor existed means. A widened re-run appends a second call
+        # rather than overwriting, so those tests keep pinning what they were written to pin.
+        self._sink.setdefault("sql", call["sql"])
+        self._sink.setdefault("params", call["params"])
 
     def fetchall(self):
-        return []
+        return self._sink["rows"].pop(0) if self._sink["rows"] else []
 
 
 @pytest.fixture
 def query(monkeypatch):
-    """Run query_shortlist and hand back the SQL + params it would have executed."""
-    sink: dict = {}
+    """Run query_shortlist and hand back the SQL + params it would have executed.
+
+    `rows` is what each successive execute() returns, so a test can make the first query
+    come back under the floor and observe the widening. Default: every query returns
+    nothing, which for a profile with a recall predicate means the floor always fires.
+    """
+    sink: dict = {"calls": [], "rows": []}
     monkeypatch.setattr(store, "cursor", lambda commit=False: _RecordingCursor(sink))
 
-    def run(profile: dict, limit: int = 120):
+    def run(profile: dict, limit: int = 120, rows: list | None = None):
+        sink["rows"] = list(rows or [])
         store.query_shortlist(profile, limit=limit)
         return sink
 
     return run
+
+
+def _full(n: int = 200) -> list[dict]:
+    """A result set comfortably above SHORTLIST_FLOOR."""
+    return [{"posting_id": str(i)} for i in range(n)]
 
 
 PROFILE = {
@@ -85,9 +101,15 @@ def test_the_bucket_parameter_is_bound_before_the_where_params(query):
     {"role_categories": ["design"], "part_time_only": True},
 ])
 def test_counts_match_for_every_shape_of_profile(query, profile):
-    """Each optional clause adds placeholders at a different point in the statement."""
+    """Each optional clause adds placeholders at a different point in the statement.
+
+    Checks *every* statement issued, so the widened re-run — which drops the recall
+    parameters but keeps the partition and location ones — is held to the same rule.
+    """
     got = query(profile)
-    assert got["sql"].count("%s") == len(got["params"])
+    assert got["calls"], "no statement was executed"
+    for call in got["calls"]:
+        assert call["sql"].count("%s") == len(call["params"])
 
 
 # -------------------------------------------------------------- round-robin ---
@@ -134,3 +156,66 @@ def test_dedup_still_happens_before_ranking(query):
     sql = query(PROFILE)["sql"]
     inner = sql.index("distinct on (coalesce(p.dedup_key, p.posting_id))")
     assert inner > sql.index("row_number() over")   # the dedup subquery is nested deeper
+
+
+# --------------------------------------------------------------- retrieval floor ---
+# The generalisation of the social_media failure. A subscriber whose field the taxonomy does
+# not model (sales, cybersecurity, IT support) selects categories that fit them badly and
+# types keywords that may miss entirely — so `category OR keyword` retrieves almost nothing
+# and they are emailed nothing, silently, forever. Below the floor the recall predicate is
+# dropped and the AI matcher gets a broad slice of live jobs in their location instead. The
+# subscriber may still get nothing, but then it is the model's judgement on a fair shortlist
+# rather than a filter that could never have matched.
+
+def test_a_starved_shortlist_is_retried_without_the_recall_predicate(query):
+    got = query(PROFILE, rows=[[]])                 # first query comes back empty
+    assert len(got["calls"]) == 2, "the floor did not fire"
+    narrow, wide = got["calls"]
+    assert "search_tsv @@" in narrow["sql"]         # keyword recall in the first
+    assert "role_category = any(%s)" in narrow["sql"].split("partition by")[1]
+    assert "search_tsv @@" not in wide["sql"]       # and gone from the retry
+    # The category reference that survives is the partition, not a filter — the widened
+    # query still spreads slots across buckets instead of handing them to the biggest one.
+    assert "partition by case when d.role_category = any(%s)" in wide["sql"]
+    assert wide["sql"].split("partition by")[1].count("role_category = any(%s)") == 1
+
+
+def test_location_and_eligibility_survive_the_widening(query):
+    """Widening must not become "email them anything". A CZ-only subscriber still gets CZ
+    jobs — dropping the location gate would flood them with roles they cannot take."""
+    wide = query(PROFILE, rows=[[]])["calls"][1]
+    assert "eligibility in" in wide["sql"]
+    assert wide["params"][1] == PROFILE["regions"]   # the location predicate's parameter
+
+
+def test_a_healthy_shortlist_is_not_widened(query):
+    """The floor is a fallback, not a default: a subscriber whose categories work keeps the
+    precise shortlist. Widening every profile would hand the model mostly-irrelevant rows."""
+    got = query(PROFILE, rows=[_full()])
+    assert len(got["calls"]) == 1
+
+
+def test_a_profile_with_nothing_to_narrow_on_is_not_queried_twice(query):
+    """No categories and no keywords means the two statements are identical — the retry
+    would be pure cost for a result already known."""
+    got = query({"regions": ["cz"]}, rows=[[]])
+    assert len(got["calls"]) == 1
+
+
+def test_widening_is_reported_to_the_caller(monkeypatch):
+    """`widened` reaches digest_runs, which is the whole point: a widened shortlist is the
+    fingerprint of a subscriber the taxonomy does not serve, and it must stay visible rather
+    than being quietly papered over by the fallback that rescued them."""
+    sink: dict = {"calls": [], "rows": [[], _full()]}
+    monkeypatch.setattr(store, "cursor", lambda commit=False: _RecordingCursor(sink))
+    rows, meta = store.query_shortlist_meta(PROFILE)
+    assert meta["widened"] is True
+    assert meta["n_narrow"] == 0 and meta["n"] == len(_full())
+    assert len(rows) == len(_full())
+
+
+def test_no_widening_reports_the_same_counts(monkeypatch):
+    sink: dict = {"calls": [], "rows": [_full(30)]}
+    monkeypatch.setattr(store, "cursor", lambda commit=False: _RecordingCursor(sink))
+    _, meta = store.query_shortlist_meta(PROFILE)
+    assert meta == {"n": 30, "n_narrow": 30, "widened": False}

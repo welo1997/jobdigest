@@ -60,6 +60,7 @@ class _FakeStore:
         self.fail_on_profile: str | None = None
         self.profiles_out: list[dict] = []
         self.shortlist_out: list[dict] = []
+        self.runs: list[dict] = []
 
     # -- used by import_picks --
     def existing_profile_ids(self, ids):
@@ -80,8 +81,16 @@ class _FakeStore:
     def query_shortlist(self, profile, limit=120):
         return self.shortlist_out
 
+    def query_shortlist_meta(self, profile, limit=120):
+        return self.shortlist_out, {"n": len(self.shortlist_out),
+                                    "n_narrow": len(self.shortlist_out), "widened": False}
+
     def already_sent_ids(self, profile_id):
         return set()
+
+    # -- diagnostics (digest_runs); recorded so a test can assert it was written --
+    def record_digest_run(self, profile_id, **fields):
+        self.runs.append({"profile_id": profile_id, **fields})
 
 
 @pytest.fixture
@@ -217,6 +226,33 @@ def test_export_carries_no_email_address(store, tmp_path):
     assert "email" not in entry
     assert entry["profile_id"] == REAL          # the pseudonymous handle is still there
     assert entry["candidates"][0]["posting_id"] == "real-a"
+
+
+# ------------------------------------------------ the export leaves a trace -----
+
+def test_an_empty_shortlist_is_still_recorded(store, tmp_path):
+    """The subscriber who gets nothing exported is the one worth alerting on, and skipping
+    the write would make the worst outcome the only one leaving no trace. This is the exact
+    case that hid on 2026-07-26: a profile whose retrieval collapsed produced no export, no
+    picks and no digest, and every timer stayed green."""
+    store.profiles_out = [{"id": REAL, "email": "s@example.com", "label": "My digest",
+                           "regions": ["cz"]}]
+    store.shortlist_out = []
+    assert matcher.export_shortlists(str(tmp_path / "shortlists.json")) == 0
+    assert store.runs == [{"profile_id": REAL, "shortlist_n": 0, "widened": False}]
+
+
+def test_a_widened_shortlist_is_recorded_as_widened(store, tmp_path, monkeypatch):
+    """`widened` is the fingerprint of a subscriber whose stated field the taxonomy does not
+    model. The fallback rescues their digest; losing the flag would hide why they needed it."""
+    monkeypatch.setattr(store, "query_shortlist_meta",
+                        lambda p, limit=120: (store.shortlist_out,
+                                              {"n": 1, "n_narrow": 0, "widened": True}))
+    store.profiles_out = [{"id": REAL, "email": "s@example.com", "label": "My digest",
+                           "regions": ["cz"]}]
+    store.shortlist_out = [{"posting_id": "real-a", "title": "Sales Manager"}]
+    matcher.export_shortlists(str(tmp_path / "shortlists.json"))
+    assert store.runs[0]["widened"] is True
 
 
 # --------------------------------------------- preferences the model must see ---

@@ -287,8 +287,23 @@ def _shortlist_terms(profile: dict) -> list[str]:
     return out[:40]
 
 
+# Below this many candidates a shortlist is treated as retrieval failure rather than as a
+# true "nothing fits here" — see the widening step in `query_shortlist_meta`.
+SHORTLIST_FLOOR = int(os.environ.get("SHORTLIST_FLOOR", "20"))
+
+
 def query_shortlist(profile: dict, limit: int = 120) -> list[dict]:
-    """Recall-first candidate shortlist for the AI matcher.
+    """Recall-first candidate shortlist for the AI matcher. See `query_shortlist_meta`."""
+    rows, _ = query_shortlist_meta(profile, limit=limit)
+    return rows
+
+
+def query_shortlist_meta(profile: dict, limit: int = 120) -> tuple[list[dict], dict]:
+    """`query_shortlist` plus what happened building it: `{n, widened, n_narrow}`.
+
+    The metadata exists so the caller can record *why* a subscriber got what they got
+    (service/watchdog.py, `digest_runs`). A shortlist that came back near-empty and a
+    shortlist the matcher rejected look identical downstream, and they want opposite fixes.
 
     A posting is a candidate if it matches the profile's role_categories OR any of its
     keyword terms (full-text over title+company+description). Region/eligibility still
@@ -316,70 +331,106 @@ def query_shortlist(profile: dict, limit: int = 120) -> list[dict]:
     the freshest-first window of `limit` rows fills with full-time roles before a single
     part-time one appears. Sorting them to the front puts the postings the subscriber
     actually asked for in front of the model, which then applies the preference in scoring.
+
+    **The retrieval floor.** When the recall predicate yields fewer than `SHORTLIST_FLOOR`
+    candidates the query is re-run with the recall predicate dropped entirely — location and
+    eligibility only, freshest first. This is the graceful-degradation path for a subscriber
+    whose stated interests fall outside what the taxonomy models: someone in sales,
+    cybersecurity or IT support today has no category of their own, and if their typed
+    keywords also miss, category-OR-keyword retrieves almost nothing and they are emailed
+    nothing, forever, silently. Widening hands the AI matcher a broad slice of live jobs in
+    their location and lets it do the precision — which is the whole point of
+    retrieve-then-rerank, and the one part of the system that needs no vocabulary. Note the
+    direction: dropping the predicate widens, it does not narrow, because recall is an OR of
+    category and keywords rather than a conjunction. The subscriber may still legitimately
+    get nothing — but then it is the model's judgement on a fair shortlist, not a filter that
+    could never have matched. `widened` is recorded so the difference stays visible.
     """
-    where = ["p.is_active"]
-    where_params: list[Any] = []
+    def build(recall_on: bool) -> tuple[str, list[Any]]:
+        where = ["p.is_active"]
+        where_params: list[Any] = []
 
-    loc_sql, loc_params = geo.location_predicate(profile)
-    if loc_sql != "true":
-        where.append(loc_sql)
-        where_params.extend(loc_params)
-    if profile.get("eligible_only", True):
-        where.append("p.eligibility in ('eligible','verify UK right-to-work','unknown')")
+        loc_sql, loc_params = geo.location_predicate(profile)
+        if loc_sql != "true":
+            where.append(loc_sql)
+            where_params.extend(loc_params)
+        if profile.get("eligible_only", True):
+            where.append("p.eligibility in ('eligible','verify UK right-to-work','unknown')")
 
-    # Recall predicate: role_category match OR keyword match.
-    recall, terms = [], _shortlist_terms(profile)
-    if profile.get("role_categories"):
-        recall.append("p.role_category = any(%s)")
-        where_params.append(profile["role_categories"])
-    if terms:
-        tsq = " || ".join(["plainto_tsquery('simple', %s)"] * len(terms))
-        recall.append(f"p.search_tsv @@ ({tsq})")
-        where_params.extend(terms)
-    if recall:
-        where.append("(" + " or ".join(recall) + ")")
+        # Recall predicate: role_category match OR keyword match.
+        if recall_on:
+            recall, terms = [], _shortlist_terms(profile)
+            if profile.get("role_categories"):
+                recall.append("p.role_category = any(%s)")
+                where_params.append(profile["role_categories"])
+            if terms:
+                tsq = " || ".join(["plainto_tsquery('simple', %s)"] * len(terms))
+                recall.append(f"p.search_tsv @@ ({tsq})")
+                where_params.extend(terms)
+            if recall:
+                where.append("(" + " or ".join(recall) + ")")
 
-    # Bucket = the posting's role_category when the subscriber selected it, else `__other__`.
-    # Passed even when empty: an empty array matches nothing, everything lands in one bucket,
-    # and the round-robin collapses to plain freshest-first.
-    #
-    # psycopg2 binds %s positionally by where it appears in the SQL *text*, and the partition
-    # clause is written above the inner WHERE — so this parameter has to come first, ahead of
-    # the where params, regardless of the order the fragments were built in.
-    params: list[Any] = [profile.get("role_categories") or [], *where_params, limit]
-    # Freshest-first *within* a bucket; part-time first for a part-time-only subscriber.
-    order = ("d.is_part_time desc, d.last_seen_at desc" if profile.get("part_time_only")
-             else "d.last_seen_at desc")
-    sql = f"""
-        select posting_id, source, title, company, url, location, city, country_code,
-               remote_signal,
-               region, eligibility, seniority, work_type, is_part_time,
-               role_category, salary_raw, currency, posted_at, description
-        from (
-            select d.*,
-                   row_number() over (
-                       partition by case when d.role_category = any(%s)
-                                         then d.role_category else '__other__' end
-                       order by {order}
-                   ) as bucket_rank
+        # Bucket = the posting's role_category when the subscriber selected it, else
+        # `__other__`. Passed even when empty: an empty array matches nothing, everything
+        # lands in one bucket, and the round-robin collapses to plain freshest-first. Kept on
+        # the widened pass too, so a widened shortlist still spreads across categories
+        # instead of handing every slot to the biggest bucket.
+        #
+        # psycopg2 binds %s positionally by where it appears in the SQL *text*, and the
+        # partition clause is written above the inner WHERE — so this parameter has to come
+        # first, ahead of the where params, regardless of the order the fragments were built
+        # in. Getting this wrong shifts every later parameter by one; see test_shortlist.py.
+        params: list[Any] = [profile.get("role_categories") or [], *where_params, limit]
+        # Freshest-first *within* a bucket; part-time first for a part-time-only subscriber.
+        order = ("d.is_part_time desc, d.last_seen_at desc" if profile.get("part_time_only")
+                 else "d.last_seen_at desc")
+        sql = f"""
+            select posting_id, source, title, company, url, location, city, country_code,
+                   remote_signal,
+                   region, eligibility, seniority, work_type, is_part_time,
+                   role_category, salary_raw, currency, posted_at, description
             from (
-                select distinct on (coalesce(p.dedup_key, p.posting_id))
-                       p.posting_id, p.source, p.title, p.company, p.url, p.location,
-                       p.city, p.country_code, p.remote_signal,
-                       p.region, p.eligibility, p.seniority, p.work_type, p.is_part_time,
-                       p.role_category, p.salary_raw, p.currency, p.posted_at, p.description,
-                       p.last_seen_at
-                from postings p
-                where {' and '.join(where)}
-                order by coalesce(p.dedup_key, p.posting_id), p.last_seen_at desc
-            ) d
-        ) r
-        order by r.bucket_rank, {order.replace('d.', 'r.')}
-        limit %s
-    """
-    with cursor() as cur:
-        cur.execute(sql, params)
-        return [dict(r) for r in cur.fetchall()]
+                select d.*,
+                       row_number() over (
+                           partition by case when d.role_category = any(%s)
+                                             then d.role_category else '__other__' end
+                           order by {order}
+                       ) as bucket_rank
+                from (
+                    select distinct on (coalesce(p.dedup_key, p.posting_id))
+                           p.posting_id, p.source, p.title, p.company, p.url, p.location,
+                           p.city, p.country_code, p.remote_signal,
+                           p.region, p.eligibility, p.seniority, p.work_type, p.is_part_time,
+                           p.role_category, p.salary_raw, p.currency, p.posted_at,
+                           p.description, p.last_seen_at
+                    from postings p
+                    where {' and '.join(where)}
+                    order by coalesce(p.dedup_key, p.posting_id), p.last_seen_at desc
+                ) d
+            ) r
+            order by r.bucket_rank, {order.replace('d.', 'r.')}
+            limit %s
+        """
+        return sql, params
+
+    def fetch(recall_on: bool) -> list[dict]:
+        sql, params = build(recall_on)
+        with cursor() as cur:
+            cur.execute(sql, params)
+            return [dict(r) for r in cur.fetchall()]
+
+    rows = fetch(recall_on=True)
+    meta = {"n": len(rows), "n_narrow": len(rows), "widened": False}
+    # Only worth widening if a recall predicate was actually applied — with neither
+    # categories nor keywords the two queries are identical and the second is pure cost.
+    has_recall = bool(profile.get("role_categories") or _shortlist_terms(profile))
+    if len(rows) < SHORTLIST_FLOOR and has_recall:
+        rows = fetch(recall_on=False)
+        meta.update(n=len(rows), widened=True)
+        logging.getLogger("service.store").info(
+            "profile %s: shortlist of %d below floor %d — widened to %d (location only)",
+            profile.get("id"), meta["n_narrow"], SHORTLIST_FLOOR, len(rows))
+    return rows, meta
 
 
 def matched_jobs(profile_id: str, limit: int = 50) -> list[dict]:
@@ -991,6 +1042,113 @@ def record_sends(profile_id: str, items: list[tuple[str, int]]) -> None:
 def mark_digest_sent(profile_id: str) -> None:
     with cursor(commit=True) as cur:
         cur.execute("update profiles set last_digest_at = now() where id = %s", (profile_id,))
+
+
+# --- per-subscriber outcomes (digest_runs) --------------------------------------
+# Why this exists at all: every one of the five matching bugs found on 2026-07-26 was
+# invisible from outside — no exception, no failed timer — because the only per-profile
+# numbers the pipeline produced went to a log nobody reads, and the run summary aggregates
+# across profiles so one starved subscriber hides among the healthy ones. See
+# migration_011_digest_runs.sql.
+
+#: The fields a stage may report. Anything else is ignored rather than trusted into SQL.
+_DIGEST_RUN_FIELDS = ("shortlist_n", "widened", "picks_n", "sendable_n", "sent")
+
+
+def record_digest_run(profile_id: str, **fields: Any) -> None:
+    """Upsert today's outcome row for one profile. Never raises.
+
+    Written by three stages that each learn different numbers (export → shortlist_n/widened,
+    import → picks_n, pipeline → sendable_n/sent), so it merges rather than replaces: only
+    the keys passed are touched. Deliberately swallows its own errors — this is diagnostics,
+    and a failure to *record* that a subscriber got their digest must never be the reason a
+    subscriber doesn't get their digest.
+    """
+    cols = [k for k in fields if k in _DIGEST_RUN_FIELDS]
+    if not profile_id or not cols:
+        return
+    try:
+        with cursor(commit=True) as cur:
+            cur.execute(
+                f"""insert into digest_runs (day, profile_id, {', '.join(cols)})
+                    values (current_date, %s, {', '.join(['%s'] * len(cols))})
+                    on conflict (day, profile_id) do update set
+                    {', '.join(f'{c} = excluded.{c}' for c in cols)},
+                    recorded_at = now()""",
+                (profile_id, *(fields[c] for c in cols)),
+            )
+    except Exception:                                  # pragma: no cover - defensive
+        logging.getLogger("service.store").warning("record_digest_run failed", exc_info=True)
+
+
+def starved_profiles(days: int = 3) -> list[dict]:
+    """Active subscribers who have had no digest sent in the last `days` days.
+
+    Returns one row per profile with the diagnosis attached — the most recent shortlist size,
+    whether the retrieval floor had to fire, and how many picks/sendable jobs there were — so
+    the alert says *which* failure it is. The two look identical in a summary count and want
+    opposite fixes: `shortlist_n` at or near zero (or `widened` true) means retrieval failed
+    them and the bug is ours; a healthy `shortlist_n` with `picks_n` zero means the matcher
+    saw a fair shortlist and correctly rejected it, which is not a bug at all.
+
+    Profiles too new to have had a chance are excluded — a subscriber who signed up an hour
+    ago has legitimately never been sent anything, and alerting on that would train whoever
+    reads these to ignore them.
+    """
+    with cursor() as cur:
+        cur.execute(
+            """
+            select p.id, p.email, p.created_at, p.last_digest_at,
+                   r.day as last_run_day, r.shortlist_n, r.widened, r.picks_n, r.sendable_n
+            from profiles p
+            left join lateral (
+                select * from digest_runs d
+                where d.profile_id = p.id order by d.day desc limit 1
+            ) r on true
+            where p.status = 'active'
+              and p.created_at < now() - (%s || ' days')::interval
+              and (p.paused_until is null or p.paused_until < now())
+              and (p.last_digest_at is null
+                   or p.last_digest_at < now() - (%s || ' days')::interval)
+            order by p.created_at
+            """,
+            (int(days), int(days)),
+        )
+        return [dict(r) for r in cur.fetchall()]
+
+
+def unmet_demand_terms(min_profiles: int = 1) -> list[dict]:
+    """Words subscribers asked for that no part of the taxonomy models.
+
+    A free-text role chip that maps to no category is stored as a search keyword in
+    `profiles.stack` (it still steers full-text retrieval, which is the point) — which also
+    makes it the demand signal for what the taxonomy is missing, with no new data collected:
+    this is derived entirely from what subscribers already told us.
+
+    A heuristic and a report, never an input to anything automatic. Auto-creating a category
+    from user input is how `social_media_specialist` — a value no posting could ever carry —
+    ended up as a live filter matching nothing. Pattern order in `taxonomy.PATTERNS` is
+    load-bearing (social_media must sit after design and before other_tech_function), and
+    each new category needs a live backfill, so promotion stays a human decision informed by
+    this list plus actual inventory.
+    """
+    from service import cvparse           # local: keeps store's import surface small
+
+    known = {t.lower() for terms in taxonomy.SHORTLIST_KEYWORDS.values() for t in terms}
+    known |= {c.replace("_", " ") for c in taxonomy.CATEGORIES}
+    # `stack` also holds genuine skills, which are not unmet demand — a subscriber typing
+    # "Figma" told us nothing about a missing category. Excluding the tools we already know
+    # keeps the report to words the system has no representation for at all.
+    known |= set(cvparse.SKILL_NAMES)
+    with cursor() as cur:
+        cur.execute(
+            "select lower(unnest(stack)) as term, count(*) as n "
+            "from profiles where status in ('active','pending') "
+            "group by 1 having count(*) >= %s order by 2 desc, 1",
+            (int(min_profiles),),
+        )
+        rows = [dict(r) for r in cur.fetchall()]
+    return [r for r in rows if r["term"] not in known]
 
 
 def prune_unsubscribed(days: int = 30) -> int:

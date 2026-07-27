@@ -124,7 +124,9 @@ export default function Privacy() {
           <h2>7. How long we keep it</h2>
           <p>We keep your subscription data for as long as you&apos;re subscribed. When you
             unsubscribe, sending stops <b>immediately</b> and any active login sessions are
-            ended. Your profile — preferences, CV summary, match history — is then
+            ended. Your profile — preferences, CV summary, match history, and a technical
+            record of whether each day&apos;s digest was produced for you (counts only, so we
+            can tell when our matching has quietly failed someone) — is then
             <b> deleted within 30 days</b>, and its login sessions with it. We keep only your email address on a
             suppression list, indefinitely: it is the minimum needed to guarantee we never email you
             again, and deleting it would defeat that.</p>

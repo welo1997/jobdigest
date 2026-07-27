@@ -210,3 +210,27 @@ create table if not exists signup_intents (
     expires_at  timestamptz not null
 );
 create index if not exists idx_signup_intents_expires on signup_intents (expires_at);
+
+-- ---------------------------------------------------------------------------
+-- digest_runs: what the pipeline did for each subscriber each day (migration 011).
+-- Operational, not analytics — see migration_011_digest_runs.sql for why it is separate
+-- from `events`. Exists because five matching bugs found on 2026-07-26 were all invisible
+-- from the outside: the run summary aggregates across profiles, so one subscriber being
+-- starved of candidates looks exactly like a healthy day. Splitting shortlist_n / picks_n /
+-- sendable_n distinguishes "retrieval failed them" from "the matcher correctly found
+-- nothing", which want opposite fixes. Read by service/watchdog.py.
+-- ---------------------------------------------------------------------------
+create table if not exists digest_runs (
+    day          date not null,
+    profile_id   uuid not null references profiles(id) on delete cascade,
+    shortlist_n  int  not null default 0,             -- candidates retrieval found
+    widened      boolean not null default false,      -- the retrieval floor had to fire
+    picks_n      int  not null default 0,             -- matches the AI returned
+    sendable_n   int  not null default 0,             -- jobs clearing EMAIL_MIN_SCORE
+    sent         boolean not null default false,      -- a digest actually left the box
+    recorded_at  timestamptz not null default now(),
+    primary key (day, profile_id)
+);
+
+create index if not exists idx_digest_runs_profile_day on digest_runs (profile_id, day desc);
+create index if not exists idx_digest_runs_day on digest_runs (day desc);

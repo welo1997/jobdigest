@@ -288,10 +288,17 @@ def export_shortlists(path: str, email: str | None = None, limit_profiles: int |
     payload = {"generated_at": datetime.now(timezone.utc).isoformat(),
                "instructions": ROUTINE_INSTRUCTIONS, "profiles": []}
     for p in _profiles_for(email, limit_profiles):
-        shortlist = store.query_shortlist(p, limit=shortlist_size)
+        shortlist, meta = store.query_shortlist_meta(p, limit=shortlist_size)
         already = store.already_sent_ids(p["id"]) if p.get("id") else set()
         shortlist = [c for c in shortlist if c["posting_id"] not in already]
+        # Recorded before the `continue` below: a profile that exports nothing is exactly the
+        # case worth alerting on, and skipping the write would make the worst outcome the one
+        # that leaves no trace. See store.record_digest_run.
+        store.record_digest_run(p.get("id"), shortlist_n=len(shortlist),
+                                widened=bool(meta.get("widened")))
         if not shortlist:
+            logger.warning("profile %s: no candidates to export (retrieval found %d, "
+                           "%d already sent)", p.get("id"), meta["n"], len(already))
             continue
         # No email address: the routine matches on the profile, and `import_picks` keys on
         # profile_id, so the address was never read by anything downstream — it only widened
@@ -356,6 +363,7 @@ def import_picks(path: str) -> int:
                     "select posting_id from postings where is_active and posting_id = any(%s)",
                     (list(want),))
                 valid = {r["posting_id"] for r in cur.fetchall()}
+            kept = 0
             for posting_id in valid:
                 j = want[posting_id]
                 try:
@@ -365,7 +373,9 @@ def import_picks(path: str) -> int:
                 if score < MATCH_FLOOR:
                     continue
                 store.upsert_match(pid, posting_id, score, str(j.get("reason") or "")[:280])
-                total += 1
+                kept += 1
+            total += kept
+            store.record_digest_run(pid, picks_n=kept)
         except Exception:
             logger.exception("picks file: profile %s failed to import, skipping", pid)
             continue
@@ -397,11 +407,15 @@ def run(email: str | None = None, limit_profiles: int | None = None,
 
     total_picks = 0
     for p in profiles:
-        shortlist = store.query_shortlist(p, limit=shortlist_size)
+        shortlist, meta = store.query_shortlist_meta(p, limit=shortlist_size)
         already = store.already_sent_ids(p["id"]) if p.get("id") else set()
         shortlist = [c for c in shortlist if c["posting_id"] not in already]
+        if not dry_run:
+            store.record_digest_run(p.get("id"), shortlist_n=len(shortlist),
+                                    widened=bool(meta.get("widened")))
         if not shortlist:
-            logger.info("profile %s (%s): no fresh candidates", p.get("id"), p.get("email"))
+            logger.warning("profile %s (%s): no fresh candidates (retrieval found %d)",
+                           p.get("id"), p.get("email"), meta["n"])
             continue
 
         if dry_run:
@@ -421,6 +435,7 @@ def run(email: str | None = None, limit_profiles: int | None = None,
         for pk in picks:
             store.upsert_match(p["id"], pk["posting_id"], pk["score"], pk["summary"])
         total_picks += len(picks)
+        store.record_digest_run(p.get("id"), picks_n=len(picks))
         logger.info("profile %s (%s): %d candidates -> %d picks",
                     p.get("id"), p.get("email"), len(shortlist), len(picks))
 

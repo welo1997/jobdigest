@@ -1,0 +1,24 @@
+# JobDigest subscriber watchdog — alerts when the pipeline quietly fails one person.
+#
+# Every other unit here alerts when *it* fails. This one alerts when a subscriber gets
+# nothing while every unit succeeds — the shape of failure that hid five matching bugs
+# through 2026-07-26 with all timers green. See service/watchdog.py.
+#
+# Install:
+#   sudo cp deploy/jobdigest-watchdog.* /etc/systemd/system/
+#   sudo systemctl daemon-reload && sudo systemctl enable --now jobdigest-watchdog.timer
+[Unit]
+Description=JobDigest subscriber watchdog (nobody silently starved)
+After=docker.service
+Requires=docker.service
+# The alert IS the non-zero exit: jobdigest-alert.py mails the last journal lines, which are
+# the report this prints. No second notification path to keep in sync.
+OnFailure=jobdigest-alert@%n.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/jobdigest/deploy
+# --quiet so a healthy day writes nothing; --demand appends the list of role words
+# subscribers asked for that no category models, which is the input to deciding what the
+# taxonomy should grow next.
+ExecStart=/usr/bin/docker compose run --rm pipeline python -m service.watchdog --quiet --demand

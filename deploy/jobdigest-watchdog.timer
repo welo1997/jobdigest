@@ -1,0 +1,13 @@
+# Runs at 09:00 UTC — two hours after the 07:00 import+send, so the day's outcomes are
+# already recorded in digest_runs and the report describes a finished cycle rather than one
+# in flight.
+[Unit]
+Description=JobDigest subscriber watchdog daily at 09:00
+
+[Timer]
+OnCalendar=*-*-* 09:00:00
+Persistent=true
+Unit=jobdigest-watchdog.service
+
+[Install]
+WantedBy=timers.target

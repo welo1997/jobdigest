@@ -101,6 +101,10 @@ def run(ingest: bool = False, cz: bool = False, match: bool = False,
             skipped_notdue += 1
             continue
         jobs = digestmod.build_digest(p, limit=digestmod.DEFAULT_LIMIT)
+        if not dry_run:
+            # Recorded before the skip: "this subscriber had nothing to send" is the outcome
+            # most worth seeing, and it is the one that otherwise leaves no trace anywhere.
+            store.record_digest_run(p["id"], sendable_n=len(jobs))
         if not jobs:
             skipped_nojobs += 1                        # only when the matcher found nothing new
             continue
@@ -119,6 +123,7 @@ def run(ingest: bool = False, cz: bool = False, match: bool = False,
         ref = mailer.send(p["email"], subject, html, text, list_unsubscribe=unsub)
         store.record_sends(p["id"], [(j["posting_id"], j["score"]) for j in jobs])
         store.mark_digest_sent(p["id"])
+        store.record_digest_run(p["id"], sent=True)
         sent += 1
         logger.info("Sent %d jobs to %s -> %s", len(jobs), p["email"], ref)
 

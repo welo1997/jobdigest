@@ -121,6 +121,10 @@ _SKILLS: dict[str, str] = {
     "scikit-learn": r"scikit[- ]?learn|sklearn",
 }
 
+#: Every tool this parser can name. Exported so `store.unmet_demand_terms` can tell a skill
+#: a subscriber typed ("Figma") from a role the taxonomy has no representation for ("Sales").
+SKILL_NAMES: tuple[str, ...] = tuple(_SKILLS)
+
 # role_category -> keyword list. Defined in service/taxonomy.py (CV_RULES), which also
 # explains why reading a CV uses a deliberately narrower rule set than classifying a title.
 _ROLE_RULES = taxonomy.CV_RULES
