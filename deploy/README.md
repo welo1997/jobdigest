@@ -176,6 +176,25 @@ where name = 'cv_parse_failed' group by 1 order by 2 desc;
 - **Errors**: pipeline failures → Telegram via n8n; `docker compose logs -f api`.
 - **Backup failures**: `systemctl status jobdigest-backup.service`; the unit exits non-zero
   on a bad dump, so an n8n/systemd `OnFailure` hook will catch it.
+- **A subscriber silently getting nothing** — `jobdigest-watchdog.timer`, 09:00 UTC. Every
+  other check here alerts when a *job* fails. This one alerts when every job succeeds and a
+  *person* still receives nothing, which is what five matching bugs looked like from the
+  outside on 2026-07-26: all timers green throughout. It reads `digest_runs` (migration 011)
+  and exits non-zero when anyone has gone three days without a digest, so the existing
+  `OnFailure=jobdigest-alert@%n.service` mails the report. Addresses in it are masked.
+
+  ```bash
+  sudo cp deploy/jobdigest-watchdog.* /etc/systemd/system/
+  sudo systemctl daemon-reload && sudo systemctl enable --now jobdigest-watchdog.timer
+  docker compose run --rm pipeline python -m service.watchdog --demand   # run it by hand
+  ```
+
+  The report names which of three failures it is, because they want opposite responses:
+  `RETRIEVAL` (few candidates, or the shortlist had to be widened) is our bug — usually a
+  subscriber whose field the taxonomy does not model; `MATCHER` (a full shortlist, no picks)
+  is the model correctly rejecting what it was shown; `DELIVERY` (picks, none above
+  `EMAIL_MIN_SCORE`) is working as designed. `--demand` also lists the role words subscribers
+  typed that no category models — the input to deciding what the taxonomy should grow next.
 
 ## 8. Updating
 ```bash

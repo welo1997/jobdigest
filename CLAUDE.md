@@ -50,6 +50,7 @@ notes/            session logs, security review; notes/INFRA.local.md is gitigno
 05:00 UTC  export   ingest sources → Postgres → write shortlists.json → Google Drive
 ~06:00     routine  claude.ai reads shortlists.json → writes picks.json      (no DB, no key)
 07:00 UTC  import   pull picks.json → validate → matches → build + send digests
+09:00 UTC  watchdog digest_runs → alert if any subscriber has had nothing for 3 days
 03:30 UTC  backup   pg_dump → encrypt → off-box
 ```
 
@@ -61,6 +62,40 @@ posting IDs never round-trip — and invented indices are dropped.
 Picks ≥ `MATCH_FLOOR` (4) are stored; only ≥ `EMAIL_MIN_SCORE` (6) are emailed. The rest
 show on the subscriber's `/matches` page. `digest_sends` guarantees a job is never emailed
 twice and is never pruned.
+
+### Nothing a subscriber states may vanish, and no subscriber may starve silently
+
+The taxonomy models nine role categories. Subscribers are not obliged to be one of them —
+sales, cybersecurity and IT support have no category today — so **every lookup table in front
+of the AI matcher must be able to say "I don't know" and hand off, never drop.** The matcher
+reads free text and needs no vocabulary at all; a closed vocabulary is fine for ranking and
+fatal for admission. Three rules follow, and all three have been broken in production:
+
+- **A typed role chip that maps to no category becomes a `stack` keyword** — the shortlist
+  full-text query searches those, so the word still steers retrieval. Both signup forms and
+  `/preferences` do this; `test_taxonomy.py` fails if one stops. The two known-wrong
+  alternatives: slugifying it into `role_categories` (produced `social_media_specialist`, a
+  value no posting carries — a filter matching nothing, no error anywhere), and dropping it
+  with `.filter(Boolean)` (same silence, one step earlier, chip still highlighted).
+- **The retrieval floor.** Under `SHORTLIST_FLOOR` (20) candidates, `query_shortlist_meta`
+  re-runs with the recall predicate dropped — location and eligibility only. Dropping it
+  *widens*, because recall is `category OR keyword`, not a conjunction. The subscriber may
+  still get nothing, but then it is the model's judgement on a fair shortlist rather than a
+  filter that could never have matched. `widened` is recorded, because it is the fingerprint
+  of someone the taxonomy does not serve.
+- **`digest_runs` + `service/watchdog.py`.** One row per profile per day: `shortlist_n`,
+  `widened`, `picks_n`, `sendable_n`, `sent`, written by whichever stage learns each number
+  and **written before any `continue`** — the subscriber who got nothing is the one worth
+  alerting on, so that path must not be the one leaving no trace. The watchdog exits non-zero
+  and systemd's existing `OnFailure` alerter mails the report; addresses are masked because
+  it leaves the box. It names *which* failure: `RETRIEVAL` (ours), `MATCHER` (not a bug),
+  `DELIVERY` (by design). This exists because all five bugs found on 2026-07-26 were invisible
+  — no exception, no failed timer, every check green while a real person received nothing.
+
+`store.unmet_demand_terms()` lists role words subscribers asked for that nothing models. It is
+a **report for a human**, never an input to anything automatic: pattern order in `PATTERNS` is
+load-bearing, and each new category needs a live backfill plus six files kept in sync. Grow the
+taxonomy from that list *and* real inventory — not from one person's free text.
 
 ### Tables (Postgres)
 
@@ -79,7 +114,9 @@ data tables for the browser; `service/tests/test_geo.py` fails on drift, and
 
 `postings` · `profiles` (a subscription: preferences, tokens, CV summary) · `matches` ·
 `digest_sends` · `suppression` (never-contact list, outlives the profile) · `events`
-(cookieless analytics) · `events_daily` (rollups).
+(cookieless analytics) · `events_daily` (rollups) · `digest_runs` (per-subscriber outcomes —
+operational, deliberately not in `events`; cascades on profile delete so the 30-day erasure
+promise needs no extra step).
 
 ### The file exchange is a trust boundary
 
