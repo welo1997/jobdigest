@@ -154,3 +154,32 @@ def test_part_time_only_is_not_read_straight_off_the_chip(form):
     assert 'work.has("Part-time") && !work.has("Full-time")' in text, (
         f"{form.name} must derive part_time_only from Part-time selected AND Full-time not."
     )
+
+
+ROLE_INPUT_FORMS = SIGNUP_FORMS + [ROOT / "web" / "app" / "preferences" / "page.tsx"]
+
+
+@pytest.mark.parametrize("form", ROLE_INPUT_FORMS, ids=lambda p: p.parent.name)
+def test_a_typed_role_is_never_silently_dropped(form):
+    """"Add another role…" accepts anything, and most of what people type maps to no
+    category — Sales, Cybersecurity, IT Support, all real fields the taxonomy does not model.
+
+    Two ways to get this wrong, and both have shipped. Slugifying the label into
+    `role_categories` produced `social_media_specialist`, a value no posting carries, so the
+    filter matched nothing and no error was raised anywhere. Dropping it with
+    `.filter(Boolean)` and nothing else is the same silence one step earlier: not stored, not
+    logged, and the chip stays highlighted so the subscriber believes it took effect.
+
+    The correct handling is to carry it into `stack`, which the shortlist full-text query
+    searches — the word still steers retrieval even though nothing classified it.
+    """
+    text = form.read_text(encoding="utf-8")
+    assert re.search(r"filter\(\(?\w+\)? =>\s*!ROLE_CAT\[", text), (
+        f"{form.name} does not separate role chips that map to no category — a typed role "
+        "is either dropped or slugified into a filter that can never match."
+    )
+    # ...and that leftover has to reach `stack`, not be computed and then discarded. Either
+    # named (`freeRoles`) or inlined into the payload — both are in use.
+    assert re.search(r"stack:[^\n]*(freeRoles|\[\.\.\.roles\]\.filter)", text), (
+        f"{form.name} computes the unmapped chips but does not send them as search keywords."
+    )

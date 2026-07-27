@@ -254,11 +254,22 @@ export default function Landing() {
     // ticked, and the matcher then penalised every full-time role it showed them.
     const partTimeOnly = work.has("Part-time") && !work.has("Full-time");
     const seniorities = [...levels].map((l) => SENIORITY_CODE[l]).filter(Boolean);
+    // "Add another role…" lets someone type a role no category models — Sales, Cybersecurity,
+    // IT Support. `.filter(Boolean)` alone dropped those on the floor: not stored, not
+    // logged, no error, and the subscriber sees the chip they typed still highlighted. Route
+    // them to `stack` instead, the way /preferences already does, because the shortlist
+    // full-text query searches stack terms — so the word still steers retrieval even though
+    // nothing classified it. Slugifying them into role_categories is NOT the alternative:
+    // that is what produced `social_media_specialist`, a value no posting carries, i.e. a
+    // filter that silently matched nothing at all.
+    const roleSlugs = [...new Set([...roles].map((r) => ROLE_CAT[r]).filter(Boolean))];
+    const freeRoles = [...roles].filter((r) => !ROLE_CAT[r]);
     return {
       email: email.trim(),
       label: "My digest",
-      stack: [...skills].map((s) => s.toLowerCase()),
-      role_categories: [...roles].map((r) => ROLE_CAT[r]).filter(Boolean),
+      stack: [...new Set([...skills, ...freeRoles]
+        .map((s) => s.trim().toLowerCase()).filter(Boolean))],
+      role_categories: roleSlugs,
       countries: loc.countries.length ? loc.countries : ["CZ"],
       cities: loc.cities,
       remote_scope: loc.remoteScope,

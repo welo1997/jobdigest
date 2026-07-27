@@ -150,8 +150,11 @@ export default function Landing() {
     return {
       email: email.trim(),
       label: "My digest",
-      stack: [...skills].map((s) => s.toLowerCase()),
-      role_categories: [...roles].map((r) => ROLE_CAT[r]).filter(Boolean),
+      // A typed role that maps to no category becomes a search keyword rather than being
+      // dropped — same rule as the main signup form and /preferences. See web/app/page.tsx.
+      stack: [...new Set([...skills, ...[...roles].filter((r) => !ROLE_CAT[r])]
+        .map((s) => s.trim().toLowerCase()).filter(Boolean))],
+      role_categories: [...new Set([...roles].map((r) => ROLE_CAT[r]).filter(Boolean))],
       countries: loc.countries.length ? loc.countries : ["CZ"],
       cities: loc.cities,
       remote_scope: loc.remoteScope,
