@@ -99,8 +99,18 @@ and rebuild the affected image — a merged commit is not a deployed commit.
 
 ```bash
 scp <files> deploy@<VPS>:/opt/jobdigest/<path>/
-ssh deploy@<VPS> 'cd /opt/jobdigest/deploy && sudo docker compose build pipeline web'
+ssh deploy@<VPS> 'cd /opt/jobdigest/deploy && sudo docker compose build api pipeline web \
+  && sudo docker compose up -d api web'
 ```
+
+Rebuild **`api` as well as `pipeline`** whenever the change touches anything the webapp
+imports (`webapp.py`, `store.py`, `geo.py`, `taxonomy.py`, …) — `api` runs `service.webapp` from
+the same image, so building only `pipeline` leaves the live API on old code, and `build` alone
+changes nothing until the containers are recreated. Two more things that bite here: several
+files share the basename `page.tsx`, so `scp a/page.tsx b/page.tsx <host>:dir/` silently keeps
+only the last — copy each to its own directory and **md5 the results against local**; and the
+`web` image bakes `NEXT_PUBLIC_*` **build args**, so rebuilding with an incomplete `deploy/.env`
+ships a site with the Turnstile check and Google button quietly missing.
 
 Host `deploy` and the container's `app` user are **both uid 1000**, which is why
 `exchange/` can be 0700 and the container still writes to it.
