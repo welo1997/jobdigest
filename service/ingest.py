@@ -24,7 +24,7 @@ from search_jobs import (  # noqa: E402
     dedup_key, eligibility, gather, is_part_time,
     seniority, work_region, work_type,
 )
-from service import store, taxonomy  # noqa: E402
+from service import geo, store, taxonomy  # noqa: E402
 
 logger = logging.getLogger("service.ingest")
 
@@ -36,13 +36,19 @@ role_category = taxonomy.classify
 
 
 def build_row(p) -> dict:
-    region = work_region(p.location, p.country_code)
+    # Resolve the free-text location into (country, city) before anything else: most boards
+    # send no country_code at all (Greenhouse, Lever, Remotive, LinkedIn all pass None), so
+    # the resolved value is what makes country- and city-level preferences possible — and it
+    # sharpens `region`/`eligibility` too, which previously read "Berlin" as region 'other'.
+    country_code, city = geo.resolve_location(p.location, p.country_code)
+    remote = geo.is_fully_remote(p.location, p.description, p.remote_signal)
+    region = work_region(p.location, country_code)
     text = f"{p.title or ''} {p.location or ''} {p.description or ''}"
     return {
         "posting_id": p.posting_id, "source": p.source, "title": p.title,
         "company": p.company, "url": p.url, "description": p.description,
-        "location": p.location, "country_code": p.country_code,
-        "remote_signal": p.remote_signal, "salary_raw": p.salary_raw,
+        "location": p.location, "country_code": country_code, "city": city,
+        "remote_signal": remote, "salary_raw": p.salary_raw,
         "currency": p.currency, "posted_at": p.posted_at,
         "role_category": role_category(p.title, getattr(p, "source_category", None)),
         "region": region,

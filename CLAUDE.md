@@ -64,6 +64,19 @@ twice and is never pruned.
 
 ### Tables (Postgres)
 
+**Location preferences live in `service/geo.py`** — countries (EU-27), the curated cities per
+country, the free-text→(country, city) resolver, and the SQL gate. A subscriber picks
+countries, optionally specific cities per country (naming none means "any city there"), and a
+separate `remote_scope` (`country` | `eu` | `worldwide`) for *fully* remote roles. Three rules
+that are easy to break: **hybrid is not remote** (that is the point — a hybrid Brno role must
+stay excluded for a Prague subscriber), **unknown country/city is kept** and left for the AI
+matcher, since `postings.country_code` is null for whole sources and a typed city can never
+equal a resolved slug, and **`profiles.regions` is derived** from the new fields on every write
+— it is a coarse backstop for old clients, never the filter. `web/lib/geo.ts` mirrors the two
+data tables for the browser; `service/tests/test_geo.py` fails on drift, and
+`test_geo_sql.py` pins the gate's behaviour against a real Postgres (needs
+`TEST_DATABASE_URL`, skipped otherwise).
+
 `postings` · `profiles` (a subscription: preferences, tokens, CV summary) · `matches` ·
 `digest_sends` · `suppression` (never-contact list, outlives the profile) · `events`
 (cookieless analytics) · `events_daily` (rollups).
@@ -192,6 +205,10 @@ These are not style preferences. Breaking one has consequences outside this repo
 - Credentials via env vars only. `python-dotenv` locally.
 - dbt naming: `stg_` / `int_` / `agg_` / `fct_`, no exceptions.
 - No hardcoded thresholds or weights — seeds and env vars.
+- Geography has **one** definition: `service/geo.py` (mirrored in `web/lib/geo.ts`, drift-tested).
+  Adding a city means: slug + display name in `CITIES`, any local spelling in `CITY_ALIASES`,
+  regenerate/extend the TS mirror, run tests, then `python -m service.backfill_geo` so existing
+  postings resolve to it.
 - `role_category` has **one** definition: `service/taxonomy.py`. The dbt YAML and
   `web/app/page.tsx` cannot import it, so tests assert they do not drift. Adding a category
   means: pattern, subject word, shortlist keywords, dbt `accepted_values`, run tests.

@@ -19,7 +19,8 @@ create table if not exists postings (
     description    text,
     location       text,
     country_code   varchar(2),
-    remote_signal  boolean,
+    city           text,                            -- resolved slug ('prague'), null = unknown
+    remote_signal  boolean,                          -- true only when FULLY remote, not hybrid
     salary_raw     text,
     currency       text,
     posted_at      date,
@@ -48,6 +49,7 @@ create table if not exists postings (
 );
 
 create index if not exists idx_postings_active     on postings (is_active, last_seen_at desc);
+create index if not exists idx_postings_geo         on postings (country_code, city);
 create index if not exists idx_postings_filters     on postings (role_category, region, seniority, work_type);
 create index if not exists idx_postings_eligibility on postings (eligibility);
 create index if not exists idx_postings_dedup       on postings (dedup_key);
@@ -65,7 +67,13 @@ create table if not exists profiles (
     label           text not null default 'My search',
     stack           text[]  not null default '{}',  -- ['dbt','snowflake','python','sql']
     seniorities     text[]  not null default '{junior,mid}',
-    regions         text[]  not null default '{cz,eu,worldwide}',
+    -- Location preferences (migration 010). `countries`/`cities`/`remote_scope` are what the
+    -- filter reads; `regions` is derived from them on every write and kept only so the matcher
+    -- export and older clients keep working. See service/geo.py for the one definition.
+    countries       text[]  not null default '{}',  -- ISO-2, e.g. {CZ,DE}
+    cities          text[]  not null default '{}',  -- {cz:prague}; no entry = any city there
+    remote_scope    text    not null default 'eu',  -- country | eu | worldwide (fully remote)
+    regions         text[]  not null default '{cz,eu,worldwide}',   -- derived, coarse
     role_categories text[]  not null default '{}',  -- empty = all data roles
     work_types      text[]  not null default '{permanent,freelance/contract}',
     part_time_only  boolean not null default false,

@@ -52,7 +52,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, RedirectResponse
 from pydantic import BaseModel, EmailStr, Field, field_validator
 
-from service import cvparse, links, mailer, store, taxonomy, transactional
+from service import cvparse, geo, links, mailer, store, taxonomy, transactional
 from service.digest import C, SANS, SERIF
 
 # Where users land back (frontend). Used for the "homepage" links on API-served pages.
@@ -253,12 +253,80 @@ def _check_role_categories(v: Optional[list[str]]) -> Optional[list[str]]:
     return v
 
 
-class SubscribeIn(BaseModel):
+def _check_countries(v: Optional[list[str]]) -> Optional[list[str]]:
+    """Reject country codes we don't know.
+
+    Same reasoning as `_check_role_categories`: a value the filter can never match is worse
+    than an error, because nothing anywhere reports it — the subscriber simply never sees a
+    job from a country they believe they selected.
+    """
+    if v is None:
+        return v
+    codes = [str(c).strip().upper() for c in v]
+    unknown = sorted(set(codes) - set(geo.KNOWN_COUNTRIES))
+    if unknown:
+        raise ValueError(
+            f"unknown countries: {', '.join(unknown)}. "
+            f"Valid values: {', '.join(sorted(geo.COUNTRIES))}"
+        )
+    return codes
+
+
+def _check_cities(v: Optional[list[str]]) -> Optional[list[str]]:
+    """A city preference is ``<country>:<slug>`` — e.g. ``cz:prague``.
+
+    The slug need NOT be one we curated: the form lets people type a town we don't list, and
+    such a value still reaches the AI matcher. It cannot reach the SQL gate (nothing in
+    `postings.city` will ever equal it) — see `geo.location_predicate` for why that only
+    costs precision. The country half must be real, or the value can never apply to anything.
+    """
+    if v is None:
+        return v
+    if len(v) > geo.MAX_CITIES:
+        raise ValueError(f"too many cities (max {geo.MAX_CITIES})")
+    parsed = [(str(x), geo.split_city(x)) for x in v]
+    bad = [raw for raw, (country, _) in parsed if country is None]
+    if bad:
+        raise ValueError(
+            f"malformed cities: {', '.join(bad[:5])}. "
+            "Expected '<country>:<city-slug>', e.g. 'cz:prague'."
+        )
+    return [geo.qualify(country, slug) for _, (country, slug) in parsed if country and slug]
+
+
+def _check_remote_scope(v: Optional[str]) -> Optional[str]:
+    if v is None:
+        return v
+    scope = str(v).strip().lower()
+    if scope not in geo.REMOTE_SCOPES:
+        raise ValueError(f"unknown remote_scope: {v}. "
+                         f"Valid values: {', '.join(geo.REMOTE_SCOPES)}")
+    return scope
+
+
+class LocationFieldsMixin(BaseModel):
+    """The location preferences, shared by every form that can set them.
+
+    `countries`/`cities`/`remote_scope` are what the filter reads; `regions` is accepted only
+    so an older client still works and is re-derived server-side (`store._location_prefs`).
+    The defaults reproduce the legacy `regions` default exactly, so a caller that sends no
+    location fields at all gets the behaviour it got before this existed.
+    """
+    countries: list[str] = Field(default_factory=lambda: ["CZ"])
+    cities: list[str] = Field(default_factory=list)
+    remote_scope: str = "worldwide"
+    regions: list[str] = Field(default_factory=lambda: ["cz", "eu", "worldwide"])
+
+    _valid_countries = field_validator("countries")(_check_countries)
+    _valid_cities = field_validator("cities")(_check_cities)
+    _valid_scope = field_validator("remote_scope")(_check_remote_scope)
+
+
+class SubscribeIn(LocationFieldsMixin):
     email: EmailStr
     label: str = "My digest"
     stack: list[str] = Field(default_factory=list)
     seniorities: list[str] = Field(default_factory=lambda: ["junior", "mid"])
-    regions: list[str] = Field(default_factory=lambda: ["cz", "eu", "worldwide"])
     role_categories: list[str] = Field(default_factory=list)
     work_types: list[str] = Field(default_factory=lambda: ["permanent", "freelance/contract"])
     part_time_only: bool = False
@@ -390,11 +458,10 @@ def manage_link(body: ManageLinkIn) -> dict:
 # digest still delivers the real AI-ranked version — this is only a "here are live jobs now"
 # first impression. Deliberately key-less, so it never touches the billing decision.
 
-class PreviewIn(BaseModel):
+class PreviewIn(LocationFieldsMixin):
     label: str = "My digest"
     stack: list[str] = Field(default_factory=list)
     seniorities: list[str] = Field(default_factory=lambda: ["junior", "mid"])
-    regions: list[str] = Field(default_factory=lambda: ["cz", "eu", "worldwide"])
     role_categories: list[str] = Field(default_factory=list)
     work_types: list[str] = Field(default_factory=lambda: ["permanent", "freelance/contract"])
     part_time_only: bool = False
@@ -528,7 +595,8 @@ def confirm(token: str) -> HTMLResponse:
 
 # --------------------------------------------------------------- preferences ---
 
-_PUBLIC_FIELDS = ["email", "status", "label", "stack", "seniorities", "regions",
+_PUBLIC_FIELDS = ["email", "status", "label", "stack", "seniorities",
+                  "countries", "cities", "remote_scope", "regions",
                   "role_categories", "work_types", "part_time_only", "eligible_only",
                   "sectors", "min_score", "frequency", "has_cv", "cv_summary",
                   "years_experience", "paused_until"]
@@ -546,6 +614,12 @@ class PreferencesIn(BaseModel):
     label: Optional[str] = None
     stack: Optional[list[str]] = None
     seniorities: Optional[list[str]] = None
+    # Location: all four are optional here because `update_preferences` sends only what
+    # changed. `store._location_prefs` merges them against the stored row, so sending just
+    # `cities` still validates against the countries on file.
+    countries: Optional[list[str]] = None
+    cities: Optional[list[str]] = None
+    remote_scope: Optional[str] = None
     regions: Optional[list[str]] = None
     role_categories: Optional[list[str]] = None
     work_types: Optional[list[str]] = None
@@ -556,6 +630,9 @@ class PreferencesIn(BaseModel):
     frequency: Optional[str] = None
 
     _valid_roles = field_validator("role_categories")(_check_role_categories)
+    _valid_countries = field_validator("countries")(_check_countries)
+    _valid_cities = field_validator("cities")(_check_cities)
+    _valid_scope = field_validator("remote_scope")(_check_remote_scope)
 
 
 class SessionIn(BaseModel):
@@ -740,11 +817,10 @@ def google_pending(request: Request) -> dict:
     return {"email": email}
 
 
-class GoogleSubscribeIn(BaseModel):
+class GoogleSubscribeIn(LocationFieldsMixin):
     label: str = "My digest"
     stack: list[str] = Field(default_factory=list)
     seniorities: list[str] = Field(default_factory=lambda: ["junior", "mid"])
-    regions: list[str] = Field(default_factory=lambda: ["cz", "eu", "worldwide"])
     role_categories: list[str] = Field(default_factory=list)
     work_types: list[str] = Field(default_factory=lambda: ["permanent", "freelance/contract"])
     part_time_only: bool = False

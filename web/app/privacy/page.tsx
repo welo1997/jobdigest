@@ -24,7 +24,8 @@ export default function Privacy() {
           <p>We deliberately collect as little as possible:</p>
           <ul>
             <li><b>Your email address</b> — so we can send your digest and confirmation.</li>
-            <li><b>Your search preferences</b> — roles, skills/keywords, region, type of work, and
+            <li><b>Your search preferences</b> — roles, skills/keywords, the countries and cities
+              you want to work in, how far afield a fully remote role may be, type of work, and
               frequency, as you enter them.</li>
             <li><b>CV-derived signals</b> — if you upload a CV (optional), see section 4.</li>
             <li><b>Delivery records</b> — which jobs we&apos;ve already emailed you, so we never send
@@ -79,7 +80,8 @@ export default function Privacy() {
             the EU. Once a day we send it a file containing, for each subscriber:</p>
           <ul>
             <li>a random identifier — <b>not your email address, and not your name</b>;</li>
-            <li>your stated preferences (roles, skills, region, type of work);</li>
+            <li>your stated preferences (roles, skills, the countries and cities you chose, type
+              of work);</li>
             <li>your CV-derived summary line, if you uploaded one (section 4);</li>
             <li>the public job listings we are asking it to rank.</li>
           </ul>
@@ -105,7 +107,8 @@ export default function Privacy() {
             failed&quot;. This is done <b>without cookies</b>, and specifically:</p>
           <ul>
             <li>We <b>never store your IP address</b> — not in raw form, and not hashed. The only
-              location we keep is your <b>country</b>.</li>
+              location we derive from your connection is your <b>country</b>. (The cities in your
+              search preferences are different: you choose those yourself — see section 2.)</li>
             <li>We store a coarse browser family (e.g. &quot;firefox&quot;), never the full
               browser fingerprint or user-agent string.</li>
             <li>Events are grouped by a random identifier that lives only in your browser tab and is

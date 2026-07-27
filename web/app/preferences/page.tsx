@@ -10,6 +10,8 @@ import {
   unsubscribeSession, unsubscribeUrl, updatePreferences,
 } from "@/lib/api";
 import { cap } from "@/lib/preview";
+import { LocationPicker, LocationValue } from "@/components/LocationPicker";
+import { REMOTE_SCOPES, RemoteScope } from "@/lib/geo";
 
 const FREqS = ["daily", "weekdays", "weekly"];
 // Chip vocabularies mirror the signup wizard (web/app/page.tsx) so both forms speak the same
@@ -32,16 +34,28 @@ const LABEL_FOR_SLUG: Record<string, string> = {
   product: "Product Manager", design: "Designer", social_media: "Social Media",
   other_tech_function: "Marketing",
 };
-const REGION_LABEL_TO_CODES: Record<string, string[]> = {
-  "Czechia": ["cz"], "EU remote": ["cz", "eu"], "Worldwide remote": ["cz", "eu", "worldwide"],
-};
-function regionLabel(codes: string[]): string {
-  const key = [...codes].sort().join(",");
-  if (key === "cz") return "Czechia";
-  if (key === "cz,eu") return "EU remote";
-  return "Worldwide remote";
-}
 const prettify = (c: string) => c.replace(/_/g, " ").replace(/\b\w/g, (m) => m.toUpperCase());
+
+// A subscription created before city-level preferences existed still carries only the coarse
+// `regions` bucket. Translate it the same way the migration does, so the form opens on what
+// the filter is actually doing rather than on an empty country list.
+function locationFrom(p: Preferences): LocationValue {
+  if (p.countries && p.countries.length) {
+    return {
+      countries: p.countries,
+      cities: p.cities || [],
+      remoteScope: (REMOTE_SCOPES as readonly string[]).includes(p.remote_scope)
+        ? (p.remote_scope as RemoteScope) : "eu",
+    };
+  }
+  const regions = p.regions || [];
+  return {
+    countries: ["CZ"],
+    cities: [],
+    remoteScope: regions.includes("worldwide") ? "worldwide"
+      : regions.includes("eu") ? "eu" : "country",
+  };
+}
 
 const SENIORITY_OPTS = ["Intern / Junior", "Mid", "Senior"];
 const SENIORITY_CODE: Record<string, string> = { "Intern / Junior": "junior", "Mid": "mid", "Senior": "senior" };
@@ -67,7 +81,9 @@ function Inner() {
   const [addRole, setAddRole] = useState("");
   const [addSkill, setAddSkill] = useState("");
   const [freq, setFreq] = useState("daily");
-  const [regionSel, setRegionSel] = useState("EU remote");
+  const [loc, setLoc] = useState<LocationValue>({
+    countries: ["CZ"], cities: [], remoteScope: "eu",
+  });
   const [levels, setLevels] = useState<Set<string>>(new Set());
 
   type SetSetter = (updater: (prev: Set<string>) => Set<string>) => void;
@@ -99,7 +115,7 @@ function Inner() {
       setSkillOpts([...new Set([...SKILL_OPTS, ...skillLabels])]);
       setSkillSet(new Set(skillLabels));
       setFreq(FREqS.includes(p.frequency) ? p.frequency : "daily");
-      setRegionSel(regionLabel(p.regions));
+      setLoc(locationFrom(p));
       setLevels(new Set((p.seniorities || []).map((c) => CODE_SENIORITY[c]).filter(Boolean)));
     };
 
@@ -155,7 +171,11 @@ function Inner() {
         role_categories: roleSlugs,
         stack: [...new Set([...skillSet, ...freeRoles].map((s) => s.trim().toLowerCase()).filter(Boolean))],
         frequency: freq,
-        regions: REGION_LABEL_TO_CODES[regionSel] || ["cz", "eu", "worldwide"],
+        // No country selected would mean "nowhere". Fall back to the home market rather than
+        // saving a filter that can never match — the same choice the server-side default makes.
+        countries: loc.countries.length ? loc.countries : ["CZ"],
+        cities: loc.cities,
+        remote_scope: loc.remoteScope,
         seniorities: seniorities.length ? seniorities : ["junior", "mid", "senior"],
       }, tokenRef.current || undefined);
       setPrefs(updated);
@@ -279,23 +299,15 @@ function Inner() {
               ))}
             </div>
           </div>
-          <div className="row2">
-            <div className="field">
-              <label htmlFor="p-freq">Frequency</label>
-              <select id="p-freq" value={freq} onChange={(e) => setFreq(e.target.value)}>
-                <option value="daily">Daily</option>
-                <option value="weekdays">Weekdays only</option>
-                <option value="weekly">Weekly (Mondays)</option>
-              </select>
-            </div>
-            <div className="field">
-              <label htmlFor="p-region">Where</label>
-              <select id="p-region" value={regionSel} onChange={(e) => setRegionSel(e.target.value)}>
-                <option>Czechia</option>
-                <option>EU remote</option>
-                <option>Worldwide remote</option>
-              </select>
-            </div>
+          <LocationPicker value={loc} onChange={setLoc} idPrefix="p" />
+
+          <div className="field">
+            <label htmlFor="p-freq">Frequency</label>
+            <select id="p-freq" value={freq} onChange={(e) => setFreq(e.target.value)}>
+              <option value="daily">Daily</option>
+              <option value="weekdays">Weekdays only</option>
+              <option value="weekly">Weekly (Mondays)</option>
+            </select>
           </div>
 
           <div className="pause-row">

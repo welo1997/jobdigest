@@ -30,7 +30,7 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from search_jobs import seniority_stated  # noqa: E402
-from service import store  # noqa: E402
+from service import geo, store  # noqa: E402
 
 logger = logging.getLogger("service.matcher")
 
@@ -56,6 +56,15 @@ senior/lead/principal role for a junior-only subscriber, or a junior/graduate/in
 a senior-only subscriber — even if the role, skills and location fit perfectly; give it a \
 score below 4 so it is dropped. Candidates whose level the posting never stated are marked \
 `seniority=unstated`: those are NOT mismatches, so judge them on overall fit like any other.
+- Location is a HARD filter for anything that is not fully remote. The profile's "Locations" \
+line lists the countries the subscriber can work in and, where they named specific cities, \
+those cities. A posting that requires being somewhere else — another city, or a country they \
+did not pick — is not a fit however well the role matches: score it below 4. Being emailed an \
+on-site job in Brno when you live in Prague is the failure this rule exists to prevent. Only a \
+FULLY remote posting is exempt (those are marked `remote=yes`): "hybrid" is not remote, it \
+means being in that city most weeks. A candidate marked `city=?` is one whose location text we \
+could not parse — the prefilter deliberately lets those through, so read its location yourself \
+and judge it rather than assuming it fits.
 - Work schedule: if the profile says "part-time only", a posting that is full-time (or does \
 not offer a part-time option) is not what this person asked for. Score it at most 5 — it can \
 still appear on their matches page as a weaker option, but it must not headline their email. \
@@ -78,12 +87,19 @@ def _profile_block(p: dict) -> str:
         v = p.get(key) or []
         return ", ".join(str(x) for x in v) if v else "—"
 
+    # Where they can actually work. `regions` is only the coarse derived bucket, so it is the
+    # fallback for a profile that predates city-level preferences — for everyone else this
+    # names the countries and, per country, the cities that on-site work has to be in.
+    locations = geo.describe(p.get("countries"), p.get("cities"), p.get("remote_scope"))
+    if locations == "—":
+        locations = _join("regions")
+
     lines = [
         f"Label: {p.get('label') or '—'}",
         f"Target roles: {_join('role_categories')}",
         f"Skills / stack: {_join('stack')}",
         f"Seniority: {_join('seniorities')}",
-        f"Regions / locations: {_join('regions')}",
+        f"Locations (on-site work must be in one of these): {locations}",
         f"Work types: {_join('work_types')}",
         f"Sectors of interest: {_join('sectors')}",
     ]
@@ -110,6 +126,20 @@ def _seniority_for_model(c: dict) -> str:
     return c.get("seniority") or "unstated"
 
 
+def _city_for_model(c: dict) -> str:
+    """The candidate's resolved city, or '?' when the free-text location didn't resolve.
+
+    '?' is load-bearing rather than cosmetic: the SQL prefilter deliberately keeps postings
+    with an unresolved city (see `geo.location_predicate`), so the model has to know which
+    ones it is being asked to judge from the raw location text instead of trusting the gate.
+    """
+    slug = c.get("city")
+    if not slug:
+        return "?"
+    country = (c.get("country_code") or "").upper()
+    return geo.CITIES.get(country, {}).get(slug) or slug.replace("-", " ")
+
+
 def _candidates_block(shortlist: list[dict]) -> tuple[str, dict[int, str]]:
     """Render candidates for the prompt + return {index -> posting_id}."""
     index_map: dict[int, str] = {}
@@ -120,7 +150,9 @@ def _candidates_block(shortlist: list[dict]) -> tuple[str, dict[int, str]]:
         salary = c.get("salary_raw") or ""
         rows.append(
             f"[{i}] {c.get('title') or '?'} @ {c.get('company') or '?'}\n"
-            f"    location={c.get('location') or '?'} region={c.get('region') or '?'} "
+            f"    location={c.get('location') or '?'} city={_city_for_model(c)} "
+            f"remote={'yes' if c.get('remote_signal') else 'no'} "
+            f"region={c.get('region') or '?'} "
             f"seniority={_seniority_for_model(c)} work={c.get('work_type') or '?'}"
             + (" part_time=yes" if c.get("is_part_time") else "")
             + (f" salary={salary}" if salary else "")
@@ -184,6 +216,14 @@ ROUTINE_INSTRUCTIONS = (
     "junior/graduate/intern role for a senior-only subscriber — even if everything else fits "
     "(omit it / score it below 4). A candidate with \"seniority\":\"unstated\" never named a "
     "level and is NOT a mismatch — judge it on overall fit. "
+    "Treat location as a HARD filter for anything that is not fully remote: the profile's "
+    "\"locations\" line names the countries and, where given, the exact cities the subscriber "
+    "can work in. A posting requiring presence anywhere else — another city, or a country they "
+    "did not pick — is not a fit however well the role matches (omit it / score it below 4); "
+    "being emailed an on-site job in Brno when you live in Prague is the failure this prevents. "
+    "Only \"remote\":true candidates are exempt — \"hybrid\" is not remote. A candidate with "
+    "\"city\":\"?\" did not resolve to a known city: read its \"location\" text and judge it "
+    "yourself rather than assuming the prefilter checked it. "
     "If the profile has \"part_time_only\":true, a full-time posting is not what they asked "
     "for: score it at most 5 (it still shows on their matches page, it just must not headline "
     "the email) and prefer candidates with \"part_time\":true. Postings may be "
@@ -199,6 +239,17 @@ def _profile_export(p: dict) -> dict:
     keys = ["label", "role_categories", "stack", "seniorities", "regions",
             "work_types", "sectors", "years_experience", "cv_summary"]
     out = {k: p.get(k) for k in keys if p.get(k) not in (None, [], "")}
+    # Location, twice over: the structured fields so the rule is machine-checkable, and one
+    # plain sentence because that is what the model actually reasons over. Both are derived
+    # from the same source, so they cannot disagree.
+    locations = geo.describe(p.get("countries"), p.get("cities"), p.get("remote_scope"))
+    if locations != "—":
+        out["locations"] = locations
+        out["countries"] = geo.clean_countries(p.get("countries"))
+        cities = geo.clean_cities(p.get("cities"), p.get("countries"))
+        if cities:
+            out["cities"] = cities
+        out["remote_scope"] = geo.clean_remote_scope(p.get("remote_scope"))
     # Only when true: an explicit "part_time_only": false in every profile is noise the model
     # has to read past, and false is already the default reading of its absence.
     if p.get("part_time_only"):
@@ -211,6 +262,7 @@ def _candidate_export(c: dict) -> dict:
     return {
         "posting_id": c["posting_id"], "title": c.get("title"), "company": c.get("company"),
         "location": c.get("location"), "region": c.get("region"),
+        "city": _city_for_model(c), "remote": bool(c.get("remote_signal")),
         "seniority": _seniority_for_model(c), "work_type": c.get("work_type"),
         "part_time": bool(c.get("is_part_time")),
         "salary": c.get("salary_raw"), "description": desc,

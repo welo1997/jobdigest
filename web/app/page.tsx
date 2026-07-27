@@ -14,10 +14,10 @@ import {
   subscribe, subscribeGoogle, SubscribePayload,
 } from "@/lib/api";
 import { track } from "@/lib/analytics";
+import { LocationPicker, LocationValue } from "@/components/LocationPicker";
 
 const ROLE_OPTS = ["Product Manager", "Marketing", "Social Media", "Data Analyst", "Designer", "Software Engineer", "Data Engineer", "DevOps", "Finance"];
 const SKILL_OPTS = ["SQL", "Figma", "Analytics", "Excel", "Python", "SEO", "Looker", "Roadmapping", "Power BI", "dbt"];
-const REGION_OPTS = ["Czechia", "EU remote", "Worldwide", "Hybrid Prague"];
 const WORK_OPTS = ["Full-time", "Freelance", "Part-time"];
 const SENIORITY_OPTS = ["Intern / Junior", "Mid", "Senior"];
 
@@ -39,9 +39,11 @@ const ROLE_CAT: Record<string, string> = {
   "Social Media": "social_media",
   "Marketing": "other_tech_function", "Finance": "other_tech_function",
 };
-const REGION_CODES: Record<string, string[]> = {
-  "Czechia": ["cz"], "EU remote": ["cz", "eu"], "Worldwide": ["cz", "eu", "worldwide"],
-  "Hybrid Prague": ["cz"],
+// Opens on the home market with no city restriction: "Czechia, any city, plus remote from
+// anywhere in the EU" — the widest sensible default, so a subscriber who skips this step is
+// never narrowed by a choice they did not make.
+const DEFAULT_LOCATION: LocationValue = {
+  countries: ["CZ"], cities: [], remoteScope: "eu",
 };
 const CV_ROLE_LABEL: Record<string, string> = {
   data_engineering: "Data Engineer", data_analysis: "Data Analyst",
@@ -69,7 +71,7 @@ export default function Landing() {
   const [skillOpts, setSkillOpts] = useState(SKILL_OPTS);
   const [roles, setRoles] = useState<Set<string>>(new Set(["Product Manager", "Marketing", "Data Analyst", "Designer"]));
   const [skills, setSkills] = useState<Set<string>>(new Set(["SQL", "Figma", "Analytics"]));
-  const [region, setRegion] = useState("EU remote");
+  const [loc, setLoc] = useState<LocationValue>(DEFAULT_LOCATION);
   const [work, setWork] = useState<Set<string>>(new Set(["Full-time", "Freelance"]));
   const [levels, setLevels] = useState<Set<string>>(new Set(["Intern / Junior", "Mid"]));
   const [email, setEmail] = useState("");
@@ -111,7 +113,7 @@ export default function Landing() {
   const saveWizardState = () => {
     try {
       sessionStorage.setItem("jd_google_wiz", JSON.stringify({
-        roleOpts, skillOpts, roles: [...roles], skills: [...skills], region,
+        roleOpts, skillOpts, roles: [...roles], skills: [...skills], loc,
         work: [...work], levels: [...levels], cvSignals, step,
       }));
     } catch {}
@@ -130,7 +132,7 @@ export default function Landing() {
         setSkillOpts(s.skillOpts || SKILL_OPTS);
         setRoles(new Set<string>(s.roles || []));
         setSkills(new Set<string>(s.skills || []));
-        setRegion(s.region || "EU remote");
+        setLoc(s.loc && s.loc.countries?.length ? s.loc : DEFAULT_LOCATION);
         setWork(new Set<string>(s.work || []));
         setLevels(new Set<string>(s.levels || []));
         setCvSignals(s.cvSignals || null);
@@ -257,7 +259,9 @@ export default function Landing() {
       label: "My digest",
       stack: [...skills].map((s) => s.toLowerCase()),
       role_categories: [...roles].map((r) => ROLE_CAT[r]).filter(Boolean),
-      regions: REGION_CODES[region] || ["cz", "eu", "worldwide"],
+      countries: loc.countries.length ? loc.countries : ["CZ"],
+      cities: loc.cities,
+      remote_scope: loc.remoteScope,
       work_types: workTypes.length ? workTypes : ["permanent", "freelance/contract"],
       part_time_only: partTimeOnly,
       sectors: cvSignals?.sectors || [],
@@ -323,7 +327,8 @@ export default function Landing() {
   const levelCodes = new Set([...levels].map((l) => SENIORITY_CODE[l]).filter(Boolean));
   // Seniority is a hard filter now, so a one-level + one-role + single-country search can
   // starve matches. Flag the tightest combos so we can nudge (not block) before submit.
-  const narrow = levels.size === 1 && roles.size <= 1 && region === "Czechia";
+  const narrow = levels.size === 1 && roles.size <= 1
+    && loc.countries.length <= 1 && loc.remoteScope === "country";
 
   // Per-step guard: advancing shouldn't leave a required choice empty (which would silently
   // fall back to defaults and mismatch what the user thinks they picked).
@@ -454,12 +459,11 @@ export default function Landing() {
                 {step === 2 && (
                   <div className="wz-panel">
                     <div className="wz-q">Where &amp; how?</div>
-                    <p className="wz-hint">Location first.</p>
-                    <div className="chips">
-                      {REGION_OPTS.map((o) => (
-                        <Chip key={o} label={o} on={region === o} toggle={() => setRegion(o)} />
-                      ))}
-                    </div>
+                    <p className="wz-hint">
+                      Location first — pick the cities you could actually commute to. On-site
+                      roles anywhere else are dropped; fully remote ones are not.
+                    </p>
+                    <LocationPicker value={loc} onChange={setLoc} idPrefix="wz" />
                     <p className="wz-hint" style={{ marginTop: 16 }}>Type of work — tap all that fit.</p>
                     <div className="chips">
                       {WORK_OPTS.map((o) => (
@@ -474,7 +478,7 @@ export default function Landing() {
                     </div>
                     {narrow && (
                       <p className="wz-hint" style={{ marginTop: 10, color: "var(--gold, #C98A18)" }}>
-                        That&apos;s a narrow search — you may get few matches. Add a level, role, or widen your region to see more.
+                        That&apos;s a narrow search — you may get few matches. Add a level, role, or another city to see more.
                       </p>
                     )}
                   </div>

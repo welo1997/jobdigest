@@ -17,6 +17,11 @@ export interface SubscribePayload {
   label?: string;
   stack?: string[];
   seniorities?: string[];
+  // Location: `countries`/`cities`/`remote_scope` are what the matcher filters on. `regions`
+  // is the legacy coarse bucket, derived server-side — send it only if you have nothing else.
+  countries?: string[];
+  cities?: string[];
+  remote_scope?: string;
   regions?: string[];
   role_categories?: string[];
   work_types?: string[];
@@ -35,6 +40,9 @@ export interface Preferences {
   label: string;
   stack: string[];
   seniorities: string[];
+  countries: string[];
+  cities: string[];
+  remote_scope: string;
   regions: string[];
   role_categories: string[];
   work_types: string[];

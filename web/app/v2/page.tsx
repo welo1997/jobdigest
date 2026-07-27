@@ -8,10 +8,10 @@ import Turnstile, { turnstileEnabled, TurnstileHandle } from "@/components/Turns
 import { useToast } from "@/components/useToast";
 import { cap } from "@/lib/preview";
 import { CVSignals, parseCV, subscribe, SubscribePayload } from "@/lib/api";
+import { LocationPicker, LocationValue } from "@/components/LocationPicker";
 
 const ROLE_OPTS = ["Product Manager", "Marketing", "Social Media", "Data Analyst", "Designer", "Software Engineer", "Data Engineer", "DevOps", "Finance"];
 const SKILL_OPTS = ["SQL", "Figma", "Analytics", "Excel", "Python", "SEO", "Looker", "Roadmapping", "Power BI", "dbt"];
-const REGION_OPTS = ["Czechia", "EU remote", "Worldwide", "Hybrid Prague"];
 const WORK_OPTS = ["Full-time", "Freelance", "Part-time"];
 
 // display role -> role_category (mirrors service.ingest role rules)
@@ -22,9 +22,9 @@ const ROLE_CAT: Record<string, string> = {
   "Social Media": "social_media",
   "Marketing": "other_tech_function", "Finance": "other_tech_function",
 };
-const REGION_CODES: Record<string, string[]> = {
-  "Czechia": ["cz"], "EU remote": ["cz", "eu"], "Worldwide": ["cz", "eu", "worldwide"],
-  "Hybrid Prague": ["cz"],
+// Same default as the main wizard: home market, any city, remote from anywhere in the EU.
+const DEFAULT_LOCATION: LocationValue = {
+  countries: ["CZ"], cities: [], remoteScope: "eu",
 };
 const CV_ROLE_LABEL: Record<string, string> = {
   data_engineering: "Data Engineer", data_analysis: "Data Analyst",
@@ -51,7 +51,7 @@ export default function Landing() {
   const [skillOpts, setSkillOpts] = useState(SKILL_OPTS);
   const [roles, setRoles] = useState<Set<string>>(new Set(["Product Manager", "Marketing", "Data Analyst", "Designer"]));
   const [skills, setSkills] = useState<Set<string>>(new Set(["SQL", "Figma", "Analytics"]));
-  const [region, setRegion] = useState("EU remote");
+  const [loc, setLoc] = useState<LocationValue>(DEFAULT_LOCATION);
   const [work, setWork] = useState<Set<string>>(new Set(["Full-time", "Freelance"]));
   const [email, setEmail] = useState("");
   const [consent, setConsent] = useState(true);
@@ -152,7 +152,9 @@ export default function Landing() {
       label: "My digest",
       stack: [...skills].map((s) => s.toLowerCase()),
       role_categories: [...roles].map((r) => ROLE_CAT[r]).filter(Boolean),
-      regions: REGION_CODES[region] || ["cz", "eu", "worldwide"],
+      countries: loc.countries.length ? loc.countries : ["CZ"],
+      cities: loc.cities,
+      remote_scope: loc.remoteScope,
       work_types: workTypes.length ? workTypes : ["permanent", "freelance/contract"],
       part_time_only: partTimeOnly,
       sectors: cvSignals?.sectors || [],
@@ -302,12 +304,11 @@ export default function Landing() {
                 {step === 2 && (
                   <div className="wz-panel">
                     <div className="wz-q">Where &amp; how?</div>
-                    <p className="wz-hint">Location first.</p>
-                    <div className="chips">
-                      {REGION_OPTS.map((o) => (
-                        <Chip key={o} label={o} on={region === o} toggle={() => setRegion(o)} />
-                      ))}
-                    </div>
+                    <p className="wz-hint">
+                      Location first — pick the cities you could actually commute to. On-site
+                      roles anywhere else are dropped; fully remote ones are not.
+                    </p>
+                    <LocationPicker value={loc} onChange={setLoc} idPrefix="v2" />
                     <p className="wz-hint" style={{ marginTop: 16 }}>Type of work — tap all that fit.</p>
                     <div className="chips">
                       {WORK_OPTS.map((o) => (

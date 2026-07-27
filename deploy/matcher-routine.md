@@ -28,12 +28,16 @@ DB is Supabase). The routine only ever touches the two files.
     {
       "profile_id": "uuid",
       "profile": {"label": "...", "role_categories": ["product"], "stack": ["figma","sql"],
-                  "seniorities": ["mid"], "regions": ["cz"], "work_types": ["permanent"],
+                  "seniorities": ["mid"], "work_types": ["permanent"],
                   "part_time_only": true,
+                  "locations": "Czechia (Prague, Brno only); plus fully remote roles anywhere in the EU",
+                  "countries": ["CZ"], "cities": ["cz:prague","cz:brno"], "remote_scope": "eu",
+                  "regions": ["cz","eu"],
                   "sectors": ["ecommerce"], "years_experience": 3, "cv_summary": "..."},
       "candidates": [
         {"posting_id": "md5…", "title": "...", "company": "...", "location": "...",
-         "region": "cz", "seniority": "unstated", "work_type": "permanent",
+         "region": "cz", "city": "Brno", "remote": false,
+         "seniority": "unstated", "work_type": "permanent",
          "part_time": false,
          "salary": "45 000 – 90 000 Kč", "description": "…≤320 chars…"}
       ]
@@ -75,7 +79,7 @@ drifted once already: the part-time and `unstated`-seniority rules shipped in Py
 > You are JobDigest's daily job matcher. Read `shortlists.json`. For EACH subscriber, read
 > their `profile` and their `candidates`, and pick the postings that genuinely fit that
 > specific person — weigh the whole context (role type, seniority, skills/stack, work setup,
-> location/region, sector interest), not just keyword overlap.
+> location, sector interest), not just keyword overlap.
 >
 > Treat **seniority as a hard filter**: exclude any posting whose level clearly differs from
 > the subscriber's target seniority level(s) — a senior/lead role for a junior-only
@@ -84,6 +88,18 @@ drifted once already: the part-time and `unstated`-seniority rules shipped in Py
 > `seniority` is `"unstated"` never named a level at all — that is NOT a mismatch, judge it on
 > overall fit.** Most postings are `unstated`; treating them as exclusions would empty the
 > digest.
+>
+> Treat **location as a hard filter for anything that is not fully remote**. The profile's
+> `locations` line names the countries and, where given, the exact cities the subscriber can
+> work in (`countries` / `cities` / `remote_scope` say the same thing in structured form; a
+> city is written `"cz:prague"`). A posting that requires being anywhere else — another city,
+> or a country they did not pick — is not a fit however well the role matches: omit it, or
+> score it below 4. Being emailed an on-site job in Brno when you live in Prague is the
+> failure this rule exists to prevent. **Only `"remote": true` candidates are exempt** —
+> `"hybrid"` is not remote, it means being in that city most weeks. A candidate whose `city`
+> is `"?"` did not resolve to a city we recognise: the prefilter deliberately lets those
+> through, so read its `location` text and judge it yourself rather than assuming it was
+> checked. Naming no city for a country means any city in that country.
 >
 > **Work schedule**: if the profile has `"part_time_only": true`, a full-time posting is not
 > what they asked for — score it at most 5 (it still appears on their matches page, it just
@@ -105,7 +121,8 @@ drifted once already: the part-time and `unstated`-seniority rules shipped in Py
 
 `shortlists.json` carries no email addresses — a profile is identified only by its opaque
 uuid. It does still contain each subscriber's stated preferences and their CV-derived
-summary (e.g. "Detected: data engineering, dbt, snowflake · ~4 yrs"), so it is personal
+summary (e.g. "Detected: data engineering, dbt, snowflake · ~4 yrs") — including the cities
+they chose, which is a rough indication of where they live — so it is personal
 data: **do not commit it to the public repo** (`exchange/` is gitignored). It travels via a
 private Google Drive folder.
 

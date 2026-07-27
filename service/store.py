@@ -21,7 +21,7 @@ import psycopg2
 import psycopg2.extras
 from psycopg2.pool import ThreadedConnectionPool
 
-from service import taxonomy
+from service import geo, taxonomy
 
 _POOL: Optional[ThreadedConnectionPool] = None
 
@@ -61,7 +61,7 @@ def cursor(commit: bool = False):
 
 _UPSERT_SQL = """
 insert into postings (
-    posting_id, source, title, company, url, description, location, country_code,
+    posting_id, source, title, company, url, description, location, country_code, city,
     remote_signal, salary_raw, currency, posted_at,
     role_category, region, eligibility, seniority, work_type, is_part_time, dedup_key,
     last_seen_at, is_active
@@ -72,6 +72,7 @@ on conflict (posting_id) do update set
     description = excluded.description,
     location = excluded.location,
     country_code = excluded.country_code,
+    city = excluded.city,
     remote_signal = excluded.remote_signal,
     salary_raw = excluded.salary_raw,
     currency = excluded.currency,
@@ -93,7 +94,7 @@ def upsert_postings(rows: Iterable[dict]) -> int:
     values = [
         (
             r["posting_id"], r["source"], r.get("title"), r.get("company"), r["url"],
-            r.get("description"), r.get("location"), r.get("country_code"),
+            r.get("description"), r.get("location"), r.get("country_code"), r.get("city"),
             r.get("remote_signal"), r.get("salary_raw"), r.get("currency"),
             r.get("posted_at"),
             r.get("role_category"), r.get("region"), r.get("eligibility"),
@@ -104,7 +105,7 @@ def upsert_postings(rows: Iterable[dict]) -> int:
     ]
     if not values:
         return 0
-    template = ("(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,"
+    template = ("(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,"
                 "now(), true)")
     with cursor(commit=True) as cur:
         psycopg2.extras.execute_values(cur, _UPSERT_SQL, values, template=template,
@@ -221,9 +222,10 @@ def query_candidates(profile: dict, limit: int = 100) -> list[dict]:
     if profile.get("role_categories"):
         where.append("p.role_category = any(%s)")
         params.append(profile["role_categories"])
-    if profile.get("regions"):
-        where.append("p.region = any(%s)")
-        params.append(profile["regions"])
+    loc_sql, loc_params = geo.location_predicate(profile)
+    if loc_sql != "true":
+        where.append(loc_sql)
+        params.extend(loc_params)
     if profile.get("seniorities"):
         where.append("p.seniority = any(%s)")
         params.append(profile["seniorities"])
@@ -239,6 +241,7 @@ def query_candidates(profile: dict, limit: int = 100) -> list[dict]:
     sql = f"""
         select distinct on (coalesce(p.dedup_key, p.posting_id))
                p.posting_id, p.source, p.title, p.company, p.url, p.location,
+               p.city, p.country_code, p.remote_signal,
                p.region, p.eligibility, p.seniority, p.work_type, p.is_part_time,
                p.role_category, p.salary_raw, p.posted_at, p.description
         from postings p
@@ -317,9 +320,10 @@ def query_shortlist(profile: dict, limit: int = 120) -> list[dict]:
     where = ["p.is_active"]
     where_params: list[Any] = []
 
-    if profile.get("regions"):
-        where.append("p.region = any(%s)")
-        where_params.append(profile["regions"])
+    loc_sql, loc_params = geo.location_predicate(profile)
+    if loc_sql != "true":
+        where.append(loc_sql)
+        where_params.extend(loc_params)
     if profile.get("eligible_only", True):
         where.append("p.eligibility in ('eligible','verify UK right-to-work','unknown')")
 
@@ -347,7 +351,8 @@ def query_shortlist(profile: dict, limit: int = 120) -> list[dict]:
     order = ("d.is_part_time desc, d.last_seen_at desc" if profile.get("part_time_only")
              else "d.last_seen_at desc")
     sql = f"""
-        select posting_id, source, title, company, url, location,
+        select posting_id, source, title, company, url, location, city, country_code,
+               remote_signal,
                region, eligibility, seniority, work_type, is_part_time,
                role_category, salary_raw, currency, posted_at, description
         from (
@@ -360,6 +365,7 @@ def query_shortlist(profile: dict, limit: int = 120) -> list[dict]:
             from (
                 select distinct on (coalesce(p.dedup_key, p.posting_id))
                        p.posting_id, p.source, p.title, p.company, p.url, p.location,
+                       p.city, p.country_code, p.remote_signal,
                        p.region, p.eligibility, p.seniority, p.work_type, p.is_part_time,
                        p.role_category, p.salary_raw, p.currency, p.posted_at, p.description,
                        p.last_seen_at
@@ -417,11 +423,13 @@ def match_count(profile_id: str) -> int:
 # --- profiles ------------------------------------------------------------------
 
 def create_profile(user_id: str, data: dict) -> dict:
-    cols = ["user_id", "label", "stack", "seniorities", "regions", "role_categories",
+    data = {**data, **_location_prefs(data, ensure=True)}
+    cols = ["user_id", "label", "stack", "seniorities", "countries", "cities",
+            "remote_scope", "regions", "role_categories",
             "work_types", "part_time_only", "eligible_only", "sectors", "min_score"]
     vals = [user_id, data.get("label", "My search"), data.get("stack", []),
             data.get("seniorities", ["junior", "mid"]),
-            data.get("regions", ["cz", "eu", "worldwide"]),
+            data["countries"], data["cities"], data["remote_scope"], data["regions"],
             data.get("role_categories", []),
             data.get("work_types", ["permanent", "freelance/contract"]),
             data.get("part_time_only", False), data.get("eligible_only", True),
@@ -497,9 +505,59 @@ def set_match_status(profile_id: str, posting_id: str, status: str) -> None:
 
 # --- email subscriptions (v1 digest product) -----------------------------------
 
-_SUBSCRIBER_FIELDS = ["label", "stack", "seniorities", "regions", "role_categories",
+_SUBSCRIBER_FIELDS = ["label", "stack", "seniorities", "countries", "cities",
+                      "remote_scope", "regions", "role_categories",
                       "work_types", "part_time_only", "eligible_only", "sectors",
                       "min_score", "frequency"]
+
+_LOCATION_KEYS = ("countries", "cities", "remote_scope", "regions")
+
+
+def _location_prefs(data: dict, current: Optional[dict] = None, *,
+                    ensure: bool = False) -> dict:
+    """The location columns to write, normalised and mutually consistent.
+
+    One rule, applied on every write: `countries` / `cities` / `remote_scope` are the truth —
+    they are what `geo.location_predicate` filters on — and `regions` is *derived* from them.
+
+    Two paths have to be kept honest:
+
+      * A caller that sends only `regions` (an older client, or the pre-v1 API) is translated
+        the other way first. Writing its `regions` verbatim would leave the row's country list
+        contradicting it, i.e. the SQL filter and the matcher prompt disagreeing about where
+        the person wants to work — the exact class of silent mismatch this feature exists to
+        remove.
+      * A partial update that sends only `cities` is merged against the stored row, so a city
+        list is always validated against the countries actually selected.
+
+    Returns {} when the caller changed no location field, so a plain "change my frequency"
+    update does not rewrite four columns. `ensure=True` (subscription creation) always
+    produces a full set.
+    """
+    if not any(k in data for k in _LOCATION_KEYS):
+        if not ensure:
+            return {}
+        data = {"regions": ["cz", "eu", "worldwide"]}
+
+    base = dict(current or {})
+    merged = {k: (data[k] if k in data else base.get(k)) for k in _LOCATION_KEYS}
+    if "regions" in data and not any(k in data for k in _LOCATION_KEYS[:3]):
+        merged["countries"], merged["remote_scope"] = \
+            geo.countries_and_scope_from_regions(data["regions"])
+        merged["cities"] = []
+
+    countries = geo.clean_countries(merged.get("countries"))
+    if not countries:
+        countries, implied = geo.countries_and_scope_from_regions(merged.get("regions") or [])
+        if merged.get("remote_scope") is None:
+            merged["remote_scope"] = implied
+    scope = geo.clean_remote_scope(merged.get("remote_scope"))
+    return {
+        "countries": countries,
+        "cities": geo.clean_cities(merged.get("cities"), countries),
+        "remote_scope": scope,
+        "regions": geo.regions_for(countries, scope),
+    }
 
 
 def create_email_subscription(email: str, data: dict, *, confirmed: bool = False) -> Optional[dict]:
@@ -515,6 +573,7 @@ def create_email_subscription(email: str, data: dict, *, confirmed: bool = False
     `live_subscription_exists` first; this handles the rare concurrent-signup race, so one
     address can never fan out into two rows (which would mean two digests)."""
     email = email.strip().lower()
+    data = {**data, **_location_prefs(data, ensure=True)}
     now = datetime.now(timezone.utc)
     confirm_token = None if confirmed else secrets.token_urlsafe(32)
     manage_token = secrets.token_urlsafe(32)
@@ -528,7 +587,7 @@ def create_email_subscription(email: str, data: dict, *, confirmed: bool = False
         email, status, now, confirmed_at, confirm_token, manage_token,
         data.get("label", "My digest"), data.get("stack", []),
         data.get("seniorities", ["junior", "mid"]),
-        data.get("regions", ["cz", "eu", "worldwide"]),
+        data["countries"], data["cities"], data["remote_scope"], data["regions"],
         data.get("role_categories", []),
         data.get("work_types", ["permanent", "freelance/contract"]),
         data.get("part_time_only", False), data.get("eligible_only", True),
@@ -845,6 +904,12 @@ def confirm_subscription(confirm_token: str) -> tuple[Optional[dict], bool]:
 
 
 def update_subscription(manage_token: str, data: dict) -> Optional[dict]:
+    # Location fields are recomputed as a set, merged against the stored row: an update that
+    # touches only `cities` still has to be validated against the countries on file, and
+    # `regions` must be re-derived or it goes stale against them (see `_location_prefs`).
+    location = _location_prefs(data, current=get_by_manage_token(manage_token) or {})
+    if location:
+        data = {**data, **location}
     sets, params = [], []
     for f in _SUBSCRIBER_FIELDS:
         if f in data:
