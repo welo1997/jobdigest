@@ -86,7 +86,10 @@ _REMOTE_HINTS = ("z domu", "z domova", "domácej práce", "domaci prace",
 # here because Slovak inflects — "prácu z domu", not the "práce z domova" a search would try.
 # Declension is why these are matched as stems.
 _HYBRID_HINTS = ("občasn", "obcasn", "príležitostn", "prilezitostn", "prevažn", "převážn",
-                 "prevazn", "čiastočn", "ciastocn", "částečn", "castecn")
+                 "prevazn", "čiastočn", "ciastocn", "částečn", "castecn",
+                 # Profesia serves the same field in English on .sk: "Košice, Slovakia
+                 # (Job with occasional home office)".
+                 "occasional", "partial", "predominant", "mostly")
 
 
 def _remote_from_location(location: str | None) -> bool:

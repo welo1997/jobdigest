@@ -22,6 +22,13 @@ def test_occasional_work_from_home_czech_is_not_remote():
     assert _remote("Praha, Česko (Pozice umožňuje občasnou práci z domu)") is False
 
 
+def test_the_english_rendering_of_the_same_field():
+    """Profesia.sk serves this field in English too, so a Czech-only stem list misses it —
+    320 live postings, spotted in a real subscriber's shortlist while matching by hand."""
+    assert _remote("Košice, Slovakia (Job with occasional home office)") is False
+    assert _remote("Bratislava, Slovakia (Job with partial home office)") is False
+
+
 def test_predominantly_and_partially_are_not_remote():
     assert _remote("Košice (prevažne práca z domu)") is False
     assert _remote("Brno (částečně práce z domova)") is False

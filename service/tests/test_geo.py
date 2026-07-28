@@ -132,6 +132,15 @@ def test_an_english_in_office_schedule_beats_the_boards_remote_flag():
         "three days in the office per week.", True) is False
 
 
+def test_the_english_rendering_of_the_czech_grade():
+    """Profesia.sk writes the same graded field in English, and a Czech-only stem list is
+    blind to it: "Košice, Slovakia (Job with occasional home office)" (320 postings)."""
+    assert geo.is_fully_remote(
+        "Košice, Slovakia (Job with occasional home office)", "", True) is False
+    assert geo.is_fully_remote(
+        "Bratislava, Slovakia (Job with mostly home office)", "", True) is False
+
+
 def test_the_other_phrasings_ashby_actually_uses():
     """Each of these was missed by a single word on the first pass — "hybrid workING model",
     "N days a week FROM the office", "this IS A hybrid role" — and each is a named city."""

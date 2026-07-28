@@ -319,7 +319,10 @@ _NOT_REMOTE = re.compile(
 # perk, not a role someone in Brno can take. The qualifier must sit next to the home-office
 # phrase, because the words alone are far too common in body copy to disqualify a posting.
 _QUALIFIED_HOME_OFFICE = re.compile(
-    r"\b(obcasn\w*|prevazne|castecne|prilezitostn\w*|moznost)\s+(?:\w+\s+){0,2}"
+    r"\b(obcasn\w*|prevazne|castecne|prilezitostn\w*|moznost"
+    # Profesia's English UI writes the same grade in English: "Košice, Slovakia (Job with
+    # occasional home office)" — 320 further postings, and invisible to a Czech-only stem list.
+    r"|occasional\w*|partial\w*|predominant\w*|mostly)\s+(?:\w+\s+){0,2}"
     r"(z domova|z domu|home office)\b")
 # The English equivalent, and the same failure from a different source: Ashby postings say
 # "This role is based in Paris. We use a hybrid work model of 3 days in the office per week"
