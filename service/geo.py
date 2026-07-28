@@ -68,6 +68,24 @@ COUNTRY_ALIASES: dict[str, str] = {
     "cyprus": "CY", "malta": "MT",
     "united kingdom": "GB", "great britain": "GB", "england": "GB", "scotland": "GB",
     "united states": "US", "usa": "US",
+    # CZ/SK exonyms. A Czech or Slovak advert names the country in its own language, and
+    # without these the posting resolves to *no* country — which the location gate keeps,
+    # because an unknown country is left for the AI matcher. p09 (Prague-only) was therefore
+    # shown CNC machinist work in "Elburg, Netherlands", "Nemecko, Holandsko" and
+    # "Švajčiarsko": the text named the country outright and we simply could not read it.
+    "nemecko": "DE", "nemecku": "DE", "rakousko": "AT", "rakusko": "AT", "rakusku": "AT",
+    "holandsko": "NL", "holandsku": "NL", "nizozemi": "NL", "nizozemsko": "NL",
+    "polsko": "PL", "polsku": "PL", "madarsko": "HU", "madarsku": "HU",
+    "francie": "FR", "francuzsko": "FR", "spanelsko": "ES", "spanielsko": "ES",
+    "italie": "IT", "taliansko": "IT", "belgicko": "BE", "svedsko": "SE", "svedsku": "SE",
+    "dansko": "DK", "finsko": "FI", "irsko": "IE", "rumunsko": "RO", "bulharsko": "BG",
+    "chorvatsko": "HR", "slovinsko": "SI", "recko": "GR", "portugalsko": "PT",
+    "velka britanie": "GB", "anglie": "GB", "spojene state": "US",
+    # Not EU-27, so never offered as a *preference* — but naming it is what lets the gate
+    # exclude it, instead of the country reading as unknown and being kept.
+    "switzerland": "CH", "schweiz": "CH", "svycarsko": "CH", "svajciarsko": "CH",
+    "norway": "NO", "norge": "NO", "norsko": "NO",
+    "ukraine": "UA", "ukrajina": "UA", "serbia": "RS", "srbsko": "RS",
 }
 
 # --- cities --------------------------------------------------------------------
@@ -251,6 +269,22 @@ def _build_city_index() -> dict[str, list[tuple[str, str]]]:
 _CITY_INDEX = _build_city_index()
 _COUNTRY_INDEX = {normalise(k): v for k, v in COUNTRY_ALIASES.items()}
 _MAX_NGRAM = max(len(k.split()) for k in list(_CITY_INDEX) + list(_COUNTRY_INDEX))
+
+
+def is_place_term(word: str) -> bool:
+    """True if a single word names a city or country this module already filters on.
+
+    Exists to keep geography out of *keyword recall*. The location gate has already decided
+    where a subscriber will accept work, so a place name in their free-text label adds no
+    reach — it only lets any posting whose text happens to mention the place satisfy the
+    recall predicate. Observed on 2026-07-28: the label "Brno design" searched for **brno**
+    and returned a personal banker, a tobacconist's assistant, two librarians and an
+    upholsterer; the label "Germany" matched arbitrary's footer *"Find more English Speaking
+    Jobs in Germany"*, present on all 1 267 of its postings, so one word matched an entire
+    source. See `store._shortlist_terms`.
+    """
+    key = normalise(word)
+    return bool(key) and (key in _CITY_INDEX or key in _COUNTRY_INDEX)
 
 
 def _ngrams(tokens: list[str]) -> Iterable[tuple[int, str]]:

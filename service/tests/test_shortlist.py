@@ -146,8 +146,20 @@ def test_no_categories_degenerates_to_freshest_first(query):
 
 def test_part_time_only_still_sorts_within_each_bucket(query):
     sql = query({"role_categories": ["design"], "part_time_only": True})["sql"]
-    assert "d.is_part_time desc, d.last_seen_at desc" in sql       # inside the window
-    assert "r.is_part_time desc, r.last_seen_at desc" in sql       # and the outer tiebreak
+    assert "d.is_part_time desc, d.first_seen_at desc, d.rotation" in sql   # inside the window
+    assert "r.is_part_time desc, r.first_seen_at desc, r.rotation" in sql   # outer tiebreak
+
+
+def test_window_orders_by_first_seen_not_last_seen(query):
+    """`last_seen_at` is stamped once per ingest run, so ordering by it orders nothing: on
+    2026-07-28, 12 390 of 19 439 active postings shared a single value and the 120-row window
+    was resolved by physical scan order — stable, so the same subscriber saw the same 120
+    candidates every day forever. Ordering must be by `first_seen_at`, with a per-day hash
+    breaking the remaining ties so the backlog is sampled differently each day."""
+    sql = query(PROFILE)["sql"]
+    assert "d.first_seen_at desc, d.rotation" in sql
+    assert "last_seen_at desc" not in sql.split(") d")[1]   # not in the ranking, only dedup
+    assert "md5(p.posting_id || current_date::text) as rotation" in sql
 
 
 def test_dedup_still_happens_before_ranking(query):
@@ -219,3 +231,44 @@ def test_no_widening_reports_the_same_counts(monkeypatch):
     monkeypatch.setattr(store, "cursor", lambda commit=False: _RecordingCursor(sink))
     _, meta = store.query_shortlist_meta(PROFILE)
     assert meta == {"n": 30, "n_narrow": 30, "widened": False}
+
+
+# ------------------------------------------------------- what the label may search for ---
+# A label is a free-text *name* for the search, so `_shortlist_terms` mines it for keywords.
+# Words that restate a filter must not become keywords: the filter already applies, so
+# dropping the word cannot lose anything the subscriber asked for, while keeping it lets
+# every posting that merely mentions the word compete for the same 120 slots. All three
+# cases below were observed in the fifty-persona cohort on 2026-07-28.
+
+def _terms(label: str, **rest) -> list[str]:
+    return store._shortlist_terms({"label": label, **rest})
+
+
+def test_label_place_names_do_not_become_search_terms():
+    """"Brno design" searching for **brno** returned a personal banker, a tobacconist's
+    assistant, two librarians and an upholsterer — all in Brno, none design. The location
+    gate had already restricted the search to Brno; the word added only noise."""
+    assert "brno" not in _terms("Brno design")
+    assert "design" in _terms("Brno design")
+    assert "prague" not in _terms("Prague only")
+    # The worst case: one label word matched an entire source. arbeitnow appends "Find more
+    # English Speaking Jobs in Germany" to all 1 267 of its descriptions, so a Go/AWS
+    # engineer whose label was "Germany" was shown eight Steuerberater adverts.
+    assert "germany" not in _terms("Germany")
+
+
+def test_label_seniority_and_arrangement_words_do_not_become_search_terms():
+    """"Junior designer" filled ~30 of 120 slots with Junior HR Specialist, Junior IT Admin,
+    Junior Payroll Admin and Junior Key Account Manager — while `seniorities` was already
+    filtering on precisely that word."""
+    assert _terms("Junior designer") == ["designer"]
+    assert "remote" not in _terms("Remote data work")
+    assert "data" in _terms("Remote data work")
+
+
+def test_stack_and_categories_are_never_filtered_this_way():
+    """Only the *label* is mined. `stack` is subject matter the subscriber typed on purpose —
+    someone whose stack is literally "senior" or a city name still gets it searched, because
+    a dropped stack term is a preference silently discarded, which this system does not do."""
+    terms = _terms("My digest", stack=["junior", "brno", "python"])
+    assert terms == ["junior", "brno", "python"]

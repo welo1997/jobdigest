@@ -267,16 +267,45 @@ def count_active() -> int:
 _ROLE_KEYWORDS = taxonomy.SHORTLIST_KEYWORDS
 _GENERIC_WORDS = {"my", "search", "digest", "job", "jobs", "the", "and", "a"}
 
+# Label words that name something a *filter* already decides. Harvesting them into keyword
+# recall does not widen the net towards what the subscriber wants — it widens it towards
+# every posting that happens to use the word, and those postings then compete for the same
+# 120 slots. Found on 2026-07-28 across the fifty-persona cohort: the label "Junior designer"
+# put Junior HR Specialist, Junior IT Admin, Junior Payroll Admin and Junior Key Account
+# Manager into a designer's shortlist — about 30 of 120 rows were "Junior <something else>",
+# while `seniorities` was already filtering on exactly that word. Place names are handled the
+# same way one step below, via `geo.is_place_term`.
+_FILTER_WORDS = {
+    # seniority — `profile["seniorities"]` already gates this
+    "junior", "medior", "mid", "middle", "senior", "entry", "graduate", "absolvent",
+    "juniorni", "juniorní", "seniorni", "seniorní",
+    # work arrangement — `remote_scope` / `geo.is_fully_remote` / `part_time_only` gate these
+    "remote", "hybrid", "onsite", "on-site", "office", "homeoffice", "home-office",
+    "fulltime", "full-time", "parttime", "part-time", "uvazek", "úvazek",
+    # filler that survives the >2-char rule
+    "only", "for", "with", "new", "role", "roles", "position", "positions",
+    "work", "prace", "práce", "pozice", "hledam", "hledám",
+}
+
 
 def _shortlist_terms(profile: dict) -> list[str]:
-    """Keyword terms to OR-match a profile against title+company+description."""
+    """Keyword terms to OR-match a profile against title+company+description.
+
+    Categories and `stack` are taken as given — the subscriber typed them as subject matter.
+    The **label** is different: it is a free-text name for the search, so it is mined for
+    words, and a word that merely restates a filter (a place, a seniority, "remote") is
+    dropped rather than searched for. Dropping is safe in a way that keeping is not: the
+    corresponding filter still applies, so nothing the subscriber asked for can be lost,
+    whereas keeping the word lets an unrelated posting match on it.
+    """
     terms: list[str] = []
     for cat in (profile.get("role_categories") or []):
         terms += _ROLE_KEYWORDS.get(cat, [cat.replace("_", " ")])
     terms += [s for s in (profile.get("stack") or [])]
     for w in (profile.get("label") or "").split():
         wl = w.lower().strip(".,")
-        if len(wl) > 2 and wl not in _GENERIC_WORDS:
+        if len(wl) > 2 and wl not in _GENERIC_WORDS and wl not in _FILTER_WORDS \
+                and not geo.is_place_term(wl):
             terms.append(wl)
     # de-dup preserving order, cap so the tsquery stays sane
     seen, out = set(), []
@@ -324,6 +353,24 @@ def query_shortlist_meta(profile: dict, limit: int = 120) -> tuple[list[dict], d
     rather than a selected category share one `__other__` bucket, so they cannot crowd out
     the categories the subscriber actually chose. With no role_categories set there is a
     single bucket and this degenerates to the old freshest-first behaviour.
+
+    **Ordering: `first_seen_at`, then a daily rotation — not `last_seen_at`.** The window
+    used to be "freshest first" by `last_seen_at`, which ordered nothing at all:
+    `last_seen_at` is stamped once per *ingest run*, not per posting, so on 2026-07-28 the
+    19 439 active postings held **10 distinct values and 12 390 shared one**. A 120-row
+    window over a 12 390-row tie is resolved by physical scan order, which is why one
+    subscriber's shortlist read alphabetically by title — it was the scraper's listing order,
+    surfacing. Two things followed, both invisible: genuinely new postings got no preference,
+    and because an arbitrary order is nonetheless a *stable* one, a subscriber saw
+    substantially the same 120 candidates every day forever, with only the ~5 emailed ones
+    ever leaving. Most of the inventory was unreachable by anyone.
+
+    `posted_at` cannot carry this alone — it is null for jobs.cz (9 451), profesia (3 994),
+    startupjobs and cocuma, 14 291 of 19 439 rows. `first_seen_at` is populated for every row
+    and is genuinely informative (1 414 rows first seen today, 428 the day before, and so on).
+    The `md5(posting_id || current_date)` tiebreak then shuffles what remains — deterministic
+    within a day, so a re-export reproduces the same shortlist, but a different sample of the
+    backlog each day instead of the same slice in perpetuity.
 
     `part_time_only` sorts rather than filters. Part-time is ~2% of inventory (200 of 11k
     active CZ postings), so a hard gate would leave such a subscriber with a near-empty
@@ -381,9 +428,11 @@ def query_shortlist_meta(profile: dict, limit: int = 120) -> tuple[list[dict], d
         # first, ahead of the where params, regardless of the order the fragments were built
         # in. Getting this wrong shifts every later parameter by one; see test_shortlist.py.
         params: list[Any] = [profile.get("role_categories") or [], *where_params, limit]
-        # Freshest-first *within* a bucket; part-time first for a part-time-only subscriber.
-        order = ("d.is_part_time desc, d.last_seen_at desc" if profile.get("part_time_only")
-                 else "d.last_seen_at desc")
+        # Newest-first *within* a bucket, ties rotated daily; part-time first for a
+        # part-time-only subscriber. See the docstring for why it is not `last_seen_at`.
+        order = ("d.is_part_time desc, d.first_seen_at desc, d.rotation"
+                 if profile.get("part_time_only")
+                 else "d.first_seen_at desc, d.rotation")
         sql = f"""
             select posting_id, source, title, company, url, location, city, country_code,
                    remote_signal,
@@ -402,7 +451,8 @@ def query_shortlist_meta(profile: dict, limit: int = 120) -> tuple[list[dict], d
                            p.city, p.country_code, p.remote_signal,
                            p.region, p.eligibility, p.seniority, p.work_type, p.is_part_time,
                            p.role_category, p.salary_raw, p.currency, p.posted_at,
-                           p.description, p.last_seen_at
+                           p.description, p.last_seen_at, p.first_seen_at,
+                           md5(p.posting_id || current_date::text) as rotation
                     from postings p
                     where {' and '.join(where)}
                     order by coalesce(p.dedup_key, p.posting_id), p.last_seen_at desc
