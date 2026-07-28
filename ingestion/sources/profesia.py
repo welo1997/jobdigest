@@ -78,6 +78,23 @@ SITES = [
 MAX_PAGES = 15  # per profession; stops early when a page yields no new listings
 _REMOTE_HINTS = ("z domu", "z domova", "domácej práce", "domaci prace",
                  "remote", "home office")
+# Profesia writes the work setup into the location itself: "Bratislava, Slovensko (Pozícia
+# umožňuje občasnú prácu z domu)" — an office job in Bratislava, not a remote one. The hint
+# list above matches "z domu" and so claimed 462 live postings as fully remote, which exempts
+# them from the location gate (`geo.location_predicate` matches remote roles on `remote_scope`
+# instead of city). Same defect as `jobscz.py`, found the same day (2026-07-28); it hid longer
+# here because Slovak inflects — "prácu z domu", not the "práce z domova" a search would try.
+# Declension is why these are matched as stems.
+_HYBRID_HINTS = ("občasn", "obcasn", "príležitostn", "prilezitostn", "prevažn", "převážn",
+                 "prevazn", "čiastočn", "ciastocn", "částečn", "castecn")
+
+
+def _remote_from_location(location: str | None) -> bool:
+    """True only for unqualified remote work. A hybrid hint always wins."""
+    loc = (location or "").lower()
+    if not loc or any(h in loc for h in _HYBRID_HINTS):
+        return False
+    return any(h in loc for h in _REMOTE_HINTS)
 
 
 class ProfesiaSource(BaseSource):
@@ -152,7 +169,7 @@ class ProfesiaSource(BaseSource):
         loc_el = row.select_one(".job-location")
         location = loc_el.get_text(" ", strip=True) if loc_el else None
 
-        remote = bool(location and any(h in location.lower() for h in _REMOTE_HINTS))
+        remote = _remote_from_location(location)
 
         return {
             "url": url, "title": title, "company": company,

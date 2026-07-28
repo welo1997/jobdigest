@@ -314,18 +314,59 @@ _REMOTE_STRONG = re.compile(
 _NOT_REMOTE = re.compile(
     r"\b(hybrid|hybridni|on site|onsite|in office|no remote|not remote"
     r"|remote (work )?(not|un)\w*|bez home office)\b")
+# Czech/Slovak boards rarely write "hybrid" — they grade the home office instead, and the
+# grade is the whole meaning: "moznost obcasne prace z domova" is a Prague office job with a
+# perk, not a role someone in Brno can take. The qualifier must sit next to the home-office
+# phrase, because the words alone are far too common in body copy to disqualify a posting.
+_QUALIFIED_HOME_OFFICE = re.compile(
+    r"\b(obcasn\w*|prevazne|castecne|prilezitostn\w*|moznost)\s+(?:\w+\s+){0,2}"
+    r"(z domova|z domu|home office)\b")
+# The English equivalent, and the same failure from a different source: Ashby postings say
+# "This role is based in Paris. We use a hybrid work model of 3 days in the office per week"
+# while the board's own flag claims remote (248 active postings, 2026-07-28). Only phrases
+# that name an actual schedule or policy are listed — a bare "hybrid" is far too common to
+# act on ("hybrid cloud", and German medical billing writes "hybrid-DRG").
+_HYBRID_SCHEDULE = re.compile(
+    r"hybrid work(ing)? (model|policy|arrangement|setup)"
+    r"|\b(is|as) a hybrid role\b|\bthis hybrid role\b"
+    r"|\b(\d+|one|two|three|four)\s+days?\s+(a week\s+|per week\s+)?"
+    r"(in|from)\s+(the\s+|our\s+)?office")
+
+
+def _contradicts_remote(text: str) -> bool:
+    """Does this posting's own text describe an arrangement that is not fully remote?
+
+    An explicit, unambiguous remote claim wins: a description may mention a hybrid model in
+    passing (often to contrast with itself), and "fully remote" said outright is the stronger
+    statement. Everything else here names a specific in-office expectation.
+    """
+    if _REMOTE_STRONG.search(text):
+        return False
+    return bool(_QUALIFIED_HOME_OFFICE.search(text) or _HYBRID_SCHEDULE.search(text))
 
 
 def is_fully_remote(location: Optional[str], description: Optional[str] = None,
                     source_signal: Optional[bool] = None) -> bool:
     """Would this posting let someone work from another city entirely?
 
-    ``source_signal`` is the board's own flag (``remote_signal``). When it is True we trust
-    it — the remote-only boards and Lever's ``workplaceType`` are structured data. Otherwise
-    we read the location field, and only the *unambiguous* phrases from the description: CZ
-    postings say "home office" for two days a week, so a loose description scan would mark
-    half of Prague as remote and re-open the bug this exists to close.
+    ``source_signal`` is the board's own flag (``remote_signal``). It is trusted where it is
+    genuinely structured data — the remote-only boards, Lever's ``workplaceType`` — but that
+    trust is checked first against an explicit hybrid phrase, because it was misplaced once
+    and nothing downstream could tell: jobs.cz derived the flag from a substring of a graded
+    Czech tag, so 3 744 hybrid Prague/Brno jobs arrived flagged fully remote and were exempted
+    from the location gate on the strength of it (found 2026-07-28, `ingestion/sources/
+    jobscz.py`). A boolean from a scraper is a claim, not a fact; this is the one place that
+    can refuse it, so refusing here is what lets a re-run of `backfill_geo` repair rows that
+    are already stored.
+
+    Otherwise we read the location field, and only the *unambiguous* phrases from the
+    description: CZ postings say "home office" for two days a week, so a loose description
+    scan would mark half of Prague as remote and re-open the bug this exists to close.
     """
+    # Checked against both fields and before every other rule: a posting that describes an
+    # in-office expectation is hybrid regardless of how it reached us or what it claims.
+    if _contradicts_remote(normalise(f"{location or ''} {(description or '')[:2000]}")):
+        return False
     if source_signal:
         return True
     loc = normalise(location)

@@ -107,6 +107,20 @@ that are easy to break: **hybrid is not remote** (that is the point — a hybrid
 stay excluded for a Prague subscriber), **unknown country/city is kept** and left for the AI
 matcher, since `postings.country_code` is null for whole sources and a typed city can never
 equal a resolved slug, and **`profiles.regions` is derived** from the new fields on every write
+
+**A source's `remote_signal` is a claim, not a fact — `is_fully_remote` checks the posting's
+own words before trusting it.** `remote_signal` exempts a posting from the location gate
+entirely, so a wrong one is not a cosmetic error: it is an on-site job in the wrong country
+landing in an inbox. `if source_signal: return True` was true of Lever's `workplaceType` and
+false of the scrapers, which derived it from substrings of graded phrases — *"Možnost
+**občasné** práce z domova"*, *"Pozícia umožňuje **občasnú prácu** z domu"*, *"a hybrid work
+model of 3 days in the office"*. On 2026-07-28 the flag was wrong on 3 744 of 3 744 jobs.cz
+postings and 4 830 rows needed repair; 40 of 50 evaluation personas were affected, including
+subscribers who had picked only Germany or the Netherlands. Two rules follow: an explicit
+"fully remote" claim wins over a passing hybrid mention, and only a **named** schedule or
+policy disqualifies — the bare word appears in "hybrid cloud" and German `Hybrid-DRG`, and
+"hybrid/remote" is offering the choice. Changing detection means re-running
+`python -m service.backfill_geo`, or stored rows keep the old answer.
 — it is a coarse backstop for old clients, never the filter. `web/lib/geo.ts` mirrors the two
 data tables for the browser; `service/tests/test_geo.py` fails on drift, and
 `test_geo_sql.py` pins the gate's behaviour against a real Postgres (needs

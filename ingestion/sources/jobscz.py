@@ -23,6 +23,42 @@ logger = logging.getLogger(__name__)
 
 BASE_URL = "https://www.jobs.cz/prace/"
 
+# Jobs.cz expresses work setup as a body tag, and its vocabulary is graded rather than
+# binary: "Možnost občasné práce z domova" (occasional), "Práce převážně z domova"
+# (predominantly). Both contain "z domova" and NEITHER is a fully remote role.
+#
+# This matters far beyond a mislabelled field, because `remote_signal` is what exempts a
+# posting from the location gate — `geo.location_predicate` matches fully-remote roles on
+# `remote_scope` instead of city, by design. So every one of these was reaching subscribers
+# who had ruled that place out. Measured on live inventory 2026-07-28: 3 744 of 3 744
+# jobs.cz postings carrying the flag were qualified phrasings, i.e. the flag was wrong every
+# single time it was set on this source, and 40 of 50 evaluation personas had on-site Czech
+# work in their shortlist as a result — including subscribers who had picked Germany,
+# the Netherlands or Slovakia and nothing else.
+#
+# "Hybrid is not remote" is the rule (see CLAUDE.md); these qualifiers are precisely how
+# hybrid is spelled in Czech, so they must lose to the remote keywords, not merely coexist.
+# Note this does not hide such a posting from anyone: it stays fully retrievable for a
+# subscriber who chose that city. It only stops it bypassing the location filter.
+_HYBRID_QUALIFIERS = (
+    "občasn", "obcasn",          # Možnost OBČASNÉ práce z domova
+    "převážně", "prevazne",      # Práce PŘEVÁŽNĚ z domova — still expects on-site presence
+    "částečně", "castecne",
+    "příležitostn", "prilezitostn",
+    "možnost",                   # "Možnost práce z domova" is an option, not the arrangement
+)
+_REMOTE_KEYWORDS = ("z domova", "remote", "home office")
+
+
+def _remote_from_body(body_text: str | None) -> bool:
+    """True only for unqualified remote work. Empty/absent tags mean "not stated" = False."""
+    if not body_text:
+        return False
+    text = body_text.lower()
+    if any(q in text for q in _HYBRID_QUALIFIERS):
+        return False
+    return any(kw in text for kw in _REMOTE_KEYWORDS)
+
 # Curated profession fields, discovered from the jobs.cz taxonomy: label -> (field id,
 # role_category hint). Tech/IT/business/creative only; manual & non-tech industries left
 # out on purpose. The hint is a coarse fallback used by the ingest classifier only when a
@@ -138,10 +174,7 @@ class JobsCzSource(BaseSource):
                 body_tags.append(span.get_text(strip=True))
         body_text = "; ".join(body_tags) if body_tags else None
 
-        remote_signal = False
-        if body_text:
-            remote_keywords = ["z domova", "remote", "home office"]
-            remote_signal = any(kw in body_text.lower() for kw in remote_keywords)
+        remote_signal = _remote_from_body(body_text)
 
         return {
             "title": title,

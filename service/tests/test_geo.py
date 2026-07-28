@@ -100,6 +100,87 @@ def test_a_boards_own_remote_flag_is_trusted():
     assert geo.is_fully_remote(None, None, True) is True
 
 
+def test_a_graded_czech_home_office_is_hybrid_however_it_arrived():
+    """Czech boards write the grade, not the word "hybrid", and the grade is the meaning.
+
+    "Možnost občasné práce z domova" is an office job in Praha with a perk. Jobs.cz derived
+    `remote_signal` from the "z domova" substring, so 3 744 of these arrived flagged fully
+    remote and skipped the location gate entirely — 40 of 50 evaluation personas had on-site
+    Czech work in their shortlist, including subscribers who had picked only Germany or the
+    Netherlands (2026-07-28). The board's flag is passed as True here deliberately: the
+    guarantee is that an explicit hybrid phrase beats the flag, since a scraper's boolean is
+    a claim and this is the only place that can refuse it.
+    """
+    assert geo.is_fully_remote("Brno", "Možnost občasné práce z domova", True) is False
+    assert geo.is_fully_remote("Praha", "Práce převážně z domova", True) is False
+    assert geo.is_fully_remote("Ostrava", "Částečně home office", True) is False
+    assert geo.is_fully_remote(
+        "Brno", "50 000 Kč; Odpověď do 2 týdnů; Možnost občasné práce z domova", True) is False
+
+
+def test_an_english_in_office_schedule_beats_the_boards_remote_flag():
+    """Ashby: "This role is based in Paris. We use a hybrid work model of 3 days in the office
+    per week" — arriving with the board's remote flag set (248 active postings, 2026-07-28).
+    A named office plus a fixed weekly schedule is not a role someone in Prague can take."""
+    assert geo.is_fully_remote(
+        "Paris, France",
+        "This role is based in Paris. We use a hybrid work model of 3 days in the office "
+        "per week. We offer relocation.", True) is False
+    assert geo.is_fully_remote(
+        "Singapore",
+        "This role is based in our Singapore office and we use a hybrid work model with "
+        "three days in the office per week.", True) is False
+
+
+def test_the_other_phrasings_ashby_actually_uses():
+    """Each of these was missed by a single word on the first pass — "hybrid workING model",
+    "N days a week FROM the office", "this IS A hybrid role" — and each is a named city."""
+    assert geo.is_fully_remote(
+        "Brussels", "This position is based in Brussels with a hybrid working model.",
+        True) is False
+    assert geo.is_fully_remote(
+        "London", "Will work under our hybrid working model - 3 days a week from the office.",
+        True) is False
+    assert geo.is_fully_remote(
+        "Paris", "This is a hybrid role, based in Paris.", True) is False
+
+
+def test_a_posting_offering_remote_as_an_option_stays_remote():
+    """"Hybrid/remote" and "hybrid or fully remote" offer the remote choice, so the subscriber
+    who wants remote can take them. Only a stated in-office expectation disqualifies."""
+    assert geo.is_fully_remote(
+        "Netherlands", "Location: Netherlands (Amsterdam office available, hybrid/remote).",
+        True) is True
+    assert geo.is_fully_remote(
+        "Lisbon", "A collaborative environment that embraces both remote and hybrid ways of "
+        "working.", True) is True
+
+
+def test_only_a_named_schedule_or_policy_disqualifies_not_the_bare_word():
+    """"Hybrid" alone appears in unrelated technical and clinical prose. Acting on the bare
+    word would demote genuinely remote engineering roles — the mirror-image bug."""
+    assert geo.is_fully_remote(
+        "Remote", "You will design hybrid cloud infrastructure across AWS and on-prem.",
+        True) is True
+    assert geo.is_fully_remote(
+        "Remote job", "Abrechnung nach EBM, GOÄ, UV-GOÄ, Hybrid-DRG, AOP.", True) is True
+
+
+def test_an_explicit_fully_remote_claim_wins_over_a_passing_hybrid_mention():
+    assert geo.is_fully_remote(
+        "Berlin", "Unlike employers using a hybrid work model, we are fully remote.",
+        True) is True
+
+
+def test_the_hybrid_qualifier_must_sit_next_to_the_home_office_phrase():
+    """`možnost` and `částečně` are ordinary Czech words — disqualifying a posting for either
+    on its own would silently strip genuinely remote roles from every remote_scope subscriber,
+    which is the same class of bug pointing the other way."""
+    assert geo.is_fully_remote(
+        "Remote", "Možnost kariérního růstu a částečně flexibilní pracovní doba", None) is True
+    assert geo.is_fully_remote("Praha", "Práce z domova", True) is True
+
+
 def test_only_unambiguous_description_phrases_count_as_remote():
     """A Czech posting says "home office" for two days a week. Reading that as fully remote
     would mark half of Prague remote and re-open the bug from the other side, so the
