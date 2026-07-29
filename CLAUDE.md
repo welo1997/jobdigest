@@ -434,7 +434,7 @@ has a stated trigger; do not reopen without new numbers, and do not "fix" them o
   that report. The inventory numbers above are recorded so the decision is half-made when
   it does.
 
-Two things about the TLS setup are load-bearing and easy to undo by accident:
+Three things about the TLS setup are load-bearing and easy to undo by accident:
 
 - **The private key was generated on the VPS and never left it.** Cloudflare's default flow
   displays a generated key in the browser once; that would put a credential in a transcript
@@ -446,3 +446,13 @@ Two things about the TLS setup are load-bearing and easy to undo by accident:
   carries `import /etc/caddy/origin/*.caddy`; the box-specific line lives in
   `deploy/origin/tls.caddy` (gitignored, mounted `:ro`). A glob matching nothing is a no-op,
   which is what keeps local dev on automatic certs — do not replace it with a plain `import`.
+- **The liveness healthcheck has to trust that cert, and didn't.** The Origin CA is not a
+  public root, so `deploy/jobdigest-healthcheck.sh`'s loopback `curl` returned `HTTP 000` on a
+  healthy box from the moment the cert went live — red for 3.5 h on 2026-07-29 while the site
+  was fine. It now pins `--cacert .../origin/cert.pem` when present and falls back to the
+  system store when absent. **Pin, never `--insecure`**: under Full (strict) a wrong origin
+  cert is a 526 for every user, and this check is what should catch it. The same incident
+  exposed a second bug — the script alerted only when the failure counter *equalled* the
+  threshold, so one mail went out and the next 36 failures were silent; it now re-alerts
+  roughly hourly (`REALERT_EVERY`). **A monitor that can only fire once has a single point of
+  failure at "you were looking".**

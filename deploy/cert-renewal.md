@@ -57,6 +57,28 @@ and the box-specific line lives in `deploy/origin/tls.caddy`, which the compose 
 `caddy validate` (`Valid configuration`, exit 0) — so local dev with no `origin/` directory
 still gets Caddy's automatic/internal certs. One Caddyfile, everywhere, in git.
 
+## The liveness healthcheck pins to this cert — it broke when it didn't
+
+`deploy/jobdigest-healthcheck.sh` curls `https://jobdigest.eu/api/health` against
+`127.0.0.1`. The Origin CA is **deliberately not a public root**, so the moment this cert
+went live the system trust store could no longer verify it and plain `curl` returned
+`HTTP 000` on a completely healthy box. That happened: the check went red at 09:31 UTC on
+2026-07-29 — 25 minutes after `web` restarted — and stayed red for 3.5 h.
+
+The script therefore passes `--cacert /opt/jobdigest/deploy/origin/cert.pem` when that file
+is readable, and falls back to the system store when it is not (local dev, any ACME-served
+box) — the same "absent means no-op" shape as the Caddyfile glob.
+
+**Pinning, not `--insecure`.** Verification still carries signal: under Full (strict) an
+origin serving the wrong or an expired cert is a 526 for every user, and this check is what
+should say so. Confirmed live — system CA bundle gives `000`, the pinned cert gives `200`.
+
+**If you re-issue or rotate the cert, nothing needs changing** (the path is stable), but if
+you ever move `origin/`, this script is the second consumer to update after the compose
+mount. Anything that changes what the origin serves should be followed by one manual
+`sudo systemctl start jobdigest-healthcheck.service` — it takes a second and it is the
+difference between finding this in a minute and finding it in a mailbox hours later.
+
 ## Rotating the key (the only recurring risk, and it isn't scheduled)
 
 Only needed if `key.pem` is believed compromised. Same shape as the original install:
@@ -104,6 +126,10 @@ echo | openssl s_client -connect 127.0.0.1:443 -servername jobdigest.eu 2>/dev/n
 sudo docker compose logs --tail=40 web | grep -i "automatic certificate management"
 # Expect: "skipping automatic certificate management because one or more matching
 # certificates are already loaded". Any ACME/renewal line means the import did not apply.
+
+# The liveness check must agree — this is the one that silently broke:
+sudo systemctl start jobdigest-healthcheck.service
+sudo cat /var/lib/jobdigest/health.state      # expect 0; anything else is consecutive failures
 ```
 
 Then load https://jobdigest.eu from a normal client — expect 200 and no CF 526. The padlock is

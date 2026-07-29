@@ -15,7 +15,9 @@ set -uo pipefail
 COMPOSE_DIR=/opt/jobdigest/deploy
 STATE_FILE=/var/lib/jobdigest/health.state
 ALERT=/opt/jobdigest/deploy/jobdigest-alert.py
+ORIGIN_CERT=/opt/jobdigest/deploy/origin/cert.pem
 THRESHOLD=2                       # consecutive failures before alerting (5 min each)
+REALERT_EVERY=12                  # ...then re-alert roughly hourly while it stays broken
 HOST="$(hostname)"
 DOMAIN="${SITE_DOMAIN:-jobdigest.eu}"
 
@@ -25,7 +27,18 @@ cd "$COMPOSE_DIR" 2>/dev/null || exit 0
 problems=""
 
 # 1) API health via the local origin (bypasses Cloudflare; exercises Caddy -> api -> db).
-code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 \
+#
+# In production Caddy serves a Cloudflare Origin Certificate, and its issuer is deliberately
+# NOT a public root — so plain curl cannot build a chain and returns HTTP 000 on a perfectly
+# healthy box. That is not hypothetical: it silently pinned this check red for 3.5 h on
+# 2026-07-29. Pin to the origin cert instead of dropping verification, because verification
+# still carries signal here: Cloudflare is Full (strict), so if Caddy ever served something
+# else (an ACME fallback, the wrong file) real users would get a 526 and this check should be
+# the thing that says so. Where the file is absent — local dev, any ACME-served box — fall
+# back to the system store, the same "missing means no-op" shape as web/Caddyfile's import.
+ca_opt=()
+[ -r "$ORIGIN_CERT" ] && ca_opt=(--cacert "$ORIGIN_CERT")
+code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 "${ca_opt[@]}" \
   --resolve "$DOMAIN:443:127.0.0.1" "https://$DOMAIN/api/health" 2>/dev/null)
 if [ "$code" != "200" ]; then
   problems="${problems}- /api/health returned HTTP ${code:-none} (expected 200)\n"
@@ -52,10 +65,16 @@ prev=$(cat "$STATE_FILE" 2>/dev/null); prev=${prev//[^0-9]/}; prev=${prev:-0}
 if [ -n "$problems" ]; then
   cur=$((prev + 1))
   echo "$cur" > "$STATE_FILE"
-  # Alert exactly once, on the check that crosses the threshold.
-  if [ "$cur" -eq "$THRESHOLD" ]; then
+  # Alert on the check that crosses the threshold, then roughly hourly for as long as it
+  # stays broken. Alerting *exactly once* was the original design and it failed in the way
+  # that matters: on 2026-07-29 one mail went out at strike 2 and the next 36 consecutive
+  # failures were silent, so the only evidence of a dead monitor was a counter file nobody
+  # reads. A repeat is the cheap half of the fix — an outage that is still an outage should
+  # keep saying so.
+  if [ "$cur" -eq "$THRESHOLD" ] ||
+     { [ "$cur" -gt "$THRESHOLD" ] && [ $(( (cur - THRESHOLD) % REALERT_EVERY )) -eq 0 ]; }; then
     stamp=$(date -u +'%Y-%m-%d %H:%M:%S UTC')
-    msg="JobDigest health check FAILED on ${HOST} at ${stamp} (2 checks in a row):\n\n${problems}\nOn the VPS:\n  cd ${COMPOSE_DIR} && sudo docker compose ps\n  sudo docker compose logs --tail=50"
+    msg="JobDigest health check FAILED on ${HOST} at ${stamp} (${cur} checks in a row, ~$((cur * 5)) min):\n\n${problems}\nOn the VPS:\n  cd ${COMPOSE_DIR} && sudo docker compose ps\n  sudo docker compose logs --tail=50"
     python3 "$ALERT" --subject "🔴 JobDigest DOWN on ${HOST}" --message "$(printf '%b' "$msg")"
   fi
 else
