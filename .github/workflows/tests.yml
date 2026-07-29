@@ -22,9 +22,14 @@ on:
 permissions:
   contents: read
 
+# Two jobs, because the repo is two systems and they cannot share one environment: the root
+# stack and service/ pin feedparser, beautifulsoup4 and anthropic to different versions, so
+# installing both is a ResolutionImpossible (this workflow's first run, 033fefe). Splitting
+# them is not a workaround — each half's tests now run against the versions that half
+# actually deploys, and the boundary matches the one CLAUDE.md draws for the code.
 jobs:
-  pytest:
-    name: pytest
+  jobdigest:
+    name: pytest (jobdigest)
     runs-on: ubuntu-latest
 
     # service/tests/test_geo_sql.py executes the location/work-mode gate as real SQL,
@@ -59,19 +64,12 @@ jobs:
           python-version: "3.12"
           cache: pip
           cache-dependency-path: |
-            requirements.txt
-            requirements-dev.txt
             service/requirements.txt
             service/requirements-worker.txt
+            service/requirements-dev.txt
 
-      # Both files, not just the service one. requirements-dev.txt brings the repo-root
-      # stack (snowflake, dbt) that enrichment/tests and ingestion/tests/test_load.py import
-      # at module scope — without it those three files fail to collect and pytest exits
-      # non-zero having run nothing, which looks identical to a real failure. The
-      # market-intelligence side is decommissioned but its tests are kept green so the
-      # portfolio snapshot stays honest.
       - name: Install dependencies
-        run: pip install -r requirements-dev.txt -r service/requirements-worker.txt
+        run: pip install -r service/requirements-dev.txt
 
       # schema.sql is maintained as the current shape, not a historical base — it already
       # carries work_mode from migration 012 — so loading it alone is enough and the
@@ -79,8 +77,12 @@ jobs:
       - name: Load schema into the throwaway database
         run: psql "$TEST_DATABASE_URL" -v ON_ERROR_STOP=1 -f service/db/schema.sql
 
+      # Everything except the three files that import snowflake at module scope — those
+      # belong to the other system and run in the job below, under its own pins.
       - name: pytest
-        run: python -m pytest -q
+        run: |
+          python -m pytest -q service/tests ingestion/tests \
+            --ignore=ingestion/tests/test_load.py
 
       # A skip is silent by default, and this suite's most expensive tests are exactly the
       # ones that skip themselves when misconfigured. If the Postgres service or the schema
@@ -92,3 +94,28 @@ jobs:
             echo "::error::test_geo_sql.py skipped — TEST_DATABASE_URL or the schema load is broken."
             exit 1
           fi
+
+  # The market-intelligence half. Decommissioned (CLAUDE.md: JOB_MARKET dropped, routines
+  # paused) and kept as a portfolio snapshot — so its tests are kept *green*, not deleted.
+  # A snapshot that no longer passes is not evidence of anything. No database: nothing here
+  # touches Postgres, and the Snowflake objects no longer exist to touch either.
+  market-intel:
+    name: pytest (market-intel)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: |
+            requirements.txt
+            requirements-dev.txt
+
+      - name: Install dependencies
+        run: pip install -r requirements-dev.txt
+
+      - name: pytest
+        run: |
+          python -m pytest -q enrichment/tests ingestion/tests/test_load.py

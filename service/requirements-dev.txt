@@ -1,0 +1,19 @@
+# Test tooling for the JobDigest half, layered on the deps the container actually ships.
+#
+# Exists because the two halves of this repo cannot share one environment and should not be
+# forced to: the root stack pins feedparser/beautifulsoup4/anthropic for the (decommissioned)
+# market-intelligence pipeline, service/requirements-worker.txt pins them for JobDigest, and
+# the versions legitimately differ. Installing both in one `pip install` is a
+# ResolutionImpossible -- which is exactly how .github/workflows/tests.yml failed on its
+# first run.
+#
+# Keeping them apart also means the JobDigest tests run against the versions JobDigest
+# deploys, rather than whichever version pip happened to settle on. Same boundary CLAUDE.md
+# draws for the code: Snowflake must never reach into service/.
+#
+# Pins are duplicated from requirements-dev.txt on purpose -- that file is the market-intel
+# side's tooling and drags the whole root stack in with `-r requirements.txt`.
+-r requirements-worker.txt
+
+pytest==9.0.3
+pytest-mock==3.14.0

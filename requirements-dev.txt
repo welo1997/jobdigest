@@ -1,8 +1,12 @@
-# Local development and test tooling. Installed by .github/workflows/tests.yml, which runs
-# `python -m pytest` on every push and PR -- this file is the source of the pytest pin, so a
-# bump here changes what CI runs. (Until 2026-07-29 nothing in CI ran the tests at all, and
-# this comment recorded that fact for eight days without it being fixed.) `black` and `ruff`
-# are still local-only: no workflow enforces formatting.
+# Local development and test tooling for the MARKET-INTELLIGENCE half. Installed by the
+# `market-intel` job in .github/workflows/tests.yml on every push and PR, so the pytest pin
+# here decides what that job runs. JobDigest's equivalent is service/requirements-dev.txt --
+# the two cannot be merged, because this file's `-r requirements.txt` pins feedparser,
+# beautifulsoup4 and anthropic to versions that conflict with service/'s.
+#
+# (Until 2026-07-29 nothing in CI ran the tests at all, and this comment recorded that fact
+# without it ever being fixed.) `black` and `ruff` remain local-only: no workflow enforces
+# formatting.
 #
 # Split out of requirements.txt on 2026-07-21 so that a formatter could not dictate the
 # version of the pipeline's core dependency. See the dbt-core comment in requirements.txt.
