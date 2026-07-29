@@ -16,4 +16,4 @@
 -r requirements-worker.txt
 
 pytest==9.0.3
-pytest-mock==3.14.0
+pytest-mock==3.15.1
