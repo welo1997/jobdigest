@@ -14,6 +14,7 @@ on:
     paths:
       - "requirements.txt"
       - "requirements-dev.txt"
+      - "requirements-format.txt"
       - "service/requirements*.txt"
       - "web/package-lock.json"
       - ".github/workflows/audit.yml"
@@ -50,9 +51,26 @@ jobs:
       # Dev tooling was covered by the step above until it moved to its own file
       # (2026-07-21). Kept audited so the split did not quietly shrink coverage -- it runs
       # on a developer's machine, not in CI or production, hence non-blocking.
+      #
+      # Non-blocking has a cost, and it was paid on 2026-07-29: this step printed "Found 10
+      # known vulnerabilities in 3 packages" into a green build, and the two high advisories
+      # against black sat unnoticed until Dependabot alerts were switched on and flagged them
+      # within a minute. Eight of the ten are the documented snowflake-connector debt
+      # (pyopenssl/cryptography, see requirements.txt) which cannot be fixed without a major
+      # bump to a decommissioned stack -- so making this --strict would pin the job red
+      # forever, which informs nobody either. **Dependabot alerts are what actually notify
+      # here**; this step exists to show the detail. Do not mistake its green tick for a
+      # clean bill of health -- read the output.
       - name: Audit dev tooling
         continue-on-error: true
         run: pip-audit -r requirements-dev.txt
+
+      # The formatter is the one piece of dev tooling with nothing blocking it: it lives
+      # alone in requirements-format.txt precisely so the dbt-core/pathspec deadlock cannot
+      # hold it on a vulnerable version again. Nothing pins it back, so it is audited
+      # --strict. If this ever goes red, the fix is to bump black, not to relax the step.
+      - name: Audit the formatter
+        run: pip-audit --strict -r requirements-format.txt
 
   node:
     name: npm audit

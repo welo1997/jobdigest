@@ -5,24 +5,22 @@
 # beautifulsoup4 and anthropic to versions that conflict with service/'s.
 #
 # (Until 2026-07-29 nothing in CI ran the tests at all, and this comment recorded that fact
-# without it ever being fixed.) `black` and `ruff` remain local-only: no workflow enforces
-# formatting.
+# without it ever being fixed.) `ruff` remains local-only: no workflow enforces linting.
 #
 # Split out of requirements.txt on 2026-07-21 so that a formatter could not dictate the
 # version of the pipeline's core dependency. See the dbt-core comment in requirements.txt.
+#
+# **black now lives in requirements-format.txt**, alone and without an `-r` line. It was held
+# at 25.12.0 here because black >=26.1 needs pathspec>=1.0.0 while dbt-core 1.9.x needs
+# pathspec<0.13 -- and on 2026-07-29 that deadlock turned out to be pinning a version with
+# two high advisories (PYSEC-2026-2120/2121). Splitting it is the escape this file's old
+# comment already described.
+#
+# The two files still cannot be installed together -- the split contains the conflict, it
+# does not dissolve it. Install black in its own environment (`pipx install black`), and see
+# requirements-format.txt.
 -r requirements.txt
 
 pytest==9.0.3
 pytest-mock==3.15.1
 ruff==0.11.6
-
-# Held at 25.x deliberately. black >=26.1 requires pathspec>=1.0.0, while dbt-core 1.9.x
-# requires pathspec<0.13 -- the two cannot share an environment. 25.12.0 is the newest
-# release that still allows pathspec>=0.9.0, so this keeps ONE working local env with both
-# dbt and the formatter in it.
-#
-# Bumping black past 25.12.0 therefore means either dropping to a `-r`-less dev env or
-# moving dbt-core off 1.9.x. Do not bump it casually; `pip install --dry-run -r` this file
-# first. Note that black 26 ships a new stable style, so that bump also reformats the
-# codebase -- keep it as its own commit, never folded into an unrelated change.
-black==25.12.0

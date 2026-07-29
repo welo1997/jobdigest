@@ -1,0 +1,29 @@
+# The formatter, deliberately alone in its own file with no `-r` line.
+#
+# black is a standalone tool that reads this repo's source and writes it back. It has no
+# reason to share an environment with dbt, and until 2026-07-29 it was forced to: it lived
+# in requirements-dev.txt, which pulls `-r requirements.txt`, which pins dbt-core 1.9.x.
+# black >=26.1 needs pathspec>=1.0.0 and dbt-core 1.9.x needs pathspec<0.13, so the two
+# genuinely cannot coexist -- and the effect was that black could not be upgraded at all.
+#
+# That stopped being merely untidy when black 25.12.0 turned out to carry PYSEC-2026-2120
+# and PYSEC-2026-2121 (high: arbitrary file writes from an unsanitised cache file name,
+# fixed in 26.3.1). The deadlock was the only thing keeping a known-vulnerable version
+# pinned. Splitting the file is the option requirements-dev.txt's own comment already named.
+#
+# Not reachable in this repo -- black is run by hand on our own source, never on
+# attacker-controlled paths, and no workflow runs it -- but it was fixable, and "not
+# reachable" is a much weaker claim than "not present".
+#
+# INSTALL IT SOMEWHERE ELSE. This file cannot be combined with requirements-dev.txt: the
+# pathspec deadlock above is not worked around by splitting the file, it is *contained* by
+# it. `pip install -r requirements-dev.txt -r requirements-format.txt` still fails with
+# ResolutionImpossible -- verified, not assumed. Use a tool that isolates it:
+#
+#     pipx install black==26.5.1          # or a dedicated venv
+#
+# A formatter has no business sharing an environment with the code it formats anyway.
+#
+# black 26 ships a new stable style, so the upgrade reformats the codebase. Keep that as its
+# own commit; never fold it into an unrelated change.
+black==26.5.1
