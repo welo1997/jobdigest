@@ -29,4 +29,4 @@ python-dotenv==1.2.2
 # requirements-dev.txt -- see the note there before bumping black.
 dbt-core==1.9.10
 dbt-snowflake==1.9.2
-anthropic==0.52.0
+anthropic==0.120.2
