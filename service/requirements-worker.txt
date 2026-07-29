@@ -8,6 +8,6 @@ feedparser==6.0.11
 # malicious redirect target. We never use .netrc auth, so this was never reachable — bumped
 # as hygiene, not because it was exploitable here.
 requests==2.34.2
-beautifulsoup4==4.13.4
+beautifulsoup4==4.15.0
 # AI matcher (service.pipeline --match -> service.matcher -> Claude)
 anthropic==0.96.0
