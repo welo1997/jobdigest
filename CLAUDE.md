@@ -63,6 +63,27 @@ Picks ≥ `MATCH_FLOOR` (4) are stored; only ≥ `EMAIL_MIN_SCORE` (6) are email
 show on the subscriber's `/matches` page. `digest_sends` guarantees a job is never emailed
 twice and is never pruned.
 
+**One job, one email — even under several `posting_id`s.** `digest_sends` keys on
+`posting_id`, so it cannot see a cross-source duplicate or a jobs.cz relist (the same ad
+re-posted under a fresh id). `build_digest` therefore also collapses on a normalised
+**(company, title, city)** — `digest.dedupe_key`, folding diacritics, trailing legal forms
+and bracketed trailers. Four properties are load-bearing:
+
+- **It runs before the limit**, so a duplicate costs no slot.
+- **The seen-set is pre-seeded from `digest_sends`** joined back to `postings`, bounded by
+  `DIGEST_REPEAT_WINDOW_DAYS` (90). Without this the fix does nothing for the real cases:
+  both repeats found in production were *cross-day*, and by the time the relisted id
+  appears the original is already filtered by `already_sent_ids`.
+- **City is part of the identity, but an unknown city is a wildcard.** 1 438 active
+  postings sit in 641 same-company-same-title groups, nearly all one role advertised
+  across many towns (ČSOB's in 10) — keying without city would delete those and suppress
+  them for the whole window. But two *known* cities that differ mean two jobs; if either
+  is unknown, fall back to (company, title). Of the two real repeats, one was
+  prague/prague and the other null/prague, so neither half is optional.
+- **An empty key — missing company or title — is always unique, never a match.**
+- **`/matches` is deliberately NOT deduplicated** and stays the complete record. That is
+  what makes suppression safe: nothing vanishes, it just isn't emailed twice.
+
 ### Nothing a subscriber states may vanish, and no subscriber may starve silently
 
 The taxonomy models nine role categories. Subscribers are not obliged to be one of them —
@@ -373,8 +394,47 @@ could not renew behind the Cloudflare proxy was replaced 2026-07-29 with a Cloud
 Certificate valid to **2041**, and Caddy now logs *"skipping automatic certificate
 management"* rather than attempting ACME (`deploy/cert-renewal.md`).
 
-**Every item from the security review is now closed.** Two things about the TLS setup are
-load-bearing and easy to undo by accident:
+**Every item from the security review is now closed.**
+
+### Measured on 2026-07-29 and deliberately NOT fixed
+
+Three long-standing items were quantified against production rather than re-argued. Each
+has a stated trigger; do not reopen without new numbers, and do not "fix" them on intuition.
+
+- **Company name inside `search_tsv`.** It is *in* the tsvector, and that is the complaint:
+  a keyword can match the employer's name and pull in unrelated ads (an agency called
+  *"LEPŠÍ PRÁCE support s.r.o."*, and ČSOB, whose legal name contains *obchodní*). Real
+  cost to live subscribers: 0, 1 and 5 company-only rows per 120-row shortlist, of which
+  only **4 of 360 total slots** would not have been admitted by the subscriber's category
+  anyway. The fix is a drop-and-recreate of a generated column plus a GIN reindex on 23k
+  rows, and it removes employer search. Not worth it at ~1%. **Trigger:** a subscriber whose
+  role word is also a common company word (the IT-support persona lost 8 of 120) — recheck
+  with the per-subscriber shortlist measurement, not the corpus-wide one, which overstates it.
+- **On-site is unprovable, and the obvious fixes are actively harmful.** `work_mode` can
+  only prove `onsite` from the *location* field, while remote and hybrid also scan the
+  description — that asymmetry is why the count is 0. Surveying real descriptions: every
+  Czech/Slovak refusal phrase ("bez home office", "pouze na pracovišti", …) returns **zero**
+  hits, so the text simply does not exist in this corpus. Worse, **`onsite` and `in-office`
+  occur more often in known-*remote* ads than in unknown ones** (178 vs 114, 202 vs 109),
+  because remote ads say "no onsite requirement" — a naive rule would strip genuine remote
+  jobs from digests, the 2026-07-28 bug in reverse. German "vor Ort" is mostly a job *duty*
+  ("Leitung der Baustellen vor Ort") and where it is an arrangement it usually means hybrid
+  ("mindestens 2 Tagen vor Ort"). Only *named* forms survive — `Präsenzstelle` is genuine
+  and yields **4 rows out of 11 613**. Not worth a pattern, a backfill, or the risk. Note
+  the On-site chip is *not* inert end to end: it still reaches the AI matcher as
+  `work_setup`, it is only the SQL gate that cannot act on it.
+- **Category breadth** in `product` / `design` / `devops_platform`. Live impact is ~2–3
+  obviously-off rows per 120 (a travel-industry *produktový manažer* for the product
+  subscriber). The structural cause is missing categories, and the inventory is now real:
+  **sales 659** active (656 sitting in `other_tech_function`), **cybersecurity 185**
+  (scattered across `software_engineering` 117, `data_analysis` 23, `devops_platform` 20),
+  **IT support 93**. But CLAUDE.md's rule needs inventory **and** demand, and the demand half
+  is absent: `unmet_demand_terms()` currently returns only tool names (figma 3, canva 1,
+  capcut 1, roadmapping 1) — no role words at all. **Trigger:** a role word appearing in
+  that report. The inventory numbers above are recorded so the decision is half-made when
+  it does.
+
+Two things about the TLS setup are load-bearing and easy to undo by accident:
 
 - **The private key was generated on the VPS and never left it.** Cloudflare's default flow
   displays a generated key in the browser once; that would put a credential in a transcript
