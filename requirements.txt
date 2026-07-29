@@ -1,6 +1,6 @@
 feedparser==6.0.11
 requests==2.34.2
-beautifulsoup4==4.13.4
+beautifulsoup4==4.15.0
 # snowflake-connector-python 3.14.0 blocks two CVE fixes at once, through two independent
 # constraints — checked by actually running `pip install --dry-run`, not just reading
 # version ranges off PyPI, after an initial pass here got it wrong by checking only one of
