@@ -10,9 +10,22 @@
     "lint": "next lint"
   },
   "dependencies": {
-    "next": "^15.5.20",
+    "next": "^15.5.21",
     "react": "19.0.0",
     "react-dom": "19.0.0"
+  },
+  "//overrides": [
+    "next pins postcss to an exact 8.4.31 and sharp to ^0.34.3, and both ranges are",
+    "vulnerable with no forward fix at ANY next version (the advisories cover next through",
+    "16.3.0-preview.7). Both are build-only here — output:'export' ships static files from",
+    "caddy:2-alpine, and images.unoptimized disables the sharp path entirely — so the CVEs",
+    "are not reachable in production. Resolved rather than allowlisted anyway: a real",
+    "upgrade keeps `npm audit` meaningful, and a green audit is the only kind anyone reads.",
+    "Both are same-major/compatible bumps and `npm run build` is verified against them."
+  ],
+  "overrides": {
+    "postcss": "^8.5.25",
+    "sharp": "^0.35.3"
   },
   "devDependencies": {
     "@types/node": "22.10.7",
