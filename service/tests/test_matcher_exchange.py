@@ -21,7 +21,7 @@ import json
 
 import pytest
 
-from service import matcher
+from service import geo, matcher
 
 REAL = "11111111-1111-1111-1111-111111111111"
 OTHER = "22222222-2222-2222-2222-222222222222"
@@ -298,6 +298,52 @@ def test_part_time_only_is_also_in_the_api_prompt(store):
     block, _ = matcher._candidates_block([{"posting_id": "x", "title": "Grafik",
                                            "is_part_time": True}])
     assert "part_time=yes" in block
+
+
+def test_a_narrowed_work_setup_reaches_the_routine(store, tmp_path):
+    """The SQL gate keeps every posting whose `work_mode` is null, which is most of them — so
+    the matcher is the only thing that can apply this preference to the majority of the
+    shortlist. If the export drops it, the subscriber's choice does almost nothing and nothing
+    anywhere reports that."""
+    entry = _one_profile_export(
+        store, tmp_path,
+        {"label": "My digest", "regions": ["cz"], "work_modes": ["hybrid", "remote"]},
+        [{"posting_id": "real-a", "title": "Analytik", "work_mode": "hybrid"},
+         {"posting_id": "real-b", "title": "Analytik II", "work_mode": None}],
+    )
+    assert entry["profile"]["work_modes"] == ["hybrid", "remote"]
+    assert entry["profile"]["work_setup"] == "hybrid or fully remote roles only"
+    assert entry["candidates"][0]["work_mode"] == "hybrid"
+    # Null is exported as null, not smoothed into a guess — that is what tells the routine to
+    # read the description instead of trusting the field.
+    assert entry["candidates"][1]["work_mode"] is None
+
+
+def test_an_unnarrowed_work_setup_is_omitted(store, tmp_path):
+    """All three is the default and the overwhelming majority. Emitting it on every profile
+    would be noise the model reads past, and its presence is what means "this one has an
+    opinion"."""
+    entry = _one_profile_export(
+        store, tmp_path,
+        {"label": "My digest", "work_modes": ["onsite", "hybrid", "remote"]},
+        [{"posting_id": "real-a", "title": "Analytik"}],
+    )
+    assert "work_modes" not in entry["profile"]
+    assert "work_setup" not in entry["profile"]
+
+
+def test_the_work_setup_is_also_in_the_api_prompt(store):
+    """Same reason as the part-time test above: the two export paths share only this module."""
+    assert "Work setup: hybrid or fully remote roles only" in \
+        matcher._profile_block({"work_modes": ["hybrid", "remote"]})
+    assert "Work setup" not in matcher._profile_block({"work_modes": list(geo.WORK_MODES)})
+    assert "Work setup" not in matcher._profile_block({})
+    block, _ = matcher._candidates_block([
+        {"posting_id": "x", "title": "Analytik", "work_mode": "hybrid"},
+        {"posting_id": "y", "title": "Analytik II", "work_mode": None},
+    ])
+    assert "setup=hybrid" in block
+    assert "setup=unstated" in block
 
 
 @pytest.mark.parametrize("title,expected", [

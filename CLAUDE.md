@@ -107,6 +107,28 @@ that are easy to break: **hybrid is not remote** (that is the point — a hybrid
 stay excluded for a Prague subscriber), **unknown country/city is kept** and left for the AI
 matcher, since `postings.country_code` is null for whole sources and a typed city can never
 equal a resolved slug, and **`profiles.regions` is derived** from the new fields on every write
+— it is a coarse backstop for old clients, never the filter. `web/lib/geo.ts` mirrors the two
+data tables for the browser; `service/tests/test_geo.py` fails on drift, and
+`test_geo_sql.py` pins the gate's behaviour against a real Postgres (needs
+`TEST_DATABASE_URL`, skipped otherwise).
+
+**Work setup is a third axis, not a finer grade of remote** (migration 012).
+`postings.work_mode` is `remote | hybrid | onsite | null`, `profiles.work_modes` is which of
+those a subscriber will accept, and `geo.work_mode` is the one classifier both come from —
+`remote_signal` is now *defined* as `work_mode = 'remote'` so the two can never disagree.
+Three things to hold on to:
+
+- **Hybrid is gated by city exactly like on-site**, because two days a week in Brno is still a
+  commute to Brno. What `work_modes` decides is whether those roles are wanted at all; where
+  they may be is still `countries`/`cities`. Only `remote` is judged by `remote_scope`.
+- **`null` means the ad never said, it is the common case, and the gate keeps it.** Folding
+  unknown into `onsite` would let one unticked checkbox delete most of the inventory on a
+  guess. The preference goes to the AI matcher instead (`work_setup` in the export, and the
+  routine prompt), which reads the description — the same division of labour as an unresolved
+  city. So `remote`-only is an exact filter; the other selections are partial by construction,
+  and that is stated rather than hidden.
+- **An empty selection widens to all three**, in `geo.clean_work_modes`, `store`, the API and
+  the browser. "No preference" is the only reading that cannot silently empty a digest.
 
 **A source's `remote_signal` is a claim, not a fact — `is_fully_remote` checks the posting's
 own words before trusting it.** `remote_signal` exempts a posting from the location gate
@@ -120,11 +142,9 @@ subscribers who had picked only Germany or the Netherlands. Two rules follow: an
 "fully remote" claim wins over a passing hybrid mention, and only a **named** schedule or
 policy disqualifies — the bare word appears in "hybrid cloud" and German `Hybrid-DRG`, and
 "hybrid/remote" is offering the choice. Changing detection means re-running
-`python -m service.backfill_geo`, or stored rows keep the old answer.
-— it is a coarse backstop for old clients, never the filter. `web/lib/geo.ts` mirrors the two
-data tables for the browser; `service/tests/test_geo.py` fails on drift, and
-`test_geo_sql.py` pins the gate's behaviour against a real Postgres (needs
-`TEST_DATABASE_URL`, skipped otherwise).
+`python -m service.backfill_geo`, or stored rows keep the old answer — and since migration 012
+that backfill is what fills `work_mode` at all: SQL can set `'remote'` from the old flag but
+cannot tell hybrid from on-site from unknown.
 
 `postings` · `profiles` (a subscription: preferences, tokens, CV summary) · `matches` ·
 `digest_sends` · `suppression` (never-contact list, outlives the profile) · `events`
@@ -269,7 +289,9 @@ These are not style preferences. Breaking one has consequences outside this repo
 - Geography has **one** definition: `service/geo.py` (mirrored in `web/lib/geo.ts`, drift-tested).
   Adding a city means: slug + display name in `CITIES`, any local spelling in `CITY_ALIASES`,
   regenerate/extend the TS mirror, run tests, then `python -m service.backfill_geo` so existing
-  postings resolve to it.
+  postings resolve to it. Work setup lives in the same file for the same reason —
+  `WORK_MODES`, `work_mode()`, `clean_work_modes()`, `work_mode_predicate()` — and its TS
+  mirror is drift-tested too. Changing what counts as hybrid means re-running the backfill.
 - `role_category` has **one** definition: `service/taxonomy.py`. The dbt YAML and
   `web/app/page.tsx` cannot import it, so tests assert they do not drift. Adding a category
   means: pattern, subject word, shortlist keywords, dbt `accepted_values`, run tests.

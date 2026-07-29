@@ -1,4 +1,5 @@
-"""Run the 50 synthetic personas through the real matching path and grade the result.
+"""Run the synthetic personas (53 since migration 012) through the real matching path and
+grade the result.
 
     python -m service.evaluate --verify-teardown     # prove the exit before taking the risk
     python -m service.evaluate --seed
@@ -11,7 +12,7 @@
 
 Why this exists: every matching defect so far was found by reading one real subscriber's data
 end to end, and every one was invisible from the outside — no exception, no failed timer,
-every check green, a real person receiving nothing. This asks the same question fifty times
+every check green, a real person receiving nothing. This asks the same question fifty-odd times
 about people who do not exist.
 
 **Scoping is the safety property.** This module runs against the production database on
@@ -58,7 +59,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 from service import digest as digestmod
-from service import mailer, matcher, pipeline, store, watchdog
+from service import geo, mailer, matcher, pipeline, store, watchdog
 from service.tests import personas as P
 
 logger = logging.getLogger("service.evaluate")
@@ -249,6 +250,22 @@ def _allowed_location(cand: dict, profile: dict) -> bool:
     return f"{cc.lower()}:{city}" in picked
 
 
+def _allowed_work_mode(cand: dict, profile: dict) -> bool:
+    """Second opinion on the work-setup gate, recomputed rather than re-run.
+
+    The rule it is checking is deliberately permissive — a null `work_mode` passes, because
+    most postings never state one — so the only thing worth catching here is a row whose mode
+    *is* known and *is* one the subscriber ruled out. That is the failure a wrong `any(%s)`
+    parameter or a misplaced `is null` would produce, and it is invisible downstream: the
+    posting simply appears, looking like every other candidate.
+    """
+    modes = geo.clean_work_modes(profile.get("work_modes"))
+    if len(modes) == len(geo.WORK_MODES):
+        return True
+    mode = cand.get("work_mode")
+    return mode is None or mode in modes
+
+
 def _audit_one(profile: dict, rows: list[dict], meta: dict) -> dict:
     selected = list(profile.get("role_categories") or [])
     cats = Counter(r.get("role_category") or "uncategorised" for r in rows)
@@ -257,6 +274,7 @@ def _audit_one(profile: dict, rows: list[dict], meta: dict) -> dict:
     # exempt from it — and that is exactly what makes them dangerous. A posting here reached
     # the subscriber on a remote claim its own text contradicts.
     fake_remote = [r["posting_id"] for r in rows if _remote_claim_contradicted(r)]
+    wrong_setup = [r["posting_id"] for r in rows if not _allowed_work_mode(r, profile)]
 
     # What the part-time sort actually promises, precisely. NOT "every part-time row precedes
     # every full-time one" — the round-robin interleaves buckets, and `is_part_time desc`
@@ -282,6 +300,7 @@ def _audit_one(profile: dict, rows: list[dict], meta: dict) -> dict:
         "top_category_share": round(max(cats.values()) / len(rows), 3) if rows else None,
         "location_violations": violations,
         "remote_claim_contradicted": fake_remote,
+        "work_mode_violations": wrong_setup,
         "unstated_share": round(1 - stated / len(rows), 3) if rows else None,
         "part_time": part_time,
         "buckets": max(1, len(selected) + 1),   # selected categories, plus `__other__`
@@ -408,6 +427,11 @@ def audit_report(audit_path: str) -> list[str]:
                 f"{key}: FALSE REMOTE — {len(a['remote_claim_contradicted'])} candidates are "
                 f"flagged fully remote but describe a hybrid arrangement, so they bypassed "
                 f"the location gate entirely")
+        if a.get("work_mode_violations"):
+            findings.append(
+                f"{key}: WORK SETUP — {len(a['work_mode_violations'])} candidates carry a "
+                f"work_mode this subscriber ruled out (unknown modes are kept on purpose, so "
+                f"every row here is one we classified and then ignored)")
         if a["selected_with_zero_rows"]:
             findings.append(
                 f"{key}: EMPTY CATEGORY — selected {a['selected_with_zero_rows']} but got "

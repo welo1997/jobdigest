@@ -77,3 +77,24 @@ def test_quiet_day_subject_and_greeting_do_not_oversell(patched):
     strong = [_job("a", 9), _job("b", 8)]
     assert "new" in digest.subject_line(PROFILE, strong)      # strong day keeps its old subject
     assert not digest._is_weak(strong)
+
+
+# ------------------------------------------------------------------ work-setup tag ---
+
+def test_a_hybrid_job_is_tagged_hybrid_and_never_remote():
+    """Before migration 012 these carried no work tag at all — a Prague office job with two
+    days from home read identically in the email to one with five days in the office. The
+    `elif` matters as much as the tag: `region in ('eu','worldwide')` alone would have added
+    "Remote" to a hybrid EU role, which is the claim that started all of this."""
+    assert "Hybrid" in digest._tags({"work_mode": "hybrid", "region": "cz"})
+    assert "Remote" not in digest._tags({"work_mode": "hybrid", "region": "eu"})
+    assert "Remote" not in digest._tags(
+        {"work_mode": "hybrid", "region": "eu", "remote_signal": True})
+
+
+def test_remote_and_unstated_jobs_tag_as_they_always_did():
+    assert "Remote" in digest._tags({"work_mode": "remote", "remote_signal": True})
+    assert "Remote" in digest._tags({"region": "worldwide"})
+    # Unknown work_mode adds no work tag of its own — we did not learn anything, so we do not
+    # claim anything.
+    assert "Hybrid" not in digest._tags({"region": "cz", "seniority": "junior"})

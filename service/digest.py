@@ -110,7 +110,12 @@ def _tags(job: dict) -> list[str]:
     tags = []
     if job.get("region"):
         tags.append(str(job["region"]).upper())
-    if job.get("remote_signal") or (job.get("region") in ("eu", "worldwide")):
+    # "Hybrid" is checked first and is never also "Remote": before migration 012 these
+    # postings carried no work tag at all, so a Prague office job with two days from home
+    # looked identical in the email to one with five days in the office.
+    if job.get("work_mode") == "hybrid":
+        tags.append("Hybrid")
+    elif job.get("remote_signal") or (job.get("region") in ("eu", "worldwide")):
         tags.append("Remote")
     if job.get("seniority"):
         tags.append(str(job["seniority"]).capitalize())

@@ -62,7 +62,7 @@ def cursor(commit: bool = False):
 _UPSERT_SQL = """
 insert into postings (
     posting_id, source, title, company, url, description, location, country_code, city,
-    remote_signal, salary_raw, currency, posted_at,
+    remote_signal, work_mode, salary_raw, currency, posted_at,
     role_category, region, eligibility, seniority, work_type, is_part_time, dedup_key,
     last_seen_at, is_active
 ) values %s
@@ -74,6 +74,7 @@ on conflict (posting_id) do update set
     country_code = excluded.country_code,
     city = excluded.city,
     remote_signal = excluded.remote_signal,
+    work_mode = excluded.work_mode,
     salary_raw = excluded.salary_raw,
     currency = excluded.currency,
     posted_at = excluded.posted_at,
@@ -95,7 +96,7 @@ def upsert_postings(rows: Iterable[dict]) -> int:
         (
             r["posting_id"], r["source"], r.get("title"), r.get("company"), r["url"],
             r.get("description"), r.get("location"), r.get("country_code"), r.get("city"),
-            r.get("remote_signal"), r.get("salary_raw"), r.get("currency"),
+            r.get("remote_signal"), r.get("work_mode"), r.get("salary_raw"), r.get("currency"),
             r.get("posted_at"),
             r.get("role_category"), r.get("region"), r.get("eligibility"),
             r.get("seniority"), r.get("work_type"), r.get("is_part_time", False),
@@ -105,7 +106,7 @@ def upsert_postings(rows: Iterable[dict]) -> int:
     ]
     if not values:
         return 0
-    template = ("(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,"
+    template = ("(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,"
                 "now(), true)")
     with cursor(commit=True) as cur:
         psycopg2.extras.execute_values(cur, _UPSERT_SQL, values, template=template,
@@ -241,7 +242,7 @@ def query_candidates(profile: dict, limit: int = 100) -> list[dict]:
     sql = f"""
         select distinct on (coalesce(p.dedup_key, p.posting_id))
                p.posting_id, p.source, p.title, p.company, p.url, p.location,
-               p.city, p.country_code, p.remote_signal,
+               p.city, p.country_code, p.remote_signal, p.work_mode,
                p.region, p.eligibility, p.seniority, p.work_type, p.is_part_time,
                p.role_category, p.salary_raw, p.posted_at, p.description
         from postings p
@@ -435,7 +436,7 @@ def query_shortlist_meta(profile: dict, limit: int = 120) -> tuple[list[dict], d
                  else "d.first_seen_at desc, d.rotation")
         sql = f"""
             select posting_id, source, title, company, url, location, city, country_code,
-                   remote_signal,
+                   remote_signal, work_mode,
                    region, eligibility, seniority, work_type, is_part_time,
                    role_category, salary_raw, currency, posted_at, description
             from (
@@ -448,7 +449,7 @@ def query_shortlist_meta(profile: dict, limit: int = 120) -> tuple[list[dict], d
                 from (
                     select distinct on (coalesce(p.dedup_key, p.posting_id))
                            p.posting_id, p.source, p.title, p.company, p.url, p.location,
-                           p.city, p.country_code, p.remote_signal,
+                           p.city, p.country_code, p.remote_signal, p.work_mode,
                            p.region, p.eligibility, p.seniority, p.work_type, p.is_part_time,
                            p.role_category, p.salary_raw, p.currency, p.posted_at,
                            p.description, p.last_seen_at, p.first_seen_at,
@@ -495,6 +496,7 @@ def matched_jobs(profile_id: str, limit: int = 50) -> list[dict]:
             """
             select p.posting_id, p.source, p.title, p.company, p.url, p.location,
                    p.region, p.eligibility, p.seniority, p.work_type, p.is_part_time,
+                   p.remote_signal, p.work_mode,
                    p.role_category, p.salary_raw, p.currency, p.posted_at,
                    m.score, m.summary
             from matches m
@@ -526,11 +528,12 @@ def match_count(profile_id: str) -> int:
 def create_profile(user_id: str, data: dict) -> dict:
     data = {**data, **_location_prefs(data, ensure=True)}
     cols = ["user_id", "label", "stack", "seniorities", "countries", "cities",
-            "remote_scope", "regions", "role_categories",
+            "remote_scope", "work_modes", "regions", "role_categories",
             "work_types", "part_time_only", "eligible_only", "sectors", "min_score"]
     vals = [user_id, data.get("label", "My search"), data.get("stack", []),
             data.get("seniorities", ["junior", "mid"]),
-            data["countries"], data["cities"], data["remote_scope"], data["regions"],
+            data["countries"], data["cities"], data["remote_scope"],
+            geo.clean_work_modes(data.get("work_modes")), data["regions"],
             data.get("role_categories", []),
             data.get("work_types", ["permanent", "freelance/contract"]),
             data.get("part_time_only", False), data.get("eligible_only", True),
@@ -607,7 +610,7 @@ def set_match_status(profile_id: str, posting_id: str, status: str) -> None:
 # --- email subscriptions (v1 digest product) -----------------------------------
 
 _SUBSCRIBER_FIELDS = ["label", "stack", "seniorities", "countries", "cities",
-                      "remote_scope", "regions", "role_categories",
+                      "remote_scope", "work_modes", "regions", "role_categories",
                       "work_types", "part_time_only", "eligible_only", "sectors",
                       "min_score", "frequency"]
 
@@ -688,7 +691,8 @@ def create_email_subscription(email: str, data: dict, *, confirmed: bool = False
         email, status, now, confirmed_at, confirm_token, manage_token,
         data.get("label", "My digest"), data.get("stack", []),
         data.get("seniorities", ["junior", "mid"]),
-        data["countries"], data["cities"], data["remote_scope"], data["regions"],
+        data["countries"], data["cities"], data["remote_scope"],
+        geo.clean_work_modes(data.get("work_modes")), data["regions"],
         data.get("role_categories", []),
         data.get("work_types", ["permanent", "freelance/contract"]),
         data.get("part_time_only", False), data.get("eligible_only", True),
@@ -1011,6 +1015,11 @@ def update_subscription(manage_token: str, data: dict) -> Optional[dict]:
     location = _location_prefs(data, current=get_by_manage_token(manage_token) or {})
     if location:
         data = {**data, **location}
+    # Normalised here rather than trusted from the caller: an empty selection means "no
+    # preference" and must widen to all three, never narrow to none. The webapp validates too,
+    # but this is the only path every client shares (see `geo.clean_work_modes`).
+    if "work_modes" in data:
+        data = {**data, "work_modes": geo.clean_work_modes(data["work_modes"])}
     sets, params = [], []
     for f in _SUBSCRIBER_FIELDS:
         if f in data:

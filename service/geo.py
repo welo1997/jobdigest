@@ -202,6 +202,15 @@ _REGION_OF = {"CZ": "cz", "GB": "uk", "US": "us"}
 REMOTE_SCOPES = ("country", "eu", "worldwide")
 DEFAULT_REMOTE_SCOPE = "eu"
 
+# How much of the job happens in an office. Stored on `postings.work_mode` (null = we could
+# not tell) and selected on `profiles.work_modes`. Ordered office-first, which is the order
+# the UI offers them in.
+WORK_MODES = ("onsite", "hybrid", "remote")
+DEFAULT_WORK_MODES = list(WORK_MODES)
+WORK_MODE_LABELS = {
+    "onsite": "On-site", "hybrid": "Hybrid", "remote": "Fully remote",
+}
+
 MAX_COUNTRIES = len(KNOWN_COUNTRIES)
 MAX_CITIES = 60
 _SLUG_RE = re.compile(r"^[a-z0-9](?:[a-z0-9-]{0,38}[a-z0-9])?$")
@@ -337,17 +346,24 @@ def resolve_location(location: Optional[str],
     return country, None
 
 
-# Fully remote, as opposed to hybrid. "Hybrid in Brno" is the exact case this feature exists
-# to exclude for a Prague subscriber, so any hint of hybrid or on-site disqualifies.
+# Fully remote, as opposed to hybrid. "Hybrid in Brno" is the exact case the location gate
+# exists to exclude for a Prague subscriber, so any hint of hybrid or on-site disqualifies
+# *remote* — and, since 2026-07-29, says "hybrid" positively rather than merely "not remote".
 _REMOTE_LOC = re.compile(
     r"\b(remote|anywhere|worldwide|distributed|work from home|home based|wfh"
     r"|vzdalene|prace z domova|telearbeit)\b")
 _REMOTE_STRONG = re.compile(
     r"\b(fully remote|100 remote|remote only|remote first|work from anywhere"
     r"|plne vzdalene|zcela vzdalene)\b")
-_NOT_REMOTE = re.compile(
-    r"\b(hybrid|hybridni|on site|onsite|in office|no remote|not remote"
-    r"|remote (work )?(not|un)\w*|bez home office)\b")
+# The two halves of what used to be one `_NOT_REMOTE` pattern. Both still disqualify remote;
+# they are separated because they disagree about what the posting *is*, and that difference is
+# now stored: "hybrid" is a role someone in Brno cannot take but someone in Prague can do from
+# home two days a week, while "no remote" is five days in the office. Searched in the location
+# field only, which is why the bare word "hybrid" is safe here and not in body copy.
+_HYBRID_LOC = re.compile(r"\b(hybrid|hybridni|hybridne|hybridny)\b")
+_ONSITE_LOC = re.compile(
+    r"\b(on site|onsite|in office|no remote|not remote"
+    r"|remote (work )?(not|un)\w*|bez home office|bez prace z domova)\b")
 # Czech/Slovak boards rarely write "hybrid" — they grade the home office instead, and the
 # grade is the whole meaning: "moznost obcasne prace z domova" is a Prague office job with a
 # perk, not a role someone in Brno can take. The qualifier must sit next to the home-office
@@ -370,8 +386,8 @@ _HYBRID_SCHEDULE = re.compile(
     r"(in|from)\s+(the\s+|our\s+)?office")
 
 
-def _contradicts_remote(text: str) -> bool:
-    """Does this posting's own text describe an arrangement that is not fully remote?
+def _describes_hybrid(text: str) -> bool:
+    """Does this posting's own text describe a part-office, part-home arrangement?
 
     An explicit, unambiguous remote claim wins: a description may mention a hybrid model in
     passing (often to contrast with itself), and "fully remote" said outright is the stronger
@@ -382,9 +398,9 @@ def _contradicts_remote(text: str) -> bool:
     return bool(_QUALIFIED_HOME_OFFICE.search(text) or _HYBRID_SCHEDULE.search(text))
 
 
-def is_fully_remote(location: Optional[str], description: Optional[str] = None,
-                    source_signal: Optional[bool] = None) -> bool:
-    """Would this posting let someone work from another city entirely?
+def work_mode(location: Optional[str], description: Optional[str] = None,
+              source_signal: Optional[bool] = None) -> Optional[str]:
+    """How much of this job happens in an office: ``remote`` | ``hybrid`` | ``onsite`` | None.
 
     ``source_signal`` is the board's own flag (``remote_signal``). It is trusted where it is
     genuinely structured data — the remote-only boards, Lever's ``workplaceType`` — but that
@@ -399,19 +415,44 @@ def is_fully_remote(location: Optional[str], description: Optional[str] = None,
     Otherwise we read the location field, and only the *unambiguous* phrases from the
     description: CZ postings say "home office" for two days a week, so a loose description
     scan would mark half of Prague as remote and re-open the bug this exists to close.
+
+    **``None`` means unknown, and it is the common answer** — most postings simply never say.
+    It is deliberately not folded into ``onsite``: a subscriber who deselects on-site work
+    would then lose most of the inventory to a guess. Unknown is kept by the SQL gate and the
+    preference is passed to the AI matcher instead, which reads the whole description and can
+    tell an office job from a hybrid one far better than a pattern list — the same division of
+    labour `resolve_location` uses for an unresolved city. What this classifier is for is the
+    part that can be *proved*: `remote` is positively detected, so "fully remote only" is a
+    filter that genuinely works, and `hybrid` is what 5 200 postings actually were.
     """
     # Checked against both fields and before every other rule: a posting that describes an
     # in-office expectation is hybrid regardless of how it reached us or what it claims.
-    if _contradicts_remote(normalise(f"{location or ''} {(description or '')[:2000]}")):
-        return False
+    if _describes_hybrid(normalise(f"{location or ''} {(description or '')[:2000]}")):
+        return "hybrid"
     if source_signal:
-        return True
+        return "remote"
     loc = normalise(location)
-    if _NOT_REMOTE.search(loc):
-        return False
+    if _HYBRID_LOC.search(loc):
+        return "hybrid"
+    if _ONSITE_LOC.search(loc):
+        return "onsite"
     if _REMOTE_LOC.search(loc):
-        return True
-    return bool(_REMOTE_STRONG.search(normalise(description)[:2000]))
+        return "remote"
+    if _REMOTE_STRONG.search(normalise(description)[:2000]):
+        return "remote"
+    return None
+
+
+def is_fully_remote(location: Optional[str], description: Optional[str] = None,
+                    source_signal: Optional[bool] = None) -> bool:
+    """Would this posting let someone work from another city entirely?
+
+    The boolean face of `work_mode`, and the one `postings.remote_signal` stores. Kept as its
+    own function because that column is what exempts a posting from the location gate, and a
+    caller asking "may I ignore this posting's city?" should not have to know that `hybrid`
+    and `onsite` and unknown all answer no for different reasons.
+    """
+    return work_mode(location, description, source_signal) == "remote"
 
 
 # --- preference values ---------------------------------------------------------
@@ -462,6 +503,34 @@ def clean_cities(values: Any, countries: Optional[Iterable[str]] = None) -> list
 def clean_remote_scope(value: Any) -> str:
     scope = str(value or "").strip().lower()
     return scope if scope in REMOTE_SCOPES else DEFAULT_REMOTE_SCOPE
+
+
+def clean_work_modes(values: Any) -> list[str]:
+    """Normalise a work-setup selection, in `WORK_MODES` order.
+
+    An empty or entirely unrecognised selection becomes **all three**, not none. A subscriber
+    who somehow clears every box has expressed no preference, and reading that as "nothing is
+    acceptable" would filter their digest down to zero without a single error — the failure
+    this codebase keeps meeting. Widening is the safe direction here for the same reason it is
+    in `query_shortlist_meta`.
+    """
+    wanted = {str(v).strip().lower().replace("-", "").replace("_", "") for v in (values or [])}
+    # Accept the spellings a hand-written API client is likely to send.
+    aliases = {"onpremise": "onsite", "office": "onsite", "inoffice": "onsite",
+               "fullyremote": "remote", "wfh": "remote"}
+    wanted = {aliases.get(w, w) for w in wanted}
+    out = [m for m in WORK_MODES if m in wanted]
+    return out or list(DEFAULT_WORK_MODES)
+
+
+def describe_work_modes(modes: Iterable[str]) -> str:
+    """One human phrase for the matcher prompt, e.g. "hybrid or fully remote roles only"."""
+    picked = clean_work_modes(modes)
+    if len(picked) == len(WORK_MODES):
+        return "any work setup (on-site, hybrid or fully remote)"
+    names = [WORK_MODE_LABELS[m].lower() for m in picked]
+    joined = names[0] if len(names) == 1 else f"{', '.join(names[:-1])} or {names[-1]}"
+    return f"{joined} roles only"
 
 
 def regions_for(countries: Iterable[str], remote_scope: str) -> list[str]:
@@ -535,6 +604,29 @@ def describe(countries: Iterable[str], cities: Iterable[str], remote_scope: str)
 
 # --- the SQL gate --------------------------------------------------------------
 
+def work_mode_predicate(profile: dict, alias: str = "p") -> tuple[str, list[Any]]:
+    """SQL fragment (plus params) restricting postings to a profile's chosen work setups.
+
+    Two rules, and the second is the important one:
+
+      * A profile that accepts all three modes gets no filter at all — the common case, and
+        the state every existing subscriber was migrated into, so nobody's digest narrows
+        without them choosing it.
+      * **A null `work_mode` always passes.** Most postings never say what their arrangement
+        is, so treating unknown as on-site would let one deselected checkbox delete most of
+        the inventory. The preference still reaches the AI matcher through
+        `describe_work_modes`, which reads the description and can judge what a pattern list
+        cannot. Same division of labour as an unresolved city in `location_predicate`.
+
+    So this gate is precise where the data is provable — `remote` is positively detected, so
+    "fully remote only" genuinely filters — and defers where it is not.
+    """
+    modes = clean_work_modes(profile.get("work_modes"))
+    if len(modes) == len(WORK_MODES):
+        return "true", []
+    return f"({alias}.work_mode is null or {alias}.work_mode = any(%s))", [modes]
+
+
 def location_predicate(profile: dict, alias: str = "p") -> tuple[str, list[Any]]:
     """SQL fragment (plus params) restricting postings to a profile's chosen locations.
 
@@ -544,7 +636,9 @@ def location_predicate(profile: dict, alias: str = "p") -> tuple[str, list[Any]]
         irrelevant, which is the whole reason the two controls are separate.
       * **On-site or hybrid** postings must sit in a selected country, and — only for the
         countries where the subscriber actually named cities — in one of those cities.
-        Naming no city for a country means "any city there".
+        Naming no city for a country means "any city there". Hybrid belongs on this side
+        precisely because it is *not* remote: two days a week in a Brno office is still a
+        commute to Brno.
       * **Unknowns are kept.** A posting whose country or city we could not resolve passes
         the gate and reaches the AI matcher, which reads the raw location text. Dropping
         them would be a stricter promise than the data supports: `country_code` is null for
@@ -552,13 +646,29 @@ def location_predicate(profile: dict, alias: str = "p") -> tuple[str, list[Any]]
         so it can never match `postings.city` — for those the matcher is the only enforcer.
         Precision is what a miss costs; recall is never lost.
 
+    `work_mode_predicate` is ANDed in here rather than left to the caller. It is a separate
+    question — *how much office*, not *which city* — but every caller wants both, and this
+    module's history is of filters that were silently not applied at one of two call sites.
+    One composed predicate cannot be half-forgotten.
+
     Falls back to the coarse `region` gate when a profile has no `countries` — a row that
     predates the migration, or an API client that only sent `regions`.
     """
+    mode_sql, mode_params = work_mode_predicate(profile, alias)
+
+    def combine(place_sql: str, place_params: list[Any]) -> tuple[str, list[Any]]:
+        if mode_sql == "true":
+            return place_sql, place_params
+        if place_sql == "true":
+            return mode_sql, mode_params
+        # Mode first, because psycopg2 binds %s by position in the SQL *text*.
+        return f"({mode_sql} and {place_sql})", mode_params + place_params
+
     countries = clean_countries(profile.get("countries"))
     if not countries:
         regions = [str(r) for r in (profile.get("regions") or [])]
-        return (f"{alias}.region = any(%s)", [regions]) if regions else ("true", [])
+        return combine(f"{alias}.region = any(%s)", [regions]) if regions \
+            else combine("true", [])
 
     cities = clean_cities(profile.get("cities"), countries)
     restricted = sorted({split_city(v)[0] for v in cities} - {None})
@@ -590,4 +700,4 @@ def location_predicate(profile: dict, alias: str = "p") -> tuple[str, list[Any]]
                        f" or ({alias}.country_code is null and {alias}.region = any(%s)))")
         params += [countries, regions_for(countries, scope)]
 
-    return f"({onsite} or ({remote} and {remote_gate}))", params
+    return combine(f"({onsite} or ({remote} and {remote_gate}))", params)

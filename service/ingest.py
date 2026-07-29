@@ -41,14 +41,18 @@ def build_row(p) -> dict:
     # the resolved value is what makes country- and city-level preferences possible — and it
     # sharpens `region`/`eligibility` too, which previously read "Berlin" as region 'other'.
     country_code, city = geo.resolve_location(p.location, p.country_code)
-    remote = geo.is_fully_remote(p.location, p.description, p.remote_signal)
+    # One classification, two columns: `remote_signal` is what exempts a posting from the
+    # location gate, `work_mode` is the finer answer a subscriber can filter on and the digest
+    # can show. Derived from the same call so they cannot disagree.
+    mode = geo.work_mode(p.location, p.description, p.remote_signal)
+    remote = mode == "remote"
     region = work_region(p.location, country_code)
     text = f"{p.title or ''} {p.location or ''} {p.description or ''}"
     return {
         "posting_id": p.posting_id, "source": p.source, "title": p.title,
         "company": p.company, "url": p.url, "description": p.description,
         "location": p.location, "country_code": country_code, "city": city,
-        "remote_signal": remote, "salary_raw": p.salary_raw,
+        "remote_signal": remote, "work_mode": mode, "salary_raw": p.salary_raw,
         "currency": p.currency, "posted_at": p.posted_at,
         "role_category": role_category(p.title, getattr(p, "source_category", None)),
         "region": region,

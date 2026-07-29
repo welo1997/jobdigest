@@ -33,10 +33,12 @@ DB is Supabase). The routine only ever touches the two files.
                   "locations": "Czechia (Prague, Brno only); plus fully remote roles anywhere in the EU",
                   "countries": ["CZ"], "cities": ["cz:prague","cz:brno"], "remote_scope": "eu",
                   "regions": ["cz","eu"],
+                  "work_modes": ["hybrid","remote"],
+                  "work_setup": "hybrid or fully remote roles only",
                   "sectors": ["ecommerce"], "years_experience": 3, "cv_summary": "..."},
       "candidates": [
         {"posting_id": "md5…", "title": "...", "company": "...", "location": "...",
-         "region": "cz", "city": "Brno", "remote": false,
+         "region": "cz", "city": "Brno", "remote": false, "work_mode": "hybrid",
          "seniority": "unstated", "work_type": "permanent",
          "part_time": false,
          "salary": "45 000 – 90 000 Kč", "description": "…≤320 chars…"}
@@ -108,6 +110,16 @@ always emits them, which is why `ROUTINE_INSTRUCTIONS` has no such clause.
 > is `"?"` did not resolve to a city we recognise: the prefilter deliberately lets those
 > through, so read its `location` text and judge it yourself rather than assuming it was
 > checked. Naming no city for a country means any city in that country.
+>
+> **Work setup**: `"work_modes"` / `"work_setup"` appear on a profile **only when the
+> subscriber has ruled some arrangements out** — most have not, and their absence means
+> anything goes. When present, a candidate whose `"work_mode"` is not one of the modes they
+> accept is not a fit: omit it, or score it below 4. `"work_mode": null` means the posting
+> never stated an arrangement, which is the common case and is deliberately not guessed at by
+> the prefilter — read the description and judge it, rather than letting it through because
+> the field was empty. Note `"work_mode": "remote"` and `"remote": true` are the same claim
+> said twice; `"hybrid"` means part of the week in that city, so the location rule above
+> applies to it in full.
 >
 > **Work schedule**: if the profile has `"part_time_only": true`, a full-time posting is not
 > what they asked for — score it at most 5 (it still appears on their matches page, it just

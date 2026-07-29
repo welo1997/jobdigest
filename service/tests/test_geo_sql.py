@@ -30,18 +30,24 @@ pytestmark = pytest.mark.skipif(not TEST_DSN, reason="TEST_DATABASE_URL is not s
 
 PREFIX = "geotest-"
 
-# posting_id -> (country_code, city, remote_signal, region, location)
+# posting_id -> (country_code, city, remote_signal, region, location, work_mode)
+#
+# `work_mode` is null on most of these on purpose: it is null on most real postings, because
+# the ad never said. Only the rows whose name claims an arrangement carry one, so the "unknown
+# always passes" rule is exercised by the majority of the fixture set rather than by one case.
 FIXTURES = {
-    "prague-onsite":    ("CZ", "prague", False, "cz", "Praha 4"),
-    "brno-onsite":      ("CZ", "brno", False, "cz", "Brno"),
-    "brno-hybrid":      ("CZ", "brno", False, "cz", "Brno (hybrid)"),
-    "cz-remote":        ("CZ", None, True, "cz", "Remote, Czechia"),
-    "berlin-onsite":    ("DE", "berlin", False, "eu", "Berlin"),
-    "unknown-onsite":   (None, None, False, "other", "Somewhereville"),
-    "cz-unknown-city":  ("CZ", None, False, "cz", "Kolín"),
-    "us-remote":        ("US", None, True, "us", "Remote (US)"),
-    "worldwide-remote": (None, None, True, "worldwide", "Remote, worldwide"),
-    "de-remote":        ("DE", None, True, "eu", "Remote (Germany)"),
+    "prague-onsite":    ("CZ", "prague", False, "cz", "Praha 4", None),
+    "brno-onsite":      ("CZ", "brno", False, "cz", "Brno", None),
+    "brno-hybrid":      ("CZ", "brno", False, "cz", "Brno (hybrid)", "hybrid"),
+    "prague-hybrid":    ("CZ", "prague", False, "cz", "Praha (hybrid)", "hybrid"),
+    "prague-office":    ("CZ", "prague", False, "cz", "Praha, on site", "onsite"),
+    "cz-remote":        ("CZ", None, True, "cz", "Remote, Czechia", "remote"),
+    "berlin-onsite":    ("DE", "berlin", False, "eu", "Berlin", None),
+    "unknown-onsite":   (None, None, False, "other", "Somewhereville", None),
+    "cz-unknown-city":  ("CZ", None, False, "cz", "Kolín", None),
+    "us-remote":        ("US", None, True, "us", "Remote (US)", "remote"),
+    "worldwide-remote": (None, None, True, "worldwide", "Remote, worldwide", "remote"),
+    "de-remote":        ("DE", None, True, "eu", "Remote (Germany)", "remote"),
 }
 
 
@@ -60,10 +66,10 @@ def db():
         {"posting_id": PREFIX + pid, "source": "test", "url": f"https://x.test/{pid}",
          "title": "Data Analyst", "company": "Test", "description": "",
          "country_code": cc, "city": city, "remote_signal": remote, "region": region,
-         "location": loc, "eligibility": "eligible", "seniority": "mid",
+         "location": loc, "work_mode": mode, "eligibility": "eligible", "seniority": "mid",
          "work_type": "permanent", "role_category": "data_analysis",
          "dedup_key": PREFIX + pid}
-        for pid, (cc, city, remote, region, loc) in FIXTURES.items()
+        for pid, (cc, city, remote, region, loc, mode) in FIXTURES.items()
     ]
     store.upsert_postings(rows)
     try:
@@ -168,6 +174,68 @@ def test_several_cities_in_one_country():
     got = allowed({"countries": ["CZ"], "cities": ["cz:prague", "cz:brno"],
                    "remote_scope": "country"})
     assert {"prague-onsite", "brno-onsite", "brno-hybrid"} <= got
+
+
+# -------------------------------------------------------------------- work setup ---
+
+def test_hybrid_is_still_gated_by_city_not_by_the_remote_scope():
+    """The point of storing `hybrid` separately is *not* to loosen the location rule. Two days
+    a week in a Brno office is still a commute to Brno, so a Prague subscriber must not see it
+    however wide their remote scope is — and a Prague hybrid role must still reach them."""
+    got = allowed({**PRAGUE_ONLY, "remote_scope": "worldwide",
+                   "work_modes": ["onsite", "hybrid", "remote"]})
+    assert "brno-hybrid" not in got
+    assert "prague-hybrid" in got
+
+
+def test_all_three_modes_selected_filters_nothing():
+    """The default, and what every existing subscriber was migrated into. It must be
+    byte-identical to no work-setup filter at all, or migration 012 silently changed
+    somebody's digest."""
+    wide = allowed({**PRAGUE_ONLY, "work_modes": ["onsite", "hybrid", "remote"]})
+    assert wide == allowed(PRAGUE_ONLY)
+    assert geo.work_mode_predicate({"work_modes": list(geo.WORK_MODES)}) == ("true", [])
+
+
+def test_deselecting_onsite_drops_proven_office_jobs_but_keeps_the_unknowns():
+    """The honest half-measure, and the reason it is written this way. `prague-office` says
+    on-site in its own text and goes; `prague-onsite` never said, so it stays and the AI
+    matcher judges it. Dropping unknowns here would delete most of the inventory on a guess."""
+    got = allowed({**PRAGUE_ONLY, "work_modes": ["hybrid", "remote"]})
+    assert "prague-office" not in got
+    assert "prague-hybrid" in got
+    assert "cz-remote" in got
+    assert {"prague-onsite", "unknown-onsite", "cz-unknown-city"} <= got
+
+
+def test_remote_only_is_a_filter_that_genuinely_works():
+    """`remote` is the one mode positively detected, so this selection is exact — no hybrid
+    and no office job survives it, whatever city they are in."""
+    got = allowed({**PRAGUE_ONLY, "remote_scope": "worldwide", "work_modes": ["remote"]})
+    assert {"cz-remote", "de-remote", "worldwide-remote", "us-remote"} <= got
+    assert "prague-hybrid" not in got
+    assert "brno-hybrid" not in got
+    assert "prague-office" not in got
+    # …and the unknowns still pass, for the same reason as above: nobody proved they are not
+    # remote. This is the cost of the rule, stated rather than hidden.
+    assert "prague-onsite" in got
+
+
+def test_an_empty_work_mode_selection_widens_rather_than_matching_nothing():
+    """A subscriber who unticks every box has stated no preference. Reading that as "nothing
+    is acceptable" would empty their digest with no error anywhere — the failure mode this
+    codebase keeps meeting."""
+    assert allowed({**PRAGUE_ONLY, "work_modes": []}) == allowed(PRAGUE_ONLY)
+
+
+def test_the_work_mode_gate_survives_the_legacy_region_path():
+    """A profile with no `countries` returns early from `location_predicate`. The mode gate has
+    to be ANDed onto *that* branch too, and its parameter has to land in the right placeholder
+    — which is exactly what an inspection of the SQL string cannot tell you."""
+    got = allowed({"regions": ["cz"], "work_modes": ["remote"]})
+    assert "cz-remote" in got
+    assert "prague-office" not in got
+    assert "brno-hybrid" not in got
 
 
 # ----------------------------------------------------------------- legacy profiles ---

@@ -304,6 +304,26 @@ def _check_remote_scope(v: Optional[str]) -> Optional[str]:
     return scope
 
 
+def _check_work_modes(v: Optional[list[str]]) -> Optional[list[str]]:
+    """Reject an unknown mode outright, but let an empty list through.
+
+    The asymmetry is deliberate. A typo'd mode is a client bug and should be loud — silently
+    honouring `["hybird"]` would mean `clean_work_modes` widening it back to all three and the
+    subscriber never learning their choice did nothing. An *empty* list is not a bug: it is a
+    subscriber who unticked every box, and `geo.clean_work_modes` reads that as "no preference"
+    rather than "nothing acceptable", which is the only reading that cannot silently empty
+    somebody's digest.
+    """
+    if v is None:
+        return v
+    modes = [str(m).strip().lower() for m in v]
+    unknown = [m for m in modes if m and m not in geo.WORK_MODES]
+    if unknown:
+        raise ValueError(f"unknown work_modes: {', '.join(unknown[:5])}. "
+                         f"Valid values: {', '.join(geo.WORK_MODES)}")
+    return geo.clean_work_modes(modes)
+
+
 class LocationFieldsMixin(BaseModel):
     """The location preferences, shared by every form that can set them.
 
@@ -316,10 +336,15 @@ class LocationFieldsMixin(BaseModel):
     cities: list[str] = Field(default_factory=list)
     remote_scope: str = "worldwide"
     regions: list[str] = Field(default_factory=lambda: ["cz", "eu", "worldwide"])
+    # Not location, but the same "where and how do you work" question and the same set of
+    # forms. Defaults to all three: a client that has never heard of this field must not
+    # narrow the subscriber it is creating.
+    work_modes: list[str] = Field(default_factory=lambda: list(geo.DEFAULT_WORK_MODES))
 
     _valid_countries = field_validator("countries")(_check_countries)
     _valid_cities = field_validator("cities")(_check_cities)
     _valid_scope = field_validator("remote_scope")(_check_remote_scope)
+    _valid_work_modes = field_validator("work_modes")(_check_work_modes)
 
 
 class SubscribeIn(LocationFieldsMixin):
@@ -486,7 +511,10 @@ def _preview_view(j: dict, terms: list[str]) -> dict:
     tags: list[str] = []
     if j.get("region"):
         tags.append(str(j["region"]).upper())
-    if j.get("region") in ("eu", "worldwide"):
+    # Same precedence as the digest's `_tags`: hybrid is never also "Remote".
+    if j.get("work_mode") == "hybrid":
+        tags.append("Hybrid")
+    elif j.get("remote_signal") or j.get("region") in ("eu", "worldwide"):
         tags.append("Remote")
     if j.get("seniority"):
         tags.append(str(j["seniority"]).capitalize())
@@ -596,7 +624,7 @@ def confirm(token: str) -> HTMLResponse:
 # --------------------------------------------------------------- preferences ---
 
 _PUBLIC_FIELDS = ["email", "status", "label", "stack", "seniorities",
-                  "countries", "cities", "remote_scope", "regions",
+                  "countries", "cities", "remote_scope", "regions", "work_modes",
                   "role_categories", "work_types", "part_time_only", "eligible_only",
                   "sectors", "min_score", "frequency", "has_cv", "cv_summary",
                   "years_experience", "paused_until"]
@@ -621,6 +649,7 @@ class PreferencesIn(BaseModel):
     cities: Optional[list[str]] = None
     remote_scope: Optional[str] = None
     regions: Optional[list[str]] = None
+    work_modes: Optional[list[str]] = None
     role_categories: Optional[list[str]] = None
     work_types: Optional[list[str]] = None
     part_time_only: Optional[bool] = None
@@ -633,6 +662,7 @@ class PreferencesIn(BaseModel):
     _valid_countries = field_validator("countries")(_check_countries)
     _valid_cities = field_validator("cities")(_check_cities)
     _valid_scope = field_validator("remote_scope")(_check_remote_scope)
+    _valid_work_modes = field_validator("work_modes")(_check_work_modes)
 
 
 class SessionIn(BaseModel):
@@ -906,6 +936,7 @@ def _match_view(j: dict) -> dict:
         "region": j.get("region"),
         "seniority": j.get("seniority"),
         "work_type": j.get("work_type"),
+        "work_mode": j.get("work_mode"),
         "role_category": j.get("role_category"),
         "salary": j.get("salary_raw"),
         "score": j.get("score"),

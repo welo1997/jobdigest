@@ -15,6 +15,7 @@ import {
 } from "@/lib/api";
 import { track } from "@/lib/analytics";
 import { LocationPicker, LocationValue } from "@/components/LocationPicker";
+import { WORK_MODES } from "@/lib/geo";
 
 const ROLE_OPTS = ["Product Manager", "Marketing", "Social Media", "Data Analyst", "Designer", "Software Engineer", "Data Engineer", "DevOps", "Finance"];
 const SKILL_OPTS = ["SQL", "Figma", "Analytics", "Excel", "Python", "SEO", "Looker", "Roadmapping", "Power BI", "dbt"];
@@ -43,7 +44,7 @@ const ROLE_CAT: Record<string, string> = {
 // anywhere in the EU" — the widest sensible default, so a subscriber who skips this step is
 // never narrowed by a choice they did not make.
 const DEFAULT_LOCATION: LocationValue = {
-  countries: ["CZ"], cities: [], remoteScope: "eu",
+  countries: ["CZ"], cities: [], remoteScope: "eu", workModes: [...WORK_MODES],
 };
 const CV_ROLE_LABEL: Record<string, string> = {
   data_engineering: "Data Engineer", data_analysis: "Data Analyst",
@@ -273,6 +274,7 @@ export default function Landing() {
       countries: loc.countries.length ? loc.countries : ["CZ"],
       cities: loc.cities,
       remote_scope: loc.remoteScope,
+      work_modes: loc.workModes,
       work_types: workTypes.length ? workTypes : ["permanent", "freelance/contract"],
       part_time_only: partTimeOnly,
       sectors: cvSignals?.sectors || [],

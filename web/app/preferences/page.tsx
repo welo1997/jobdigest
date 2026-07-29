@@ -11,7 +11,7 @@ import {
 } from "@/lib/api";
 import { cap } from "@/lib/preview";
 import { LocationPicker, LocationValue } from "@/components/LocationPicker";
-import { REMOTE_SCOPES, RemoteScope } from "@/lib/geo";
+import { REMOTE_SCOPES, RemoteScope, WORK_MODES, cleanWorkModes } from "@/lib/geo";
 
 const FREqS = ["daily", "weekdays", "weekly"];
 // Chip vocabularies mirror the signup wizard (web/app/page.tsx) so both forms speak the same
@@ -40,12 +40,17 @@ const prettify = (c: string) => c.replace(/_/g, " ").replace(/\b\w/g, (m) => m.t
 // `regions` bucket. Translate it the same way the migration does, so the form opens on what
 // the filter is actually doing rather than on an empty country list.
 function locationFrom(p: Preferences): LocationValue {
+  // Absent on a subscription that predates migration 012 — `cleanWorkModes` reads that as
+  // "no preference" and returns all three, which is what the column defaults to anyway. The
+  // form must never open on a narrower selection than the one being enforced.
+  const workModes = cleanWorkModes(p.work_modes);
   if (p.countries && p.countries.length) {
     return {
       countries: p.countries,
       cities: p.cities || [],
       remoteScope: (REMOTE_SCOPES as readonly string[]).includes(p.remote_scope)
         ? (p.remote_scope as RemoteScope) : "eu",
+      workModes,
     };
   }
   const regions = p.regions || [];
@@ -54,6 +59,7 @@ function locationFrom(p: Preferences): LocationValue {
     cities: [],
     remoteScope: regions.includes("worldwide") ? "worldwide"
       : regions.includes("eu") ? "eu" : "country",
+    workModes,
   };
 }
 
@@ -82,7 +88,7 @@ function Inner() {
   const [addSkill, setAddSkill] = useState("");
   const [freq, setFreq] = useState("daily");
   const [loc, setLoc] = useState<LocationValue>({
-    countries: ["CZ"], cities: [], remoteScope: "eu",
+    countries: ["CZ"], cities: [], remoteScope: "eu", workModes: [...WORK_MODES],
   });
   const [levels, setLevels] = useState<Set<string>>(new Set());
 
@@ -176,6 +182,7 @@ function Inner() {
         countries: loc.countries.length ? loc.countries : ["CZ"],
         cities: loc.cities,
         remote_scope: loc.remoteScope,
+        work_modes: loc.workModes,
         seniorities: seniorities.length ? seniorities : ["junior", "mid", "senior"],
       }, tokenRef.current || undefined);
       setPrefs(updated);

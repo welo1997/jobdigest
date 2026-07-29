@@ -278,6 +278,36 @@ export const REMOTE_SCOPE_LABEL: Record<RemoteScope, string> = {
   worldwide: "Anywhere in the world",
 };
 
+// How much of the job happens in an office. Mirrors `geo.WORK_MODES`, office-first — the
+// drift test in service/tests/test_geo.py fails if the two lists stop agreeing.
+export const WORK_MODES = ["onsite", "hybrid", "remote"] as const;
+export type WorkMode = (typeof WORK_MODES)[number];
+
+// Keys are quoted so this parses as JSON: that is what lets the drift test in
+// service/tests/test_geo.py compare it against `geo.WORK_MODE_LABELS` directly.
+export const WORK_MODE_LABEL: Record<WorkMode, string> = {
+  "onsite": "On-site",
+  "hybrid": "Hybrid",
+  "remote": "Fully remote"
+};
+
+// The second line each option shows. "Hybrid" is the one people read wrong: it is not a
+// weaker kind of remote, it is a job in that city that you do from home part of the week.
+export const WORK_MODE_HINT: Record<WorkMode, string> = {
+  onsite: "In the office",
+  hybrid: "Part office, part home — you still need to be near it",
+  remote: "No office at all",
+};
+
+/** Mirrors `geo.clean_work_modes`: unknown values dropped, empty means all three.
+ *  Unticking everything is "no preference", never "nothing is acceptable" — reading it the
+ *  other way would silently empty the digest. */
+export function cleanWorkModes(values: readonly string[] | undefined | null): WorkMode[] {
+  const wanted = new Set((values || []).map((v) => String(v).trim().toLowerCase()));
+  const out = WORK_MODES.filter((m) => wanted.has(m));
+  return out.length ? [...out] : [...WORK_MODES];
+}
+
 /** Flatten to ASCII the same way `geo.normalise` does — the two must agree, because a city
  *  typed here is compared against slugs resolved there. */
 export function normalise(text: string): string {

@@ -1,8 +1,8 @@
 "use client";
 
 /**
- * Where the subscriber can work: countries, the cities inside each, and how far a *fully
- * remote* role may be.
+ * Where the subscriber can work: countries, the cities inside each, how much of the week is
+ * spent in an office, and how far a *fully remote* role may be.
  *
  * Shared by the signup wizard and the preferences page on purpose. The old three-option
  * "Where" control was copy-pasted into `app/page.tsx`, `app/v2/page.tsx` and
@@ -16,22 +16,33 @@
  *     would otherwise read as "nothing selected, so nothing matches".
  *   - Remote is a separate axis. "On-site only in Prague, but remote from anywhere in the
  *     EU" is the common case, and a single control cannot say it.
+ *   - Work setup is a *third* axis, not a finer grade of the second. Hybrid is gated by city
+ *     exactly like on-site work, because two days a week in Brno is still a commute to Brno;
+ *     what the control decides is whether those roles are wanted at all.
  */
 
-import { useState } from "react";
+import { CSSProperties, useState } from "react";
 import {
   CITIES, COUNTRIES, REMOTE_SCOPES, REMOTE_SCOPE_LABEL, RemoteScope,
-  citiesFor, cityLabel, countryOptions, qualify, slugifyCity, splitCity,
+  WORK_MODES, WORK_MODE_HINT, WORK_MODE_LABEL, WorkMode,
+  citiesFor, cityLabel, cleanWorkModes, countryOptions, qualify, slugifyCity, splitCity,
 } from "@/lib/geo";
 
 // Offered as one-tap chips: the markets that actually carry postings for this audience.
 // Everything else is one <select> away, so this is a shortcut, not a limit.
 const QUICK = ["CZ", "SK", "DE", "AT", "PL", "NL"];
 
+// Inline rather than a class: this component renders inside both the signup wizard and the
+// preferences page, which do not share a hint class.
+const HINT: CSSProperties = {
+  color: "var(--muted)", fontSize: "var(--fs-sm)", marginTop: 6,
+};
+
 export interface LocationValue {
   countries: string[];
   cities: string[];        // qualified, e.g. "cz:prague"
   remoteScope: RemoteScope;
+  workModes: WorkMode[];   // all three = no preference
 }
 
 export function LocationPicker({
@@ -43,15 +54,16 @@ export function LocationPicker({
 }) {
   const [typed, setTyped] = useState<Record<string, string>>({});
   const { countries, cities, remoteScope } = value;
+  const workModes = cleanWorkModes(value.workModes);
 
   const toggleCountry = (code: string) => {
     if (countries.includes(code)) {
       // Dropping a country drops its cities too — a city preference for a country that is no
       // longer selected is invisible in the UI but would still narrow the filter server-side.
       onChange({
+        ...value,
         countries: countries.filter((c) => c !== code),
         cities: cities.filter((v) => splitCity(v)?.country !== code),
-        remoteScope,
       });
     } else {
       onChange({ ...value, countries: [...countries, code] });
@@ -68,6 +80,17 @@ export function LocationPicker({
 
   const clearCities = (code: string) =>
     onChange({ ...value, cities: cities.filter((v) => splitCity(v)?.country !== code) });
+
+  // Unticking the last one is not an error and must not be blocked: an empty selection means
+  // "no preference" everywhere it is read (see `cleanWorkModes` and `geo.clean_work_modes`),
+  // so it widens back to all three rather than matching nothing.
+  const toggleWorkMode = (mode: WorkMode) =>
+    onChange({
+      ...value,
+      workModes: workModes.includes(mode)
+        ? workModes.filter((m) => m !== mode)
+        : WORK_MODES.filter((m) => m === mode || workModes.includes(m)),
+    });
 
   const addTypedCity = (code: string) => {
     const slug = slugifyCity(typed[code] || "");
@@ -146,13 +169,44 @@ export function LocationPicker({
       })}
 
       <div className="field">
+        <label>
+          Work setup
+          {" — "}
+          <span style={{ fontWeight: 400, color: "var(--muted)" }}>
+            {workModes.length === WORK_MODES.length
+              ? "anything goes"
+              : "we'll leave out the rest"}
+          </span>
+        </label>
+        <div className="chips">
+          {WORK_MODES.map((m) => (
+            <button key={m} type="button" className="chip"
+              aria-pressed={workModes.includes(m)}
+              title={WORK_MODE_HINT[m]}
+              onClick={() => toggleWorkMode(m)}>
+              {WORK_MODE_LABEL[m]}
+            </button>
+          ))}
+        </div>
+        <p style={HINT}>
+          Hybrid means part of the week in the office, so it still has to be somewhere you can
+          get to. Plenty of ads never say either way — we keep those and let the matcher read
+          the description rather than guess.
+        </p>
+      </div>
+
+      <div className="field">
         <label htmlFor={`${idPrefix}-remote`}>Fully remote roles — how far afield?</label>
         <select id={`${idPrefix}-remote`} value={remoteScope}
+          disabled={!workModes.includes("remote")}
           onChange={(e) => onChange({ ...value, remoteScope: e.target.value as RemoteScope })}>
           {REMOTE_SCOPES.map((s) => (
             <option key={s} value={s}>{REMOTE_SCOPE_LABEL[s]}</option>
           ))}
         </select>
+        {!workModes.includes("remote") && (
+          <p style={HINT}>Only applies once &ldquo;Fully remote&rdquo; is selected above.</p>
+        )}
       </div>
     </>
   );
@@ -171,5 +225,9 @@ export function describeLocation(v: LocationValue): string {
   const remote = v.remoteScope === "worldwide" ? "remote worldwide"
     : v.remoteScope === "eu" ? "remote in the EU"
       : "remote in those countries";
-  return `${parts.join(", ")} · ${remote}`;
+  const modes = cleanWorkModes(v.workModes);
+  // Only when narrowed — "on-site, hybrid or fully remote" on every review step is noise.
+  const setup = modes.length === WORK_MODES.length
+    ? "" : ` · ${modes.map((m) => WORK_MODE_LABEL[m].toLowerCase()).join(" / ")} only`;
+  return `${parts.join(", ")} · ${remote}${setup}`;
 }

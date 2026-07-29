@@ -25,7 +25,8 @@ export default function Privacy() {
           <ul>
             <li><b>Your email address</b> — so we can send your digest and confirmation.</li>
             <li><b>Your search preferences</b> — roles, skills/keywords, the countries and cities
-              you want to work in, how far afield a fully remote role may be, type of work, and
+              you want to work in, which work setups you&apos;ll take (on-site, hybrid, fully
+              remote), how far afield a fully remote role may be, type of work, and
               frequency, as you enter them.</li>
             <li><b>CV-derived signals</b> — if you upload a CV (optional), see section 4.</li>
             <li><b>Delivery records</b> — which jobs we&apos;ve already emailed you, so we never send
@@ -80,8 +81,8 @@ export default function Privacy() {
             the EU. Once a day we send it a file containing, for each subscriber:</p>
           <ul>
             <li>a random identifier — <b>not your email address, and not your name</b>;</li>
-            <li>your stated preferences (roles, skills, the countries and cities you chose, type
-              of work);</li>
+            <li>your stated preferences (roles, skills, the countries and cities you chose, the
+              work setups you&apos;ll take, type of work);</li>
             <li>your CV-derived summary line, if you uploaded one (section 4);</li>
             <li>the public job listings we are asking it to rank.</li>
           </ul>

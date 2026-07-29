@@ -6,7 +6,7 @@ shape is always the same — no exception, no failed timer, every check green, a
 person receiving the wrong jobs or none. `service/watchdog.py` catches that, but only after
 the fact, in production, on someone real, three days late.
 
-This is the same review done fifty times over, offline, on people who do not exist.
+This is the same review done fifty-odd times over, offline, on people who do not exist.
 
 These are **data, not tests**. `service/evaluate.py` drives them; a future pytest case can
 import the same list. Deliberately spanning the axes that have actually broken:
@@ -64,6 +64,7 @@ def _p(key: str, note: str, *, expect: dict[str, Any] | None = None, **payload: 
         "cities": [],
         "remote_scope": "eu",
         "work_types": ["permanent", "freelance/contract"],
+        "work_modes": ["onsite", "hybrid", "remote"],
         "part_time_only": False,
         "eligible_only": True,
         "sectors": [],
@@ -280,6 +281,38 @@ WORK_PERSONAS = [
        work_types=["part-time"], expect={"off_taxonomy": True, "widened_ok": True}),
 ]
 
+# ------------------------------------------------------------------- work setup ---
+# Added with migration 012. `work_mode` is null on most postings — the ad never says — and the
+# gate keeps those, so the interesting question is not "does the filter work" but "how much
+# inventory survives once the provable rows are removed". A persona here whose shortlist
+# collapses is telling you the classifier is too eager, not that the filter is broken.
+
+WORK_MODE_PERSONAS = [
+    _p("p51-no-office-at-all",
+       "Fully remote only. The one selection that filters exactly, because `remote` is the "
+       "one mode positively detected — nothing proven hybrid or on-site may survive it. Also "
+       "the first subscriber for whom `remote_scope` is the ONLY location control that "
+       "applies, so a bug there has nothing else masking it.",
+       label="Remote data analyst", role_categories=["data_analysis"], stack=["sql", "python"],
+       cities=[], remote_scope="eu", work_modes=["remote"]),
+
+    _p("p52-hybrid-or-remote-prague",
+       "The subscriber this feature was built for: will commute to a Prague office two days "
+       "a week, will not do five. Hybrid must still be gated by city — a hybrid Brno role is "
+       "a commute to Brno — while the on-site rows we could actually classify drop out.",
+       label="Hybrid product", role_categories=["product"], stack=["jira", "roadmapping"],
+       cities=["cz:prague"], remote_scope="country", work_modes=["hybrid", "remote"]),
+
+    _p("p53-office-only",
+       "The opposite preference, and the one the data serves worst: on-site is rarely stated "
+       "outright, so this shortlist is mostly unknowns by construction. It is here to prove "
+       "the unknowns are still admitted — a version of this filter that dropped them would "
+       "leave this persona with almost nothing and raise no error doing it.",
+       label="Office-based engineer", role_categories=["software_engineering"],
+       stack=["java"], cities=["cz:prague", "cz:brno"], remote_scope="country",
+       work_modes=["onsite"]),
+]
+
 # ------------------------------------------------------- subscribers we model nothing for ---
 # The taxonomy has nine categories. Subscribers are not obliged to be one of them. A closed
 # vocabulary is fine for ranking and fatal for admission: a typed role that maps to no
@@ -445,12 +478,15 @@ EDGE_PERSONAS = [
 
 PERSONAS: list[dict] = (
     CATEGORY_PERSONAS + GEO_PERSONAS + SENIORITY_PERSONAS + WORK_PERSONAS
-    + OFF_TAXONOMY_PERSONAS + CV_PERSONAS + EDGE_PERSONAS
+    + WORK_MODE_PERSONAS + OFF_TAXONOMY_PERSONAS + CV_PERSONAS + EDGE_PERSONAS
 )
 
-assert len(PERSONAS) == 50, f"expected 50 personas, got {len(PERSONAS)}"
-assert len({p["key"] for p in PERSONAS}) == 50, "persona keys must be unique"
-assert len({p["email"] for p in PERSONAS}) == 50, "persona emails must be unique"
+# 50 originally; 53 since migration 012 added the work-setup axis. The count is asserted
+# rather than derived so that dropping a persona is a deliberate edit, not a silent one.
+EXPECTED = 53
+assert len(PERSONAS) == EXPECTED, f"expected {EXPECTED} personas, got {len(PERSONAS)}"
+assert len({p["key"] for p in PERSONAS}) == EXPECTED, "persona keys must be unique"
+assert len({p["email"] for p in PERSONAS}) == EXPECTED, "persona emails must be unique"
 assert all(p["email"].endswith(f"@{DOMAIN}") for p in PERSONAS), (
     "every persona address must sit under the .invalid domain — that is the safety net "
     "that makes a misconfigured send path undeliverable rather than embarrassing"

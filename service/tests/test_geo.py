@@ -199,6 +199,97 @@ def test_only_unambiguous_description_phrases_count_as_remote():
     assert geo.is_fully_remote("Praha", "This role is 100% remote", None) is True
 
 
+# ------------------------------------------------------ work_mode classification ---
+
+def test_work_mode_says_hybrid_where_is_fully_remote_only_said_no():
+    """The same four real variants as the tests above, now asked to name what the posting *is*.
+
+    Before migration 012 every one of these was stored as "not remote", indistinguishable from
+    five days in an office — 5 218 postings that are neither, and no way for a subscriber to
+    say which of the two they would take.
+    """
+    assert geo.work_mode("Brno", "Možnost občasné práce z domova", True) == "hybrid"
+    assert geo.work_mode(
+        "Bratislava", "Pozícia umožňuje občasnú prácu z domu", True) == "hybrid"
+    assert geo.work_mode(
+        "Košice, Slovakia (Job with occasional home office)", "", True) == "hybrid"
+    assert geo.work_mode(
+        "Paris, France",
+        "This role is based in Paris. We use a hybrid work model of 3 days in the office "
+        "per week.", True) == "hybrid"
+    assert geo.work_mode("Brno (hybrid)", None, None) == "hybrid"
+
+
+def test_work_mode_names_onsite_only_when_the_posting_says_so():
+    assert geo.work_mode("Berlin, on-site", None, None) == "onsite"
+    assert geo.work_mode("Remote work not available, Brno", None, None) == "onsite"
+
+
+def test_an_ordinary_posting_has_no_stated_work_mode():
+    """Null is the common answer and is load-bearing: `work_mode_predicate` keeps nulls, so
+    folding them into `onsite` would let one deselected checkbox delete most of the inventory
+    on the strength of a guess. Plain "Praha" says nothing about the arrangement, and that is
+    what we record."""
+    assert geo.work_mode("Praha 4", None, None) is None
+    assert geo.work_mode("Brno", "Hledáme analytika do našeho týmu.", None) is None
+    assert geo.work_mode(None, None, None) is None
+
+
+@pytest.mark.parametrize("location,description,signal", [
+    ("Brno", "Možnost občasné práce z domova", True),
+    ("Praha 4", None, None),
+    ("Remote", None, None),
+    ("Berlin, on-site", None, None),
+    ("Praha", "Nabízíme plně vzdáleně", None),
+    (None, None, True),
+])
+def test_is_fully_remote_is_exactly_work_mode_equals_remote(location, description, signal):
+    """`remote_signal` is what exempts a posting from the location gate, and `work_mode` is
+    what a subscriber filters on. If the two could ever disagree, a row could be gated as
+    hybrid while being shown as remote, or the reverse — so one is defined as the other."""
+    assert geo.is_fully_remote(location, description, signal) == \
+        (geo.work_mode(location, description, signal) == "remote")
+
+
+# ------------------------------------------------------- work-setup preferences ---
+
+def test_an_empty_or_unrecognised_work_mode_selection_widens_to_all_three():
+    """"No preference" is the only safe reading of an empty selection. The other reading —
+    "nothing is acceptable" — empties a digest with no exception, no failed timer and nothing
+    in the logs, which is how every matching bug in this project has presented."""
+    assert geo.clean_work_modes([]) == list(geo.WORK_MODES)
+    assert geo.clean_work_modes(None) == list(geo.WORK_MODES)
+    assert geo.clean_work_modes(["nonsense"]) == list(geo.WORK_MODES)
+
+
+def test_work_modes_are_normalised_into_a_stable_order():
+    """`WORK_MODES` order, not alphabetical — it is the order the chips render in and the
+    order `describe_work_modes` reads them out to the matcher, and office-first is the
+    sequence the question is actually asked in."""
+    assert geo.clean_work_modes(["remote", "onsite"]) == ["onsite", "remote"]
+    assert geo.clean_work_modes(["HYBRID", " remote "]) == ["hybrid", "remote"]
+    # The pair that separates the two orderings: alphabetical would put hybrid first.
+    assert geo.clean_work_modes(["hybrid", "onsite"]) == ["onsite", "hybrid"]
+    assert geo.describe_work_modes(["remote", "onsite"]) == "on-site or fully remote roles only"
+    # A partly-unknown selection keeps the part we understand rather than widening — the
+    # subscriber did state something.
+    assert geo.clean_work_modes(["hybrid", "moon-base"]) == ["hybrid"]
+
+
+def test_the_work_mode_gate_is_absent_unless_the_subscriber_narrowed_it():
+    assert geo.work_mode_predicate({}) == ("true", [])
+    assert geo.work_mode_predicate({"work_modes": list(geo.WORK_MODES)}) == ("true", [])
+    sql, params = geo.work_mode_predicate({"work_modes": ["remote"]})
+    assert "work_mode is null" in sql          # unknown always passes
+    assert params == [["remote"]]
+
+
+def test_describe_work_modes_only_speaks_up_when_it_has_something_to_say():
+    assert geo.describe_work_modes(["hybrid", "remote"]) == "hybrid or fully remote roles only"
+    assert geo.describe_work_modes(["remote"]) == "fully remote roles only"
+    assert "any work setup" in geo.describe_work_modes(geo.WORK_MODES)
+
+
 # --------------------------------------------------- legacy regions round-trip ---
 
 @pytest.mark.parametrize("regions", [
@@ -311,3 +402,20 @@ def test_frontend_remote_scopes_match():
     match = re.search(r"export const REMOTE_SCOPES = \[(.*?)\]", text, re.S)
     assert match
     assert tuple(re.findall(r'"([a-z]+)"', match.group(1))) == geo.REMOTE_SCOPES
+
+
+def test_frontend_work_modes_match():
+    """Order as well as content: the browser renders the chips in this order, and the values
+    are what it POSTs — a mode the API does not know is rejected outright by
+    `_check_work_modes`, so drift here is a form that cannot be saved."""
+    text = WEB_GEO.read_text(encoding="utf-8")
+    match = re.search(r"export const WORK_MODES = \[(.*?)\]", text, re.S)
+    assert match, "WORK_MODES not found in web/lib/geo.ts"
+    assert tuple(re.findall(r'"([a-z]+)"', match.group(1))) == geo.WORK_MODES
+
+
+def test_frontend_work_mode_labels_match():
+    assert _ts_object("WORK_MODE_LABEL") == geo.WORK_MODE_LABELS, (
+        "web/lib/geo.ts and service/geo.py disagree about what to call a work setup — the "
+        "matcher prompt and the form the subscriber filled in would describe it differently."
+    )

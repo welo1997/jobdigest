@@ -103,6 +103,13 @@ def _profile_block(p: dict) -> str:
         f"Work types: {_join('work_types')}",
         f"Sectors of interest: {_join('sectors')}",
     ]
+    # Only when narrowed. All three modes is the default and the overwhelming majority, and a
+    # line saying "any work setup" in every profile is noise the model has to read past.
+    modes = geo.clean_work_modes(p.get("work_modes"))
+    if len(modes) < len(geo.WORK_MODES):
+        lines.append(
+            f"Work setup: {geo.describe_work_modes(modes)}. Most postings never state theirs, "
+            "so judge an unstated one from its description rather than assuming it qualifies")
     # Stated on the signup form but, until now, never shown to the model or used in the SQL
     # prefilter — subscribers who ticked "part-time only" were being emailed full-time roles.
     if p.get("part_time_only"):
@@ -152,6 +159,7 @@ def _candidates_block(shortlist: list[dict]) -> tuple[str, dict[int, str]]:
             f"[{i}] {c.get('title') or '?'} @ {c.get('company') or '?'}\n"
             f"    location={c.get('location') or '?'} city={_city_for_model(c)} "
             f"remote={'yes' if c.get('remote_signal') else 'no'} "
+            f"setup={c.get('work_mode') or 'unstated'} "
             f"region={c.get('region') or '?'} "
             f"seniority={_seniority_for_model(c)} work={c.get('work_type') or '?'}"
             + (" part_time=yes" if c.get("is_part_time") else "")
@@ -224,6 +232,11 @@ ROUTINE_INSTRUCTIONS = (
     "Only \"remote\":true candidates are exempt — \"hybrid\" is not remote. A candidate with "
     "\"city\":\"?\" did not resolve to a known city: read its \"location\" text and judge it "
     "yourself rather than assuming the prefilter checked it. "
+    "If (and only if) the profile has a \"work_setup\" line, the subscriber has ruled some "
+    "arrangements out: a candidate whose \"work_mode\" is not one they accept is not a fit "
+    "(omit it / score it below 4). \"work_mode\":null means the posting never stated one — "
+    "most do not — so read its description and judge it, rather than letting it through "
+    "because the field was empty. "
     "If the profile has \"part_time_only\":true, a full-time posting is not what they asked "
     "for: score it at most 5 (it still shows on their matches page, it just must not headline "
     "the email) and prefer candidates with \"part_time\":true. Postings may be "
@@ -250,6 +263,12 @@ def _profile_export(p: dict) -> dict:
         if cities:
             out["cities"] = cities
         out["remote_scope"] = geo.clean_remote_scope(p.get("remote_scope"))
+    # Same rule as the prompt block: emitted only when the subscriber has narrowed it, so its
+    # presence in the file means "this one has an opinion". See `work_modes` in geo.py.
+    modes = geo.clean_work_modes(p.get("work_modes"))
+    if len(modes) < len(geo.WORK_MODES):
+        out["work_modes"] = modes
+        out["work_setup"] = geo.describe_work_modes(modes)
     # Only when true: an explicit "part_time_only": false in every profile is noise the model
     # has to read past, and false is already the default reading of its absence.
     if p.get("part_time_only"):
@@ -263,6 +282,9 @@ def _candidate_export(c: dict) -> dict:
         "posting_id": c["posting_id"], "title": c.get("title"), "company": c.get("company"),
         "location": c.get("location"), "region": c.get("region"),
         "city": _city_for_model(c), "remote": bool(c.get("remote_signal")),
+        # "remote"|"hybrid"|"onsite"|null. `remote` stays the boolean the location rule keys
+        # on; this is the finer answer, and null genuinely means the posting never said.
+        "work_mode": c.get("work_mode"),
         "seniority": _seniority_for_model(c), "work_type": c.get("work_type"),
         "part_time": bool(c.get("is_part_time")),
         "salary": c.get("salary_raw"), "description": desc,

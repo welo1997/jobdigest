@@ -21,6 +21,7 @@ create table if not exists postings (
     country_code   varchar(2),
     city           text,                            -- resolved slug ('prague'), null = unknown
     remote_signal  boolean,                          -- true only when FULLY remote, not hybrid
+    work_mode      text,                             -- remote | hybrid | onsite | null=unknown
     salary_raw     text,
     currency       text,
     posted_at      date,
@@ -73,6 +74,9 @@ create table if not exists profiles (
     countries       text[]  not null default '{}',  -- ISO-2, e.g. {CZ,DE}
     cities          text[]  not null default '{}',  -- {cz:prague}; no entry = any city there
     remote_scope    text    not null default 'eu',  -- country | eu | worldwide (fully remote)
+    -- Which work setups they'll accept (migration 012). All three = no filter; a posting whose
+    -- work_mode is unknown always passes and is judged by the matcher. See service/geo.py.
+    work_modes      text[]  not null default '{onsite,hybrid,remote}',
     regions         text[]  not null default '{cz,eu,worldwide}',   -- derived, coarse
     role_categories text[]  not null default '{}',  -- empty = all data roles
     work_types      text[]  not null default '{permanent,freelance/contract}',

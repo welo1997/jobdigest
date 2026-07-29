@@ -13,7 +13,11 @@ const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 function jobTags(j: MatchJob): { text: string; fl?: boolean }[] {
   const out: { text: string; fl?: boolean }[] = [];
   if (j.region) out.push({ text: j.region.toUpperCase() });
-  if (j.region === "eu" || j.region === "worldwide") out.push({ text: "Remote" });
+  // Hybrid wins over the coarse region-implied "Remote" — see `_tags` in service/digest.py.
+  if (j.work_mode === "hybrid") out.push({ text: "Hybrid" });
+  else if (j.work_mode === "remote" || j.region === "eu" || j.region === "worldwide") {
+    out.push({ text: "Remote" });
+  }
   if (j.seniority) out.push({ text: cap(j.seniority) });
   if (j.work_type === "freelance/contract") out.push({ text: "Freelance", fl: true });
   if (j.salary) out.push({ text: j.salary });

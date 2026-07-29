@@ -23,6 +23,8 @@ export interface SubscribePayload {
   cities?: string[];
   remote_scope?: string;
   regions?: string[];
+  // Which work setups they'll accept. Omit for "no preference" — all three.
+  work_modes?: string[];
   role_categories?: string[];
   work_types?: string[];
   part_time_only?: boolean;
@@ -44,6 +46,8 @@ export interface Preferences {
   cities: string[];
   remote_scope: string;
   regions: string[];
+  // Optional: absent on a subscription that predates migration 012. See `cleanWorkModes`.
+  work_modes?: string[];
   role_categories: string[];
   work_types: string[];
   part_time_only: boolean;
@@ -66,6 +70,7 @@ export interface MatchJob {
   region: string | null;
   seniority: string | null;
   work_type: string | null;
+  work_mode: string | null;   // remote | hybrid | onsite | null = the ad never said
   role_category: string | null;
   salary: string | null;
   score: number | null;
