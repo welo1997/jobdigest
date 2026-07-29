@@ -5,7 +5,7 @@ email is those and nothing changes. If there are none, the email carries the bes
 (4-5) unsent matches instead of skipping — but it is labelled honestly as a no-strong-match
 day. Only a genuinely empty pick list skips the send.
 
-These tests are DB-free: build_digest's two DB reads are monkeypatched. Each assertion is
+These tests are DB-free: build_digest's three DB reads are monkeypatched. Each assertion is
 paired with the behaviour it guards, so breaking the fallback turns one of them red.
 """
 from __future__ import annotations
@@ -16,7 +16,10 @@ from service import digest
 
 
 def _job(pid: str, score: int, **extra) -> dict:
-    j = {"posting_id": pid, "score": score, "title": "Role", "company": "Co",
+    # Titles are per-posting so these fallback tests exercise the fallback only. A shared
+    # title would now collapse under the (company, title) dedupe and every count here would
+    # silently be measuring that instead — see test_digest_dedupe.py.
+    j = {"posting_id": pid, "score": score, "title": f"Role {pid}", "company": "Co",
          "url": "https://example.com/j", "summary": "s", "role_category": "data_engineering"}
     j.update(extra)
     return j
@@ -25,9 +28,11 @@ def _job(pid: str, score: int, **extra) -> dict:
 @pytest.fixture
 def patched(monkeypatch):
     """Let a test declare the matcher's picks and what was already sent, no DB."""
-    state: dict = {"picks": [], "already": set()}
+    state: dict = {"picks": [], "already": set(), "sent_keys": []}
     monkeypatch.setattr(digest.store, "matched_jobs", lambda pid, limit=50: list(state["picks"]))
     monkeypatch.setattr(digest.store, "already_sent_ids", lambda pid: set(state["already"]))
+    monkeypatch.setattr(digest.store, "sent_job_keys",
+                        lambda pid, days=90: list(state["sent_keys"]))
     return state
 
 

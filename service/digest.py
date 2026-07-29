@@ -22,7 +22,9 @@ from __future__ import annotations
 import argparse
 import html
 import os
+import re
 import sys
+import unicodedata
 from collections import Counter
 from datetime import datetime
 
@@ -33,6 +35,9 @@ from service import links, store, taxonomy  # noqa: E402
 DEFAULT_LIMIT = 5            # curated highlights in the email; the rest live on /matches
 EMAIL_MIN_SCORE = 6         # a "strong" fit — a digest of these is the normal, headline case
 FALLBACK_LIMIT = int(os.environ.get("DIGEST_FALLBACK_LIMIT", "3"))  # weaker picks shown on a quiet day
+# How far back a previously emailed (company, title) suppresses a repeat. Bounded rather
+# than forever: a role genuinely re-opened months later is a new opportunity, not a repeat.
+REPEAT_WINDOW_DAYS = int(os.environ.get("DIGEST_REPEAT_WINDOW_DAYS", "90"))
 BASE_URL = os.environ.get("BASE_URL", "https://jobdigest.eu")
 
 # Direction-A palette (kept in sync with design/prototype.html)
@@ -45,6 +50,102 @@ SERIF = "Georgia, 'Times New Roman', serif"
 SANS = "-apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif"
 
 
+# ------------------------------------------------------------- dedupe ---------
+#
+# `digest_sends` guarantees a *posting_id* is never emailed twice. It cannot see the case
+# where one job exists under two ids, which happens two ways and was measured on
+# 2026-07-28 at 3 occurrences in 77 sends:
+#
+#   cross-source — the same opening carried by jobs.cz and by cocuma, ingested separately;
+#   relisting    — jobs.cz re-posts an expiring ad under a fresh id, so the "new" posting
+#                  is a different row with identical company and title.
+#
+# Both are one job to the subscriber, so both are deduplicated on a normalised
+# (company, title) key. Nothing is lost by this: /matches is deliberately NOT deduplicated
+# and remains the complete record of every pick. Only the email is collapsed.
+#
+# City is part of the identity, because (company, title) alone is not one job: 1 438 active
+# postings sit in 641 same-company-same-title groups, and they are overwhelmingly one role
+# advertised across many towns — ČSOB's client-care role in 10 of them, Biedronka's store
+# manager in 7. Collapsing those would delete real openings from the email and, worse,
+# suppress them for the whole repeat window.
+#
+# **An unknown city is a wildcard, not a value.** Two *known* cities that differ mean two
+# jobs; if either side is unknown the pair falls back to (company, title) and is treated as
+# the same job. This is the same reading `geo` gives a null everywhere else, and it is not
+# academic: of the two real repeats in production, SOFTEC was prague/prague but Publicis
+# Groupe was null/prague — a strict city component would have missed half of what this fixes.
+
+# Legal forms are matched at the END of the name only. Unanchored, a legal-form word that
+# happens to sit mid-name would be deleted from it — "Nord SE Consulting" would become
+# "Nord Consulting" and collide with the unrelated company actually called that.
+_LEGAL_SUFFIX = re.compile(
+    r"[\s,]+(?:"
+    r"spol\.?\s*s\s*r\.?\s*o|s\.?\s*r\.?\s*o|a\.?\s*s|k\.?\s*s|o\.?\s*p\.?\s*s|z\.?\s*s|"
+    r"gmbh(?:\s*&\s*co\.?\s*kg)?|mbh|ag|se|ug|kg|ohg|b\.?\s*v|n\.?\s*v|"
+    r"ltd|limited|llc|inc|incorporated|corp|corporation|plc|"
+    r"s\.?\s*a|s\.?\s*p\.?\s*a|oy|ab|a/s|aps|sp\.?\s*z\.?\s*o\.?\s*o"
+    r")\.?\s*$",
+    re.IGNORECASE,
+)
+# "(m/f/d)", "[Remote]", "- 100% remote" style trailers carry no identity.
+_BRACKETED = re.compile(r"\([^)]*\)|\[[^\]]*\]")
+_NON_WORD = re.compile(r"[^a-z0-9]+")
+
+
+def _fold(s: str) -> str:
+    """Lowercase and strip diacritics — 'Datový analytik' and 'Datovy analytik' are one job.
+
+    Boards disagree about Czech diacritics for the same posting, so folding them is what
+    makes the cross-source case actually match."""
+    decomposed = unicodedata.normalize("NFKD", s)
+    return "".join(c for c in decomposed if not unicodedata.combining(c)).lower()
+
+
+def dedupe_key(company: str | None, title: str | None) -> str:
+    """A stable identity for 'the same job', or "" when there isn't enough to judge.
+
+    Returning "" for a missing company or title is load-bearing: an empty key must never
+    collapse two rows together, so callers treat it as always-unique. Silently merging
+    everything with a blank company would drop real jobs from the email."""
+    company = _NON_WORD.sub(" ", _fold(_LEGAL_SUFFIX.sub("", (company or "").strip()))).strip()
+    title = _NON_WORD.sub(" ", _BRACKETED.sub(" ", _fold(title or ""))).strip()
+    if not company or not title:
+        return ""
+    return f"{company}|{title}"
+
+
+def _is_repeat(seen: dict[str, set[str | None]], key: str, city: str | None) -> bool:
+    """Has this (key, city) already been seen, treating an unknown city as matching any?
+
+    `seen` maps a (company, title) key to the cities it has appeared in, where None means
+    "the ad did not say". A None on either side collapses the pair, so the wildcard works
+    in both directions regardless of which arrived first."""
+    cities = seen.get(key)
+    if cities is None:
+        return False
+    return city is None or None in cities or city in cities
+
+
+def _drop_repeats(jobs: list[dict], seen: dict[str, set[str | None]]) -> list[dict]:
+    """Keep the first job for each identity; `seen` is pre-seeded with what was emailed.
+
+    `jobs` arrives ordered by score desc (matched_jobs), so "first" is "highest scoring" —
+    that is what makes this keep the better of two copies without sorting again."""
+    out = []
+    for j in jobs:
+        key = dedupe_key(j.get("company"), j.get("title"))
+        if not key:                       # not enough to judge — always unique, never merged
+            out.append(j)
+            continue
+        city = j.get("city") or None
+        if _is_repeat(seen, key, city):
+            continue
+        seen.setdefault(key, set()).add(city)
+        out.append(j)
+    return out
+
+
 # ---------------------------------------------------------------- build --------
 
 def build_digest(profile: dict, limit: int = DEFAULT_LIMIT) -> list[dict]:
@@ -53,12 +154,26 @@ def build_digest(profile: dict, limit: int = DEFAULT_LIMIT) -> list[dict]:
     Reads the picks the matcher (`service.matcher`) wrote to `matches` — no heuristic
     scoring. Anything already emailed to this profile (`digest_sends`) is filtered out so
     a job is never sent twice. If the matcher hasn't run for this profile yet, returns []
-    and the digest is skipped (nothing to send)."""
+    and the digest is skipped (nothing to send).
+
+    Two jobs that are the same opening under different posting_ids are collapsed to one —
+    see the dedupe section above. This happens BEFORE the limit is applied, so a duplicate
+    costs the subscriber nothing: the slot goes to the next real job rather than to a
+    second copy."""
     if not profile.get("id"):
         return []
     picks = store.matched_jobs(profile["id"], limit=limit * 6)
     already = store.already_sent_ids(profile["id"])
     unsent = [j for j in picks if j["posting_id"] not in already]
+    # Seeded with what was emailed recently, so a relisted ad is caught across days too —
+    # by the time the new id appears, the old one is filtered by `already` and would
+    # otherwise sail through as a fresh job.
+    seen: dict[str, set[str | None]] = {}
+    for company, title, city in store.sent_job_keys(profile["id"], days=REPEAT_WINDOW_DAYS):
+        key = dedupe_key(company, title)
+        if key:
+            seen.setdefault(key, set()).add(city or None)
+    unsent = _drop_repeats(unsent, seen)
     strong = [j for j in unsent if (j.get("score") or 0) >= EMAIL_MIN_SCORE]
     if strong:
         return strong[:limit]

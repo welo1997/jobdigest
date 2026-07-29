@@ -495,7 +495,7 @@ def matched_jobs(profile_id: str, limit: int = 50) -> list[dict]:
         cur.execute(
             """
             select p.posting_id, p.source, p.title, p.company, p.url, p.location,
-                   p.region, p.eligibility, p.seniority, p.work_type, p.is_part_time,
+                   p.region, p.city, p.eligibility, p.seniority, p.work_type, p.is_part_time,
                    p.remote_signal, p.work_mode,
                    p.role_category, p.salary_raw, p.currency, p.posted_at,
                    m.score, m.summary
@@ -1082,6 +1082,29 @@ def already_sent_ids(profile_id: str) -> set[str]:
     with cursor() as cur:
         cur.execute("select posting_id from digest_sends where profile_id = %s", (profile_id,))
         return {r["posting_id"] for r in cur.fetchall()}
+
+
+def sent_job_keys(profile_id: str, days: int = 90) -> list[tuple[str, str, str | None]]:
+    """(company, title, city) of jobs emailed to this profile within `days` — repeat guard.
+
+    Deliberately not filtered on `is_active`: the case this exists for is a listing that
+    expired and was re-posted under a new id, so the row we need to recognise is precisely
+    the inactive one. Postings are never deleted (only deactivated, and `prune_descriptions`
+    blanks the text while keeping company and title), so this history stays readable
+    indefinitely. Normalisation lives in `digest.dedupe_key` — one definition, applied to
+    both sides of the comparison."""
+    with cursor() as cur:
+        cur.execute(
+            """
+            select distinct p.company, p.title, p.city
+            from digest_sends d
+            join postings p on p.posting_id = d.posting_id
+            where d.profile_id = %s
+              and d.sent_at >= now() - (%s || ' days')::interval
+            """,
+            (profile_id, int(days)),
+        )
+        return [(r["company"], r["title"], r["city"]) for r in cur.fetchall()]
 
 
 def record_sends(profile_id: str, items: list[tuple[str, int]]) -> None:
