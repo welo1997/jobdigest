@@ -328,6 +328,15 @@ python -m pytest                # ingestion, enrichment, service
 cd dbt && dbt test
 ```
 
+**CI runs `python -m pytest` on every push and PR** (`.github/workflows/tests.yml`) — the same
+command, so a green tick and a green local run mean the same thing. It stands up a throwaway
+Postgres and loads `service/db/schema.sql`, which is what makes `test_geo_sql.py`'s 23 cases
+execute: they skip themselves without `TEST_DATABASE_URL`, so before 2026-07-29 they had never
+run on any machine. The job fails if they go back to skipping — a suite that silently drops its
+most expensive tests still shows green, which is the failure this whole workflow exists to
+prevent. Locally they still skip unless you export `TEST_DATABASE_URL` (recipe in the file's
+docstring); everything else runs either way.
+
 `service/tests/` covers the places where being wrong is expensive, and the tests are
 written to fail when the guarantee breaks — not merely to pass:
 
