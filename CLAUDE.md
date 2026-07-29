@@ -368,10 +368,21 @@ replayed confirm link can no longer be exchanged for the manage token
 (`safe_url`) and the `/matches` page (`web/lib/url.ts` `safeHref`); `pip-audit` / `npm audit`
 / Dependabot in CI (`.github/workflows/audit.yml`, `.github/dependabot.yml`); off-box backup
 retention — `jobdigest-backup.sh` prunes both local and the encrypted Drive copies past
-`KEEP_DAYS` (30), verified running on the VPS 2026-07-22.
+`KEEP_DAYS` (30), verified running on the VPS 2026-07-22; **origin TLS** — the LE cert that
+could not renew behind the Cloudflare proxy was replaced 2026-07-29 with a Cloudflare Origin
+Certificate valid to **2041**, and Caddy now logs *"skipping automatic certificate
+management"* rather than attempting ACME (`deploy/cert-renewal.md`).
 
-Still open:
+**Every item from the security review is now closed.** Two things about the TLS setup are
+load-bearing and easy to undo by accident:
 
-- Cert renewal: Caddy's LE cert cannot renew behind the Cloudflare proxy. Switch to a
-  Cloudflare Origin Certificate before ~mid-Sept 2026 — runbook: `deploy/cert-renewal.md`.
-  **This is the only item left.**
+- **The private key was generated on the VPS and never left it.** Cloudflare's default flow
+  displays a generated key in the browser once; that would put a credential in a transcript
+  (security rule 2). Only the CSR was pasted into the dashboard. If the cert is ever
+  re-issued, keep that shape.
+- **The `tls` directive is committed, not a box-local edit.** `web/Caddyfile` is baked into
+  the `web` image, so an uncommitted edit on the box would be reverted by the next
+  `scp web/Caddyfile` and would take the site down at the following rebuild. The Caddyfile
+  carries `import /etc/caddy/origin/*.caddy`; the box-specific line lives in
+  `deploy/origin/tls.caddy` (gitignored, mounted `:ro`). A glob matching nothing is a no-op,
+  which is what keeps local dev on automatic certs — do not replace it with a plain `import`.

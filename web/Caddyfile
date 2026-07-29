@@ -1,13 +1,23 @@
 # Edge for JobDigest. Serves the static Next.js export and proxies /api/* to the backend.
-# TLS: with a real {$SITE_DOMAIN} Caddy auto-provisions Let's Encrypt certs. That does NOT
-# renew behind the Cloudflare proxy — switch to a Cloudflare Origin Certificate before
-# ~mid-Sept 2026. Step-by-step: deploy/cert-renewal.md (adds a `tls` line here on the box).
+# TLS: Let's Encrypt cannot renew behind the Cloudflare proxy (CF terminates TLS at its edge
+# and intercepts the ACME challenge), so production serves a Cloudflare Origin Certificate
+# instead — issued 2026-07-29, valid to 2041, nothing to renew. The cert and the `tls` line
+# that selects it live in deploy/origin/ on the VPS and are imported below, because a private
+# key must not be committed. See deploy/cert-renewal.md.
 
 {
 	email {$ACME_EMAIL:admin@example.com}
 }
 
 {$SITE_DOMAIN:localhost} {
+	# Production TLS: deploy/origin/tls.caddy points Caddy at the Cloudflare Origin
+	# Certificate, which overrides ACME entirely. A glob that matches nothing is a no-op
+	# (verified: `caddy validate` returns "Valid configuration"), so local dev — where the
+	# directory is empty or absent — keeps Caddy's automatic/internal certs. This stays one
+	# committed Caddyfile everywhere: a box-local edit would be reverted by the next scp and
+	# would take the site down at the following rebuild.
+	import /etc/caddy/origin/*.caddy
+
 	encode gzip zstd
 
 	# API — strip the /api prefix, forward to the backend container.

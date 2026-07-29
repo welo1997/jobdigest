@@ -61,6 +61,11 @@ services:
     volumes:
       - caddy_data:/data
       - caddy_config:/config
+      # Cloudflare Origin Certificate + the `tls` snippet that points Caddy at it. The
+      # directory is gitignored and only exists on the VPS; the Caddyfile imports it with
+      # a glob, so an empty/absent mount is a no-op and local dev still uses ACME/internal.
+      # See deploy/cert-renewal.md.
+      - ./origin:/etc/caddy/origin:ro
 
   # Daily pipeline as a one-shot (run by host cron / systemd timer / n8n — see README).
   # `docker compose run --rm pipeline` builds today's digests and sends them.
