@@ -22,11 +22,18 @@ on:
 permissions:
   contents: read
 
-# Two jobs, because the repo is two systems and they cannot share one environment: the root
-# stack and service/ pin feedparser, beautifulsoup4 and anthropic to different versions, so
-# installing both is a ResolutionImpossible (this workflow's first run, 033fefe). Splitting
-# them is not a workaround — each half's tests now run against the versions that half
-# actually deploys, and the boundary matches the one CLAUDE.md draws for the code.
+# Two jobs, because the repo is two systems. They cannot share one environment: the root
+# stack and service/ pin shared libraries to different versions, so one combined
+# `pip install` is a ResolutionImpossible — which is how this workflow failed on its first
+# run (033fefe), on feedparser 6.0.11 vs 6.0.12.
+#
+# Dependency PRs merged since have aligned beautifulsoup4 and anthropic, leaving only
+# feedparser split, so do not read the version conflict as the whole reason — it is the
+# symptom. The reason is that requirements-dev.txt drags snowflake and dbt into an
+# environment JobDigest never ships, and a test run in an environment that exists nowhere
+# proves nothing about either half. Each job now installs what its half actually deploys,
+# which is the boundary CLAUDE.md draws for the code: Snowflake must never reach into
+# service/.
 jobs:
   jobdigest:
     name: pytest (jobdigest)

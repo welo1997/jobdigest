@@ -1,11 +1,12 @@
 # Test tooling for the JobDigest half, layered on the deps the container actually ships.
 #
 # Exists because the two halves of this repo cannot share one environment and should not be
-# forced to: the root stack pins feedparser/beautifulsoup4/anthropic for the (decommissioned)
-# market-intelligence pipeline, service/requirements-worker.txt pins them for JobDigest, and
-# the versions legitimately differ. Installing both in one `pip install` is a
-# ResolutionImpossible -- which is exactly how .github/workflows/tests.yml failed on its
-# first run.
+# forced to. The immediate trigger was a version conflict on shared libraries -- installing
+# the root requirements and service/'s together is a ResolutionImpossible, which is exactly
+# how .github/workflows/tests.yml failed on its first run. Later dependency PRs aligned
+# beautifulsoup4 and anthropic, so today only feedparser actually clashes; the file stays,
+# because the conflict was the symptom. The reason is that the root file drags snowflake and
+# dbt into an environment JobDigest never ships.
 #
 # Keeping them apart also means the JobDigest tests run against the versions JobDigest
 # deploys, rather than whichever version pip happened to settle on. Same boundary CLAUDE.md
