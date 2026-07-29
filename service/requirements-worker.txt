@@ -3,7 +3,7 @@
 # repo-root requirements.txt — the JobDigest container never touches Snowflake.
 -r requirements.txt
 # ingest sources (service.pipeline --ingest -> search_jobs -> ingestion/*)
-feedparser==6.0.11
+feedparser==6.0.12
 # 2.32.3 carried a .netrc credential-leak CVE (PYSEC-2026-1872/2275) triggered via a
 # malicious redirect target. We never use .netrc auth, so this was never reachable — bumped
 # as hygiene, not because it was exploitable here.
