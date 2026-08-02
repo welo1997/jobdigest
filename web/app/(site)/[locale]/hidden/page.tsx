@@ -1,27 +1,29 @@
 "use client";
 
+/**
+ * The other half of `/matches`: jobs the subscriber hid because they had already applied or
+ * did not want to see them again.
+ *
+ * Hiding is never a delete — this page is what makes that true. It is the same list, the same
+ * cards and the same paging read through the opposite filter (`useMatchList({hidden: true})`),
+ * so nothing about a job changes by being hidden except which page it is on.
+ */
+
 import { Suspense, useState } from "react";
 import Link from "next/link";
 import { Nav, Footer } from "@/components/SiteChrome";
 import { MatchCard, SelectionBar } from "@/components/MatchCard";
 import { setMatchesHidden } from "@/lib/api";
-import { track } from "@/lib/analytics";
 import { useMatchList } from "@/lib/useMatchList";
-import { rich, useI18n } from "@/i18n/context";
+import { useI18n } from "@/i18n/context";
 
 function Inner() {
   const { t, href, count } = useI18n();
-  const list = useMatchList({
-    hidden: false,
-    path: "/matches",
-    // How many matches the page actually had — a page that routinely shows 0 or 1 is
-    // a product problem, not a UI one.
-    onLoaded: (d, token) => track("matches_viewed", { count: d.count }, token || undefined),
-  });
+  const list = useMatchList({ hidden: true, path: "/hidden" });
   const { data, jobs } = list;
   const [picked, setPicked] = useState<Set<string>>(new Set());
-  const [hiding, setHiding] = useState(false);
-  const [hideErr, setHideErr] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [failed, setFailed] = useState(false);
 
   const toggle = (id: string) =>
     setPicked((prev) => {
@@ -30,28 +32,23 @@ function Inner() {
       return next;
     });
 
-  const hide = async () => {
+  const unhide = async () => {
     const ids = [...picked];
-    if (!ids.length || hiding) return;
-    setHiding(true);
-    setHideErr(false);
+    if (!ids.length || busy) return;
+    setBusy(true);
+    setFailed(false);
     try {
-      const res = await setMatchesHidden(ids, true, list.token || undefined);
-      // Drop exactly what we asked to hide. The server's own fresh totals come back with it,
-      // so the header and the "hidden" link never drift from what is stored.
+      const res = await setMatchesHidden(ids, false, list.token || undefined);
       list.removeJobs(ids, res);
       setPicked(new Set());
     } catch {
-      // The rows stay on screen and stay ticked: a failed hide must leave the subscriber
-      // able to press the button again, not guessing which half went through.
-      setHideErr(true);
+      setFailed(true);
     } finally {
-      setHiding(false);
+      setBusy(false);
     }
   };
 
-  const prefsHref = list.linkTo("/preferences");
-  const hiddenHref = list.linkTo("/hidden");
+  const matchesHref = list.linkTo("/matches");
 
   if (list.err) {
     return (
@@ -69,43 +66,33 @@ function Inner() {
     return <div className="state-wrap"><div className="state-card"><h1>{t.common.loading}</h1></div></div>;
   }
 
-  // Rendered whenever anything is hidden, including on the empty state — someone who hid
-  // their whole list must still have a way back to it.
-  const hiddenLink = data.hidden_count > 0 && (
-    <Link className="hidden-link" href={hiddenHref}>
-      {count(data.hidden_count, t.matches.hiddenLink)}
-    </Link>
-  );
-
   return (
     <>
       <div className="wrap page-head">
-        <span className="label">{t.matches.label}</span>
-        <h1>{data.count > 0 ? count(data.count, t.matches.countTitle) : t.matches.noneTitle}</h1>
-        <p>{rich(t.matches.intro, [<b key="e">{data.email}</b>])}</p>
+        <span className="label">{t.hidden.label}</span>
+        <h1>{data.count > 0 ? count(data.count, t.hidden.countTitle) : t.hidden.noneTitle}</h1>
+        <p>{t.hidden.intro}</p>
       </div>
 
       {data.count === 0 ? (
         <div className="state-wrap">
           <div className="state-card">
-            <h1>{t.matches.nothingTitle}</h1>
-            <p>{t.matches.nothingBody}</p>
+            <h1>{t.hidden.nothingTitle}</h1>
+            <p>{t.hidden.nothingBody}</p>
             <p style={{ marginTop: 16 }}>
-              <Link href={prefsHref}>{t.matches.adjustPrefs}</Link>
+              <Link href={matchesHref}>{t.hidden.backToMatches}</Link>
             </p>
-            {hiddenLink && <p style={{ marginTop: 12 }}>{hiddenLink}</p>}
           </div>
         </div>
       ) : (
         <>
           <div className="wrap list-tools">
-            <p className="hint">{t.matches.hideHint}</p>
             <div className="row">
               <button type="button" className="lnk"
                 onClick={() => setPicked(new Set(jobs.map((j) => j.posting_id)))}>
                 {t.matches.selectAll}
               </button>
-              {hiddenLink}
+              <Link className="hidden-link" href={matchesHref}>{t.hidden.backToMatches}</Link>
             </div>
           </div>
 
@@ -122,13 +109,11 @@ function Inner() {
           </div>
 
           <div className="wrap more-wrap">
-            {hideErr && <p className="more-err" role="alert">{t.matches.hideFailed}</p>}
+            {failed && <p className="more-err" role="alert">{t.hidden.unhideFailed}</p>}
             {list.hasMore && (
               <>
-                {/* Stated before the button, so "load more" is a decision rather than a
-                    guess at how much is left. */}
                 <p className="more-count">
-                  {count(data.count, t.matches.showing, { shown: jobs.length })}
+                  {count(data.count, t.hidden.showing, { shown: jobs.length })}
                 </p>
                 <button type="button" className="btn more-btn"
                   onClick={list.loadMore} disabled={list.loadingMore}>
@@ -139,22 +124,16 @@ function Inner() {
             {list.moreErr && (
               <p className="more-err" role="alert">{t.matches.loadMoreFailed}</p>
             )}
-            <p style={{ marginTop: 28 }}>
-              <Link href={prefsHref}
-                style={{ fontSize: "var(--fs-sm)", color: "var(--muted)" }}>
-                {t.matches.notQuiteRight}
-              </Link>
-            </p>
           </div>
 
           <SelectionBar
             n={picked.size}
-            busy={hiding}
+            busy={busy}
             countLabel={count(picked.size, t.matches.selected)}
-            label={t.matches.hideSelected}
-            busyLabel={t.matches.hiding}
+            label={t.hidden.unhideSelected}
+            busyLabel={t.hidden.unhiding}
             clearLabel={t.matches.clearSelection}
-            onConfirm={hide}
+            onConfirm={unhide}
             onClear={() => setPicked(new Set())}
           />
         </>
@@ -163,7 +142,7 @@ function Inner() {
   );
 }
 
-export default function MatchesPage() {
+export default function HiddenPage() {
   return (
     <>
       <Nav />

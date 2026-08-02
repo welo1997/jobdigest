@@ -41,6 +41,10 @@ export default function PrivacyCs() {
           <li><b>Záznamy o doručení</b> — které nabídky jsme vám již poslali, abychom stejnou
             nabídku nikdy neposlali dvakrát, a časové značky odeslání a potvrzení.</li>
           <li><b>Anonymní statistiky používání</b> — které stránky se zobrazují a které kroky
+          <li><b>Nabídky, které skryjete</b> — když nabídku na stránce se svými nabídkami
+            skryjete (protože jste se už přihlásili nebo pro vás není), uložíme si tuto volbu
+            k vašemu odběru, abychom ji přestali zobrazovat i posílat e-mailem. Všechny je
+            vidíte na stránce se skrytými nabídkami a můžete je kdykoli vrátit zpět.</li>
             registračního formuláře jsou dosaženy nebo selžou, abychom mohli opravit, co je
             matoucí. Viz oddíl 6.</li>
         </ul>

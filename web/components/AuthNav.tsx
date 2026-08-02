@@ -42,6 +42,9 @@ export default function AuthNav() {
     };
     return (
       <>
+        {/* No token on these: a signed-in browser rides the session cookie, and both pages
+            fall back to their own `?token=` only when a magic link supplied one. */}
+        <Link className="nav-link" href={href("/matches")}>{t.nav.myMatches}</Link>
         <Link className="nav-link" href={href("/preferences")}>{t.nav.myPreferences}</Link>
         <button type="button" className="nav-link" onClick={doLogout}>{t.nav.logOut}</button>
       </>

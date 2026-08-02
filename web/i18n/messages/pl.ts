@@ -13,6 +13,7 @@ const pl: Messages = {
   },
 
   nav: {
+    myMatches: "Moje dopasowania",
     myPreferences: "Moje ustawienia",
     logOut: "Wyloguj się",
     logIn: "Zaloguj się",
@@ -309,6 +310,53 @@ const pl: Messages = {
       "Jeśli {0} ma subskrypcję JobDigest, właśnie wysłaliśmy tam prywatny link do ustawień. Otwórz go, aby zmienić ustawienia, wstrzymać lub wypisać się — bez hasła.",
     didntGet: "Nie dotarł? Sprawdź spam albo spróbuj ponownie za kilka minut.",
     title: "Zaloguj się do JobDigest",
+    // Bez form rodzajowych („ukryłeś/ukryłaś”): zgłoszenie wysłane, nie „wysłałeś”.
+    hideHint:
+      "Masz już wysłane zgłoszenie albo oferta Cię nie interesuje? Zaznacz ją i ukryj — zniknie z tej strony i z codziennego e-maila.",
+    selectAll: "Zaznacz wszystkie widoczne",
+    clearSelection: "Wyczyść",
+    selectAria: "Zaznacz",
+    selected: {
+      one: "{n} zaznaczona oferta",
+      few: "{n} zaznaczone oferty",
+      many: "{n} zaznaczonych ofert",
+      other: "{n} zaznaczonej oferty",
+    },
+    hideSelected: "Ukryj zaznaczone",
+    hiding: "Ukrywam…",
+    hideFailed: "Nie udało się ukryć tych ofert — spróbuj ponownie.",
+    hiddenLink: {
+      one: "{n} ukryta oferta →",
+      few: "{n} ukryte oferty →",
+      many: "{n} ukrytych ofert →",
+      other: "{n} ukrytej oferty →",
+    },
+  },
+
+  hidden: {
+    label: "Ukryte oferty · zalogowano",
+    countTitle: {
+      one: "{n} ukryta oferta",
+      few: "{n} ukryte oferty",
+      many: "{n} ukrytych ofert",
+      other: "{n} ukrytej oferty",
+    },
+    noneTitle: "Brak ukrytych ofert",
+    intro:
+      "Oferty ukryte przez Ciebie. Nie pojawiają się wśród Twoich dopasowań ani w codziennym e-mailu — w każdej chwili możesz je przywrócić.",
+    nothingTitle: "Nic nie jest ukryte",
+    nothingBody: "Ukryj ofertę wśród swoich dopasowań, a trafi tutaj. Nic nie jest usuwane.",
+    backToMatches: "← Wróć do swoich dopasowań",
+    unhideSelected: "Przywróć zaznaczone",
+    unhiding: "Przywracam…",
+    unhideFailed: "Nie udało się przywrócić tych ofert — spróbuj ponownie.",
+    // Po przyimku „z” liczony rzeczownik stoi w dopełniaczu: 1 → oferty, 2+ → ofert.
+    showing: {
+      one: "Pokazano {shown} z {n} ukrytej oferty",
+      few: "Pokazano {shown} z {n} ukrytych ofert",
+      many: "Pokazano {shown} z {n} ukrytych ofert",
+      other: "Pokazano {shown} z {n} ukrytych ofert",
+    },
     body: "Żadnych haseł. Podaj swój adres, a wyślemy Ci bezpieczny link — kliknięcie loguje Cię i zostaniesz zalogowany na tym urządzeniu.",
     googleNoSub:
       "To konto Google nie ma jeszcze subskrypcji. Najpierw się zarejestruj, potem zalogujesz się przez Google.",

@@ -302,6 +302,30 @@ button.nav-link{background:none;border:0;padding:0;cursor:pointer;font-family:in
   color:var(--brand-deep);background:var(--brand-tint);border:1px solid color-mix(in srgb,var(--brand) 30%,var(--line));
   border-radius:var(--r-pill);padding:1px 8px;margin-left:6px;white-space:nowrap;}
 
+/* ---- select & hide, shared by /matches and /hidden ---- */
+.list-tools{max-width:720px;margin-top:18px;}   /* same column as .matches, like .more-wrap */
+.list-tools .hint{font-size:var(--fs-sm);color:var(--muted);margin:0 0 8px;}
+.list-tools .row{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;}
+/* a button that reads as a link — used for "select all" and "clear", which are not commitments */
+.lnk{font:inherit;font-size:var(--fs-sm);font-weight:600;color:var(--brand);background:none;border:0;
+  padding:0;cursor:pointer;}
+.lnk:hover:not(:disabled){text-decoration:underline;}
+.lnk:disabled{opacity:.5;cursor:default;}
+a.hidden-link{font-size:var(--fs-sm);font-weight:600;color:var(--muted);text-decoration:none;}
+a.hidden-link:hover{color:var(--brand);text-decoration:underline;}
+.match .pick{flex:0 0 auto;display:flex;align-items:flex-start;padding-top:3px;cursor:pointer;}
+.match .pick input{width:17px;height:17px;accent-color:var(--brand);cursor:pointer;margin:0;}
+.match.picked{border-color:var(--brand);
+  box-shadow:0 0 0 1px color-mix(in srgb,var(--brand) 35%,transparent),var(--shadow);}
+/* Fixed, not sticky: a selection started at the top of a 25-row list is confirmed from
+   wherever the reader has scrolled to, so the button must never scroll away. */
+.selbar{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);z-index:80;
+  display:flex;align-items:center;gap:14px;max-width:calc(100vw - 32px);
+  background:var(--surface);border:1px solid var(--line);border-radius:var(--r-pill);
+  box-shadow:var(--shadow-lg);padding:10px 14px 10px 20px;}
+.selbar .n{font-size:var(--fs-sm);font-weight:700;color:var(--ink);white-space:nowrap;}
+.selbar .btn{padding:9px 18px;font-size:var(--fs-sm);}
+
 /* toast */
 .toast{position:fixed;left:50%;bottom:28px;transform:translateX(-50%) translateY(20px);opacity:0;
   background:var(--ink);color:var(--paper);padding:12px 20px;border-radius:var(--r-pill);font-size:var(--fs-sm);

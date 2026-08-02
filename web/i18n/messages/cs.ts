@@ -16,6 +16,7 @@ const cs: Messages = {
   },
 
   nav: {
+    myMatches: "Moje nabídky",
     myPreferences: "Moje nastavení",
     logOut: "Odhlásit se",
     logIn: "Přihlásit se",
@@ -307,6 +308,48 @@ const cs: Messages = {
       "Pokud má {0} odběr JobDigest, právě jsme na tuto adresu poslali soukromý odkaz na nastavení. Otevřete ho a upravte si nastavení, pozastavte odběr nebo ho zrušte — bez hesla.",
     didntGet: "Nepřišlo? Zkontrolujte spam nebo to za pár minut zkuste znovu.",
     title: "Přihlaste se do JobDigest",
+    hideHint:
+      "Už jste se přihlásili, nebo vás nabídka nezajímá? Označte ji a skryjte — zmizí z této stránky i z denního e-mailu.",
+    selectAll: "Označit vše zobrazené",
+    clearSelection: "Zrušit výběr",
+    selectAria: "Vybrat",
+    selected: {
+      one: "{n} vybraná nabídka",
+      few: "{n} vybrané nabídky",
+      other: "{n} vybraných nabídek",
+    },
+    hideSelected: "Skrýt vybrané",
+    hiding: "Skrývám…",
+    hideFailed: "Nabídky se nepodařilo skrýt — zkuste to znovu.",
+    hiddenLink: {
+      one: "{n} skrytá nabídka →",
+      few: "{n} skryté nabídky →",
+      other: "{n} skrytých nabídek →",
+    },
+  },
+
+  hidden: {
+    label: "Skryté nabídky · přihlášeni",
+    countTitle: {
+      one: "{n} skrytá nabídka",
+      few: "{n} skryté nabídky",
+      other: "{n} skrytých nabídek",
+    },
+    noneTitle: "Žádné skryté nabídky",
+    intro:
+      "Nabídky, které jste skryli. Nezobrazují se mezi vašimi nabídkami ani v denním e-mailu — kdykoli je můžete zase zobrazit.",
+    nothingTitle: "Nic skrytého",
+    nothingBody: "Skryjte nabídku mezi svými nabídkami a objeví se tady. Nic se nemaže.",
+    backToMatches: "← Zpět na vaše nabídky",
+    unhideSelected: "Zobrazit vybrané",
+    unhiding: "Zobrazuji…",
+    unhideFailed: "Nabídky se nepodařilo zobrazit — zkuste to znovu.",
+    // Po předložce „z“ je počítaný výraz v genitivu: 1 → nabídky, 2+ → nabídek.
+    showing: {
+      one: "Zobrazeno {shown} z {n} skryté nabídky",
+      few: "Zobrazeno {shown} z {n} skrytých nabídek",
+      other: "Zobrazeno {shown} z {n} skrytých nabídek",
+    },
     body: "Žádná hesla. Zadejte svou adresu a pošleme vám bezpečný odkaz — kliknutím se přihlásíte a na tomto zařízení zůstanete přihlášeni.",
     googleNoSub:
       "Tento účet Google zatím odběr nemá. Nejdřív se zaregistrujte, pak se budete moci přihlásit přes Google.",

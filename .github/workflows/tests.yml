@@ -93,14 +93,18 @@ jobs:
 
       # A skip is silent by default, and this suite's most expensive tests are exactly the
       # ones that skip themselves when misconfigured. If the Postgres service or the schema
-      # load ever breaks, test_geo_sql.py goes back to skipping 23 cases and the job stays
-      # green — so fail loudly instead of trusting the tick.
-      - name: Fail if the SQL gate tests skipped themselves
+      # load ever breaks, these files go back to skipping and the job stays green — so fail
+      # loudly instead of trusting the tick. Every SQL-backed file belongs in this list: one
+      # left out is one that can quietly stop running.
+      - name: Fail if the SQL-backed tests skipped themselves
         run: |
-          if python -m pytest service/tests/test_geo_sql.py -q 2>&1 | grep -q "skipped"; then
-            echo "::error::test_geo_sql.py skipped — TEST_DATABASE_URL or the schema load is broken."
-            exit 1
-          fi
+          for f in service/tests/test_geo_sql.py service/tests/test_hidden_sql.py \
+                   service/tests/test_education_sql.py; do
+            if python -m pytest "$f" -q 2>&1 | grep -q "skipped"; then
+              echo "::error::$f skipped — TEST_DATABASE_URL or the schema load is broken."
+              exit 1
+            fi
+          done
 
   # The market-intelligence half. Decommissioned (CLAUDE.md: JOB_MARKET dropped, routines
   # paused) and kept as a portfolio snapshot — so its tests are kept *green*, not deleted.

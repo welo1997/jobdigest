@@ -52,6 +52,31 @@ def _block(text: str, name: str) -> str:
     raise AssertionError(f"unbalanced braces in block {name!r}")
 
 
+def _blocks(text: str, name: str) -> list[str]:
+    """Every object literal at `name:`, not just the first.
+
+    Plural sets share names across sections — `matches` and `hidden` both carry a
+    `countTitle` and a `showing`. Checking only the first occurrence would leave the second
+    unchecked, which is precisely the silent gap these tests exist to close.
+    """
+    out: list[str] = []
+    for match in re.finditer(rf"(?:^|[\s{{,])({re.escape(name)})\s*:\s*\{{", text):
+        start = text.index("{", match.end(1))
+        depth = 0
+        for i in range(start, len(text)):
+            if text[i] == "{":
+                depth += 1
+            elif text[i] == "}":
+                depth -= 1
+                if depth == 0:
+                    out.append(text[start + 1:i])
+                    break
+        else:
+            raise AssertionError(f"unbalanced braces in block {name!r}")
+    assert out, f"block {name!r} not found"
+    return out
+
+
 def _keys(body: str) -> set[str]:
     """Keys of a flat object literal, quoted or bare."""
     return set(re.findall(r'(?:^|[{,])\s*"?([A-Za-z_][A-Za-z0-9_]*)"?\s*:', body, re.M))
@@ -153,7 +178,8 @@ def test_english_country_overlay_stays_empty():
 # Plural sets, and the CLDR categories each language genuinely needs. Czech and Slovak split
 # 2–4 from 5+; Polish splits again at 5 and needs a fraction form as well. Getting this wrong
 # does not fail anything — it just renders "5 nové nabídky", which is broken Czech.
-PLURAL_FIELDS = ["roleCount", "roleCountNamed", "freshMatches", "countTitle"]
+PLURAL_FIELDS = ["roleCount", "roleCountNamed", "freshMatches", "countTitle", "showing",
+                 "selected", "hiddenLink"]
 REQUIRED_FORMS = {
     "cs": {"one", "few", "other"},
     "sk": {"one", "few", "other"},
@@ -166,13 +192,15 @@ def test_plural_sets_carry_every_form_the_language_needs(locale):
     text = _catalogue(locale)
     required = REQUIRED_FORMS.get(locale, {"one", "other"})
     for field in PLURAL_FIELDS:
-        forms = _keys(_block(text, field))
-        assert "other" in forms, (
-            f"{locale}.ts {field} has no `other` form — it is the fallback every other "
-            "category degrades to, and the type requires it for that reason."
-        )
-        missing = required - forms
-        assert not missing, (
-            f"{locale}.ts {field} is missing plural form(s) {sorted(missing)}; "
-            f"Intl.PluralRules will select one of them and fall back to `other`."
-        )
+        for i, body in enumerate(_blocks(text, field)):
+            forms = _keys(body)
+            where = f"{locale}.ts {field}" + (f" (#{i + 1})" if i else "")
+            assert "other" in forms, (
+                f"{where} has no `other` form — it is the fallback every other "
+                "category degrades to, and the type requires it for that reason."
+            )
+            missing = required - forms
+            assert not missing, (
+                f"{where} is missing plural form(s) {sorted(missing)}; "
+                f"Intl.PluralRules will select one of them and fall back to `other`."
+            )

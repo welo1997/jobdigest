@@ -17,6 +17,10 @@ there is never a password.
     GET  /confirm            double opt-in — activate + send welcome (HTML page)
     GET  /preferences        current settings — magic-link token OR session cookie (JSON)
     POST /preferences        update settings
+    GET  /matches            one page of this subscriber's matches (`hidden=true` = the
+                             ones they hid: already applied, not interested)
+    POST /matches/hide       hide jobs — off the matches page and out of the digest
+    POST /matches/unhide     put them back; hiding is never a delete
     POST /pause              pause N days without unsubscribing
     POST /resume             resume a paused subscription
     GET  /unsubscribe        human one-click unsubscribe (HTML page)
@@ -967,7 +971,8 @@ def _match_view(j: dict) -> dict:
 
 
 @app.get("/matches")
-def get_matches(request: Request, token: Optional[str] = None, offset: int = 0) -> dict:
+def get_matches(request: Request, token: Optional[str] = None, offset: int = 0,
+                hidden: bool = False) -> dict:
     """One page of everything the matcher found for this subscriber (not just the emailed
     few), ranked best-first. Authenticated by the private magic-link token or the session
     cookie.
@@ -985,11 +990,13 @@ def get_matches(request: Request, token: Optional[str] = None, offset: int = 0) 
     # Clamp rather than 422: a hand-edited offset should show an empty last page, not break
     # someone's match list.
     offset = max(0, offset)
-    jobs = store.matched_jobs(profile["id"], limit=MATCHES_PAGE_LIMIT, offset=offset)
+    jobs = store.matched_jobs(profile["id"], limit=MATCHES_PAGE_LIMIT, offset=offset,
+                              hidden=hidden)
     return {
         "email": profile.get("email"),
         "label": profile.get("label"),
-        "count": store.match_count(profile["id"]),
+        "count": store.match_count(profile["id"], hidden=hidden),
+        "hidden_count": store.match_count(profile["id"], hidden=True),
         "offset": offset,
         "limit": MATCHES_PAGE_LIMIT,
         "jobs": [_match_view(j) for j in jobs],
@@ -1017,6 +1024,10 @@ class PauseIn(BaseModel):
 def pause(body: PauseIn, request: Request) -> dict:
     profile = _resolve_subscriber(request, body.token, mutating=True)
     if not profile:
+
+    `hidden=true` returns the other half of the same record: the jobs the subscriber hid
+    (already applied, not interested). Both counts come back either way, so the visible page
+    can link to "Hidden (n)" without a second round trip and the hidden page can link back.
         raise HTTPException(404, "Unknown or expired link.")
     until = datetime.now(timezone.utc) + timedelta(days=max(1, body.days))
     store.pause_subscription(profile["manage_token"], until)
@@ -1031,9 +1042,60 @@ class TokenIn(BaseModel):
 def resume(body: TokenIn, request: Request) -> dict:
     profile = _resolve_subscriber(request, body.token, mutating=True)
     if not profile:
+        "hidden": hidden,
         raise HTTPException(404, "Unknown or expired link.")
     store.resume_subscription(profile["manage_token"])
     return {"ok": True, "status": "active"}
+
+# How many jobs one hide/unhide call may name. A page shows MATCHES_PAGE_LIMIT rows and the
+# UI only ever submits what is on screen, so this is far above any honest request — it is
+# here so a scripted caller cannot make one request that rewrites an unbounded number of
+# rows. Refused loudly rather than truncated: a silent partial write would leave the page
+# and the database disagreeing about what is hidden.
+MAX_HIDE_IDS = 200
+
+
+class MatchHideIn(BaseModel):
+    token: Optional[str] = None
+    posting_ids: list[str] = []
+
+
+def _set_hidden(body: MatchHideIn, request: Request, *, hidden: bool) -> dict:
+    profile = _resolve_subscriber(request, body.token, mutating=True)
+    if not profile:
+        raise HTTPException(404, "Unknown or expired link.")
+    if len(body.posting_ids) > MAX_HIDE_IDS:
+        raise HTTPException(400, f"Too many jobs in one request (max {MAX_HIDE_IDS}).")
+    changed = store.set_matches_hidden(profile["id"], body.posting_ids, hidden)
+    # The fresh totals: hiding shrinks one list and grows the other, and the caller renders
+    # both numbers. Returning them here is what lets the page drop the rows it just hid
+    # instead of refetching a list whose offsets have all moved.
+    return {
+        "ok": True,
+        "changed": changed,
+        "visible_count": store.match_count(profile["id"]),
+        "hidden_count": store.match_count(profile["id"], hidden=True),
+    }
+
+
+@app.post("/matches/hide")
+def hide_matches(body: MatchHideIn, request: Request) -> dict:
+    """Hide jobs from this subscriber's own matches page — and from their digest.
+
+    A POST, not a GET, for the reason `/unsubscribe` is: link scanners fetch URLs found in
+    email, and this changes state. Nothing here trusts the ids beyond the subscriber they
+    are scoped to (see `store.set_matches_hidden`); an id that isn't theirs changes nothing
+    and is reported as changed=0 rather than as an error, because a stale page re-submitting
+    a posting that has since gone inactive is ordinary traffic, not an attack.
+    """
+    return _set_hidden(body, request, hidden=True)
+
+
+@app.post("/matches/unhide")
+def unhide_matches(body: MatchHideIn, request: Request) -> dict:
+    """Put hidden jobs back on the matches page. Hiding is never a delete — this is why."""
+    return _set_hidden(body, request, hidden=False)
+
 
 
 # --------------------------------------------------------------- unsubscribe ---

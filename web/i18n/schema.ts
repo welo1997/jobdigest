@@ -27,6 +27,7 @@ export interface Messages {
   };
 
   nav: {
+    myMatches: string;
     myPreferences: string;
     logOut: string;
     logIn: string;
@@ -251,6 +252,35 @@ export interface Messages {
   };
 
   manage: {
+    /** Hiding: tick jobs already applied to / not wanted, confirm, and they move to /hidden. */
+    hideHint: string;
+    selectAll: string;
+    clearSelection: string;
+    /** Prefix of each checkbox's accessible name; the job title is appended to it. */
+    selectAria: string;
+    selected: PluralForms;
+    hideSelected: string;
+    hiding: string;
+    hideFailed: string;
+    /** Link to the hidden page, shown only when something is hidden. */
+    hiddenLink: PluralForms;
+  };
+
+  /** `/hidden` — the jobs the subscriber hid. Errors, paging and the tick-box strings are
+   *  reused from `matches` rather than duplicated: the two pages are one list read through
+   *  opposite filters, and a second copy of "Load more" is a second copy that can drift. */
+  hidden: {
+    label: string;
+    countTitle: PluralForms;
+    noneTitle: string;
+    intro: string;
+    nothingTitle: string;
+    nothingBody: string;
+    backToMatches: string;
+    unhideSelected: string;
+    unhiding: string;
+    unhideFailed: string;
+    showing: PluralForms;
     sentTitle: string;
     sentBody: string;
     didntGet: string;

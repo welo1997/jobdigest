@@ -31,6 +31,10 @@ export default function PrivacyEn() {
           <li><b>Delivery records</b> — which jobs we&apos;ve already emailed you, so we never send
             the same posting twice, plus timestamps of sends and confirmation.</li>
           <li><b>Anonymous usage statistics</b> — which pages are viewed and which steps of the
+          <li><b>Jobs you hide</b> — if you hide a job from your matches page (because you
+            already applied, or it isn&apos;t for you), we record that choice against your
+            subscription so we stop listing and emailing it. You can see and undo every one of
+            them on your hidden-jobs page.</li>
             signup form are reached or fail, so we can fix what&apos;s confusing. See section 6.</li>
         </ul>
         <p>We do <b>not</b> collect names, phone numbers, payment details, or track you across other

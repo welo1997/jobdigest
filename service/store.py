@@ -198,14 +198,18 @@ def prune_matches(days: int = 180) -> int:
     """Delete match rows for postings long gone, except ones the user acted on.
 
     `matches` growth is bounded (matcher.MAX_PICKS per profile per run), but it still
-    accumulates. Saved/applied rows are kept indefinitely — they're the user's own history.
-    `digest_sends` is deliberately NOT pruned: it's the never-repeat-a-job ledger and must
-    outlive the posting."""
+    accumulates. Rows the user acted on are kept indefinitely — they're the user's own
+    history. That now includes `dismissed`, which since the /hidden page is a deliberate
+    subscriber action rather than the dead internal value it used to be: pruning one would
+    delete a row off the page they can see it on, and if the posting were ever reactivated
+    and re-scored it would come back unhidden, which is the one outcome hiding promises
+    against. `digest_sends` is deliberately NOT pruned: it's the never-repeat-a-job ledger
+    and must outlive the posting."""
     with cursor(commit=True) as cur:
         cur.execute(
             "delete from matches m using postings p "
             "where m.posting_id = p.posting_id and p.is_active = false "
-            "and m.status in ('new','dismissed') "
+            "and m.status = 'new' "
             "and p.last_seen_at < now() - (%s || ' days')::interval",
             (int(days),),
         )
@@ -484,7 +488,19 @@ def query_shortlist_meta(profile: dict, limit: int = 120) -> tuple[list[dict], d
     return rows, meta
 
 
-def matched_jobs(profile_id: str, limit: int = 50, offset: int = 0) -> list[dict]:
+HIDDEN_STATUS = "dismissed"
+"""`matches.status` value for a job the subscriber hid from their own list.
+
+One status, not two: "I already applied" and "I don't want this" want the identical
+outcome — the row leaves the matches page and stops being eligible for an email — and a
+distinction nothing acts on is a distinction that only invites the two to drift. The column
+and its index (`idx_matches_profile_status`) predate the feature, so hiding needs no
+migration; `upsert_match` never writes `status`, so a re-score by the matcher cannot
+resurrect something the subscriber hid."""
+
+
+def matched_jobs(profile_id: str, limit: int = 50, offset: int = 0,
+                 hidden: bool = False) -> list[dict]:
     """AI-picked jobs for a profile (matches join postings), best fit first.
 
     Read side for the digest: returns only active postings the matcher selected
@@ -507,23 +523,40 @@ def matched_jobs(profile_id: str, limit: int = 50, offset: int = 0) -> list[dict
             from matches m
             join postings p on p.posting_id = m.posting_id
             where m.profile_id = %s and p.is_active and m.score is not null
-            order by m.score desc, p.posted_at desc nulls last, p.posting_id
+              and m.status {'=' if hidden else '<>'} %s
+            order by {'m.updated_at desc, p.posting_id'
+                      if hidden else
+                      'm.score desc, p.posted_at desc nulls last, p.posting_id'}
             limit %s offset %s
             """,
-            (profile_id, limit, offset),
+            (profile_id, HIDDEN_STATUS, limit, offset),
         )
         return [dict(r) for r in cur.fetchall()]
 
 
-def match_count(profile_id: str) -> int:
+def match_count(profile_id: str, hidden: bool = False) -> int:
     """How many active matches this profile has (same filter as matched_jobs) — used to
-    show 'see all N matches' in the email and the page header."""
+
+    **Hidden jobs are excluded by default, and that is deliberately also true of the
+    digest** — `digest.build_digest` reads through here, so a job the subscriber hid because
+    they already applied to it stops being emailed as well as stops being listed. Pass
+    `hidden=True` for the /hidden page, which is the only place they remain visible: hiding
+    must never be a delete, or unhiding could not exist. That view is ordered by when it was
+    hidden (`updated_at`), because "what did I just hide" is the question it answers; a bulk
+    hide stamps one `now()` across the batch, so `posting_id` breaks the tie and keeps the
+    ordering total for paging here too.
+    show 'see all N matches' in the email and the page header.
+
+    Must stay in lockstep with `matched_jobs`: the header is built from this and the rows
+    from that, so a filter added to one and not the other reads as "127 matches" above a
+    list that can only ever reach 124."""
     with cursor() as cur:
         cur.execute(
             """select count(*) as n
                from matches m join postings p on p.posting_id = m.posting_id
-               where m.profile_id = %s and p.is_active and m.score is not null""",
-            (profile_id,),
+               where m.profile_id = %s and p.is_active and m.score is not null
+                 and m.status {'=' if hidden else '<>'} %s""",
+            (profile_id, HIDDEN_STATUS),
         )
         return int(cur.fetchone()["n"])
 
@@ -638,6 +671,33 @@ def _location_prefs(data: dict, current: Optional[dict] = None, *,
         remove.
       * A partial update that sends only `cities` is merged against the stored row, so a city
         list is always validated against the countries actually selected.
+def set_matches_hidden(profile_id: str, posting_ids: list[str], hidden: bool) -> int:
+    """Hide (or unhide) several of this profile's matches at once. Returns rows changed.
+
+    `profile_id` in the WHERE clause is the authorisation, not a convenience: the ids come
+    from a browser and are trusted only as far as "some string a subscriber sent us". One
+    belonging to another subscriber matches no row of *this* profile's, so the update is a
+    no-op rather than a cross-account write, and nothing has to look up who owns what first.
+    Unknown ids are silently ignored for the same reason.
+
+    Unhiding restores `new` rather than whatever the row said before. Nothing in the live
+    product writes `saved` or `applied` (`service/api.py` is the unshipped internal API), so
+    there is no prior value to lose — and inventing a way to remember one would be storing a
+    subscriber's history that no page can show them.
+    """
+    ids = [i for i in {str(p) for p in posting_ids} if i]
+    if not ids:
+        return 0
+    with cursor(commit=True) as cur:
+        cur.execute(
+            "update matches set status = %s, updated_at = now() "
+            "where profile_id = %s and posting_id = any(%s) and status <> %s",
+            (HIDDEN_STATUS if hidden else "new", profile_id, ids,
+             HIDDEN_STATUS if hidden else "new"),
+        )
+        return cur.rowcount
+
+
 
     Returns {} when the caller changed no location field, so a plain "change my frequency"
     update does not rewrite four columns. `ensure=True` (subscription creation) always

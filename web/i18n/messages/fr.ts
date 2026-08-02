@@ -10,6 +10,7 @@ const fr: Messages = {
   },
 
   nav: {
+    myMatches: "Mes offres",
     myPreferences: "Mes préférences",
     logOut: "Se déconnecter",
     logIn: "Se connecter",
@@ -284,6 +285,36 @@ const fr: Messages = {
       "Si {0} a un abonnement JobDigest, nous venons d'y envoyer son lien privé de réglages. Ouvrez-le pour modifier vos préférences, mettre en pause ou vous désinscrire — sans mot de passe.",
     didntGet: "Rien reçu ? Regardez dans les spams ou réessayez dans quelques minutes.",
     title: "Connexion à JobDigest",
+    hideHint:
+      "Déjà candidat ou pas intéressé ? Cochez ces offres et masquez-les — elles quittent cette page et votre e-mail quotidien.",
+    selectAll: "Tout sélectionner",
+    clearSelection: "Annuler la sélection",
+    selectAria: "Sélectionner",
+    selected: { one: "{n} sélectionnée", other: "{n} sélectionnées" },
+    hideSelected: "Masquer la sélection",
+    hiding: "Masquage…",
+    hideFailed: "Impossible de les masquer — réessayez.",
+    hiddenLink: { one: "{n} offre masquée →", other: "{n} offres masquées →" },
+  },
+
+  hidden: {
+    label: "Offres masquées · connecté",
+    countTitle: { one: "{n} offre masquée", other: "{n} offres masquées" },
+    noneTitle: "Aucune offre masquée",
+    intro:
+      "Les offres que vous avez masquées. Elles ne figurent ni dans vos offres ni dans votre e-mail quotidien — vous pouvez les réafficher à tout moment.",
+    nothingTitle: "Rien de masqué",
+    nothingBody:
+      "Masquez une offre depuis vos offres et elle atterrit ici. Rien n'est jamais supprimé.",
+    backToMatches: "← Retour à vos offres",
+    unhideSelected: "Réafficher la sélection",
+    unhiding: "Réaffichage…",
+    unhideFailed: "Impossible de les réafficher — réessayez.",
+    // Le nom suit {n} : c'est {n} qui commande le pluriel ici, pas {shown}.
+    showing: {
+      one: "Affichage : {shown} sur {n} offre masquée",
+      other: "Affichage : {shown} sur {n} offres masquées",
+    },
     body: "Pas de mot de passe ici. Saisissez votre adresse et nous vous enverrons un lien sécurisé — un clic et vous êtes connecté, et vous le restez sur cet appareil.",
     googleNoSub:
       "Ce compte Google n'a pas encore d'abonnement. Inscrivez-vous d'abord, ensuite vous pourrez vous connecter avec Google.",

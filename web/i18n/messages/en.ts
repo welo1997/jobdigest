@@ -17,6 +17,7 @@ const en: Messages = {
   },
 
   nav: {
+    myMatches: "My matches",
     myPreferences: "My preferences",
     logOut: "Log out",
     logIn: "Log in",
@@ -281,6 +282,34 @@ const en: Messages = {
       "If {0} has a JobDigest subscription, we've just emailed its private settings link. Open it to edit your preferences, pause, or unsubscribe — no password needed.",
     didntGet: "Didn't get it? Check spam, or try again in a few minutes.",
     title: "Log in to JobDigest",
+    hideHint:
+      "Already applied, or not interested? Tick those jobs and hide them — they leave this page and your daily email.",
+    selectAll: "Select all shown",
+    clearSelection: "Clear",
+    selectAria: "Select",
+    selected: { one: "{n} selected", other: "{n} selected" },
+    hideSelected: "Hide selected",
+    hiding: "Hiding…",
+    hideFailed: "Couldn't hide those — try again.",
+    hiddenLink: { one: "{n} hidden job →", other: "{n} hidden jobs →" },
+  },
+
+  hidden: {
+    label: "Hidden jobs · signed in",
+    countTitle: { one: "{n} hidden job", other: "{n} hidden jobs" },
+    noneTitle: "No hidden jobs",
+    intro:
+      "Jobs you've hidden. They stay off your matches page and out of your daily email — unhide any of them and they come straight back.",
+    nothingTitle: "Nothing hidden",
+    nothingBody: "Hide a job from your matches and it lands here. Nothing is ever deleted.",
+    backToMatches: "← Back to your matches",
+    unhideSelected: "Unhide selected",
+    unhiding: "Unhiding…",
+    unhideFailed: "Couldn't unhide those — try again.",
+    showing: {
+      one: "Showing {shown} of {n} hidden job",
+      other: "Showing {shown} of {n} hidden jobs",
+    },
     body: "No passwords here. Enter your address and we'll email you a secure link — click it and you're signed in, and you'll stay signed in on this device.",
     googleNoSub:
       "That Google account isn't subscribed yet. Sign up first, then you can sign in with Google.",

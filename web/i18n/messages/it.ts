@@ -9,6 +9,7 @@ const it: Messages = {
   },
 
   nav: {
+    myMatches: "Le mie offerte",
     myPreferences: "Le mie preferenze",
     logOut: "Esci",
     logIn: "Accedi",
@@ -283,6 +284,36 @@ const it: Messages = {
       "Se {0} ha un abbonamento JobDigest, abbiamo appena inviato lì il suo link privato alle impostazioni. Aprilo per modificare le preferenze, mettere in pausa o disiscriverti — senza password.",
     didntGet: "Non è arrivata? Controlla lo spam o riprova tra qualche minuto.",
     title: "Accedi a JobDigest",
+    hideHint:
+      "Ti sei già candidato o non ti interessa? Spunta quelle offerte e nascondile — spariscono da questa pagina e dalla tua e-mail quotidiana.",
+    selectAll: "Seleziona tutte quelle mostrate",
+    clearSelection: "Annulla selezione",
+    selectAria: "Seleziona",
+    selected: { one: "{n} selezionata", other: "{n} selezionate" },
+    hideSelected: "Nascondi selezionate",
+    hiding: "Nascondo…",
+    hideFailed: "Non è stato possibile nasconderle — riprova.",
+    hiddenLink: { one: "{n} offerta nascosta →", other: "{n} offerte nascoste →" },
+  },
+
+  hidden: {
+    label: "Offerte nascoste · accesso effettuato",
+    countTitle: { one: "{n} offerta nascosta", other: "{n} offerte nascoste" },
+    noneTitle: "Nessuna offerta nascosta",
+    intro:
+      "Le offerte che hai nascosto. Non compaiono tra le tue offerte né nella tua e-mail quotidiana — puoi rimetterle in elenco quando vuoi.",
+    nothingTitle: "Niente di nascosto",
+    nothingBody:
+      "Nascondi un'offerta dalle tue offerte e finisce qui. Non viene mai cancellato nulla.",
+    backToMatches: "← Torna alle tue offerte",
+    unhideSelected: "Mostra selezionate",
+    unhiding: "Mostro…",
+    unhideFailed: "Non è stato possibile mostrarle — riprova.",
+    // Il nome segue {n}: è {n} a comandare il plurale, non {shown}.
+    showing: {
+      one: "In elenco: {shown} di {n} offerta nascosta",
+      other: "In elenco: {shown} di {n} offerte nascoste",
+    },
     body: "Qui niente password. Inserisci il tuo indirizzo e ti manderemo un link sicuro — un clic e sei dentro, e resti collegato su questo dispositivo.",
     googleNoSub:
       "Questo account Google non ha ancora un abbonamento. Registrati prima, poi potrai accedere con Google.",

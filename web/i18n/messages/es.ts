@@ -9,6 +9,7 @@ const es: Messages = {
   },
 
   nav: {
+    myMatches: "Mis coincidencias",
     myPreferences: "Mis preferencias",
     logOut: "Cerrar sesión",
     logIn: "Iniciar sesión",
@@ -282,6 +283,35 @@ const es: Messages = {
       "Si {0} tiene una suscripción a JobDigest, acabamos de enviar allí su enlace privado de ajustes. Ábrelo para cambiar preferencias, pausar o darte de baja — sin contraseña.",
     didntGet: "¿No te ha llegado? Mira en spam o inténtalo de nuevo en unos minutos.",
     title: "Inicia sesión en JobDigest",
+    hideHint:
+      "¿Ya te has inscrito o no te interesa? Marca esas ofertas y ocúltalas — desaparecen de esta página y de tu correo diario.",
+    selectAll: "Seleccionar todas las mostradas",
+    clearSelection: "Quitar selección",
+    selectAria: "Seleccionar",
+    selected: { one: "{n} seleccionada", other: "{n} seleccionadas" },
+    hideSelected: "Ocultar seleccionadas",
+    hiding: "Ocultando…",
+    hideFailed: "No se pudieron ocultar — inténtalo de nuevo.",
+    hiddenLink: { one: "{n} oferta oculta →", other: "{n} ofertas ocultas →" },
+  },
+
+  hidden: {
+    label: "Ofertas ocultas · sesión iniciada",
+    countTitle: { one: "{n} oferta oculta", other: "{n} ofertas ocultas" },
+    noneTitle: "Sin ofertas ocultas",
+    intro:
+      "Las ofertas que has ocultado. No aparecen entre tus coincidencias ni en tu correo diario — puedes volver a mostrarlas cuando quieras.",
+    nothingTitle: "Nada oculto",
+    nothingBody:
+      "Oculta una oferta desde tus coincidencias y aparecerá aquí. Nunca se borra nada.",
+    backToMatches: "← Volver a tus coincidencias",
+    unhideSelected: "Mostrar seleccionadas",
+    unhiding: "Mostrando…",
+    unhideFailed: "No se pudieron mostrar — inténtalo de nuevo.",
+    showing: {
+      one: "Mostrando {shown} de {n} oferta oculta",
+      other: "Mostrando {shown} de {n} ofertas ocultas",
+    },
     body: "Aquí no hay contraseñas. Introduce tu dirección y te enviaremos un enlace seguro — haz clic y estarás dentro, y seguirás dentro en este dispositivo.",
     googleNoSub:
       "Esa cuenta de Google aún no tiene suscripción. Regístrate primero y después podrás iniciar sesión con Google.",

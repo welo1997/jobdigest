@@ -16,6 +16,7 @@ const de: Messages = {
   },
 
   nav: {
+    myMatches: "Meine Treffer",
     myPreferences: "Meine Einstellungen",
     logOut: "Abmelden",
     logIn: "Anmelden",
@@ -290,6 +291,42 @@ const de: Messages = {
       "Falls {0} ein JobDigest-Abo hat, haben wir gerade den privaten Einstellungslink dorthin geschickt. Öffne ihn, um Einstellungen zu ändern, zu pausieren oder dich abzumelden — ohne Passwort.",
     didntGet: "Nichts bekommen? Schau in den Spam oder versuch es in ein paar Minuten erneut.",
     title: "Bei JobDigest anmelden",
+    hideHint:
+      "Schon beworben oder kein Interesse? Hak die Jobs ab und blende sie aus — sie verschwinden von dieser Seite und aus deiner täglichen E-Mail.",
+    selectAll: "Alle angezeigten auswählen",
+    clearSelection: "Auswahl aufheben",
+    selectAria: "Auswählen",
+    selected: { one: "{n} ausgewählt", other: "{n} ausgewählt" },
+    hideSelected: "Ausgewählte ausblenden",
+    hiding: "Wird ausgeblendet…",
+    hideFailed: "Ausblenden hat nicht geklappt — versuch es erneut.",
+    hiddenLink: {
+      one: "{n} ausgeblendeter Treffer →",
+      other: "{n} ausgeblendete Treffer →",
+    },
+  },
+
+  hidden: {
+    label: "Ausgeblendete Treffer · angemeldet",
+    countTitle: {
+      one: "{n} ausgeblendeter Treffer",
+      other: "{n} ausgeblendete Treffer",
+    },
+    noneTitle: "Keine ausgeblendeten Treffer",
+    intro:
+      "Treffer, die du ausgeblendet hast. Sie stehen weder auf deiner Trefferseite noch in deiner täglichen E-Mail — blende sie jederzeit wieder ein.",
+    nothingTitle: "Nichts ausgeblendet",
+    nothingBody:
+      "Blende einen Job bei deinen Treffern aus, dann landet er hier. Gelöscht wird nie etwas.",
+    backToMatches: "← Zurück zu deinen Treffern",
+    unhideSelected: "Ausgewählte einblenden",
+    unhiding: "Wird eingeblendet…",
+    unhideFailed: "Einblenden hat nicht geklappt — versuch es erneut.",
+    // „von“ verlangt den Dativ: Singular Treffer, Plural Treffern.
+    showing: {
+      one: "{shown} von {n} ausgeblendeten Treffer angezeigt",
+      other: "{shown} von {n} ausgeblendeten Treffern angezeigt",
+    },
     body: "Keine Passwörter. Gib deine Adresse ein und wir schicken dir einen sicheren Link — ein Klick und du bist angemeldet, und bleibst es auf diesem Gerät.",
     googleNoSub:
       "Dieses Google-Konto hat noch kein Abo. Registriere dich zuerst, danach kannst du dich mit Google anmelden.",

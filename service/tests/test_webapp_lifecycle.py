@@ -54,6 +54,7 @@ class _FakeStore:
         self.updates: list[dict] = []          # preference changes applied via update_subscription
         self.signup_intents: dict[str, str] = {}   # raw token -> Google-verified email
         self.matches: list[dict] = []          # /matches paging
+        self.hidden: set[str] = set()          # posting_ids the subscriber hid
 
     # -- subscribe path --
     def is_suppressed(self, email):
@@ -176,11 +177,25 @@ class _FakeStore:
             for i in range(n)
         ]
 
-    def matched_jobs(self, profile_id, limit=50, offset=0):
-        return self.matches[offset:offset + limit]
+    def matched_jobs(self, profile_id, limit=50, offset=0, hidden=False):
+        rows = [j for j in self.matches if (j["posting_id"] in self.hidden) == hidden]
+        return rows[offset:offset + limit]
 
-    def match_count(self, profile_id):
-        return len(self.matches)
+    def match_count(self, profile_id, hidden=False):
+        return len([j for j in self.matches
+                    if (j["posting_id"] in self.hidden) == hidden])
+
+    def set_matches_hidden(self, profile_id, posting_ids, hidden):
+        """Mirrors the real query's shape: ids that aren't this profile's live matches change
+        nothing, and only a row whose state actually flips counts as changed."""
+        mine = {j["posting_id"] for j in self.matches}
+        changed = 0
+        for pid in {str(p) for p in posting_ids}:
+            if pid not in mine or (pid in self.hidden) == hidden:
+                continue
+            self.hidden.add(pid) if hidden else self.hidden.discard(pid)
+            changed += 1
+        return changed
 
 
 @pytest.fixture
@@ -766,3 +781,96 @@ def test_negative_offset_is_clamped_to_the_first_page(client, store):
 def test_matches_still_requires_a_valid_token(client, store):
     store.seed_matches(5)
     assert client.get("/matches", params={"token": "nope"}).status_code == 404
+
+
+# ------------------------------------------------------------- hiding jobs (/matches/hide) --
+# Hiding is a *subscriber-visible promise with two halves*: the job leaves the matches page
+# and the daily email, and it is still there to be unhidden. Both halves are load-bearing —
+# a hide that quietly deleted the row would make "unhide" a lie, and a hide that only
+# repainted the page would keep emailing a job someone already applied to. These pin both,
+# plus the two guards that matter on a write endpoint: it must be a POST (link scanners
+# fetch URLs found in email — the same reason /unsubscribe confirms), and one call must not
+# be able to rewrite an unbounded number of rows.
+
+def test_hidden_jobs_leave_the_matches_list_but_are_still_there(client, store):
+    store.seed_matches(10)
+    ids = ["p000", "p003"]
+
+    r = client.post("/matches/hide", json={"token": TOKEN, "posting_ids": ids})
+    assert r.status_code == 200
+    body = r.json()
+    assert body["changed"] == 2
+    assert body["visible_count"] == 8 and body["hidden_count"] == 2
+
+    visible = client.get("/matches", params={"token": TOKEN}).json()
+    assert visible["count"] == 8
+    assert [j["posting_id"] for j in visible["jobs"]] == [
+        p for p in (f"p{i:03d}" for i in range(10)) if p not in ids
+    ]
+    # Nothing was deleted: the other view is the complete record of what was hidden.
+    hidden = client.get("/matches", params={"token": TOKEN, "hidden": "true"}).json()
+    assert hidden["hidden"] is True
+    assert [j["posting_id"] for j in hidden["jobs"]] == ids
+    # Both counts travel with both views, so each page can link to the other.
+    assert visible["hidden_count"] == 2 and hidden["hidden_count"] == 2
+
+
+def test_unhide_puts_a_job_back_where_it_was(client, store):
+    store.seed_matches(5)
+    client.post("/matches/hide", json={"token": TOKEN, "posting_ids": ["p001"]})
+
+    r = client.post("/matches/unhide", json={"token": TOKEN, "posting_ids": ["p001"]})
+    assert r.json()["visible_count"] == 5 and r.json()["hidden_count"] == 0
+    body = client.get("/matches", params={"token": TOKEN}).json()
+    assert "p001" in [j["posting_id"] for j in body["jobs"]]
+
+
+def test_hiding_a_job_that_isnt_yours_changes_nothing(client, store):
+    """The ids come from a browser. Scoping the update to the profile is the authorisation,
+    so an id belonging to someone else is a no-op rather than a cross-account write."""
+    store.seed_matches(3)
+    r = client.post("/matches/hide",
+                    json={"token": TOKEN, "posting_ids": ["not-mine", "p001"]})
+    assert r.json()["changed"] == 1
+    assert store.hidden == {"p001"}
+
+
+def test_hiding_needs_a_real_credential(client, store):
+    store.seed_matches(3)
+    assert client.post("/matches/hide",
+                       json={"token": "nope", "posting_ids": ["p000"]}).status_code == 404
+    assert store.hidden == set()
+
+
+def test_a_get_cannot_hide_anything(client, store):
+    """Same rule as /unsubscribe: mail clients and security scanners fetch links they find."""
+    store.seed_matches(3)
+    assert client.get("/matches/hide", params={"token": TOKEN, "posting_ids": "p000"}
+                      ).status_code == 405
+    assert store.hidden == set()
+
+
+def test_one_request_cannot_rewrite_an_unbounded_number_of_rows(client, store):
+    store.seed_matches(3)
+    too_many = [f"x{i}" for i in range(webapp.MAX_HIDE_IDS + 1)]
+    r = client.post("/matches/hide", json={"token": TOKEN, "posting_ids": too_many})
+    # Refused whole, not silently truncated: a partial write would leave the page and the
+    # database disagreeing about what is hidden.
+    assert r.status_code == 400
+    assert store.hidden == set()
+
+
+def test_cookie_authed_hide_still_needs_the_csrf_header(client, store):
+    """A cookie-authed write is reachable cross-origin without it — the same guard every
+    other cookie-authed write in this app carries."""
+    store.seed_matches(3)
+    client.post("/session", json={"token": TOKEN})        # cookie now in the jar
+
+    blocked = client.post("/matches/hide", json={"posting_ids": ["p000"]})
+    assert blocked.status_code == 403
+    assert store.hidden == set()                          # nothing was written
+
+    ok = client.post("/matches/hide", json={"posting_ids": ["p000"]},
+                     headers={"X-JobDigest-Auth": "1"})
+    assert ok.status_code == 200
+    assert store.hidden == {"p000"}

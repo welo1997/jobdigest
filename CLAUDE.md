@@ -84,7 +84,31 @@ and bracketed trailers. Four properties are load-bearing:
   prague/prague and the other null/prague, so neither half is optional.
 - **An empty key — missing company or title — is always unique, never a match.**
 - **`/matches` is deliberately NOT deduplicated** and stays the complete record. That is
-  what makes suppression safe: nothing vanishes, it just isn't emailed twice.
+  what makes suppression safe: nothing vanishes, it just isn't emailed twice. The one thing
+  that leaves the page is a job the subscriber hid — and it moves to `/hidden` rather than
+  going anywhere (see below).
+
+### Hiding a job is a move, never a delete
+
+A subscriber ticks jobs on `/matches` — already applied, not interested — confirms, and they
+leave both the page **and the digest**. They are listed on `/hidden`, where the same tick-box
+flow puts them back. `matches.status = 'dismissed'` is the whole storage: the column and its
+index predate the feature, so there is no migration, and `upsert_match` never writes `status`,
+which is what stops the nightly re-score resurrecting a hidden job in tomorrow's email.
+Four things hold it together:
+
+- **`matched_jobs` and `match_count` carry the filter separately.** They are two queries
+  behind one screen, so a filter added to one and not the other renders "12 matches" above a
+  list that can only ever reach 10. `test_hidden_sql.py` executes both against a real Postgres.
+- **The digest reads `matched_jobs` too**, so hiding is the subscriber's own answer to "stop
+  sending me this" — narrower than a pause and finer than a preference change.
+- **`prune_matches` no longer deletes `dismissed` rows.** It used to, back when nothing wrote
+  the value; pruning one now would delete a row off a page the subscriber can see, and a
+  reactivated posting would come back unhidden.
+- **The write is scoped by `profile_id` in the WHERE clause** — that is the authorisation, not
+  a convenience. Ids arrive from a browser; one that isn't theirs changes nothing rather than
+  erroring, because a stale page re-submitting an id is ordinary traffic. `MAX_HIDE_IDS` (200)
+  bounds one call, and it is refused whole rather than truncated.
 
 ### Nothing a subscriber states may vanish, and no subscriber may starve silently
 
@@ -517,6 +541,13 @@ goes red. A test that cannot fail documents nothing.
   small, measure what it holds before believing it.**
 - **Greenhouse/Lever/Ashby/SmartRecruiters/Workday** curated company lists, no domain-wide crawls.
   A board that goes dark is a **silent zero**: `fetch` skips a non-200 without an error-level
+- `test_education.py` — a requirement nobody wrote down is never invented; every
+  false-positive case is real production text that classified wrongly first.
+- `test_education_sql.py` — a null `education_min` passes the real gate, on both the narrow
+  and the widened retrieval path. SQL-backed, so CI fails if it goes back to skipping.
+- `test_hidden_sql.py` — hiding is a move, not a delete: the two queries behind the page
+  agree, a re-score cannot resurrect a hidden job, and one subscriber cannot hide another's.
+  SQL-backed, so it skips without `TEST_DATABASE_URL` — and CI fails if it does.
   log. Re-probe the lists rather than assuming (`dbtlabsinc` and `nubank` were both dead when
   the seed was last checked). Do not add a company that another adapter already carries —
   `clickhouse` and `qonto` are live on Ashby *and* on Greenhouse/Lever respectively, and the

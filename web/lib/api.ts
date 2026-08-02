@@ -87,7 +87,8 @@ export interface MatchJob {
 export interface MatchesResponse {
   email: string;
   label: string;
-  /** Total matches this profile has — not the length of `jobs`, which is one page. */
+  /** Total matches in *this* view (visible or hidden) — not the length of `jobs`, which is
+   *  one page. */
   count: number;
   offset: number;
   limit: number;
@@ -102,11 +103,24 @@ export interface PreviewJobCard {
   company: string | null;
   url: string | null;
   location: string | null;
+  /** Total hidden matches, returned by both views so each can link to the other. */
+  hidden_count: number;
   region: string | null;
   seniority: string | null;
+  /** Which half this response is: false = the matches page, true = the hidden page. */
+  hidden: boolean;
   work_type: string | null;
   tags: string[];
   why: string;
+/** What a hide/unhide leaves behind: how many rows actually changed, and the fresh totals
+ *  for both lists so the caller can update its headers without refetching. */
+export interface HideResponse {
+  ok: boolean;
+  changed: number;
+  visible_count: number;
+  hidden_count: number;
+}
+
 }
 
 export interface PreviewResponse {
@@ -212,7 +226,7 @@ export function getPreferences(token?: string) {
   return req<Preferences>(`/preferences${tokenQuery(token)}`);
 }
 
-export function getMatches(token?: string, offset = 0) {
+export function getMatches(token?: string, offset = 0, hidden = false) {
   const q = new URLSearchParams();
   if (token) q.set("token", token);
   if (offset) q.set("offset", String(offset));
@@ -229,10 +243,22 @@ export function updatePreferences(changes: Partial<Preferences>, token?: string)
 
 export function pause(days = 14, token?: string) {
   return req<{ ok: boolean; status: string; paused_until: string }>("/pause", {
+  if (hidden) q.set("hidden", "true");
     method: "POST",
     body: JSON.stringify(token ? { token, days } : { days }),
   });
 }
+// Hide jobs from the matches page and from future digests — "I already applied", "not for
+// me". Never a delete: they move to /hidden, and setHidden(ids, false) puts them back.
+export function setMatchesHidden(postingIds: string[], hidden: boolean, token?: string) {
+  return req<HideResponse>(hidden ? "/matches/hide" : "/matches/unhide", {
+    method: "POST",
+    body: JSON.stringify(
+      token ? { token, posting_ids: postingIds } : { posting_ids: postingIds }
+    ),
+  });
+}
+
 
 export function resume(token?: string) {
   return req<{ ok: boolean; status: string }>("/resume", {
