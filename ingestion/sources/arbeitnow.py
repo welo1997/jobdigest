@@ -57,7 +57,20 @@ class ArbeitnowSource(BaseSource):
                     url=url,
                     description=item.get("description"),
                     location=item.get("location"),
-                    country_code="DE",  # Arbeitnow is a German/DACH board
+                    # Left for `geo.resolve_location` to read out of the location text. This
+                    # used to be hardcoded "DE" on the grounds that Arbeitnow is a German
+                    # board, and it is not. An explicit `country_code` *wins* over the text in
+                    # `resolve_location` (it is normally structured data), so the constant was
+                    # not a harmless default — it overrode what the posting actually said.
+                    # Measured over a full fetch on 2026-08-01: of 375 postings the constant
+                    # called German, only 207 resolve to Germany from their own text. 20 are
+                    # British ("London, England, United Kingdom"), 4 Irish, 3 French, 2
+                    # Spanish, and one each Croatian, Swedish and Portuguese — all of them
+                    # shown to German subscribers and hidden from their own. The remaining 136
+                    # resolve to no country, which is the right answer for "Remote" and
+                    # "Homeoffice": unknown is kept by the location gate and left to the AI
+                    # matcher, where a wrong country is not.
+                    country_code=None,
                     remote_signal=bool(item.get("remote")),
                     salary_raw=None,
                     currency=None,
