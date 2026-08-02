@@ -2,7 +2,7 @@
 
 Two systems in one repository, sharing an ingestion layer.
 
-1. **Market intelligence** — a daily pipeline that ingests job postings from 15+ sources
+1. **Market intelligence** — a daily pipeline that ingests job postings from 18 sources
    into Snowflake, enriches them with Claude, and models them with dbt Core. A portfolio
    dataset for analysing the tech job market over time.
 2. **JobDigest** ([jobdigest.eu](https://jobdigest.eu)) — a live product built on the same
@@ -16,7 +16,7 @@ Postgres and runs on a VPS.
 
 ```
                     ┌─────────────────────────────────────────┐
-   15+ sources ───► │  ingestion/  +  search_jobs classifiers │
+   18 sources ───► │  ingestion/  +  search_jobs classifiers │
    RSS · REST · ATS └───────────────┬─────────────────────────┘
                                     │
               ┌─────────────────────┴──────────────────────┐
@@ -216,12 +216,20 @@ logins, no Playwright, no domain-wide crawls.
 |---|---|
 | Remote boards | Remotive, WeWorkRemotely, RemoteOK, Himalayas, Jobicy, WorkingNomads, Arbeitnow |
 | Czech / Slovak | Jobs.cz, StartupJobs, Profesia, Cocuma |
-| Aggregators | Adzuna (CZ/DE/NL/GB/US), EuroJobs, LinkedIn public RSS |
-| ATS boards | Greenhouse, Lever, Ashby — curated company list only |
+| Aggregators | The Muse, Adzuna (AT/BE/CA/DE/ES/FR/GB/IT/NL/PL/US) |
+| ATS boards | Greenhouse, Lever, Ashby, SmartRecruiters, Workday — curated company list only |
 
 Each source subclasses `BaseSource` and implements `fetch()` / `normalize()`. `posting_id`
 is `md5(url)`, so re-ingesting is an upsert that refreshes `last_seen_at`. Postings not seen
 for 7 days are marked inactive rather than deleted.
+
+The list above is what `search_jobs.gather()` actually runs. Two adapters exist in
+`ingestion/sources/` and are deliberately **not** wired in: `eurojobs.py` (the RSS feed now
+answers with a Cloudflare interstitial) and `linkedin.py` (the public RSS endpoint returns no
+entries). Both were listed here as working sources until 2026-08-01, when each was measured
+at 0 postings. They are kept as code rather than deleted because either could come back, but
+a source that fetches nothing must not be advertised as coverage — that is how a gap gets
+counted as filled.
 
 ---
 

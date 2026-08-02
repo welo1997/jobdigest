@@ -133,6 +133,20 @@ data tables for the browser; `service/tests/test_geo.py` fails on drift, and
 `test_geo_sql.py` pins the gate's behaviour against a real Postgres (needs
 `TEST_DATABASE_URL`, skipped otherwise).
 
+**`COUNTRY_ALIASES` is wider than the EU-27 on purpose, and that is not a contradiction.**
+Only EU-27 is ever *offered* as a preference. But "unknown country is kept" means a country we
+cannot name is a country we cannot exclude — so naming one is the only way the gate can act on
+it. That is why `switzerland`, `norway`, `ukraine` and `serbia` were already there, and since
+2026-08-01 why the countries the enterprise ATS sources actually post from are too. Workday and
+SmartRecruiters reach employers who hire globally, and their non-European requisitions arrive
+saying "India, Bengaluru" or "Suzhou, China" and nothing more; every one of them was resolving
+to *no country* and spending a slot in the ~120-posting shortlist of subscribers who can only
+work in the EU, to be rejected by a model that had to read it first. **Adding an alias here
+tightens the gate; it never widens what a subscriber may choose.** One name is deliberately
+absent — `georgia`, because the country lookup runs before the city lookup and "Atlanta,
+Georgia" would resolve to Tbilisi's country and vanish from every US subscriber's digest.
+Before adding a name, check it is not also a city, a US state, or an ordinary word.
+
 **Work setup is a third axis, not a finer grade of remote** (migration 012).
 `postings.work_mode` is `remote | hybrid | onsite | null`, `profiles.work_modes` is which of
 those a subscriber will accept, and `geo.work_mode` is the one classifier both come from —
@@ -431,8 +445,83 @@ goes red. A test that cannot fail documents nothing.
 
 ## Known constraints and decisions
 
-- **Adzuna** 250 req/day across CZ/DE/NL/GB/US. **LinkedIn** RSS only, never Playwright —
-  account ban risk. **Greenhouse/Lever/Ashby** curated company list, no domain-wide crawls.
+- **Adzuna** 250 req/day, one index per country (AT/BE/CA/DE/ES/FR/GB/IT/NL/PL/US — it has
+  no CZ or SK index, which is what the Czech scrapers are for). A run costs
+  `sum(pages) × len(SEARCH_TERMS)`, so the two lists multiply and one small-looking edit to
+  each is a 30-call increase; `test_adzuna.py` fails if a change busts `DAILY_REQUEST_BUDGET`.
+  **The credentials in `.env` were rejecting every call with AUTH_FAIL on 2026-08-01** and
+  had left no trace: a 401 was caught as an ordinary `RequestException`, logged per page, and
+  `fetch` returned `[]`, which downstream is indistinguishable from a quiet day. 401/403 now
+  raises `AdzunaAuthError` instead. Until the key is replaced this source contributes nothing.
+- **Never use LinkedIn beyond its public RSS** — account ban risk, and never Playwright. As
+  of 2026-08-01 that RSS returns 0 entries, as does EuroJobs (Cloudflare interstitial), so
+  both adapters are **not wired into `gather()`**; the README used to list them as coverage.
+  A source that fetches nothing is a gap counted as filled — measure before believing a list.
+- **A source that returns a round, plausible number is the hardest kind of broken.** Four
+  adapters were silently returning a fraction of what they hold, and none of them errored:
+  - **Himalayas** capped at 20 for its whole life. It requests `limit=100`, Himalayas caps a
+    response at 20 regardless, and the loop stopped on `len(jobs) < PAGE_SIZE` — so the first
+    page always satisfied the stop condition, and the `offset += PAGE_SIZE` stride would have
+    skipped 80 jobs a page had it continued. **Page by the count received, never by the count
+    requested.** 20 → 300.
+  - **RemoteOK** was reading 3 tags (`data`, `analytics`, `machine-learning`). A tag does not
+    filter one pool, it *selects* which ~100 jobs you get, so the tag list is how many pools
+    you read, not how narrow the result is. 177 → 540 across 12 tags.
+  - **Jobicy** hard-caps at 100 with no offset; `industry` and `geo` are the only way past it,
+    and an unrecognised value returns an empty list rather than an error (`design` is not a
+    value it knows). 100 → 413 across 8 slices.
+  - **Remotive**'s `?category=data` was being **ignored by the API** — filtered and unfiltered
+    both return the same 34 rows across 13 categories. It narrowed nothing and misdescribed
+    the source, which is its own kind of wrong.
+
+  Three of the four were narrowed to data roles, left from when this repo served one person
+  hunting data jobs. JobDigest matches nine categories and the shortlist recall predicate is
+  `category OR keyword`, so a subscriber asking for design or sales could not be shown those
+  postings — not because none existed, but because none were fetched. **When a source looks
+  small, measure what it holds before believing it.**
+- **Greenhouse/Lever/Ashby/SmartRecruiters/Workday** curated company lists, no domain-wide crawls.
+  A board that goes dark is a **silent zero**: `fetch` skips a non-200 without an error-level
+  log. Re-probe the lists rather than assuming (`dbtlabsinc` and `nubank` were both dead when
+  the seed was last checked). Do not add a company that another adapter already carries —
+  `clickhouse` and `qonto` are live on Ashby *and* on Greenhouse/Lever respectively, and the
+  duplicate would occupy two rows and two shortlist slots even though `digest.dedupe_key`
+  collapses it in the email.
+- **SmartRecruiters and Workday are the N+1 adapters, and the sources of large-EU-employer
+  inventory.** Neither list endpoint carries a description, so each posting needs its own
+  detail call, and both are bounded the same way: a keyword parameter (`q` / `searchText`) to
+  keep the pull tech-relevant, and a `MAX_DETAILS` ceiling sized *above* a normal run so it
+  only bites on a bulk import. Both run last in `gather()` because they are by far the slowest
+  and a failure there should not cost everything before it.
+  **Run the list stage concurrently, not just the details.** Workday's list is 13 sites × 9
+  terms = 117 independent queries; sequentially they cost ~500 s, more than the 1 200 detail
+  calls after them, and the whole source took 730 s. Pooling the queries — paging still
+  sequential *within* one, since each page decides whether there is another — brought it to
+  312 s for identical output. A full international `gather()` is ~15 min and ~22 500 postings;
+  the 05:00 export has until the 07:00 import, and `Type=oneshot` means systemd sets no
+  start timeout, so the window is the only real constraint.
+- **A Workday career site is a `(tenant, host shard, site slug)` triple, and the slug is
+  unguessable.** Adobe's is `external_experienced`, NVIDIA's is `NVIDIAExternalCareerSite`.
+  A brute-force sweep of 2 568 plausible combinations across 100 companies found **two**
+  new sites; hand-verified triples found eleven. Do not try to derive them — verify and
+  record. Also: `locationsText` reads "7 Locations" for a multi-office requisition (use the
+  detail's `location`), and `remoteType` has a **"Flexible"** value that means the employer
+  decides per hire, not that the job is remote. Only an explicit remote value may set
+  `remote_signal`.
+- **The Muse is the widest US source, and the only one that needs a freshness filter.** It
+  never expires listings — a 2026-08-01 sample had a median age of 17 days and a tail back to
+  March 2025 — and `query_shortlist_meta` orders by `first_seen_at`, so a 17-month-old row
+  ingested today sorts to the top of the freshest bucket and is emailed as new. `posted_at`
+  cannot catch it either, being null for 14 291 of 19 439 rows. `MAX_AGE_DAYS` at the source
+  is the only place that still knows, which is also why an *undated* Muse listing is dropped
+  rather than kept — the opposite of the call every other adapter makes for an unknown.
+- **A source-level country constant is almost always wrong.** Arbeitnow was hardcoding
+  `country_code="DE"` because it is a German board; measured 2026-08-01, only 207 of 375
+  postings were actually German, and the constant *overrode* "London, England, United
+  Kingdom" — because an explicit code beats the text in `resolve_location` — hiding 20 UK
+  roles from UK subscribers and showing them to Germans. Resolve from the posting's own text
+  and let unknown be unknown. The one sound exception is evidence that is unambiguous *in the
+  posting*: a trailing US state code in a Muse location ("Austin, TX"), which names no country
+  the resolver can read, and only when every listed place agrees.
 - **Haiku for both enrichment passes** — well-calibrated at ~10× lower cost than Sonnet.
 - Salary coverage is ~30–40%; no row is dropped for a missing salary.
 - **Snowflake stores Prague wall-clock time, not UTC.** The account `TIMEZONE` is
