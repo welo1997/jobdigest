@@ -39,7 +39,10 @@ from ingestion.sources.jobicy import JobicySource
 from ingestion.sources.lever import LeverSource
 from ingestion.sources.remoteok import RemoteOKSource
 from ingestion.sources.remotive import RemotiveSource
+from ingestion.sources.smartrecruiters import SmartRecruitersSource
+from ingestion.sources.themuse import TheMuseSource
 from ingestion.sources.weworkremotely import WeWorkRemotelySource
+from ingestion.sources.workday import WorkdaySource
 from ingestion.sources.workingnomads import WorkingNomadsSource
 
 logger = logging.getLogger(__name__)
@@ -183,7 +186,14 @@ def dedup_key(p: JobPosting) -> str:
 def gather(include_cz: bool) -> list[JobPosting]:
     sources = [RemotiveSource, WeWorkRemotelySource, RemoteOKSource, HimalayasSource,
                JobicySource, ArbeitnowSource, WorkingNomadsSource,
-               GreenhouseSource, AshbySource, LeverSource]
+               GreenhouseSource, AshbySource, LeverSource,
+               # Located (non-remote-only) inventory, which everything above is thin on:
+               # The Muse is the widest US source in the stack; SmartRecruiters and Workday
+               # reach the large European employers outside the startup belt. The last two
+               # are last on purpose — both must fetch each posting's description with its
+               # own request, so they are by far the slowest, and a failure in either should
+               # not cost everything that runs before it.
+               TheMuseSource, SmartRecruitersSource, WorkdaySource]
     # Adzuna only if keys are present.
     try:
         from ingestion.sources.adzuna import AdzunaSource
