@@ -1,6 +1,12 @@
 """Tests for Adzuna source."""
 
-from ingestion.sources.adzuna import AdzunaSource
+import pytest
+import requests
+
+from ingestion.sources.adzuna import (
+    COUNTRY_CONFIG, DAILY_REQUEST_BUDGET, SEARCH_TERMS,
+    AdzunaAuthError, AdzunaSource,
+)
 
 
 SAMPLE_RESULTS = [
@@ -68,3 +74,50 @@ def test_currency_mapping():
     assert source._currency_for_country("gb") == "GBP"
     assert source._currency_for_country("us") == "USD"
     assert source._currency_for_country("xx") is None
+
+
+def test_every_configured_country_has_a_currency():
+    """A country added to COUNTRY_CONFIG without a currency stores amounts with no unit."""
+    source = AdzunaSource(app_id="test", api_key="test")
+    missing = [c for c, _ in COUNTRY_CONFIG if source._currency_for_country(c) is None]
+    assert missing == []
+
+
+def test_a_run_stays_inside_the_free_tier_quota():
+    """The cost is a product of two lists, so it grows faster than either edit looks.
+
+    Adzuna allows 250 calls/day per app id and answers an overrun with an HTTP 429 that
+    `_fetch_page` swallows into an empty list — so busting the quota does not fail, it just
+    makes the source quietly stop halfway through. This is where that arithmetic is checked.
+    """
+    planned = sum(pages for _, pages in COUNTRY_CONFIG) * len(SEARCH_TERMS)
+    assert planned <= DAILY_REQUEST_BUDGET, (
+        f"an Adzuna run now costs {planned} calls, over the {DAILY_REQUEST_BUDGET} budget; "
+        "drop a country's page count or a search term"
+    )
+
+
+def test_rejected_credentials_raise_instead_of_returning_nothing(monkeypatch):
+    """A dead key must not look like a quiet day on the job market.
+
+    Adzuna's credentials were failing AUTH_FAIL on every country on 2026-08-01 and the only
+    trace was a per-page warning; `fetch` returned an empty list and the run reported success.
+    """
+    class _Resp:
+        status_code = 401
+
+        def json(self):  # pragma: no cover - never reached
+            return {}
+
+    monkeypatch.setattr(requests, "get", lambda *a, **k: _Resp())
+    with pytest.raises(AdzunaAuthError):
+        AdzunaSource(app_id="test", api_key="test").fetch()
+
+
+def test_a_transient_page_failure_is_still_skipped(monkeypatch):
+    """The other half of the same behaviour: one flaky page must not stop the source."""
+    def _boom(*a, **k):
+        raise requests.ConnectionError("reset by peer")
+
+    monkeypatch.setattr(requests, "get", _boom)
+    assert AdzunaSource(app_id="test", api_key="test").fetch() == []

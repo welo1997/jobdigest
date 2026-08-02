@@ -15,31 +15,65 @@ logger = logging.getLogger(__name__)
 
 ADZUNA_BASE = "https://api.adzuna.com/v1/api/jobs"
 
-# Country config: (country_code, pages_to_fetch). Focused on the largest
-# remote-hiring markets rather than broad local coverage — the personal focus is
-# international remote, and Adzuna has no remote flag so we lean on the search
-# phrase. Total requests = sum(pages) * len(SEARCH_TERMS), well under 250/day.
+# Country config: (country_code, pages_to_fetch). Adzuna runs one index per country and has
+# no pan-European endpoint, so breadth here is literally the list below. These are every
+# EU-27 market Adzuna covers, plus GB/US/CA. Absent because Adzuna has no index for them:
+# CZ and SK (covered by jobs.cz, Profesia, StartupJobs and Cocuma), and the Nordics and
+# CEE beyond Poland (covered thinly by the ATS adapters and The Muse).
 COUNTRY_CONFIG = [
-    ("gb", 2),   # 40 results
-    ("us", 3),   # 60 results
-    ("de", 1),   # 20 results
-    ("nl", 1),   # 20 results
+    ("us", 3),   # 60 results — largest market, and the one the remote-only boards under-serve
+    ("gb", 2),
+    ("de", 2),
+    ("fr", 1),
+    ("nl", 1),
+    ("es", 1),
+    ("it", 1),
+    ("pl", 1),
+    ("at", 1),
+    ("be", 1),
+    ("ca", 1),
 ]
 
-# Remote-focused data-role search phrases (Adzuna `what` matches all words), so
-# results skew heavily toward remote data/analytics/ML roles instead of local jobs.
+# Search phrases (Adzuna `what` matches all words). Two things changed here on 2026-08-01,
+# both because this adapter now feeds JobDigest rather than a personal remote-only search:
+#
+#   - the "remote " prefix is gone from most terms. Subscribers choose countries and cities;
+#     a Prague subscriber wanting on-site Prague work was unreachable through a term list
+#     where every phrase demanded the word "remote".
+#   - the roles span the taxonomy instead of data alone, because the shortlist recall
+#     predicate is `category OR keyword` and six of the nine categories had no term here at
+#     all — Adzuna could never contribute a design or product posting to anyone.
 SEARCH_TERMS = [
-    "remote data engineer",
-    "remote data analyst",
-    "remote analytics engineer",
-    "remote data scientist",
-    "remote machine learning engineer",
+    "data engineer",
+    "data analyst",
+    "data scientist",
+    "machine learning engineer",
+    "software engineer",
+    "software developer",
+    "devops engineer",
+    "cloud engineer",
+    "product manager",
+    "ux designer",
+    "remote data",          # kept: the one phrase that still targets remote-first listings
 ]
 
 RESULTS_PER_PAGE = 20
 
+#: Adzuna's free tier allows 250 calls/day per app id, and one run costs
+#: ``sum(pages) * len(SEARCH_TERMS)``. The budget is stated here rather than left implicit
+#: because the cost is a *product* of two lists: adding one country and one search term looks
+#: like two small edits and is a 30-call increase. `ingestion/tests/test_adzuna.py` fails if a
+#: change pushes a run past this, which is the only place the arithmetic gets checked — a
+#: quota overrun returns HTTP 429 that `_fetch_page` swallows into an empty list, so in
+#: production it would look like "Adzuna got quieter", not like an error.
+DAILY_REQUEST_BUDGET = 200
+
 # Substrings that mark a posting as remote (used to set remote_signal).
 _REMOTE_HINTS = ("remote", "work from home", "anywhere", "distributed")
+
+
+class AdzunaAuthError(RuntimeError):
+    """Adzuna rejected the app id / key. Not retryable, and not a quiet empty result."""
 
 
 class AdzunaSource(BaseSource):
@@ -86,6 +120,19 @@ class AdzunaSource(BaseSource):
         }
         try:
             resp = requests.get(url, params=params, timeout=15)
+            # Checked before `raise_for_status`, because an HTTPError here is indistinguishable
+            # from a timeout once it reaches the handler below — and the two want opposite
+            # treatment. A flaky page should be skipped; a rejected credential should stop the
+            # source, because every one of the remaining calls will be rejected too and the
+            # run would otherwise report a clean zero. Adzuna's credentials were in exactly
+            # this state on 2026-08-01 (AUTH_FAIL on every country) and nothing said so: the
+            # handler logged a warning per page and `fetch` returned an empty list, which
+            # reads downstream as "Adzuna had nothing today".
+            if resp.status_code in (401, 403):
+                raise AdzunaAuthError(
+                    f"Adzuna rejected the credentials (HTTP {resp.status_code}). "
+                    "Check ADZUNA_APP_ID / ADZUNA_API_KEY — every call this run will fail."
+                )
             resp.raise_for_status()
             return resp.json().get("results", [])
         except requests.RequestException as exc:
@@ -138,13 +185,16 @@ class AdzunaSource(BaseSource):
 
     @staticmethod
     def _currency_for_country(country: str) -> Optional[str]:
+        # One entry per country in COUNTRY_CONFIG — `test_adzuna.py` fails if that stops
+        # being true. A missing entry is not a crash, it is a posting stored with a salary
+        # figure and no unit, which is worse than storing no salary at all.
         return {
+            "at": "EUR", "be": "EUR", "de": "EUR", "es": "EUR", "fr": "EUR",
+            "it": "EUR", "nl": "EUR",
             "pl": "PLN",
-            "at": "EUR",
-            "de": "EUR",
-            "nl": "EUR",
             "gb": "GBP",
             "us": "USD",
+            "ca": "CAD",
         }.get(country.lower())
 
     @staticmethod
