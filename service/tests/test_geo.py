@@ -56,6 +56,44 @@ def test_resolve_location(location, country_code, expected):
     assert geo.resolve_location(location, country_code) == expected
 
 
+@pytest.mark.parametrize("location,expected", [
+    ("India, Bengaluru", "IN"),
+    ("Bangalore, India", "IN"),
+    ("Taiwan, Hsinchu", "TW"),
+    ("Suzhou, China", "CN"),
+    ("Israel, Yokneam", "IL"),
+    ("Singapore, Remote", "SG"),
+    ("Sydney, Australia", "AU"),
+    ("Toronto, Canada", "CA"),
+    ("Blumenau, Brazil", "BR"),
+    ("Seoul, South Korea", "KR"),
+])
+def test_a_country_we_do_not_serve_is_named_rather_than_left_unknown(location, expected):
+    """Naming a country is what lets the gate *exclude* it.
+
+    `location_predicate` deliberately keeps postings whose country is unknown and hands them
+    to the AI matcher, which is right for an unresolvable city and wrong for a requisition
+    that says "Bangalore, India" outright. The enterprise ATS sources (Workday,
+    SmartRecruiters) reach employers who hire globally, so before these aliases existed every
+    such posting spent a slot in the ~120-posting shortlist of subscribers who can only work
+    in the EU — to be rejected by a model that had to read it first.
+
+    These countries are still never *offered* as a preference; only EU-27 is.
+    """
+    assert geo.resolve_location(location, None)[0] == expected
+    assert expected not in geo.COUNTRIES
+
+
+def test_georgia_stays_unknown_because_it_is_also_a_us_state():
+    """The country lookup runs before the city lookup, so an alias here would win.
+
+    "Atlanta, Georgia" is overwhelmingly more likely than Tbilisi in this inventory, and
+    resolving it to the country would drop the posting from the digest of every subscriber
+    who selected the US. Unknown is the cheaper mistake.
+    """
+    assert geo.resolve_location("Atlanta, Georgia", None) == (None, None)
+
+
 def test_an_ambiguous_word_needs_a_country_to_become_a_city():
     """"Nice" and "Split" are cities and ordinary words. Matching them off a bare token would
     put a French posting in front of someone who never picked France; requiring a known

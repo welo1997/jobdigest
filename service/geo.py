@@ -86,6 +86,33 @@ COUNTRY_ALIASES: dict[str, str] = {
     "switzerland": "CH", "schweiz": "CH", "svycarsko": "CH", "svajciarsko": "CH",
     "norway": "NO", "norge": "NO", "norsko": "NO",
     "ukraine": "UA", "ukrajina": "UA", "serbia": "RS", "srbsko": "RS",
+    # The same rule, applied to the countries the enterprise ATS sources actually post from.
+    # Workday and SmartRecruiters reach employers who hire globally — NVIDIA, Philips, Adobe,
+    # Delivery Hero, Bosch — and their non-European requisitions arrive naming the country in
+    # plain English and nothing else: "India, Bengaluru", "Taiwan, Hsinchu", "Suzhou, China".
+    # Every one of those resolved to *no country*, and an unknown country is deliberately
+    # KEPT by `location_predicate` and handed to the AI matcher. So each was spending a slot
+    # in the ~120-posting shortlist of subscribers who can only work in the EU, to be rejected
+    # by a model that had to read it first. Naming them is what turns that into an exclusion.
+    # Sampled from real unresolved locations on 2026-08-01, most frequent first.
+    "israel": "IL", "india": "IN", "taiwan": "TW", "china": "CN",
+    "hong kong": "HK", "vietnam": "VN", "viet nam": "VN", "singapore": "SG",
+    "indonesia": "ID", "thailand": "TH", "malaysia": "MY", "philippines": "PH",
+    "japan": "JP", "south korea": "KR", "korea": "KR", "australia": "AU",
+    "new zealand": "NZ", "brazil": "BR", "brasil": "BR", "mexico": "MX",
+    "argentina": "AR", "chile": "CL", "colombia": "CO", "peru": "PE",
+    "canada": "CA", "turkey": "TR", "turkiye": "TR", "egypt": "EG",
+    "south africa": "ZA", "nigeria": "NG", "kenya": "KE", "morocco": "MA",
+    "united arab emirates": "AE", "saudi arabia": "SA", "qatar": "QA",
+    "pakistan": "PK", "bangladesh": "BD", "sri lanka": "LK",
+    "montenegro": "ME", "north macedonia": "MK", "albania": "AL",
+    "bosnia and herzegovina": "BA", "moldova": "MD",
+    "armenia": "AM", "iceland": "IS", "belarus": "BY", "kazakhstan": "KZ",
+    # Deliberately absent: "georgia". The country name is also a US state, and the country
+    # lookup runs before the city lookup — so "Atlanta, Georgia" would resolve to Georgia the
+    # country and be excluded from the digest of every subscriber who selected the US. A US
+    # state is far more likely than Tbilisi in this inventory, and being unknown is the
+    # cheaper mistake.
 }
 
 # --- cities --------------------------------------------------------------------
