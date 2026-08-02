@@ -266,15 +266,44 @@ copies, per rule 4.
 
 ### Deployment reality
 
-`/opt/jobdigest` on the VPS is **scp'd, not a git checkout**. Local `master` and the box can
-drift, and have. After changing anything under `service/`, `deploy/` or `web/`, copy it up
-and rebuild the affected image — a merged commit is not a deployed commit.
+`/opt/jobdigest` on the VPS is **not a git checkout**. Local `master` and the box can drift,
+and have — a merged commit is not a deployed commit.
+
+**Use `deploy/deploy.sh`. Do not hand-assemble an `scp` list.**
 
 ```bash
-scp <files> deploy@<VPS>:/opt/jobdigest/<path>/
-ssh deploy@<VPS> 'cd /opt/jobdigest/deploy && sudo docker compose build api pipeline web \
-  && sudo docker compose up -d api web'
+deploy/deploy.sh              # ship HEAD (refuses if dirty or unpushed)
+deploy/deploy.sh --dry-run    # list what would ship
+deploy/deploy.sh --sha <sha>  # roll back to a known-good commit
 ```
+
+It ships the *committed tree* via `git archive | tar -x`, so "deployed" is always a commit you
+can `git show`; it syncs the systemd units, which live in `/etc/systemd/system` and are the one
+thing a tree sync cannot reach; and it health-checks with automatic rollback. Files git does not
+track — `deploy/.env`, `exchange/`, `pgdata` — are untouched, because tar only writes archive
+members. The host is not in the script: it comes from the gitignored `deploy/.deploy-target`.
+
+**The failure a hand-rolled `scp` list produces is not a missing file, it is a stale one.**
+On 2026-08-02 the three new ATS adapters were copied to the box and the deploy was verified by
+md5 — per directory. `search_jobs.py` sits at the repo *root*, was outside every directory
+checked, and is where `gather()` lists the sources. The adapters were present, importable, and
+wired into nothing; the box ran 10 sources while `master` ran 13, and no check said otherwise.
+If you must copy by hand, diff the **whole tree** in both directions — files on the box that
+differ, *and* files in the commit that never arrived — and hash the result **inside the image**,
+since the image is what runs.
+
+**`.deployed-sha` is `deploy.sh`'s rollback target, not a comment.** If it is stale, a failed
+health check restores whatever it names. It was found reading a 61-commit-old sha, which would
+have reverted the box past an entire release. Deploying by hand and not updating it is how it
+gets that way.
+
+**The build context is a place code can go missing.** `.dockerignore` excludes `dbt/` from the
+backend image, but `ingestion/sources/greenhouse.py` reads its curated board tokens from
+`dbt/seeds/target_companies.csv` at runtime — so for the life of the image the largest source
+loaded zero boards, caught its own `FileNotFoundError`, logged a warning and returned `[]`.
+Nothing errored; the symptom was an absence in `select source, count(*) from postings`.
+`test_curated_boards.py` now fails if the seed stops shipping. When a source's number looks
+wrong, check whether its data even reached the image.
 
 Rebuild **`api` as well as `pipeline`** whenever the change touches anything the webapp
 imports (`webapp.py`, `store.py`, `geo.py`, `taxonomy.py`, …) — `api` runs `service.webapp` from
