@@ -85,6 +85,12 @@ create table if not exists profiles (
     sectors         text[]  not null default '{}',  -- soft boost: fintech, ecommerce, trading
     min_score       int     not null default 6,
 
+    -- Which language to write to this person (migration 013). Set from the locale they signed
+    -- up under; 'en' for every row that predates the site having more than one. Read through
+    -- `service.i18n.clean_locale`, so an unknown value degrades to English instead of failing
+    -- a send.
+    language        text    not null default 'en',
+
     -- subscription lifecycle (double opt-in, token-based management, no password)
     status          text not null default 'pending', -- pending|active|paused|unsubscribed|bounced
     frequency       text not null default 'daily',    -- daily|weekdays|weekly

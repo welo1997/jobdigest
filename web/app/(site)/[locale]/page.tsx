@@ -2,7 +2,6 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
 import { Nav, Footer } from "@/components/SiteChrome";
 import EmailPreview from "@/components/EmailPreview";
 import Turnstile, { turnstileEnabled, TurnstileHandle } from "@/components/Turnstile";
@@ -16,41 +15,26 @@ import {
 import { track } from "@/lib/analytics";
 import { LocationPicker, LocationValue } from "@/components/LocationPicker";
 import { WORK_MODES } from "@/lib/geo";
+import {
+  CV_ROLE_ID, DEFAULT_ROLE_IDS, SENIORITY_IDS, SKILL_OPTS, WORK_TYPE_IDS,
+  roleCategory, roleKeyword,
+} from "@/lib/options";
+import Link from "next/link";
+import { fmt, legalHref } from "@/i18n/config";
+import { rich, useI18n } from "@/i18n/context";
 
-const ROLE_OPTS = ["Product Manager", "Marketing", "Social Media", "Data Analyst", "Designer", "Software Engineer", "Data Engineer", "DevOps", "Finance"];
-const SKILL_OPTS = ["SQL", "Figma", "Analytics", "Excel", "Python", "SEO", "Looker", "Roadmapping", "Power BI", "dbt"];
-const WORK_OPTS = ["Full-time", "Freelance", "Part-time"];
-const SENIORITY_OPTS = ["Intern / Junior", "Mid", "Senior"];
+// Chip state holds ids, never labels — see lib/options.ts for why that distinction became
+// load-bearing once the same chip renders differently in eight languages.
+const DEFAULT_ROLES = ["product_manager", "marketing", "data_analyst", "designer"];
+const DEFAULT_SKILLS = ["SQL", "Figma", "Analytics"];
+const DEFAULT_WORK = ["fulltime", "freelance"];
+const DEFAULT_LEVELS = ["junior", "mid"];
 
-// display level <-> stored seniority code (postings & profiles use junior|mid|senior;
-// intern/graduate/trainee fold into junior). Matching treats seniority as a hard filter,
-// so this is what stops a junior search surfacing senior roles and vice versa.
-const SENIORITY_CODE: Record<string, string> = {
-  "Intern / Junior": "junior", "Mid": "mid", "Senior": "senior",
-};
-const CODE_SENIORITY: Record<string, string> = {
-  junior: "Intern / Junior", mid: "Mid", senior: "Senior",
-};
-
-// display role -> role_category (mirrors service.ingest role rules)
-const ROLE_CAT: Record<string, string> = {
-  "Data Engineer": "data_engineering", "Data Analyst": "data_analysis",
-  "Software Engineer": "software_engineering", "DevOps": "devops_platform",
-  "Product Manager": "product", "Designer": "design",
-  "Social Media": "social_media",
-  "Marketing": "other_tech_function", "Finance": "other_tech_function",
-};
 // Opens on the home market with no city restriction: "Czechia, any city, plus remote from
 // anywhere in the EU" — the widest sensible default, so a subscriber who skips this step is
 // never narrowed by a choice they did not make.
 const DEFAULT_LOCATION: LocationValue = {
   countries: ["CZ"], cities: [], remoteScope: "eu", workModes: [...WORK_MODES],
-};
-const CV_ROLE_LABEL: Record<string, string> = {
-  data_engineering: "Data Engineer", data_analysis: "Data Analyst",
-  machine_learning: "ML Engineer", software_engineering: "Software Engineer",
-  devops_platform: "DevOps", product: "Product Manager", design: "Designer",
-  social_media: "Social Media",
 };
 
 const LAST = 3;
@@ -65,18 +49,27 @@ function Chip({ label, on, toggle }: { label: string; on: boolean; toggle: () =>
 
 export default function Landing() {
   const router = useRouter();
+  const { t, href, locale } = useI18n();
   const { show, element: toast } = useToast();
 
+  // A typed role has no catalogue entry, so its id *is* what to display.
+  const roleLabel = (id: string) => t.roles[id] ?? id;
+
   const [step, setStep] = useState(0);
-  const [roleOpts, setRoleOpts] = useState(ROLE_OPTS);
+  const [roleOpts, setRoleOpts] = useState<string[]>(DEFAULT_ROLE_IDS);
   const [skillOpts, setSkillOpts] = useState(SKILL_OPTS);
-  const [roles, setRoles] = useState<Set<string>>(new Set(["Product Manager", "Marketing", "Data Analyst", "Designer"]));
-  const [skills, setSkills] = useState<Set<string>>(new Set(["SQL", "Figma", "Analytics"]));
+  const [roles, setRoles] = useState<Set<string>>(new Set(DEFAULT_ROLES));
+  const [skills, setSkills] = useState<Set<string>>(new Set(DEFAULT_SKILLS));
   const [loc, setLoc] = useState<LocationValue>(DEFAULT_LOCATION);
-  const [work, setWork] = useState<Set<string>>(new Set(["Full-time", "Freelance"]));
-  const [levels, setLevels] = useState<Set<string>>(new Set(["Intern / Junior", "Mid"]));
+  const [work, setWork] = useState<Set<string>>(new Set(DEFAULT_WORK));
+  const [levels, setLevels] = useState<Set<string>>(new Set(DEFAULT_LEVELS));
   const [email, setEmail] = useState("");
-  const [consent, setConsent] = useState(true);
+  // Unticked, and it must stay unticked. Consent under GDPR is an affirmative act, so a box
+  // that arrives already ticked is not consent at all (CJEU C-673/17, Planet49) — and this is
+  // the box that authorises storing a real person's address and mailing them daily. The
+  // privacy policy is treated as a specification here (security rule 4); a pre-ticked box
+  // would make its "you agreed" claim false for every subscriber who never touched it.
+  const [consent, setConsent] = useState(false);
   const [addRole, setAddRole] = useState("");
   const [addSkill, setAddSkill] = useState("");
 
@@ -110,12 +103,12 @@ export default function Landing() {
 
   // --- Google-verified signup: survive the full-page OAuth redirect ---
   // Clicking "Sign up with Google" leaves the SPA entirely, so stash the picks first and
-  // restore them when Google sends the user back to /?google=signup.
+  // restore them when Google sends the user back to /<locale>/?google=signup.
   const saveWizardState = () => {
     try {
       sessionStorage.setItem("jd_google_wiz", JSON.stringify({
         roleOpts, skillOpts, roles: [...roles], skills: [...skills], loc,
-        work: [...work], levels: [...levels], cvSignals, step,
+        work: [...work], levels: [...levels], cvSignals, step, consent,
       }));
     } catch {}
   };
@@ -129,7 +122,7 @@ export default function Landing() {
     try {
       const s = JSON.parse(sessionStorage.getItem("jd_google_wiz") || "null");
       if (s) {
-        setRoleOpts(s.roleOpts || ROLE_OPTS);
+        setRoleOpts(s.roleOpts || DEFAULT_ROLE_IDS);
         setSkillOpts(s.skillOpts || SKILL_OPTS);
         setRoles(new Set<string>(s.roles || []));
         setSkills(new Set<string>(s.skills || []));
@@ -137,6 +130,10 @@ export default function Landing() {
         setWork(new Set<string>(s.work || []));
         setLevels(new Set<string>(s.levels || []));
         setCvSignals(s.cvSignals || null);
+        // Carried so someone who ticked the box before the OAuth hop is not asked twice.
+        // `=== true` because anything else — absent key, older stashed state — must read as
+        // "never consented", the same default a fresh visitor gets.
+        setConsent(s.consent === true);
       }
     } catch {}
     // Confirm the intent is still live and learn which verified address it's for.
@@ -149,8 +146,8 @@ export default function Landing() {
         try { sessionStorage.removeItem("jd_google_wiz"); } catch {}
       })
       .catch(() => {
-        show("Your Google sign-in expired — please try again.");
-        window.history.replaceState(null, "", "/");
+        show(t.landing.toast.googleExpired);
+        window.history.replaceState(null, "", href("/"));
       });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -190,20 +187,20 @@ export default function Landing() {
     // "wrong_type" means the upload affordance is unclear, not that parsing is broken.
     if (!/\.(pdf|docx)$/i.test(file.name)) {
       track("cv_parse_failed", { reason: "wrong_type" });
-      return show("Please upload a PDF or DOCX file");
+      return show(t.landing.toast.cvWrongType);
     }
     if (file.size > 8 * 1024 * 1024) {
       track("cv_parse_failed", { reason: "too_large" });
-      return show("That file is too large (max 8 MB)");
+      return show(t.landing.toast.cvTooLarge);
     }
     setCvBusy(true);
     try {
       const sig = await parseCV(file, tsToken || undefined);
       // prefill role chips
-      const roleLabels = sig.role_categories.map((c) => CV_ROLE_LABEL[c]).filter(Boolean);
+      const roleIds = sig.role_categories.map((c) => CV_ROLE_ID[c]).filter(Boolean);
       const nextRoleOpts = [...roleOpts];
       const nextRoles = new Set(roles);
-      roleLabels.forEach((r) => {
+      roleIds.forEach((r) => {
         if (!nextRoleOpts.includes(r)) nextRoleOpts.push(r);
         nextRoles.add(r);
       });
@@ -219,19 +216,21 @@ export default function Landing() {
       setRoles(nextRoles);
       setSkillOpts(nextSkillOpts);
       setSkills(nextSkills);
-      // prefill seniority from the CV's detected level(s), so the level selector reflects
-      // the résumé too — the user can still override it before subscribing.
-      const cvLevels = (sig.seniorities || []).map((c) => CODE_SENIORITY[c]).filter(Boolean);
+      // Prefill seniority from the CV's detected level(s) — the user can still override before
+      // subscribing. `sig.seniorities` already holds the stored codes, which is exactly what
+      // the chips are keyed on now, so there is no label round-trip left to get wrong.
+      const cvLevels = (sig.seniorities || [])
+        .filter((c) => (SENIORITY_IDS as readonly string[]).includes(c));
       if (cvLevels.length) setLevels(new Set(cvLevels));
       setCvSignals(sig);
       setCvName(file.name);
       // Skill count, not the skills themselves — "parsed but found nothing" is a distinct
       // and important failure mode (e.g. scanned PDFs) that still returns HTTP 200.
       track("cv_parse_ok", { skills: sig.skills.length });
-      show("CV read — we prefilled your profile");
+      show(t.landing.toast.cvOk);
     } catch (e) {
       track("cv_parse_failed", { reason: "server_rejected" });
-      show(e instanceof Error ? e.message : "Couldn't read that file");
+      show(e instanceof Error ? e.message : t.landing.toast.cvUnreadable);
     } finally {
       setCvBusy(false);
     }
@@ -246,15 +245,15 @@ export default function Landing() {
   // --- build payload + submit ---
   function buildPayload(): SubscribePayload {
     const workTypes: string[] = [];
-    if (work.has("Full-time")) workTypes.push("permanent");
-    if (work.has("Freelance")) workTypes.push("freelance/contract");
+    if (work.has("fulltime")) workTypes.push("permanent");
+    if (work.has("freelance")) workTypes.push("freelance/contract");
     // "Type of work — tap all that fit" is an inclusive multi-select, and Full-time ships
     // pre-selected. Tapping Part-time therefore means "part-time fits me too", never "only
     // part-time" — so it is only "only" when Full-time is not also selected. Sending the bare
-    // `work.has("Part-time")` recorded part_time_only on subscribers who had Full-time visibly
+    // `work.has("parttime")` recorded part_time_only on subscribers who had Full-time visibly
     // ticked, and the matcher then penalised every full-time role it showed them.
-    const partTimeOnly = work.has("Part-time") && !work.has("Full-time");
-    const seniorities = [...levels].map((l) => SENIORITY_CODE[l]).filter(Boolean);
+    const partTimeOnly = work.has("parttime") && !work.has("fulltime");
+    const seniorities = [...levels];
     // "Add another role…" lets someone type a role no category models — Sales, Cybersecurity,
     // IT Support. `.filter(Boolean)` alone dropped those on the floor: not stored, not
     // logged, no error, and the subscriber sees the chip they typed still highlighted. Route
@@ -263,8 +262,13 @@ export default function Landing() {
     // nothing classified it. Slugifying them into role_categories is NOT the alternative:
     // that is what produced `social_media_specialist`, a value no posting carries, i.e. a
     // filter that silently matched nothing at all.
-    const roleSlugs = [...new Set([...roles].map((r) => ROLE_CAT[r]).filter(Boolean))];
-    const freeRoles = [...roles].filter((r) => !ROLE_CAT[r]);
+    //
+    // `roleKeyword` is what keeps this independent of the display language: a known chip
+    // contributes its English keyword, never the label the visitor happened to be reading.
+    const roleSlugs = [...new Set(
+      [...roles].map(roleCategory).filter((c): c is string => !!c)
+    )];
+    const freeRoles = [...roles].filter((r) => !roleCategory(r)).map(roleKeyword);
     return {
       email: email.trim(),
       label: "My digest",
@@ -281,41 +285,44 @@ export default function Landing() {
       seniorities: seniorities.length ? seniorities : ["junior", "mid"],
       min_score: 6,
       frequency: "daily",
+      // The language they are reading right now, so tomorrow's digest arrives in it. This is
+      // the only moment it can be captured — the send runs from a timer with no browser.
+      language: locale,
       cv_signals: cvSignals,
       cf_turnstile_token: tsToken || null,
     };
   }
 
   const submitGoogle = async () => {
-    if (!consent) return show("Please accept the privacy policy first");
-    if (levels.size === 0) return show("Pick at least one seniority level");
+    if (!consent) return show(t.landing.toast.needConsent);
+    if (levels.size === 0) return show(t.landing.toast.needLevel);
     setSubmitting(true);
-    track("subscribe_submitted", { skills: skills.size, variant: [...levelCodes].join("+") || "none" });
+    track("subscribe_submitted", { skills: skills.size, variant: [...levels].join("+") || "none" });
     try {
       await subscribeGoogle(buildPayload());   // email comes from the server-side intent
       track("subscribe_ok");
-      router.push("/preferences");             // active + logged in — no inbox step
+      router.push(href("/preferences"));       // active + logged in — no inbox step
     } catch (e) {
       track("subscribe_error");
-      show(e instanceof Error ? e.message : "Something went wrong — please retry");
+      show(e instanceof Error ? e.message : t.landing.toast.genericError);
       setSubmitting(false);
     }
   };
 
   const submit = async () => {
     if (googleMode) return submitGoogle();
-    if (!consent) return show("Please accept the privacy policy first");
-    if (!email.trim().includes("@")) return show("Enter a valid email");
-    if (levels.size === 0) return show("Pick at least one seniority level");
+    if (!consent) return show(t.landing.toast.needConsent);
+    if (!email.trim().includes("@")) return show(t.landing.toast.needEmail);
+    if (levels.size === 0) return show(t.landing.toast.needLevel);
     // A real person blocked by the bot check is a UX failure worth seeing, not just a stat.
     if (turnstileEnabled && !tsToken) {
       track("turnstile_failed");
-      return show("Please complete the verification");
+      return show(t.landing.toast.needTurnstile);
     }
     setSubmitting(true);
     // `variant` carries the chosen seniority levels (e.g. "junior+mid") — reuses an existing
     // whitelisted event + prop key, so no server-side analytics change is needed.
-    track("subscribe_submitted", { skills: skills.size, variant: [...levelCodes].join("+") || "none" });
+    track("subscribe_submitted", { skills: skills.size, variant: [...levels].join("+") || "none" });
     const payload = buildPayload();
     // Instant keyword preview, fired in parallel with the signup. Best-effort: if it fails
     // or is slow, we still complete signup — check-inbox just won't show instant matches.
@@ -327,17 +334,16 @@ export default function Landing() {
       track("subscribe_ok");
       // Give the preview a brief moment to land, but never block the redirect on it.
       await Promise.race([previewDone, new Promise((res) => setTimeout(res, 2500))]);
-      router.push(`/check-inbox/?email=${encodeURIComponent(email.trim())}`);
+      router.push(href(`/check-inbox?email=${encodeURIComponent(email.trim())}`));
     } catch (e) {
       track("subscribe_error");
       // Turnstile tokens are single-use — mint a fresh one so the retry isn't rejected as duplicate.
       tsRef.current?.reset();
-      show(e instanceof Error ? e.message : "Something went wrong — please retry");
+      show(e instanceof Error ? e.message : t.landing.toast.genericError);
       setSubmitting(false);
     }
   };
 
-  const levelCodes = new Set([...levels].map((l) => SENIORITY_CODE[l]).filter(Boolean));
   // Seniority is a hard filter now, so a one-level + one-role + single-country search can
   // starve matches. Flag the tightest combos so we can nudge (not block) before submit.
   const narrow = levels.size === 1 && roles.size <= 1
@@ -346,12 +352,25 @@ export default function Landing() {
   // Per-step guard: advancing shouldn't leave a required choice empty (which would silently
   // fall back to defaults and mismatch what the user thinks they picked).
   const goNext = () => {
-    if (step === 0 && roles.size === 0) return show("Pick at least one role to continue");
-    if (step === 2 && levels.size === 0) return show("Pick at least one level to continue");
+    if (step === 0 && roles.size === 0) return show(t.landing.toast.needRole);
+    if (step === 2 && levels.size === 0) return show(t.landing.toast.needLevelToContinue);
     setStep((s) => Math.min(LAST, s + 1));
   };
 
   const progress = `${(step + 1) * 25}%`;
+
+  // Same control in both branches of step 4. `legalHref` because the policy exists in fewer
+  // languages than the site — consenting to a policy is the last place to send someone to a
+  // 404, so a reader of one of the other six gets the English text rather than nothing.
+  const consentLabel = (
+    <label className="consent">
+      <input type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)} />
+      {" "}
+      {rich(t.landing.consent, [
+        <Link key="pp" href={legalHref(locale, "privacy")}>{t.landing.consentLink}</Link>,
+      ])}
+    </label>
+  );
 
   return (
     <>
@@ -361,9 +380,9 @@ export default function Landing() {
           <div className="wrap hero">
             <div className="build">
               {/* WIZARD */}
-              <div className="wizard" id="wizard" aria-label="Build your digest">
+              <div className="wizard" id="wizard" aria-label={t.landing.wizardAria}>
                 <div className="wz-top">
-                  <span className="wz-step">Step {step + 1} of 4</span>
+                  <span className="wz-step">{fmt(t.landing.stepOf, { n: step + 1 })}</span>
                   <span className="wz-prog">
                     <i style={{ width: progress }} />
                   </span>
@@ -372,7 +391,7 @@ export default function Landing() {
                 {/* step 1: roles + CV fast-path */}
                 {step === 0 && (
                   <div className="wz-panel">
-                    <div className="wz-q">Start searching now</div>
+                    <div className="wz-q">{t.landing.q1}</div>
 
                     {!cvSignals ? (
                       <div
@@ -399,10 +418,10 @@ export default function Landing() {
                           </svg>
                         </div>
                         <div className="cvtxt">
-                          <b>{cvBusy ? "Reading your CV…" : "Drop your CV — we'll fill this in"}</b>
-                          <span>PDF or DOCX · We read it to set up your matches, then delete the file. Never shared.</span>
+                          <b>{cvBusy ? t.landing.cvReading : t.landing.cvDrop}</b>
+                          <span>{t.landing.cvHint}</span>
                         </div>
-                        <span className="cvbtn">Choose file</span>
+                        <span className="cvbtn">{t.landing.cvChoose}</span>
                         <input
                           ref={fileRef}
                           type="file"
@@ -415,19 +434,20 @@ export default function Landing() {
                       <div className="cvbanner">
                         <span className="bic">✓</span>
                         <div className="btxt">
-                          <b>CV read — prefilled</b>
+                          <b>{t.landing.cvDone}</b>
                           <span>{cvSignals.summary} — {cvName}</span>
                         </div>
-                        <button type="button" className="bx" aria-label="Remove CV" onClick={clearCV}>
+                        <button type="button" className="bx" aria-label={t.landing.cvRemove} onClick={clearCV}>
                           ×
                         </button>
                       </div>
                     )}
-                    <div className="cvor">or pick manually</div>
+                    <div className="cvor">{t.landing.orPickManually}</div>
 
                     <div className="chips">
                       {roleOpts.map((o) => (
-                        <Chip key={o} label={o} on={roles.has(o)} toggle={() => toggleIn(roles, o, setRoles)} />
+                        <Chip key={o} label={roleLabel(o)} on={roles.has(o)}
+                          toggle={() => toggleIn(roles, o, setRoles)} />
                       ))}
                     </div>
                     <div className="addwrap">
@@ -436,10 +456,10 @@ export default function Landing() {
                         value={addRole}
                         onChange={(e) => setAddRole(e.target.value)}
                         onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addCustomRole(); } }}
-                        placeholder="Add another role…"
-                        aria-label="Add a role"
+                        placeholder={t.landing.addRolePlaceholder}
+                        aria-label={t.landing.addRoleAria}
                       />
-                      <button type="button" onClick={addCustomRole}>Add</button>
+                      <button type="button" onClick={addCustomRole}>{t.common.add}</button>
                     </div>
                   </div>
                 )}
@@ -447,8 +467,8 @@ export default function Landing() {
                 {/* step 2: skills */}
                 {step === 1 && (
                   <div className="wz-panel">
-                    <div className="wz-q">What are you good at?</div>
-                    <p className="wz-hint">These are what we match jobs on. Tap all that apply.</p>
+                    <div className="wz-q">{t.landing.q2}</div>
+                    <p className="wz-hint">{t.landing.q2hint}</p>
                     <div className="chips">
                       {skillOpts.map((o) => (
                         <Chip key={o} label={o} on={skills.has(o)} toggle={() => toggleIn(skills, o, setSkills)} />
@@ -460,10 +480,10 @@ export default function Landing() {
                         value={addSkill}
                         onChange={(e) => setAddSkill(e.target.value)}
                         onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addCustomSkill(); } }}
-                        placeholder="Add a skill…"
-                        aria-label="Add a skill"
+                        placeholder={t.landing.addSkillPlaceholder}
+                        aria-label={t.landing.addSkillAria}
                       />
-                      <button type="button" onClick={addCustomSkill}>Add</button>
+                      <button type="button" onClick={addCustomSkill}>{t.common.add}</button>
                     </div>
                   </div>
                 )}
@@ -471,27 +491,26 @@ export default function Landing() {
                 {/* step 3: where & how */}
                 {step === 2 && (
                   <div className="wz-panel">
-                    <div className="wz-q">Where &amp; how?</div>
-                    <p className="wz-hint">
-                      Location first — pick the cities you could actually commute to. On-site
-                      roles anywhere else are dropped; fully remote ones are not.
-                    </p>
+                    <div className="wz-q">{t.landing.q3}</div>
+                    <p className="wz-hint">{t.landing.q3hint}</p>
                     <LocationPicker value={loc} onChange={setLoc} idPrefix="wz" />
-                    <p className="wz-hint" style={{ marginTop: 16 }}>Type of work — tap all that fit.</p>
+                    <p className="wz-hint" style={{ marginTop: 16 }}>{t.landing.workTypeHint}</p>
                     <div className="chips">
-                      {WORK_OPTS.map((o) => (
-                        <Chip key={o} label={o} on={work.has(o)} toggle={() => toggleIn(work, o, setWork)} />
+                      {WORK_TYPE_IDS.map((o) => (
+                        <Chip key={o} label={t.workTypes[o]} on={work.has(o)}
+                          toggle={() => toggleIn(work, o, setWork)} />
                       ))}
                     </div>
-                    <p className="wz-hint" style={{ marginTop: 16 }}>Your level — we only send roles at the levels you pick.</p>
+                    <p className="wz-hint" style={{ marginTop: 16 }}>{t.landing.levelHint}</p>
                     <div className="chips">
-                      {SENIORITY_OPTS.map((o) => (
-                        <Chip key={o} label={o} on={levels.has(o)} toggle={() => toggleIn(levels, o, setLevels)} />
+                      {SENIORITY_IDS.map((o) => (
+                        <Chip key={o} label={t.seniorities[o]} on={levels.has(o)}
+                          toggle={() => toggleIn(levels, o, setLevels)} />
                       ))}
                     </div>
                     {narrow && (
                       <p className="wz-hint" style={{ marginTop: 10, color: "var(--gold, #C98A18)" }}>
-                        That&apos;s a narrow search — you may get few matches. Add a level, role, or another city to see more.
+                        {t.landing.narrowWarning}
                       </p>
                     )}
                   </div>
@@ -502,24 +521,20 @@ export default function Landing() {
                   <div className="wz-panel">
                     {googleMode ? (
                       <>
-                        <div className="wz-q">Confirm your digest</div>
+                        <div className="wz-q">{t.landing.q4google}</div>
                         <p className="wz-hint">
-                          Signing up as <b>{googleEmail}</b> — verified with Google, so there&apos;s
-                          no confirmation email. Your first digest lands at 7:00 tomorrow.
+                          {rich(t.landing.googleHint, [<b key="e">{googleEmail}</b>])}
                         </p>
-                        <label className="consent">
-                          <input type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)} />
-                          I agree to the <Link href="/privacy">privacy policy</Link> and to the daily digest.
-                        </label>
+                        {consentLabel}
                       </>
                     ) : (
                       <>
-                        <div className="wz-q">Where do we send it?</div>
-                        <p className="wz-hint">One confirmation email first — then your daily digest at 7:00.</p>
+                        <div className="wz-q">{t.landing.q4}</div>
+                        <p className="wz-hint">{t.landing.q4hint}</p>
                         {GOOGLE_AUTH_ENABLED && (
                           <>
-                            <GoogleButton label="Sign up with Google" onClick={googleStart} />
-                            <div className="or-divider"><span>or</span></div>
+                            <GoogleButton label={t.landing.googleSignup} onClick={googleStart} />
+                            <div className="or-divider"><span>{t.common.or}</span></div>
                           </>
                         )}
                         <input
@@ -527,16 +542,13 @@ export default function Landing() {
                           className="emailin"
                           value={email}
                           onChange={(e) => setEmail(e.target.value)}
-                          placeholder="you@example.com"
-                          aria-label="Your email"
+                          placeholder={t.landing.emailPlaceholder}
+                          aria-label={t.landing.emailAria}
                         />
-                        <label className="consent">
-                          <input type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)} />
-                          I agree to the <Link href="/privacy">privacy policy</Link> and to the daily digest.
-                        </label>
+                        {consentLabel}
                         <Turnstile ref={tsRef} onVerify={setTsToken} />
                         <div className="turnstile">
-                          <span className="box">✓</span> Protected by Cloudflare Turnstile — no CAPTCHA
+                          <span className="box">✓</span> {t.landing.turnstileNote}
                         </div>
                       </>
                     )}
@@ -547,17 +559,17 @@ export default function Landing() {
                 <div className="wz-nav">
                   {step > 0 && (
                     <button className="btn ghost" onClick={() => setStep((s) => Math.max(0, s - 1))}>
-                      ← Back
+                      {t.landing.back}
                     </button>
                   )}
                   <span className="spacer" />
                   {step < LAST ? (
                     <button className="btn" onClick={goNext}>
-                      Next →
+                      {t.landing.next}
                     </button>
                   ) : (
                     <button className="btn" onClick={submit} disabled={submitting}>
-                      {submitting ? "Sending…" : "Start my digest →"}
+                      {submitting ? t.landing.sending : t.landing.submit}
                     </button>
                   )}
                 </div>
@@ -565,32 +577,33 @@ export default function Landing() {
 
               {/* LIVE PREVIEW */}
               <div className="peek">
-                <span className="cap">Live preview</span>
-                <EmailPreview roles={roles} skills={skills} work={work} levels={levelCodes} email={email} limit={3} />
+                <span className="cap">{t.landing.livePreview}</span>
+                <EmailPreview roles={roles} skills={skills} work={work} levels={levels}
+                  email={email} limit={3} />
               </div>
             </div>
 
             <div className="microtrust">
-              <span><Check /> One email a day</span>
-              <span><Check /> Unsubscribe in one click</span>
-              <span><Check /> Free to start · 13 sources scanned nightly</span>
+              <span><Check /> {t.landing.trustEmail}</span>
+              <span><Check /> {t.landing.trustUnsub}</span>
+              <span><Check /> {t.landing.trustFree}</span>
             </div>
           </div>
 
           <div className="wrap section">
-            <span className="label">How it works</span>
+            <span className="label">{t.landing.howItWorks}</span>
             <div className="steps">
-              <div className="step"><div className="num">01</div><h3>Tap your profile</h3><p>Roles, skills, where you can work. Twenty seconds, mostly tapping.</p></div>
-              <div className="step"><div className="num">02</div><h3>We match overnight</h3><p>Fresh postings from dozens of sources, ranked to you, duplicates dropped.</p></div>
-              <div className="step"><div className="num">03</div><h3>Read one email</h3><p>A short ranked shortlist with a reason and an apply link for each.</p></div>
+              <div className="step"><div className="num">01</div><h3>{t.landing.step1Title}</h3><p>{t.landing.step1Body}</p></div>
+              <div className="step"><div className="num">02</div><h3>{t.landing.step2Title}</h3><p>{t.landing.step2Body}</p></div>
+              <div className="step"><div className="num">03</div><h3>{t.landing.step3Title}</h3><p>{t.landing.step3Body}</p></div>
             </div>
           </div>
         </section>
       </main>
       {/* Mobile-only sticky call-to-action — always-visible path to the sign-up wizard, since
           the live preview pushes it well down the page on phones. */}
-      <a href="#wizard" className="mcta" aria-label="Jump to sign-up">
-        Get my digest <span aria-hidden="true">→</span>
+      <a href="#wizard" className="mcta" aria-label={t.landing.mctaAria}>
+        {t.landing.mcta} <span aria-hidden="true">→</span>
       </a>
       <Footer />
       {toast}

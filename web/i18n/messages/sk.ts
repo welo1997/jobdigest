@@ -1,0 +1,330 @@
+import type { Messages } from "../schema";
+
+/**
+ * Slovak. Like Czech it needs `one` / `few` / `other` plurals (2–4 splits from 5+), and like
+ * Czech it names the role after a colon rather than declining an English job title inside the
+ * sentence. Close to `cs.ts` but deliberately a separate file — the two diverge in ordinary
+ * vocabulary ("nastavenie" vs "nastavení", "ponuka" vs "nabídka") and sharing one catalogue
+ * would mean shipping Czech to Slovak readers.
+ */
+const sk: Messages = {
+  meta: {
+    title: "JobDigest — ponuky práce, ktoré vám sadnú, každé ráno",
+    description:
+      "Jeden krátky e-mail denne s vybraným a zoradeným prehľadom ponúk, ktoré vám sadnú. Tech a CZ+EU na prvom mieste. Začiatok zadarmo.",
+  },
+
+  nav: {
+    myPreferences: "Moje nastavenia",
+    logOut: "Odhlásiť sa",
+    logIn: "Prihlásiť sa",
+    themeTitle: "Prepnúť svetlý / tmavý režim",
+    themeAria: "Prepnúť motív",
+    languageAria: "Vybrať jazyk",
+  },
+
+  footer: {
+    madeInEu: "Vyrobené v EÚ",
+    manage: "Správa odberu",
+    privacy: "Súkromie",
+    terms: "Podmienky",
+  },
+
+  common: {
+    loading: "Načítava sa…",
+    add: "Pridať",
+    or: "alebo",
+    backToHome: "← Späť na úvod",
+    goHome: "Prejsť na úvodnú stránku →",
+    viewAndApply: "Zobraziť a odpovedať →",
+    roleFallback: "Pozícia",
+  },
+
+  roles: {
+    product_manager: "Produktový manažér",
+    marketing: "Marketing",
+    social_media: "Sociálne siete",
+    data_analyst: "Dátový analytik",
+    designer: "Dizajnér",
+    software_engineer: "Vývojár softvéru",
+    data_engineer: "Dátový inžinier",
+    devops: "DevOps",
+    finance: "Financie",
+    ml_engineer: "ML inžinier",
+  },
+
+  workTypes: {
+    fulltime: "Plný úväzok",
+    freelance: "Freelance",
+    parttime: "Čiastočný úväzok",
+  },
+
+  seniorities: {
+    junior: "Stáž / Junior",
+    mid: "Medior",
+    senior: "Senior",
+  },
+
+  geo: {
+    countries: {
+      AT: "Rakúsko", BE: "Belgicko", BG: "Bulharsko", HR: "Chorvátsko", CY: "Cyprus",
+      CZ: "Česko", DK: "Dánsko", EE: "Estónsko", FI: "Fínsko", FR: "Francúzsko",
+      DE: "Nemecko", GR: "Grécko", HU: "Maďarsko", IE: "Írsko", IT: "Taliansko",
+      LV: "Lotyšsko", LT: "Litva", LU: "Luxembursko", MT: "Malta", NL: "Holandsko",
+      PL: "Poľsko", PT: "Portugalsko", RO: "Rumunsko", SK: "Slovensko", SI: "Slovinsko",
+      ES: "Španielsko", SE: "Švédsko",
+    },
+    remoteScope: {
+      country: "Len v krajinách, ktoré som vybral(a)",
+      eu: "Kdekoľvek v EÚ",
+      worldwide: "Kdekoľvek na svete",
+    },
+    workModeLabel: {
+      onsite: "Z kancelárie",
+      hybrid: "Hybridne",
+      remote: "Plne na diaľku",
+    },
+    workModeHint: {
+      onsite: "V kancelárii",
+      hybrid: "Časť v kancelárii, časť z domu — stále musíte byť nablízku",
+      remote: "Žiadna kancelária",
+    },
+  },
+
+  location: {
+    countriesLabel: "Krajiny, kde môžete pracovať",
+    addCountryAria: "Pridať ďalšiu krajinu",
+    addCountryOption: "Pridať ďalšiu krajinu…",
+    citiesIn: "Mestá — {country}",
+    anyCityNote: "kdekoľvek v krajine (ponuky z kancelárie kdekoľvek)",
+    pickedCityNote: "ponuky z kancelárie len vo vybraných mestách",
+    anyCity: "Kdekoľvek",
+    addTownPlaceholder: "Pridať ďalšie mesto — {country}…",
+    addCityAria: "Pridať mesto — {country}",
+    workSetup: "Forma práce",
+    anythingGoes: "čokoľvek",
+    leaveOutRest: "zvyšok vynecháme",
+    hybridNote:
+      "Hybridná práca znamená časť týždňa v kancelárii, takže to stále musí byť niekam, kam sa dostanete. Veľa inzerátov to neuvádza vôbec — tie necháváme a formu práce si prečíta matcher priamo z popisu, namiesto hádania.",
+    remoteLabel: "Plne vzdialené ponuky — ako ďaleko?",
+    remoteDisabledNote: "Platí, až keď vyššie vyberiete „Plne na diaľku“.",
+  },
+
+  landing: {
+    wizardAria: "Zostavte si prehľad",
+    stepOf: "Krok {n} zo 4",
+    q1: "Začnite hľadať hneď",
+    cvReading: "Čítame váš životopis…",
+    cvDrop: "Presuňte sem životopis — vyplníme to za vás",
+    cvHint:
+      "PDF alebo DOCX · Prečítame ho, aby sme vám nastavili ponuky, a potom súbor zmažeme. Nikdy ho nezdieľame.",
+    cvChoose: "Vybrať súbor",
+    cvDone: "Životopis načítaný — predvyplnené",
+    cvRemove: "Odstrániť životopis",
+    orPickManually: "alebo vyberte ručne",
+    addRolePlaceholder: "Pridať ďalšiu pozíciu…",
+    addRoleAria: "Pridať pozíciu",
+    q2: "V čom ste dobrí?",
+    q2hint: "Podľa toho hľadáme ponuky. Vyberte všetko, čo sedí.",
+    addSkillPlaceholder: "Pridať zručnosť…",
+    addSkillAria: "Pridať zručnosť",
+    q3: "Kde a ako?",
+    q3hint:
+      "Najprv miesto — vyberte mestá, kam by ste reálne dochádzali. Ponuky z kancelárie kdekoľvek inde vyradíme; plne vzdialené nie.",
+    workTypeHint: "Typ práce — vyberte všetko, čo sedí.",
+    levelHint: "Vaša úroveň — posielame len ponuky na úrovniach, ktoré vyberiete.",
+    narrowWarning:
+      "To je veľmi úzke hľadanie — ponúk môže prísť málo. Pridajte úroveň, pozíciu alebo ďalšie mesto.",
+    q4google: "Potvrďte svoj prehľad",
+    googleHint:
+      "Registrujete sa ako {0} — overené cez Google, takže žiadny potvrdzovací e-mail nepríde. Prvý prehľad dorazí zajtra o 7:00.",
+    consent: "Súhlasím so {0} a so zasielaním denného prehľadu.",
+    consentLink: "zásadami ochrany súkromia",
+    q4: "Kam vám to máme posielať?",
+    q4hint: "Najprv jeden potvrdzovací e-mail — potom denný prehľad o 7:00.",
+    googleSignup: "Registrovať sa cez Google",
+    emailPlaceholder: "vy@example.com",
+    emailAria: "Váš e-mail",
+    turnstileNote: "Chránené službou Cloudflare Turnstile — žiadna CAPTCHA",
+    back: "← Späť",
+    next: "Ďalej →",
+    sending: "Odosielame…",
+    submit: "Spustiť môj prehľad →",
+    livePreview: "Živá ukážka",
+    trustEmail: "Jeden e-mail denne",
+    trustUnsub: "Odhlásenie jedným kliknutím",
+    trustFree: "Začiatok zadarmo · 13 zdrojov prehľadávame každú noc",
+    howItWorks: "Ako to funguje",
+    step1Title: "Naklikajte si profil",
+    step1Body: "Pozície, zručnosti, kde môžete pracovať. Dvadsať sekúnd, hlavne klikanie.",
+    step2Title: "Cez noc hľadáme",
+    step2Body: "Čerstvé inzeráty z desiatok zdrojov, zoradené pre vás, duplicity preč.",
+    step3Title: "Prečítate jeden e-mail",
+    step3Body: "Krátky zoradený výber — pri každej ponuke dôvod a odkaz, kde sa prihlásiť.",
+    mcta: "Chcem svoj prehľad",
+    mctaAria: "Prejsť na registráciu",
+    toast: {
+      googleExpired: "Prihlásenie cez Google vypršalo — skúste to prosím znova.",
+      cvWrongType: "Nahrajte prosím súbor PDF alebo DOCX",
+      cvTooLarge: "Súbor je príliš veľký (max. 8 MB)",
+      cvOk: "Životopis načítaný — predvyplnili sme váš profil",
+      cvUnreadable: "Súbor sa nepodarilo prečítať",
+      needConsent: "Najprv prosím odsúhlaste zásady ochrany súkromia",
+      needLevel: "Vyberte aspoň jednu úroveň",
+      needEmail: "Zadajte platný e-mail",
+      needTurnstile: "Dokončite prosím overenie",
+      needRole: "Pokračujte výberom aspoň jednej pozície",
+      needLevelToContinue: "Pokračujte výberom aspoň jednej úrovne",
+      genericError: "Niečo sa pokazilo — skúste to prosím znova",
+    },
+  },
+
+  preview: {
+    inbox: "doručená pošta — {email}",
+    time: "7:00",
+    subject: "{count} pre vás — {date}",
+    roleCount: {
+      one: "{n} nová ponuka",
+      few: "{n} nové ponuky",
+      other: "{n} nových ponúk",
+    },
+    roleCountNamed: {
+      one: "{n} nová ponuka: {role}",
+      few: "{n} nové ponuky: {role}",
+      other: "{n} nových ponúk: {role}",
+    },
+    pickRole: "Vyberte pozíciu a uvidíte svoje ponuky →",
+    noCombo: "Pre túto kombináciu nič nemáme — rozšírte úrovne alebo typ práce →",
+    greeting: "Dobré ráno. Dnes {0} — z 214 inzerátov prehľadaných cez noc.",
+    freshMatches: {
+      one: "{n} nová zhoda",
+      few: "{n} nové zhody",
+      other: "{n} nových zhôd",
+    },
+    reasonMatches: "Zodpovedá: {0}. Odbor: {sector}.",
+    reasonGeneric: "Silná ponuka v odbore {sector} vo vašom regióne. Odbor: {sector}.",
+    refine: "Upraviť nastavenia",
+    pause: "Pozastaviť na 2 týždne",
+    unsubscribe: "Odhlásiť odber",
+    fine: "Tento e-mail dostávate, pretože ste sa prihlásili na jobdigest.eu · Jeden e-mail denne.",
+  },
+
+  prefs: {
+    signedInLabel: "Prihlásení",
+    title: "Vaše nastavenia",
+    signedInAs: "Prihlásení ako {0}. Čokoľvek zmeňte, pozastavte alebo zrušte — {1}.",
+    logOutInline: "odhlásiť sa",
+    noPasswordLead: "Žiadne heslo.",
+    noPasswordBody:
+      "Kliknutím na odkaz v e-maile ste sa prihlásili a na tomto zariadení zostanete prihlásení, takže odkaz už tu znova potrebovať nebudete. Odhlásiť sa môžete kedykoľvek.",
+    roles: "Pozície",
+    skills: "Zručnosti / kľúčové slová",
+    addRolePlaceholder: "Pridať pozíciu…",
+    addSkillPlaceholder: "Pridať zručnosť…",
+    addRoleAria: "Pridať pozíciu",
+    addSkillAria: "Pridať zručnosť",
+    seniorityLabel: "Úroveň — posielame len ponuky na úrovniach, ktoré vyberiete",
+    frequency: "Frekvencia",
+    freqDaily: "Denne",
+    freqWeekdays: "Len cez pracovné dni",
+    freqWeekly: "Týždenne (v pondelok)",
+    pausedTitle: "Prehľad pozastavený",
+    pauseTitle: "Pozastaviť prehľad",
+    pausedUntil: "Pozastavené do {date} — obnoviť môžete kedykoľvek.",
+    pausedUntilSoon: "čoskoro",
+    pauseBody: "Dajte si pauzu bez rušenia odberu — spustíme to, keď budete chcieť.",
+    resumeNow: "Obnoviť hneď",
+    pauseTwoWeeks: "Pozastaviť na 2 týždne",
+    saving: "Ukladáme…",
+    save: "Uložiť zmeny",
+    unsubscribeAll: "Odhlásiť sa zo všetkých e-mailov",
+    unsubscribeConfirm: "Potvrďte ďalším kliknutím — odhlásiť sa zo všetkých e-mailov",
+    errTitle: "Vaše nastavenia sa nedajú otvoriť",
+    errNoLink:
+      "Otvorte nastavenia z odkazu vo svojom e-maile — alebo si cez „Správa odberu“ nechajte poslať nový.",
+    errUnknownLink: "Neznámy alebo vypršaný odkaz.",
+    toast: {
+      saved: "Nastavenia uložené",
+      saveFailed: "Uloženie zlyhalo — skúste to prosím znova",
+      paused: "Prehľad pozastavený na 2 týždne",
+      pauseFailed: "Pozastavenie zlyhalo",
+      resumed: "Prehľad obnovený",
+      resumeFailed: "Obnovenie zlyhalo",
+      unsubscribed: "Odber bol zrušený",
+      unsubscribeFailed: "Zrušenie odberu zlyhalo",
+    },
+  },
+
+  matches: {
+    label: "Vaše ponuky · prihlásení",
+    countTitle: {
+      one: "{n} ponuka pre vás",
+      few: "{n} ponuky pre vás",
+      other: "{n} ponúk pre vás",
+    },
+    noneTitle: "Zatiaľ žiadne ponuky",
+    intro:
+      "Všetko, čo sme našli pre {0}, zoradené od najlepšieho. Tie najsilnejšie vám každé ráno pošleme e-mailom — toto je celý zoznam.",
+    nothingTitle: "Zatiaľ nič",
+    nothingBody:
+      "Prvé ponuky hľadáme cez noc — pozrite sa sem po zajtrajšom prehľade o 7:00.",
+    adjustPrefs: "Upraviť nastavenia →",
+    notQuiteRight: "Nie je to ono? Upravte si pozície a zručnosti →",
+    // Po predložke „z“ je počítaný výraz v genitíve: 1 → ponuky, 2+ → ponúk.
+    showing: {
+      one: "Zobrazené {shown} z {n} ponuky",
+      few: "Zobrazené {shown} z {n} ponúk",
+      other: "Zobrazené {shown} z {n} ponúk",
+    },
+    loadMore: "Načítať ďalšie",
+    loadMoreFailed: "Ďalšie sa nepodarilo načítať — skontrolujte pripojenie a skúste to znova.",
+    errTitle: "Vaše ponuky sa nedajú otvoriť",
+    errNoLink:
+      "Otvorte ponuky z odkazu vo svojom e-maile — alebo si cez „Správa odberu“ nechajte poslať nový.",
+    errUnknownLink: "Neznámy alebo vypršaný odkaz.",
+    topMatch: "Najlepšia zhoda",
+    tagHybrid: "Hybridne",
+    tagRemote: "Na diaľku",
+    tagFreelance: "Freelance",
+  },
+
+  checkInbox: {
+    title: "Skontrolujte e-mail",
+    body: "Poslali sme potvrdzovací odkaz na {0}. Kliknite naň a denný prehľad začne zajtra ráno o 7:00.",
+    inMeantime: " Medzitým sú tu aktuálne ponuky zodpovedajúce vášmu hľadaniu:",
+    doubleOptIn: "Dvojité potvrdenie · súhlas podľa GDPR",
+    yourInbox: "vašu schránku",
+    instantPreview: "Okamžitá ukážka · zhoda podľa kľúčových slov",
+    instantNote:
+      "Rýchla zhoda podľa kľúčových slov na úvod. Zajtrajší e-mail už {0} — každá ponuka obodovaná a s dôvodom, prečo vám sadne.",
+    instantNoteEmphasis: "zoradí AI",
+  },
+
+  manage: {
+    sentTitle: "Skontrolujte e-mail",
+    sentBody:
+      "Ak má {0} odber JobDigest, práve sme na túto adresu poslali súkromný odkaz na nastavenia. Otvorte ho a upravte si nastavenia, pozastavte odber alebo ho zrušte — bez hesla.",
+    didntGet: "Neprišlo? Skontrolujte spam alebo to o pár minút skúste znova.",
+    title: "Prihláste sa do JobDigest",
+    body: "Žiadne heslá. Zadajte svoju adresu a pošleme vám bezpečný odkaz — kliknutím sa prihlásite a na tomto zariadení zostanete prihlásení.",
+    googleNoSub:
+      "Tento účet Google zatiaľ odber nemá. Najprv sa zaregistrujte, potom sa budete môcť prihlásiť cez Google.",
+    googleSuppressed:
+      "Táto adresa sa predtým odhlásila, takže ju nemôžeme automaticky znova prihlásiť. Ak sa chcete vrátiť, ozvite sa nám.",
+    googleError:
+      "Prihlásenie cez Google sa nedokončilo. Skúste to prosím znova, alebo použite odkaz v e-maile nižšie.",
+    googleSignin: "Prihlásiť sa cez Google",
+    emailLabel: "Vaša e-mailová adresa",
+    sending: "Odosielame…",
+    submit: "Poslať mi odkaz na nastavenia",
+    onlyOwnInbox: "Odkaz vždy pošleme len do vašej vlastnej schránky.",
+    error: "Niečo sa pokazilo. Skúste to prosím o chvíľu znova.",
+  },
+
+  root: {
+    title: "Vyberte si jazyk",
+    body: "Presmerúvame vás na JobDigest vo vašom jazyku…",
+  },
+};
+
+export default sk;

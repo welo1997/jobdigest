@@ -12,33 +12,20 @@ import {
 import { cap } from "@/lib/preview";
 import { LocationPicker, LocationValue } from "@/components/LocationPicker";
 import { REMOTE_SCOPES, RemoteScope, WORK_MODES, cleanWorkModes } from "@/lib/geo";
+import {
+  DEFAULT_ROLE_IDS, ROLE_ID_FOR_CATEGORY, SENIORITY_IDS, SKILL_OPTS,
+  prettifyCategory, roleCategory, roleKeyword,
+} from "@/lib/options";
+import { fmt } from "@/i18n/config";
+import { rich, useI18n } from "@/i18n/context";
 
-const FREqS = ["daily", "weekdays", "weekly"];
-// Chip vocabularies mirror the signup wizard (web/app/page.tsx) so both forms speak the same
-// role_category language — free-text boxes let a user type a "role" that maps to no category.
-const ROLE_OPTS = ["Product Manager", "Marketing", "Social Media", "Data Analyst", "Designer", "Software Engineer", "Data Engineer", "DevOps", "Finance"];
-const SKILL_OPTS = ["SQL", "Figma", "Analytics", "Excel", "Python", "SEO", "Looker", "Roadmapping", "Power BI", "dbt"];
-const ROLE_CAT: Record<string, string> = {
-  "Data Engineer": "data_engineering", "Data Analyst": "data_analysis",
-  "Software Engineer": "software_engineering", "DevOps": "devops_platform",
-  "Product Manager": "product", "Designer": "design",
-  "Social Media": "social_media",
-  "Marketing": "other_tech_function", "Finance": "other_tech_function",
-};
-// slug -> a representative display label for preselecting chips on load. other_tech_function
-// is a bucket (Marketing/Finance both map to it); we show "Marketing" and accept the minor
-// lossiness — no worse than the old prettified "Other Tech Function", and better for the rest.
-const LABEL_FOR_SLUG: Record<string, string> = {
-  data_engineering: "Data Engineer", data_analysis: "Data Analyst",
-  software_engineering: "Software Engineer", devops_platform: "DevOps",
-  product: "Product Manager", design: "Designer", social_media: "Social Media",
-  other_tech_function: "Marketing",
-};
-const prettify = (c: string) => c.replace(/_/g, " ").replace(/\b\w/g, (m) => m.toUpperCase());
+const FREQS = ["daily", "weekdays", "weekly"];
 
-// A subscription created before city-level preferences existed still carries only the coarse
-// `regions` bucket. Translate it the same way the migration does, so the form opens on what
-// the filter is actually doing rather than on an empty country list.
+/**
+ * A subscription created before city-level preferences existed still carries only the coarse
+ * `regions` bucket. Translate it the same way the migration does, so the form opens on what
+ * the filter is actually doing rather than on an empty country list.
+ */
 function locationFrom(p: Preferences): LocationValue {
   // Absent on a subscription that predates migration 012 — `cleanWorkModes` reads that as
   // "no preference" and returns all three, which is what the column defaults to anyway. The
@@ -63,24 +50,24 @@ function locationFrom(p: Preferences): LocationValue {
   };
 }
 
-const SENIORITY_OPTS = ["Intern / Junior", "Mid", "Senior"];
-const SENIORITY_CODE: Record<string, string> = { "Intern / Junior": "junior", "Mid": "mid", "Senior": "senior" };
-const CODE_SENIORITY: Record<string, string> = { junior: "Intern / Junior", mid: "Mid", senior: "Senior" };
-
 function Inner() {
   const urlToken = useSearchParams().get("token") || "";
   // The magic-link token is used once to mint a session, then dropped from the URL. After
   // that this ref is "" and every call authenticates by cookie. It stays set only in the
   // fallback where the browser refused the cookie, so token-based calls keep the page working.
   const tokenRef = useRef<string>(urlToken);
+  const { t, href, locale } = useI18n();
   const { show, element: toast } = useToast();
   const [prefs, setPrefs] = useState<Preferences | null>(null);
   const [err, setErr] = useState("");
   const [saving, setSaving] = useState(false);
   const [confirmUnsub, setConfirmUnsub] = useState(false);
 
-  // editable fields
-  const [roleOpts, setRoleOpts] = useState<string[]>(ROLE_OPTS);
+  // A typed role chip has no catalogue entry, so its id is what to show.
+  const roleLabel = (id: string) => t.roles[id] ?? id;
+
+  // editable fields — all id-keyed, never label-keyed (see lib/options.ts)
+  const [roleOpts, setRoleOpts] = useState<string[]>(DEFAULT_ROLE_IDS);
   const [roleSet, setRoleSet] = useState<Set<string>>(new Set());
   const [skillOpts, setSkillOpts] = useState<string[]>(SKILL_OPTS);
   const [skillSet, setSkillSet] = useState<Set<string>>(new Set());
@@ -114,15 +101,18 @@ function Inner() {
     const hydrate = (p: Preferences) => {
       if (cancelled) return;
       setPrefs(p);
-      const roleLabels = p.role_categories.map((c) => LABEL_FOR_SLUG[c] || prettify(c));
-      setRoleOpts([...new Set([...ROLE_OPTS, ...roleLabels])]);
-      setRoleSet(new Set(roleLabels));
+      // A category no chip models becomes a readable chip that round-trips back to the same
+      // keyword on save, rather than disappearing from the form.
+      const roleIds = p.role_categories.map((c) => ROLE_ID_FOR_CATEGORY[c] || prettifyCategory(c));
+      setRoleOpts([...new Set([...DEFAULT_ROLE_IDS, ...roleIds])]);
+      setRoleSet(new Set(roleIds));
       const skillLabels = p.stack.map((s) => cap(s));
       setSkillOpts([...new Set([...SKILL_OPTS, ...skillLabels])]);
       setSkillSet(new Set(skillLabels));
-      setFreq(FREqS.includes(p.frequency) ? p.frequency : "daily");
+      setFreq(FREQS.includes(p.frequency) ? p.frequency : "daily");
       setLoc(locationFrom(p));
-      setLevels(new Set((p.seniorities || []).map((c) => CODE_SENIORITY[c]).filter(Boolean)));
+      setLevels(new Set((p.seniorities || [])
+        .filter((c) => (SENIORITY_IDS as readonly string[]).includes(c))));
     };
 
     const load = async () => {
@@ -135,7 +125,7 @@ function Inner() {
             const p = await establishSession(urlToken);
             tokenRef.current = "";
             if (typeof window !== "undefined") {
-              window.history.replaceState(null, "", "/preferences");
+              window.history.replaceState(null, "", href("/preferences"));
               window.dispatchEvent(new Event("jd-auth-changed"));   // nav: re-check, we're in
             }
             hydrate(p);
@@ -150,13 +140,14 @@ function Inner() {
         if (cancelled) return;
         setErr(
           urlToken
-            ? e instanceof Error ? e.message : "Unknown or expired link."
-            : "Open your preferences from the link in your email — or use “Manage subscription” to get a fresh one."
+            ? e instanceof Error ? e.message : t.prefs.errUnknownLink
+            : t.prefs.errNoLink
         );
       }
     };
     load();
     return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [urlToken]);
 
   const save = async () => {
@@ -164,15 +155,19 @@ function Inner() {
     try {
       // Empty selection means "any level" — send all three rather than an empty target,
       // which the hard-filter matcher would read as "nothing matches".
-      const seniorities = [...levels].map((l) => SENIORITY_CODE[l]).filter(Boolean);
+      const seniorities = [...levels];
       // Dedup slugs: Marketing + Finance both map to other_tech_function.
       // A typed role chip that maps to no category used to be slugified into one anyway
       // ("Social media specialist" -> social_media_specialist), producing a filter no posting
       // could ever match and no error anywhere — the user saw a selected chip doing nothing.
       // Unmapped chips now become search keywords instead, which the shortlist full-text
       // query does use, so the words still steer retrieval and nothing is silently dead.
-      const roleSlugs = [...new Set([...roleSet].map((l) => ROLE_CAT[l]).filter(Boolean))];
-      const freeRoles = [...roleSet].filter((l) => !ROLE_CAT[l]);
+      // `roleKeyword` supplies the English word for a known chip, so what gets stored does
+      // not depend on which of the eight languages the form was rendered in.
+      const roleSlugs = [...new Set(
+        [...roleSet].map(roleCategory).filter((c): c is string => !!c)
+      )];
+      const freeRoles = [...roleSet].filter((l) => !roleCategory(l)).map(roleKeyword);
       const updated = await updatePreferences({
         role_categories: roleSlugs,
         stack: [...new Set([...skillSet, ...freeRoles].map((s) => s.trim().toLowerCase()).filter(Boolean))],
@@ -184,11 +179,16 @@ function Inner() {
         remote_scope: loc.remoteScope,
         work_modes: loc.workModes,
         seniorities: seniorities.length ? seniorities : ["junior", "mid", "senior"],
+        // Saving from /cs/preferences/ means "write to me in Czech". There is no separate
+        // language control on purpose: a subscriber who switched the site to their language
+        // and then kept getting English mail is the bug this closes, and a second setting
+        // that can disagree with the one they just used would reintroduce it.
+        language: locale,
       }, tokenRef.current || undefined);
       setPrefs(updated);
-      show("Preferences saved");
+      show(t.prefs.toast.saved);
     } catch (e) {
-      show(e instanceof Error ? e.message : "Couldn't save — please retry");
+      show(e instanceof Error ? e.message : t.prefs.toast.saveFailed);
     } finally {
       setSaving(false);
     }
@@ -198,24 +198,24 @@ function Inner() {
     try {
       const r = await pause(14, tokenRef.current || undefined);
       setPrefs((p) => (p ? { ...p, status: "paused", paused_until: r.paused_until } : p));
-      show("Digest paused for 2 weeks");
+      show(t.prefs.toast.paused);
     } catch (e) {
-      show(e instanceof Error ? e.message : "Couldn't pause");
+      show(e instanceof Error ? e.message : t.prefs.toast.pauseFailed);
     }
   };
   const doResume = async () => {
     try {
       await resume(tokenRef.current || undefined);
       setPrefs((p) => (p ? { ...p, status: "active", paused_until: null } : p));
-      show("Digest resumed");
+      show(t.prefs.toast.resumed);
     } catch (e) {
-      show(e instanceof Error ? e.message : "Couldn't resume");
+      show(e instanceof Error ? e.message : t.prefs.toast.resumeFailed);
     }
   };
 
   const doLogout = async () => {
     try { await logout(); } catch { /* clearing the cookie is best-effort */ }
-    if (typeof window !== "undefined") window.location.href = "/";
+    if (typeof window !== "undefined") window.location.href = href("/");
   };
 
   const doUnsubscribe = async () => {
@@ -224,10 +224,10 @@ function Inner() {
     // scanner can't trigger it.
     try {
       await unsubscribeSession();
-      show("You've unsubscribed");
-      if (typeof window !== "undefined") setTimeout(() => (window.location.href = "/"), 900);
+      show(t.prefs.toast.unsubscribed);
+      if (typeof window !== "undefined") setTimeout(() => (window.location.href = href("/")), 900);
     } catch (e) {
-      show(e instanceof Error ? e.message : "Couldn't unsubscribe");
+      show(e instanceof Error ? e.message : t.prefs.toast.unsubscribeFailed);
     }
   };
 
@@ -236,31 +236,34 @@ function Inner() {
       <div className="state-wrap">
         <div className="state-card warn">
           <div className="ic">!</div>
-          <h1>Can&apos;t open your preferences</h1>
+          <h1>{t.prefs.errTitle}</h1>
           <p>{err}</p>
-          <p style={{ marginTop: 16 }}><Link href="/">Go to homepage →</Link></p>
+          <p style={{ marginTop: 16 }}><Link href={href("/")}>{t.common.goHome}</Link></p>
         </div>
       </div>
     );
   }
   if (!prefs) {
-    return <div className="state-wrap"><div className="state-card"><h1>Loading…</h1></div></div>;
+    return <div className="state-wrap"><div className="state-card"><h1>{t.common.loading}</h1></div></div>;
   }
 
   const paused = prefs.status === "paused";
   return (
     <>
       <div className="wrap page-head">
-        <span className="label">Signed in</span>
-        <h1>Your preferences</h1>
+        <span className="label">{t.prefs.signedInLabel}</span>
+        <h1>{t.prefs.title}</h1>
         <p>
-          Signed in as <b>{prefs.email}</b>. Change anything, pause, or leave —
-          {" "}<button type="button" className="linkbtn" onClick={doLogout}>log out</button>.
+          {rich(t.prefs.signedInAs, [
+            <b key="e">{prefs.email}</b>,
+            <button key="o" type="button" className="linkbtn" onClick={doLogout}>
+              {t.prefs.logOutInline}
+            </button>,
+          ])}
         </p>
       </div>
       <div className="note">
-        <b>No password.</b> Clicking your email link signed you in and keeps you signed in on
-        this device, so you won&apos;t need the link again here. Log out any time.
+        <b>{t.prefs.noPasswordLead}</b> {t.prefs.noPasswordBody}
       </div>
       <div className="panel">
         <div className="card">
@@ -268,22 +271,22 @@ function Inner() {
             <div className="note" style={{ margin: "0 0 16px" }}>{prefs.cv_summary}</div>
           )}
           <div className="field">
-            <label>Roles</label>
+            <label>{t.prefs.roles}</label>
             <div className="chips">
               {roleOpts.map((o) => (
                 <button key={o} type="button" className="chip" aria-pressed={roleSet.has(o)}
-                  onClick={() => toggleInSet(setRoleSet, o)}>{o}</button>
+                  onClick={() => toggleInSet(setRoleSet, o)}>{roleLabel(o)}</button>
               ))}
             </div>
             <div className="addwrap">
               <input type="text" value={addRole} onChange={(e) => setAddRole(e.target.value)}
                 onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addChip(addRole, roleOpts, setRoleOpts, setRoleSet, () => setAddRole("")); } }}
-                placeholder="Add a role…" aria-label="Add a role" />
-              <button type="button" onClick={() => addChip(addRole, roleOpts, setRoleOpts, setRoleSet, () => setAddRole(""))}>Add</button>
+                placeholder={t.prefs.addRolePlaceholder} aria-label={t.prefs.addRoleAria} />
+              <button type="button" onClick={() => addChip(addRole, roleOpts, setRoleOpts, setRoleSet, () => setAddRole(""))}>{t.common.add}</button>
             </div>
           </div>
           <div className="field">
-            <label>Skills / keywords</label>
+            <label>{t.prefs.skills}</label>
             <div className="chips">
               {skillOpts.map((o) => (
                 <button key={o} type="button" className="chip" aria-pressed={skillSet.has(o)}
@@ -293,64 +296,68 @@ function Inner() {
             <div className="addwrap">
               <input type="text" value={addSkill} onChange={(e) => setAddSkill(e.target.value)}
                 onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addChip(addSkill, skillOpts, setSkillOpts, setSkillSet, () => setAddSkill("")); } }}
-                placeholder="Add a skill…" aria-label="Add a skill" />
-              <button type="button" onClick={() => addChip(addSkill, skillOpts, setSkillOpts, setSkillSet, () => setAddSkill(""))}>Add</button>
+                placeholder={t.prefs.addSkillPlaceholder} aria-label={t.prefs.addSkillAria} />
+              <button type="button" onClick={() => addChip(addSkill, skillOpts, setSkillOpts, setSkillSet, () => setAddSkill(""))}>{t.common.add}</button>
             </div>
           </div>
           <div className="field">
-            <label>Seniority — we only send roles at the levels you pick</label>
+            <label>{t.prefs.seniorityLabel}</label>
             <div className="chips">
-              {SENIORITY_OPTS.map((o) => (
+              {SENIORITY_IDS.map((o) => (
                 <button key={o} type="button" className="chip" aria-pressed={levels.has(o)}
-                  onClick={() => toggleInSet(setLevels, o)}>{o}</button>
+                  onClick={() => toggleInSet(setLevels, o)}>{t.seniorities[o]}</button>
               ))}
             </div>
           </div>
           <LocationPicker value={loc} onChange={setLoc} idPrefix="p" />
 
           <div className="field">
-            <label htmlFor="p-freq">Frequency</label>
+            <label htmlFor="p-freq">{t.prefs.frequency}</label>
             <select id="p-freq" value={freq} onChange={(e) => setFreq(e.target.value)}>
-              <option value="daily">Daily</option>
-              <option value="weekdays">Weekdays only</option>
-              <option value="weekly">Weekly (Mondays)</option>
+              <option value="daily">{t.prefs.freqDaily}</option>
+              <option value="weekdays">{t.prefs.freqWeekdays}</option>
+              <option value="weekly">{t.prefs.freqWeekly}</option>
             </select>
           </div>
 
           <div className="pause-row">
             <div className="t">
-              <b>{paused ? "Digest paused" : "Pause my digest"}</b>
+              <b>{paused ? t.prefs.pausedTitle : t.prefs.pauseTitle}</b>
               <span>
                 {paused
-                  ? `Paused until ${prefs.paused_until ? new Date(prefs.paused_until).toLocaleDateString() : "soon"} — resume anytime.`
-                  : "Take a break without unsubscribing — resumes when you're ready."}
+                  ? fmt(t.prefs.pausedUntil, {
+                    date: prefs.paused_until
+                      ? new Date(prefs.paused_until).toLocaleDateString(undefined)
+                      : t.prefs.pausedUntilSoon,
+                  })
+                  : t.prefs.pauseBody}
               </span>
             </div>
             {paused ? (
-              <button className="btn secondary" onClick={doResume}>Resume now</button>
+              <button className="btn secondary" onClick={doResume}>{t.prefs.resumeNow}</button>
             ) : (
-              <button className="btn secondary" onClick={doPause}>Pause 2 weeks</button>
+              <button className="btn secondary" onClick={doPause}>{t.prefs.pauseTwoWeeks}</button>
             )}
           </div>
 
           <button className="btn block" style={{ marginTop: 16 }} onClick={save} disabled={saving}>
-            {saving ? "Saving…" : "Save changes"}
+            {saving ? t.prefs.saving : t.prefs.save}
           </button>
           <div style={{ textAlign: "center", marginTop: 14 }}>
             {tokenRef.current ? (
               // Fallback (cookie refused): use the token-based confirm page.
               <a href={unsubscribeUrl(tokenRef.current)} style={{ fontSize: "var(--fs-sm)", color: "var(--muted)" }}>
-                Unsubscribe from all emails
+                {t.prefs.unsubscribeAll}
               </a>
             ) : confirmUnsub ? (
               <button type="button" className="linkbtn danger" onClick={doUnsubscribe}
                 style={{ fontSize: "var(--fs-sm)" }}>
-                Click again to confirm — unsubscribe from all emails
+                {t.prefs.unsubscribeConfirm}
               </button>
             ) : (
               <button type="button" className="linkbtn" onClick={() => setConfirmUnsub(true)}
                 style={{ fontSize: "var(--fs-sm)", color: "var(--muted)" }}>
-                Unsubscribe from all emails
+                {t.prefs.unsubscribeAll}
               </button>
             )}
           </div>
@@ -366,11 +373,16 @@ export default function PreferencesPage() {
     <>
       <Nav />
       <main>
-        <Suspense fallback={<div className="state-wrap"><div className="state-card"><h1>Loading…</h1></div></div>}>
+        <Suspense fallback={<Loading />}>
           <Inner />
         </Suspense>
       </main>
       <Footer />
     </>
   );
+}
+
+function Loading() {
+  const { t } = useI18n();
+  return <div className="state-wrap"><div className="state-card"><h1>{t.common.loading}</h1></div></div>;
 }

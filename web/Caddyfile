@@ -25,11 +25,45 @@
 		reverse_proxy {$API_UPSTREAM:api:8000}
 	}
 
+	# Compatibility redirects — permanent, and not removable.
+	#
+	# The site is exported once per language (/en/preferences/, /cs/preferences/, …), so the
+	# old un-prefixed paths are no longer pages. Every digest, confirmation and magic-link
+	# email ever sent points at them, and mail already delivered can never be rewritten: a
+	# subscriber opening a two-week-old digest to change their preferences would otherwise
+	# get a 404 and no way back in. `{uri}` carries the query string, so the one-time token
+	# survives the hop.
+	#
+	# English because the emails are English. New links are generated pre-prefixed by
+	# `service/links.py`, so this catches history, not current traffic.
+	# /privacy and /terms moved under the locale prefix too. They are linked from the email
+	# footer and are the most-indexed pages on the site, so losing them costs search ranking
+	# as well as anyone following an old bookmark.
+	@legacy path /preferences /preferences/ /matches /matches/ /manage /manage/ /check-inbox /check-inbox/ /privacy /privacy/ /terms /terms/
+	redir @legacy /en{uri} 301
+
 	# Static site (Next.js export with trailingSlash: index.html per route).
+	#
+	# `/404.html` is NOT in the try_files chain: a fallback there is served with HTTP 200, so
+	# every unknown URL became a "soft 404" — a page that says Not Found while telling every
+	# crawler it is a real document. With eight locales the site now has 8× the URL surface for
+	# that to happen on. `file_server` raises a real 404 instead, and `handle_errors` renders
+	# the same page with the status that matches what it says.
 	handle {
 		root * /srv
-		try_files {path} {path}/index.html {path}.html /404.html
+		try_files {path} {path}/index.html {path}.html
 		file_server
+	}
+
+	# `status {err.status_code}` is the load-bearing line. Without it `file_server` answers 200
+	# because it successfully served 404.html, which is the soft-404 all over again — just
+	# moved one block down where it looks like it was handled.
+	handle_errors {
+		root * /srv
+		rewrite * /404.html
+		file_server {
+			status {err.status_code}
+		}
 	}
 
 	header {

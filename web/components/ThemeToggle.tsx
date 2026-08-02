@@ -1,9 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useI18n } from "@/i18n/context";
 
 /** Light/dark toggle that stamps data-theme on <html> (see globals.css overrides). */
 export default function ThemeToggle() {
+  const { t } = useI18n();
   const [theme, setTheme] = useState<string | null>(null);
 
   useEffect(() => {
@@ -25,7 +27,7 @@ export default function ThemeToggle() {
   };
 
   return (
-    <button className="themebtn" onClick={toggle} title="Toggle light / dark" aria-label="Toggle theme">
+    <button className="themebtn" onClick={toggle} title={t.nav.themeTitle} aria-label={t.nav.themeAria}>
       {theme === "dark" ? "☀" : "◑"}
     </button>
   );

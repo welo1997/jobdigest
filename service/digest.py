@@ -30,7 +30,7 @@ from datetime import datetime
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from service import links, store, taxonomy  # noqa: E402
+from service import i18n, links, store, taxonomy  # noqa: E402
 
 DEFAULT_LIMIT = 5            # curated highlights in the email; the rest live on /matches
 EMAIL_MIN_SCORE = 6         # a "strong" fit — a digest of these is the normal, headline case
@@ -195,18 +195,27 @@ def _is_weak(jobs: list[dict]) -> bool:
 
 # ---------------------------------------------------------------- helpers ------
 
+def _lang(profile: dict) -> str:
+    """The subscriber's language, cleaned. One place, so every renderer agrees."""
+    return i18n.clean_locale(profile.get("language"))
+
+
 def _manage_url(profile: dict, action: str = "") -> str:
     """Footer links: preferences + pause both land on the self-service page (frontend);
-    unsubscribe is the API's one-click page."""
+    unsubscribe is the API's one-click page.
+
+    The frontend links carry the subscriber's language — landing a Czech reader on the English
+    preferences page would undo the point of translating the email. The unsubscribe page is
+    served by the API, which renders in English for now."""
     tok = profile.get("manage_token", "")
     if action == "unsub":
         return links.unsubscribe_link(tok)
-    return links.preferences_link(tok)      # "" (refine) and "pause" both -> prefs page
+    return links.preferences_link(tok, _lang(profile))
 
 
 def _matches_url(profile: dict) -> str:
     """The 'see all matches' page (everything the matcher found, not just the emailed few)."""
-    return links.matches_link(profile.get("manage_token", ""))
+    return links.matches_link(profile.get("manage_token", ""), _lang(profile))
 
 
 def safe_url(url: str | None) -> str:
@@ -221,7 +230,7 @@ def safe_url(url: str | None) -> str:
     return u if u[:7].lower() == "http://" or u[:8].lower() == "https://" else "#"
 
 
-def _tags(job: dict) -> list[str]:
+def _tags(job: dict, lang: str = i18n.DEFAULT_LOCALE) -> list[str]:
     tags = []
     if job.get("region"):
         tags.append(str(job["region"]).upper())
@@ -229,15 +238,17 @@ def _tags(job: dict) -> list[str]:
     # postings carried no work tag at all, so a Prague office job with two days from home
     # looked identical in the email to one with five days in the office.
     if job.get("work_mode") == "hybrid":
-        tags.append("Hybrid")
+        tags.append(i18n.t(lang, "tag_hybrid"))
     elif job.get("remote_signal") or (job.get("region") in ("eu", "worldwide")):
-        tags.append("Remote")
+        tags.append(i18n.t(lang, "tag_remote"))
     if job.get("seniority"):
-        tags.append(str(job["seniority"]).capitalize())
+        tags.append(i18n.t(lang, f'seniority_{str(job["seniority"]).lower()}')
+                    if f'seniority_{str(job["seniority"]).lower()}' in i18n.MESSAGES[i18n.DEFAULT_LOCALE]
+                    else str(job["seniority"]).capitalize())
     if job.get("work_type") == "freelance/contract":
-        tags.append("Freelance")
+        tags.append(i18n.t(lang, "tag_freelance"))
     if job.get("is_part_time"):
-        tags.append("Part-time")
+        tags.append(i18n.t(lang, "tag_part_time"))
     # de-dup preserving order
     seen, out = set(), []
     for t in tags:
@@ -261,12 +272,13 @@ def subject_line(profile: dict, jobs: list[dict]) -> str:
     most common role_category among the jobs being sent, and is dropped entirely when the
     digest is mixed, which is honest rather than misleading."""
     n = len(jobs)
-    when = datetime.now().strftime("%-d %b") if os.name != "nt" else datetime.now().strftime("%#d %b")
+    lang = _lang(profile)
+    when = i18n.format_date(lang, datetime.now())
 
     # Quiet day: don't claim "N new roles for you" when nothing cleared the bar — say so.
     if _is_weak(jobs):
-        thing = "role" if n == 1 else "roles"
-        return f"No strong matches today — {n} {thing} to explore — {when}"
+        return i18n.t(lang, "subject_weak",
+                      count=i18n.plural(lang, "explore_count", n), when=when)
 
     cats = [j.get("role_category") for j in jobs if j.get("role_category")]
     role = ""
@@ -275,21 +287,24 @@ def subject_line(profile: dict, jobs: list[dict]) -> str:
         # Only claim a category when it genuinely characterises the digest. A 2-of-5 plurality
         # would make the subject a lie for most of the email.
         if hits / len(cats) >= 0.6:
-            role = _ROLE_WORDS.get(top, top.replace("_", " "))
+            role = i18n.subject_word(lang, top)
 
-    noun = "role" if n == 1 else "roles"
-    return f"{n} new {role} {noun} for you — {when}" if role else f"{n} new {noun} for you — {when}"
+    # Two plural sets rather than a {role} hole in one: Czech, Polish and German each want the
+    # category word somewhere English does not put it, and several inflect the noun after it.
+    count = (i18n.plural(lang, "subject_new_named", n, role=role) if role
+             else i18n.plural(lang, "subject_new", n))
+    return i18n.t(lang, "subject_for_you", count=count, when=when)
 
 
 # ---------------------------------------------------------------- HTML ---------
 
-def _job_html(job: dict) -> str:
+def _job_html(job: dict, lang: str = i18n.DEFAULT_LOCALE) -> str:
     esc = html.escape
     tags = "".join(
         f'<span style="font:600 10px {SANS};letter-spacing:.04em;text-transform:uppercase;'
         f'color:{C["muted"]};background:{C["surface2"]};border:1px solid {C["line"]};'
         f'border-radius:999px;padding:2px 8px;margin-right:5px;white-space:nowrap;">{esc(t)}</span>'
-        for t in _tags(job)
+        for t in _tags(job, lang)
     )
     pct = int(job["score"]) * 10
     return f"""
@@ -302,28 +317,29 @@ def _job_html(job: dict) -> str:
             <div style="height:4px;width:{pct}%;background:{C['brand']};border-radius:3px;"></div></div>
         </td>
         <td valign="top" style="padding-left:12px;">
-          <div style="font:700 15px {SANS};color:{C['ink']};">{esc(job.get('title') or 'Role')}
+          <div style="font:700 15px {SANS};color:{C['ink']};">{esc(job.get("title") or i18n.t(lang, "role_fallback"))}
             <span style="font-weight:400;color:{C['muted']};">— {esc(job.get('company') or '')}</span></div>
           <div style="margin:6px 0;">{tags}</div>
           <div style="font:400 14px {SANS};color:{C['muted']};">{esc(job.get('summary') or '')}</div>
           <a href="{esc(safe_url(job.get('url')))}" style="font:700 12px {SANS};color:{C['brand']};
-            text-decoration:none;display:inline-block;margin-top:5px;">View &amp; apply →</a>
+            text-decoration:none;display:inline-block;margin-top:5px;">{esc(i18n.t(lang, "view_apply"))}</a>
         </td>
       </tr></table>
     </td></tr>"""
 
 
-def _see_all_html(profile: dict, shown: int, total_matches: int | None) -> str:
+def _see_all_html(profile: dict, shown: int, total_matches: int | None,
+                  lang: str = i18n.DEFAULT_LOCALE) -> str:
     """A CTA button linking to the full matches page. Shown when the matcher found more
     than the few we emailed."""
     if not total_matches:
         return ""
     if total_matches > shown:
-        label = f"See all {total_matches} matches →"
-        sub = f"We emailed the {shown} strongest — browse the rest on your matches page."
+        label = i18n.plural(lang, "see_all_label", total_matches)
+        sub = i18n.t(lang, "see_all_sub", shown=shown)
     else:
-        label = "Open your matches page →"
-        sub = "All your matches, on one page, any time."
+        label = i18n.t(lang, "open_matches_label")
+        sub = i18n.t(lang, "open_matches_sub")
     return f"""
     <tr><td style="padding:2px 26px 20px;text-align:center;">
       <a href="{html.escape(_matches_url(profile))}" style="display:inline-block;font:700 13px {SANS};
@@ -332,19 +348,23 @@ def _see_all_html(profile: dict, shown: int, total_matches: int | None) -> str:
     </td></tr>"""
 
 
-def _greeting_html(jobs: list[dict]) -> str:
+def _greeting_html(jobs: list[dict], lang: str = i18n.DEFAULT_LOCALE) -> str:
     """The line under the subject. On a quiet day it is honest about *why* the picks are
-    thinner, rather than calling weak matches 'fresh matches ranked for you'."""
+    thinner, rather than calling weak matches 'fresh matches ranked for you'.
+
+    The bolded fragment is a separate catalogue entry from the rest of the sentence, so a
+    translation can put the emphasis where its own grammar wants it instead of inheriting
+    English clause order."""
     n = len(jobs)
+    style = f'<p style="font:400 14px {SANS};color:{C["muted"]};margin:12px 0 4px;">'
+    bold = f'<b style="color:{C["ink"]};">'
     if _is_weak(jobs):
-        thing = "one worth a look" if n == 1 else f"{n} worth a look"
-        return (f'<p style="font:400 14px {SANS};color:{C["muted"]};margin:12px 0 4px;">'
-                f'Good morning. <b style="color:{C["ink"]};">No strong matches today</b> — '
-                f'but here {"is" if n == 1 else "are"} {thing}, and the full list is on your '
-                f'matches page.</p>')
-    return (f'<p style="font:400 14px {SANS};color:{C["muted"]};margin:12px 0 4px;">'
-            f'Good morning. <b style="color:{C["ink"]};">{n} fresh '
-            f'{"match" if n == 1 else "matches"}</b> today, ranked for you.</p>')
+        return (f'{style}{i18n.t(lang, "good_morning")} '
+                f'{bold}{i18n.t(lang, "weak_lead")}</b> '
+                f'{i18n.plural(lang, "weak_rest", n)}</p>')
+    return (f'{style}{i18n.t(lang, "good_morning")} '
+            f'{bold}{i18n.plural(lang, "fresh_count", n)}</b> '
+            f'{i18n.t(lang, "fresh_rest")}</p>')
 
 
 def render_html(profile: dict, jobs: list[dict], base_url: str = BASE_URL,
@@ -352,10 +372,11 @@ def render_html(profile: dict, jobs: list[dict], base_url: str = BASE_URL,
     esc = html.escape
     global BASE_URL
     BASE_URL = base_url
+    lang = _lang(profile)
     subject = subject_line(profile, jobs)
     when = datetime.now().strftime("%H:%M")
-    rows = "".join(_job_html(j) for j in jobs)
-    see_all = _see_all_html(profile, len(jobs), total_matches)
+    rows = "".join(_job_html(j, lang) for j in jobs)
+    see_all = _see_all_html(profile, len(jobs), total_matches, lang)
     email = esc(profile.get("email") or "you@example.com")
     return f"""<!doctype html><html><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1"><title>{esc(subject)}</title></head>
@@ -376,7 +397,7 @@ def render_html(profile: dict, jobs: list[dict], base_url: str = BASE_URL,
     <!-- subject + greeting -->
     <tr><td style="padding:8px 26px 4px;">
       <div style="font:700 21px {SERIF};color:{C['ink']};letter-spacing:-.01em;">{esc(subject)}</div>
-      {_greeting_html(jobs)}
+      {_greeting_html(jobs, lang)}
     </td></tr>
     <!-- jobs -->
     <tr><td style="padding:6px 26px 18px;">
@@ -386,14 +407,14 @@ def render_html(profile: dict, jobs: list[dict], base_url: str = BASE_URL,
     <!-- footer -->
     <tr><td style="padding:16px 26px;background:{C['surface2']};border-top:1px solid {C['line']};text-align:center;">
       <div style="font:600 12px {SANS};margin-bottom:7px;">
-        <a href="{_manage_url(profile)}" style="color:{C['brand']};text-decoration:none;">Refine preferences</a>
+        <a href="{_manage_url(profile)}" style="color:{C['brand']};text-decoration:none;">{esc(i18n.t(lang, "refine"))}</a>
         &nbsp;·&nbsp;
-        <a href="{_manage_url(profile,'pause')}" style="color:{C['brand']};text-decoration:none;">Pause 2 weeks</a>
+        <a href="{_manage_url(profile,'pause')}" style="color:{C['brand']};text-decoration:none;">{esc(i18n.t(lang, "pause"))}</a>
         &nbsp;·&nbsp;
-        <a href="{_manage_url(profile,'unsub')}" style="color:{C['brand']};text-decoration:none;">Unsubscribe</a>
+        <a href="{_manage_url(profile,'unsub')}" style="color:{C['brand']};text-decoration:none;">{esc(i18n.t(lang, "unsubscribe"))}</a>
       </div>
       <div style="font:400 11px {SANS};color:{C['faint']};">
-        Sent to {email} · You signed up at jobdigest.eu · One email a day.</div>
+        {esc(i18n.t(lang, "footer_sent", email=profile.get("email") or ""))}</div>
     </td></tr>
   </table>
 </td></tr></table></body></html>"""
@@ -401,26 +422,24 @@ def render_html(profile: dict, jobs: list[dict], base_url: str = BASE_URL,
 
 def render_text(profile: dict, jobs: list[dict], base_url: str = BASE_URL,
                 total_matches: int | None = None) -> str:
-    if _is_weak(jobs):
-        greeting = (f"Good morning. No strong matches today — "
-                    f"{len(jobs)} weaker {'one' if len(jobs)==1 else 'ones'} to explore below, "
-                    f"and the full list is on your matches page.")
-    else:
-        greeting = f"Good morning. {len(jobs)} fresh {'match' if len(jobs)==1 else 'matches'} today."
+    lang = _lang(profile)
+    n = len(jobs)
+    greeting = i18n.plural(lang, "weak_text" if _is_weak(jobs) else "fresh_text", n)
     lines = [subject_line(profile, jobs), "", greeting, ""]
     for j in jobs:
-        tags = " · ".join(_tags(j))
-        lines.append(f"[{j['score']}/10] {j.get('title','Role')} — {j.get('company','')}  ({tags})")
+        tags = " · ".join(_tags(j, lang))
+        title = j.get("title") or i18n.t(lang, "role_fallback")
+        lines.append(f"[{j['score']}/10] {title} — {j.get('company','')}  ({tags})")
         lines.append(f"    {j.get('summary','')}")
         lines.append(f"    {safe_url(j.get('url'))}")
         lines.append("")
     if total_matches and total_matches > len(jobs):
-        lines.append(f"See all {total_matches} matches: {_matches_url(profile)}")
+        lines.append(f'{i18n.plural(lang, "see_all_text", total_matches)} {_matches_url(profile)}')
         lines.append("")
     lines += ["—" * 20,
-              f"Preferences: {_manage_url(profile)}",
-              f"Unsubscribe: {_manage_url(profile,'unsub')}",
-              f"Sent to {profile.get('email','you@example.com')} · One email a day."]
+              f'{i18n.t(lang, "text_preferences")} {_manage_url(profile)}',
+              f'{i18n.t(lang, "text_unsubscribe")} {_manage_url(profile,"unsub")}',
+              i18n.t(lang, "footer_sent_text", email=profile.get("email", ""))]
     return "\n".join(lines)
 
 

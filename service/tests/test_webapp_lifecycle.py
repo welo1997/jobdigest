@@ -9,12 +9,17 @@ digest, and would now be on a path to destroying their settings.
 The /event tests pin the abuse bounds. That endpoint is unauthenticated by necessity (it
 fires before anyone has a token), so nothing but these counters stops the table growing
 without limit.
+
+The /matches tests pin that paging reaches every match. `count` is the total and `jobs` is
+one page, and for as long as nothing walked the offsets the page showed 25 of a subscriber's
+127 under a headline built from the total — no error, nothing in the logs, and the missing
+rows were the sub-EMAIL_MIN_SCORE picks the page exists to show.
 """
 
 import pytest
 from fastapi.testclient import TestClient
 
-from service import webapp
+from service import links, webapp
 
 TOKEN = "a-valid-manage-token"
 EMAIL = "person@example.com"
@@ -48,6 +53,7 @@ class _FakeStore:
         self.revoked_profiles: list[str] = []  # profile_ids whose sessions were bulk-revoked
         self.updates: list[dict] = []          # preference changes applied via update_subscription
         self.signup_intents: dict[str, str] = {}   # raw token -> Google-verified email
+        self.matches: list[dict] = []          # /matches paging
 
     # -- subscribe path --
     def is_suppressed(self, email):
@@ -160,6 +166,21 @@ class _FakeStore:
 
     def record_event(self, name, **kw):
         self.events.append({"name": name, **kw})
+
+    # -- /matches paging --
+    def seed_matches(self, n):
+        """n synthetic matches, already in the endpoint's sort order."""
+        self.matches = [
+            {"posting_id": f"p{i:03d}", "title": f"Job {i}", "company": "Co",
+             "url": "https://example.com/j", "score": 10 - (i % 7), "summary": "why"}
+            for i in range(n)
+        ]
+
+    def matched_jobs(self, profile_id, limit=50, offset=0):
+        return self.matches[offset:offset + limit]
+
+    def match_count(self, profile_id):
+        return len(self.matches)
 
 
 @pytest.fixture
@@ -386,7 +407,8 @@ def test_google_callback_logs_in_existing_subscriber(client, store, monkeypatch)
     r = client.get("/auth/google/callback", params={"code": "x", "state": "S"},
                    cookies={webapp.OAUTH_STATE_COOKIE: "S"}, follow_redirects=False)
     assert r.status_code == 302
-    assert r.headers["location"].endswith("/preferences")
+    # Language-prefixed: the static export has no bare /preferences/ page any more.
+    assert r.headers["location"].endswith(f"/{links.SITE_LOCALE}/preferences/")
     assert webapp.SESSION_COOKIE in r.cookies           # a session cookie was set
     assert store.sessions                                # and a server-side session created
 
@@ -601,8 +623,10 @@ def sent(monkeypatch):
     box: list[tuple] = []
     monkeypatch.setattr(webapp.mailer, "send",
                         lambda to, subj, html, text, **kw: box.append((to, subj, html, text)) or "ok")
+    # `lang` is passed positionally by the API (migration 013), so the stub has to accept it —
+    # capture it too, so a test can assert the welcome went out in the subscriber's language.
     monkeypatch.setattr(webapp.transactional, "render_welcome",
-                        lambda email, url: ("Welcome", "<p>hi</p>", "hi"))
+                        lambda email, url, lang="en": (f"Welcome[{lang}]", "<p>hi</p>", "hi"))
     return box
 
 
@@ -683,3 +707,62 @@ def test_limiter_memory_is_bounded_by_the_window(store, monkeypatch):
     for i in range(500):
         webapp._event_allowed(f"session-{i}")
     assert len(webapp._event_counts) == 1                # cleared each window
+
+
+# ------------------------------------------------------------------- /matches paging --
+# `count` is the unbounded total while `jobs` is one page, so a caller that renders `jobs`
+# under a headline built from `count` silently drops the difference. That is exactly what
+# shipped: every subscriber had 76-131 matches against a 25-row page, so the page claimed
+# "127 matches ... this is the full list" and rendered 25. The rows below the cut are the
+# sub-EMAIL_MIN_SCORE picks this page exists to show, and /matches being the complete record
+# is what makes never-email-twice suppression safe. These pin that paging can reach all of it.
+
+def test_matches_first_page_is_capped_but_reports_the_true_total(client, store):
+    store.seed_matches(127)
+    r = client.get("/matches", params={"token": TOKEN})
+
+    assert r.status_code == 200
+    body = r.json()
+    assert body["count"] == 127                      # the honest total, not the page size
+    assert len(body["jobs"]) == webapp.MATCHES_PAGE_LIMIT
+    assert body["offset"] == 0
+    assert body["limit"] == webapp.MATCHES_PAGE_LIMIT
+
+
+def test_paging_reaches_every_match_exactly_once(client, store):
+    """Walk the offsets the way the page does and expect the whole list back, no row
+    duplicated and none skipped."""
+    store.seed_matches(127)
+
+    seen: list[str] = []
+    offset = 0
+    while True:
+        body = client.get("/matches", params={"token": TOKEN, "offset": offset}).json()
+        if not body["jobs"]:
+            break
+        seen.extend(j["posting_id"] for j in body["jobs"])
+        offset = len(seen)
+        assert offset <= body["count"], "paging walked past the reported total"
+
+    assert len(seen) == 127
+    assert len(set(seen)) == 127                     # nothing served twice
+    assert seen == [f"p{i:03d}" for i in range(127)]  # and in the ranked order
+
+
+def test_offset_past_the_end_is_an_empty_page_not_an_error(client, store):
+    """A hand-edited offset should end the list, not break someone's matches."""
+    store.seed_matches(30)
+    body = client.get("/matches", params={"token": TOKEN, "offset": 999}).json()
+    assert body["jobs"] == [] and body["count"] == 30
+
+
+def test_negative_offset_is_clamped_to_the_first_page(client, store):
+    store.seed_matches(30)
+    body = client.get("/matches", params={"token": TOKEN, "offset": -5}).json()
+    assert body["offset"] == 0
+    assert [j["posting_id"] for j in body["jobs"]][:3] == ["p000", "p001", "p002"]
+
+
+def test_matches_still_requires_a_valid_token(client, store):
+    store.seed_matches(5)
+    assert client.get("/matches", params={"token": "nope"}).status_code == 404

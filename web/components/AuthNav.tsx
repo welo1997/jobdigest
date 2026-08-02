@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { getSession, logout } from "@/lib/api";
+import { useI18n } from "@/i18n/context";
 
 /**
  * The auth affordance in the top bar. JobDigest is passwordless, so "logging in" means
@@ -14,6 +15,7 @@ import { getSession, logout } from "@/lib/api";
  * doesn't flash the wrong control.
  */
 export default function AuthNav() {
+  const { t, href } = useI18n();
   const [state, setState] = useState<"loading" | "in" | "out">("loading");
 
   useEffect(() => {
@@ -35,15 +37,16 @@ export default function AuthNav() {
   if (state === "in") {
     const doLogout = async () => {
       try { await logout(); } catch { /* best-effort cookie clear */ }
-      if (typeof window !== "undefined") window.location.href = "/";
+      // Back to this locale's home, not "/" — that would bounce through the language gate.
+      if (typeof window !== "undefined") window.location.href = href("/");
     };
     return (
       <>
-        <Link className="nav-link" href="/preferences">My preferences</Link>
-        <button type="button" className="nav-link" onClick={doLogout}>Log out</button>
+        <Link className="nav-link" href={href("/preferences")}>{t.nav.myPreferences}</Link>
+        <button type="button" className="nav-link" onClick={doLogout}>{t.nav.logOut}</button>
       </>
     );
   }
 
-  return <Link className="nav-link" href="/manage">Log in</Link>;
+  return <Link className="nav-link" href={href("/manage")}>{t.nav.logIn}</Link>;
 }

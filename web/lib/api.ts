@@ -32,6 +32,10 @@ export interface SubscribePayload {
   sectors?: string[];
   min_score?: number;
   frequency?: string;
+  /** The locale the visitor signed up under. Decides which language every email to them is
+   *  written in — the digest runs from a timer with no browser, so it cannot be inferred
+   *  later. See service/db/migration_013_language.sql. */
+  language?: string;
   cv_signals?: CVSignals | null;
   cf_turnstile_token?: string | null;
 }
@@ -55,6 +59,8 @@ export interface Preferences {
   sectors: string[];
   min_score: number;
   frequency: string;
+  /** Absent on a subscription that predates migration 013; the server defaults it to "en". */
+  language?: string;
   has_cv: boolean;
   cv_summary: string | null;
   years_experience: number | null;
@@ -81,7 +87,10 @@ export interface MatchJob {
 export interface MatchesResponse {
   email: string;
   label: string;
+  /** Total matches this profile has — not the length of `jobs`, which is one page. */
   count: number;
+  offset: number;
+  limit: number;
   jobs: MatchJob[];
 }
 
@@ -203,8 +212,12 @@ export function getPreferences(token?: string) {
   return req<Preferences>(`/preferences${tokenQuery(token)}`);
 }
 
-export function getMatches(token?: string) {
-  return req<MatchesResponse>(`/matches${tokenQuery(token)}`);
+export function getMatches(token?: string, offset = 0) {
+  const q = new URLSearchParams();
+  if (token) q.set("token", token);
+  if (offset) q.set("offset", String(offset));
+  const s = q.toString();
+  return req<MatchesResponse>(`/matches${s ? `?${s}` : ""}`);
 }
 
 export function updatePreferences(changes: Partial<Preferences>, token?: string) {

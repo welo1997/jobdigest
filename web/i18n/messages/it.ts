@@ -1,0 +1,307 @@
+import type { Messages } from "../schema";
+
+/** Italian. Two plural forms, like English. */
+const it: Messages = {
+  meta: {
+    title: "JobDigest — offerte di lavoro su misura per te, ogni mattina",
+    description:
+      "Una breve e-mail al giorno con una selezione ordinata di offerte su misura per te. Tech e CZ+EU per primi. Iniziare è gratis.",
+  },
+
+  nav: {
+    myPreferences: "Le mie preferenze",
+    logOut: "Esci",
+    logIn: "Accedi",
+    themeTitle: "Passa a chiaro / scuro",
+    themeAria: "Cambia tema",
+    languageAria: "Scegli la lingua",
+  },
+
+  footer: {
+    madeInEu: "Fatto nell'UE",
+    manage: "Gestisci l'abbonamento",
+    privacy: "Privacy",
+    terms: "Termini",
+  },
+
+  common: {
+    loading: "Caricamento…",
+    add: "Aggiungi",
+    or: "oppure",
+    backToHome: "← Torna alla home",
+    goHome: "Vai alla home →",
+    viewAndApply: "Vedi e candidati →",
+    roleFallback: "Posizione",
+  },
+
+  roles: {
+    product_manager: "Product Manager",
+    marketing: "Marketing",
+    social_media: "Social media",
+    data_analyst: "Analista dati",
+    designer: "Designer",
+    software_engineer: "Sviluppatore software",
+    data_engineer: "Data engineer",
+    devops: "DevOps",
+    finance: "Finanza",
+    ml_engineer: "ML engineer",
+  },
+
+  workTypes: {
+    fulltime: "Tempo pieno",
+    freelance: "Freelance",
+    parttime: "Part-time",
+  },
+
+  seniorities: {
+    junior: "Stage / Junior",
+    mid: "Intermedio",
+    senior: "Senior",
+  },
+
+  geo: {
+    countries: {
+      AT: "Austria", BE: "Belgio", BG: "Bulgaria", HR: "Croazia", CY: "Cipro",
+      CZ: "Cechia", DK: "Danimarca", EE: "Estonia", FI: "Finlandia", FR: "Francia",
+      DE: "Germania", GR: "Grecia", HU: "Ungheria", IE: "Irlanda", IT: "Italia",
+      LV: "Lettonia", LT: "Lituania", LU: "Lussemburgo", MT: "Malta", NL: "Paesi Bassi",
+      PL: "Polonia", PT: "Portogallo", RO: "Romania", SK: "Slovacchia", SI: "Slovenia",
+      ES: "Spagna", SE: "Svezia",
+    },
+    remoteScope: {
+      country: "Solo nei paesi che ho scelto",
+      eu: "Ovunque nell'UE",
+      worldwide: "Ovunque nel mondo",
+    },
+    workModeLabel: {
+      onsite: "In sede",
+      hybrid: "Ibrido",
+      remote: "Completamente da remoto",
+    },
+    workModeHint: {
+      onsite: "In ufficio",
+      hybrid: "Parte in ufficio, parte da casa — devi comunque essere nei paraggi",
+      remote: "Nessun ufficio",
+    },
+  },
+
+  location: {
+    countriesLabel: "Paesi in cui puoi lavorare",
+    addCountryAria: "Aggiungi un altro paese",
+    addCountryOption: "Aggiungi un altro paese…",
+    citiesIn: "Città in {country}",
+    anyCityNote: "qualsiasi città (offerte in sede in tutto il paese)",
+    pickedCityNote: "offerte in sede solo nelle città che scegli",
+    anyCity: "Qualsiasi città",
+    addTownPlaceholder: "Aggiungi un'altra località in {country}…",
+    addCityAria: "Aggiungi una città in {country}",
+    workSetup: "Modalità di lavoro",
+    anythingGoes: "va bene tutto",
+    leaveOutRest: "escluderemo il resto",
+    hybridNote:
+      "Ibrido significa parte della settimana in ufficio, quindi deve comunque essere un posto raggiungibile. Molti annunci non lo dicono affatto: quelli li teniamo e lasciamo che sia il matcher a leggere la descrizione, invece di tirare a indovinare.",
+    remoteLabel: "Offerte completamente da remoto — fin dove?",
+    remoteDisabledNote: "Vale solo dopo aver selezionato «Completamente da remoto» qui sopra.",
+  },
+
+  landing: {
+    wizardAria: "Costruisci il tuo digest",
+    stepOf: "Passo {n} di 4",
+    q1: "Inizia a cercare subito",
+    cvReading: "Stiamo leggendo il tuo CV…",
+    cvDrop: "Trascina qui il CV — compiliamo noi",
+    cvHint:
+      "PDF o DOCX · Lo leggiamo per impostare le tue offerte, poi cancelliamo il file. Mai condiviso.",
+    cvChoose: "Scegli il file",
+    cvDone: "CV letto — campi precompilati",
+    cvRemove: "Rimuovi il CV",
+    orPickManually: "oppure scegli a mano",
+    addRolePlaceholder: "Aggiungi un'altra posizione…",
+    addRoleAria: "Aggiungi una posizione",
+    q2: "In cosa sei bravo?",
+    q2hint: "È su questo che cerchiamo le offerte. Tocca tutto ciò che ti riguarda.",
+    addSkillPlaceholder: "Aggiungi una competenza…",
+    addSkillAria: "Aggiungi una competenza",
+    q3: "Dove e come?",
+    q3hint:
+      "Prima il luogo — scegli le città in cui potresti davvero spostarti. Le offerte in sede altrove vengono escluse; quelle completamente da remoto no.",
+    workTypeHint: "Tipo di lavoro — tocca tutto ciò che ti va bene.",
+    levelHint: "Il tuo livello — inviamo solo posizioni ai livelli che scegli.",
+    narrowWarning:
+      "È una ricerca molto stretta — potresti ricevere poche offerte. Aggiungi un livello, una posizione o un'altra città.",
+    q4google: "Conferma il tuo digest",
+    googleHint:
+      "Ti stai registrando come {0} — verificato con Google, quindi niente e-mail di conferma. Il primo digest arriva domani alle 7:00.",
+    consent: "Accetto l'{0} e il digest quotidiano.",
+    consentLink: "informativa sulla privacy",
+    q4: "Dove te lo mandiamo?",
+    q4hint: "Prima una e-mail di conferma — poi il digest quotidiano alle 7:00.",
+    googleSignup: "Registrati con Google",
+    emailPlaceholder: "tu@example.com",
+    emailAria: "La tua e-mail",
+    turnstileNote: "Protetto da Cloudflare Turnstile — nessun CAPTCHA",
+    back: "← Indietro",
+    next: "Avanti →",
+    sending: "Invio…",
+    submit: "Avvia il mio digest →",
+    livePreview: "Anteprima dal vivo",
+    trustEmail: "Una e-mail al giorno",
+    trustUnsub: "Disiscrizione con un clic",
+    trustFree: "Iniziare è gratis · 13 fonti controllate ogni notte",
+    howItWorks: "Come funziona",
+    step1Title: "Componi il tuo profilo",
+    step1Body: "Posizioni, competenze, dove puoi lavorare. Venti secondi, quasi tutto a tocchi.",
+    step2Title: "Cerchiamo durante la notte",
+    step2Body: "Annunci freschi da decine di fonti, ordinati per te, doppioni eliminati.",
+    step3Title: "Leggi una e-mail",
+    step3Body: "Una lista breve e ordinata, con per ciascuna un motivo e un link per candidarti.",
+    mcta: "Voglio il mio digest",
+    mctaAria: "Vai alla registrazione",
+    toast: {
+      googleExpired: "L'accesso con Google è scaduto — riprova.",
+      cvWrongType: "Carica un file PDF o DOCX",
+      cvTooLarge: "Il file è troppo grande (max 8 MB)",
+      cvOk: "CV letto — abbiamo precompilato il tuo profilo",
+      cvUnreadable: "Non siamo riusciti a leggere quel file",
+      needConsent: "Accetta prima l'informativa sulla privacy",
+      needLevel: "Scegli almeno un livello",
+      needEmail: "Inserisci una e-mail valida",
+      needTurnstile: "Completa la verifica",
+      needRole: "Scegli almeno una posizione per continuare",
+      needLevelToContinue: "Scegli almeno un livello per continuare",
+      genericError: "Qualcosa è andato storto — riprova",
+    },
+  },
+
+  preview: {
+    inbox: "posta in arrivo — {email}",
+    time: "7:00",
+    subject: "{count} per te — {date}",
+    roleCount: { one: "{n} nuova posizione", other: "{n} nuove posizioni" },
+    roleCountNamed: { one: "{n} nuova posizione: {role}", other: "{n} nuove posizioni: {role}" },
+    pickRole: "Scegli una posizione per vedere le tue offerte →",
+    noCombo: "Nessun risultato per questa combinazione — allarga i livelli o il tipo di lavoro →",
+    greeting: "Buongiorno. Oggi {0} — su 214 annunci controllati durante la notte.",
+    freshMatches: { one: "{n} nuova offerta", other: "{n} nuove offerte" },
+    reasonMatches: "Corrisponde a {0}. Settore: {sector}.",
+    reasonGeneric: "Ottima posizione nel settore {sector} nella tua zona. Settore: {sector}.",
+    refine: "Modifica le preferenze",
+    pause: "Metti in pausa 2 settimane",
+    unsubscribe: "Disiscriviti",
+    fine: "Ricevi questo messaggio perché ti sei iscritto su jobdigest.eu · Una e-mail al giorno.",
+  },
+
+  prefs: {
+    signedInLabel: "Accesso effettuato",
+    title: "Le tue preferenze",
+    signedInAs: "Hai effettuato l'accesso come {0}. Cambia quello che vuoi, metti in pausa o vai via — {1}.",
+    logOutInline: "esci",
+    noPasswordLead: "Nessuna password.",
+    noPasswordBody:
+      "Il clic sul link ricevuto per e-mail ti ha fatto accedere e ti tiene collegato su questo dispositivo, quindi qui non ti servirà più. Puoi uscire quando vuoi.",
+    roles: "Posizioni",
+    skills: "Competenze / parole chiave",
+    addRolePlaceholder: "Aggiungi una posizione…",
+    addSkillPlaceholder: "Aggiungi una competenza…",
+    addRoleAria: "Aggiungi una posizione",
+    addSkillAria: "Aggiungi una competenza",
+    seniorityLabel: "Livello — inviamo solo posizioni ai livelli che scegli",
+    frequency: "Frequenza",
+    freqDaily: "Ogni giorno",
+    freqWeekdays: "Solo nei giorni feriali",
+    freqWeekly: "Ogni settimana (il lunedì)",
+    pausedTitle: "Digest in pausa",
+    pauseTitle: "Metti in pausa il digest",
+    pausedUntil: "In pausa fino al {date} — riprendi quando vuoi.",
+    pausedUntilSoon: "presto",
+    pauseBody: "Prenditi una pausa senza disiscriverti — riparte quando sei pronto.",
+    resumeNow: "Riprendi ora",
+    pauseTwoWeeks: "Metti in pausa 2 settimane",
+    saving: "Salvataggio…",
+    save: "Salva le modifiche",
+    unsubscribeAll: "Disiscriviti da tutte le e-mail",
+    unsubscribeConfirm: "Clicca di nuovo per confermare — disiscrizione da tutte le e-mail",
+    errTitle: "Non riusciamo ad aprire le tue preferenze",
+    errNoLink:
+      "Apri le preferenze dal link nella tua e-mail — oppure usa «Gestisci l'abbonamento» per riceverne uno nuovo.",
+    errUnknownLink: "Link sconosciuto o scaduto.",
+    toast: {
+      saved: "Preferenze salvate",
+      saveFailed: "Salvataggio non riuscito — riprova",
+      paused: "Digest in pausa per 2 settimane",
+      pauseFailed: "Non è stato possibile mettere in pausa",
+      resumed: "Digest ripreso",
+      resumeFailed: "Non è stato possibile riprendere",
+      unsubscribed: "Ti sei disiscritto",
+      unsubscribeFailed: "Non è stato possibile disiscriverti",
+    },
+  },
+
+  matches: {
+    label: "Le tue offerte · accesso effettuato",
+    countTitle: { one: "{n} offerta per te", other: "{n} offerte per te" },
+    noneTitle: "Ancora nessuna offerta",
+    intro:
+      "Tutto quello che abbiamo trovato per {0}, dalle migliori. Le più forti te le mandiamo per e-mail ogni mattina — questa è la lista completa.",
+    nothingTitle: "Ancora niente",
+    nothingBody:
+      "Le tue prime offerte le cerchiamo durante la notte — torna dopo il digest di domani alle 7:00.",
+    adjustPrefs: "Modifica le tue preferenze →",
+    notQuiteRight: "Non è proprio quello che cerchi? Sistema posizioni e competenze →",
+    // Il nome segue {n}: è {n} a comandare il plurale, non {shown}.
+    showing: {
+      one: "In elenco: {shown} di {n} offerta",
+      other: "In elenco: {shown} di {n} offerte",
+    },
+    loadMore: "Carica altre",
+    loadMoreFailed: "Non è stato possibile caricarne altre — controlla la connessione e riprova.",
+    errTitle: "Non riusciamo ad aprire le tue offerte",
+    errNoLink:
+      "Apri le tue offerte dal link nella tua e-mail — oppure usa «Gestisci l'abbonamento» per riceverne uno nuovo.",
+    errUnknownLink: "Link sconosciuto o scaduto.",
+    topMatch: "Migliore offerta",
+    tagHybrid: "Ibrido",
+    tagRemote: "Da remoto",
+    tagFreelance: "Freelance",
+  },
+
+  checkInbox: {
+    title: "Controlla la posta",
+    body: "Abbiamo inviato un link di conferma a {0}. Cliccalo e il tuo digest quotidiano parte domani mattina alle 7:00.",
+    inMeantime: " Nel frattempo, ecco offerte attive che corrispondono alla tua ricerca:",
+    doubleOptIn: "Double opt-in · consenso GDPR",
+    yourInbox: "la tua casella",
+    instantPreview: "Anteprima immediata · corrispondenza per parole chiave",
+    instantNote:
+      "Una rapida corrispondenza per parole chiave, tanto per iniziare. L'e-mail di domani invece è {0} — ogni posizione con un punteggio e il motivo per cui ti si addice.",
+    instantNoteEmphasis: "ordinata dall'IA",
+  },
+
+  manage: {
+    sentTitle: "Controlla la posta",
+    sentBody:
+      "Se {0} ha un abbonamento JobDigest, abbiamo appena inviato lì il suo link privato alle impostazioni. Aprilo per modificare le preferenze, mettere in pausa o disiscriverti — senza password.",
+    didntGet: "Non è arrivata? Controlla lo spam o riprova tra qualche minuto.",
+    title: "Accedi a JobDigest",
+    body: "Qui niente password. Inserisci il tuo indirizzo e ti manderemo un link sicuro — un clic e sei dentro, e resti collegato su questo dispositivo.",
+    googleNoSub:
+      "Questo account Google non ha ancora un abbonamento. Registrati prima, poi potrai accedere con Google.",
+    googleSuppressed:
+      "Questo indirizzo si era disiscritto, quindi non possiamo riattivarlo automaticamente. Scrivici se vuoi tornare.",
+    googleError:
+      "L'accesso con Google non è andato a buon fine. Riprova, oppure usa il link via e-mail qui sotto.",
+    googleSignin: "Accedi con Google",
+    emailLabel: "Il tuo indirizzo e-mail",
+    sending: "Invio…",
+    submit: "Mandami il link alle impostazioni",
+    onlyOwnInbox: "Il link lo manderemo sempre e solo alla tua casella.",
+    error: "Qualcosa è andato storto. Riprova tra un momento.",
+  },
+
+  root: {
+    title: "Scegli la lingua",
+    body: "Ti portiamo su JobDigest nella tua lingua…",
+  },
+};
+
+export default it;

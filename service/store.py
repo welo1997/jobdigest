@@ -21,7 +21,7 @@ import psycopg2
 import psycopg2.extras
 from psycopg2.pool import ThreadedConnectionPool
 
-from service import geo, taxonomy
+from service import geo, i18n, taxonomy
 
 _POOL: Optional[ThreadedConnectionPool] = None
 
@@ -484,12 +484,17 @@ def query_shortlist_meta(profile: dict, limit: int = 120) -> tuple[list[dict], d
     return rows, meta
 
 
-def matched_jobs(profile_id: str, limit: int = 50) -> list[dict]:
+def matched_jobs(profile_id: str, limit: int = 50, offset: int = 0) -> list[dict]:
     """AI-picked jobs for a profile (matches join postings), best fit first.
 
     Read side for the digest: returns only active postings the matcher selected
     (score not null), highest score first. The digest still filters out anything in
     digest_sends so a job is never emailed twice.
+
+    `offset` pages the /matches web page. The ordering must be total for that to be safe —
+    `score desc, posted_at desc` is not, because posted_at is null for whole sources
+    (jobs.cz, profesia), so ties are broken arbitrarily and a row could appear on two pages
+    or on none. `posting_id` last makes it deterministic.
     """
     with cursor() as cur:
         cur.execute(
@@ -502,10 +507,10 @@ def matched_jobs(profile_id: str, limit: int = 50) -> list[dict]:
             from matches m
             join postings p on p.posting_id = m.posting_id
             where m.profile_id = %s and p.is_active and m.score is not null
-            order by m.score desc, p.posted_at desc nulls last
-            limit %s
+            order by m.score desc, p.posted_at desc nulls last, p.posting_id
+            limit %s offset %s
             """,
-            (profile_id, limit),
+            (profile_id, limit, offset),
         )
         return [dict(r) for r in cur.fetchall()]
 
@@ -612,7 +617,7 @@ def set_match_status(profile_id: str, posting_id: str, status: str) -> None:
 _SUBSCRIBER_FIELDS = ["label", "stack", "seniorities", "countries", "cities",
                       "remote_scope", "work_modes", "regions", "role_categories",
                       "work_types", "part_time_only", "eligible_only", "sectors",
-                      "min_score", "frequency"]
+                      "min_score", "frequency", "language"]
 
 _LOCATION_KEYS = ("countries", "cities", "remote_scope", "regions")
 
@@ -698,6 +703,9 @@ def create_email_subscription(email: str, data: dict, *, confirmed: bool = False
         data.get("part_time_only", False), data.get("eligible_only", True),
         data.get("sectors", []), data.get("min_score", 6),
         data.get("frequency", "daily"),
+        # Cleaned rather than trusted: this value comes off a public request body and then
+        # decides which language every future email to this person is written in.
+        i18n.clean_locale(data.get("language")),
         data.get("has_cv", False), data.get("cv_summary"), data.get("years_experience"),
     ]
     placeholders = ",".join(["%s"] * len(cols))
@@ -1020,6 +1028,8 @@ def update_subscription(manage_token: str, data: dict) -> Optional[dict]:
     # but this is the only path every client shares (see `geo.clean_work_modes`).
     if "work_modes" in data:
         data = {**data, "work_modes": geo.clean_work_modes(data["work_modes"])}
+    if "language" in data:
+        data = {**data, "language": i18n.clean_locale(data["language"])}
     sets, params = [], []
     for f in _SUBSCRIBER_FIELDS:
         if f in data:

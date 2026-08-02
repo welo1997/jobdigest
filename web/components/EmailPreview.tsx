@@ -1,44 +1,50 @@
 "use client";
 
 import { cap, pickJobs, PreviewJob } from "@/lib/preview";
+import { fmt } from "@/i18n/config";
+import { rich, useI18n } from "@/i18n/context";
 
 interface Props {
+  /** Role *ids* (see lib/options.ts), not labels — the label is looked up per language here. */
   roles: Set<string>;
   skills: Set<string>;
+  /** Employment-type ids: fulltime | freelance | parttime. */
   work: Set<string>;
-  levels: Set<string>; // seniority codes (junior|mid|senior) the visitor picked
+  /** Seniority codes the visitor picked (junior | mid | senior). */
+  levels: Set<string>;
   email: string;
   limit?: number;
 }
 
-function reason(job: PreviewJob, skills: Set<string>) {
-  const us = new Set([...skills].map((s) => s.toLowerCase()));
-  const matched = job.skills.filter((s) => us.has(s.toLowerCase()));
-  return matched.length ? (
-    <>
-      Matches{" "}
-      {matched.map((m, i) => (
-        <span key={m}>
-          {i > 0 ? ", " : ""}
-          <mark>{cap(m)}</mark>
-        </span>
-      ))}
-      . In {job.sector}.
-    </>
-  ) : (
-    <>
-      Strong {job.sector} role in your region. In {job.sector}.
-    </>
-  );
-}
-
 export default function EmailPreview({ roles, skills, work, levels, email, limit = 3 }: Props) {
-  // One role → name it ("3 new Product Manager roles"); several → stay generic ("3 new roles").
-  const role = roles.size === 1 ? `${[...roles][0]} ` : "";
-  const to = email || "you@example.com";
+  const { t, locale, count } = useI18n();
+
+  const reason = (job: PreviewJob) => {
+    const us = new Set([...skills].map((s) => s.toLowerCase()));
+    const matched = job.skills.filter((s) => us.has(s.toLowerCase()));
+    if (!matched.length) return fmt(t.preview.reasonGeneric, { sector: job.sector });
+    const marks = matched.map((m, i) => (
+      <span key={m}>
+        {i > 0 ? ", " : ""}
+        <mark>{cap(m)}</mark>
+      </span>
+    ));
+    return rich(fmt(t.preview.reasonMatches, { sector: job.sector }), [marks]);
+  };
+
+  const to = email || t.landing.emailPlaceholder;
   const jobs = pickJobs(skills, work, levels, limit);
   const cnt = jobs.length;
-  const dateStr = new Date().toLocaleDateString("en-GB", { day: "numeric", month: "short" });
+  // Locale-formatted, so a German reader sees "1. Aug." rather than "1 Aug".
+  const dateStr = new Date().toLocaleDateString(locale, { day: "numeric", month: "short" });
+
+  // One role → name it ("3 new Product Manager roles"); several → stay generic. The named form
+  // is its own plural set rather than a hole punched into the generic one, because several of
+  // these languages do not put the role name where English does.
+  const only = roles.size === 1 ? [...roles][0] : null;
+  const headline = only
+    ? count(cnt, t.preview.roleCountNamed, { role: t.roles[only] ?? only })
+    : count(cnt, t.preview.roleCount);
 
   return (
     <div className="mail-frame">
@@ -46,7 +52,7 @@ export default function EmailPreview({ roles, skills, work, levels, email, limit
         <div className="tl">
           <i /><i /><i />
         </div>
-        <div className="addr">inbox — {to}</div>
+        <div className="addr">{fmt(t.preview.inbox, { email: to })}</div>
       </div>
       <div className="mail-meta">
         <div className="mail-from">
@@ -55,22 +61,21 @@ export default function EmailPreview({ roles, skills, work, levels, email, limit
             <div className="n">JobDigest</div>
             <div className="e">hello@jobdigest.eu</div>
           </div>
-          <div className="time">7:00 AM</div>
+          <div className="time">{t.preview.time}</div>
         </div>
         <div className="mail-subject">
-          {cnt} new {role}{cnt === 1 ? "role" : "roles"} for you — {dateStr}
+          {fmt(t.preview.subject, { count: headline, date: dateStr })}
         </div>
       </div>
       <div className="mail-body">
         {roles.size === 0 ? (
-          <div className="mail-empty">Pick a role to see your matches →</div>
+          <div className="mail-empty">{t.preview.pickRole}</div>
         ) : cnt === 0 ? (
-          <div className="mail-empty">No matches for this combo — widen your levels or work type →</div>
+          <div className="mail-empty">{t.preview.noCombo}</div>
         ) : (
           <>
             <p className="greet">
-              Good morning. <b>{cnt} fresh {cnt === 1 ? "match" : "matches"}</b> today, from 214
-              postings scanned overnight.
+              {rich(t.preview.greeting, [<b key="n">{count(cnt, t.preview.freshMatches)}</b>])}
             </p>
             {jobs.map((job) => (
               <div className="job" key={job.title + job.co}>
@@ -86,15 +91,15 @@ export default function EmailPreview({ roles, skills, work, levels, email, limit
                     {job.title} <span className="co">— {job.co}</span>
                   </div>
                   <div className="tags">
-                    {job.tags.map((t) => (
-                      <span key={t} className={`tag${/free|contract/i.test(t) ? " fl" : ""}`}>
-                        {t}
+                    {job.tags.map((t2) => (
+                      <span key={t2} className={`tag${/free|contract/i.test(t2) ? " fl" : ""}`}>
+                        {t2}
                       </span>
                     ))}
                   </div>
-                  <div className="reason">{reason(job, skills)}</div>
+                  <div className="reason">{reason(job)}</div>
                   <span className="apply" style={{ color: "var(--brand)" }}>
-                    View &amp; apply →
+                    {t.common.viewAndApply}
                   </span>
                 </div>
               </div>
@@ -104,13 +109,11 @@ export default function EmailPreview({ roles, skills, work, levels, email, limit
       </div>
       <div className="mail-foot">
         <div className="actions">
-          <span style={{ color: "var(--brand)" }}>Refine preferences</span> ·{" "}
-          <span style={{ color: "var(--brand)" }}>Pause 2 weeks</span> ·{" "}
-          <span style={{ color: "var(--brand)" }}>Unsubscribe</span>
+          <span style={{ color: "var(--brand)" }}>{t.preview.refine}</span> ·{" "}
+          <span style={{ color: "var(--brand)" }}>{t.preview.pause}</span> ·{" "}
+          <span style={{ color: "var(--brand)" }}>{t.preview.unsubscribe}</span>
         </div>
-        <div className="fine">
-          You&apos;re getting this because you signed up at jobdigest.eu · One email a day.
-        </div>
+        <div className="fine">{t.preview.fine}</div>
       </div>
     </div>
   );

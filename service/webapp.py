@@ -52,7 +52,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, RedirectResponse
 from pydantic import BaseModel, EmailStr, Field, field_validator
 
-from service import cvparse, geo, links, mailer, store, taxonomy, transactional
+from service import cvparse, geo, i18n, links, mailer, store, taxonomy, transactional
 from service.digest import C, SANS, SERIF
 
 # Where users land back (frontend). Used for the "homepage" links on API-served pages.
@@ -130,6 +130,11 @@ app.add_middleware(
     # frontend and API are same-origin (jobdigest.eu + /api) so this is a no-op there.
     allow_credentials=True,
 )
+
+
+def _lang(profile: dict | None) -> str:
+    """The language to write to this subscriber in. One helper so no call site forgets."""
+    return i18n.clean_locale((profile or {}).get("language"))
 
 
 # --------------------------------------------------------------- turnstile -----
@@ -359,6 +364,10 @@ class SubscribeIn(LocationFieldsMixin):
     sectors: list[str] = Field(default_factory=list)
     min_score: int = 6
     frequency: str = "daily"
+    # Which language to write to this person in. Sent by the signup form as the locale the
+    # visitor was reading; `store` cleans it, so an unknown value becomes English rather than
+    # producing mail nobody can render. Defaults to English for older clients.
+    language: str = i18n.DEFAULT_LOCALE
     # optional CV signals from a prior POST /cv/parse (merged server-side)
     cv_signals: Optional[dict] = None
     cf_turnstile_token: Optional[str] = None
@@ -410,7 +419,10 @@ def subscribe(body: SubscribeIn) -> dict:
         # rejected the duplicate. Same generic reply, no second confirm email.
         return generic
     confirm_url = links.confirm_link(profile["confirm_token"])
-    subject, html_body, text = transactional.render_confirm(email, confirm_url)
+    # The language they signed up in, read back off the stored row rather than off the request
+    # body — whatever the digest will use tomorrow is what the confirm email must use today.
+    lang = _lang(profile)
+    subject, html_body, text = transactional.render_confirm(email, confirm_url, lang)
     try:
         mailer.send(email, subject, html_body, text)
     except Exception:
@@ -462,8 +474,9 @@ def manage_link(body: ManageLinkIn) -> dict:
         # the same thing either way so the response reveals nothing about the address.
         return generic
 
-    manage_url = links.preferences_link(profile["manage_token"])
-    subject, html_body, text = transactional.render_manage_link(email, manage_url)
+    lang = _lang(profile)
+    manage_url = links.preferences_link(profile["manage_token"], lang)
+    subject, html_body, text = transactional.render_manage_link(email, manage_url, lang)
     try:
         mailer.send(email, subject, html_body, text)
     except Exception:
@@ -596,12 +609,13 @@ def confirm(token: str) -> HTMLResponse:
           <a href="{SITE_URL}" style="color:{C['brand']};">sign up again at jobdigest.eu</a>.</p>"""),
           status_code=404)
 
-    manage_url = links.preferences_link(profile["manage_token"])
+    manage_url = links.preferences_link(profile["manage_token"], _lang(profile))
 
     # Only on the click that actually confirmed. Sending on every click made a confirm link
     # an unlimited "email this person" primitive for anyone who obtained one.
     if newly_confirmed:
-        subject, html_body, text = transactional.render_welcome(profile["email"], manage_url)
+        subject, html_body, text = transactional.render_welcome(
+            profile["email"], manage_url, _lang(profile))
         mailer.send(profile["email"], subject, html_body, text)
     else:
         return HTMLResponse(_page("Already confirmed", f"""
@@ -657,6 +671,9 @@ class PreferencesIn(BaseModel):
     sectors: Optional[list[str]] = None
     min_score: Optional[int] = None
     frequency: Optional[str] = None
+    # Changing the site language updates which language the emails arrive in too — the two
+    # being different is the thing this whole change exists to stop.
+    language: Optional[str] = None
 
     _valid_roles = field_validator("role_categories")(_check_role_categories)
     _valid_countries = field_validator("countries")(_check_countries)
@@ -798,7 +815,7 @@ def google_callback(
         raise HTTPException(404, "Google sign-in is not enabled.")
 
     def bounce(flag: str) -> RedirectResponse:
-        r = RedirectResponse(f"{SITE_URL}/manage?google={flag}", status_code=302)
+        r = RedirectResponse(f"{links.site_page('manage')}?google={flag}", status_code=302)
         r.delete_cookie(OAUTH_STATE_COOKIE, path="/")
         return r
 
@@ -815,7 +832,7 @@ def google_callback(
     if profile:
         # Existing subscriber -> log straight in.
         raw = store.create_session(profile["id"])
-        r = RedirectResponse(f"{SITE_URL}/preferences", status_code=302)
+        r = RedirectResponse(links.site_page("preferences"), status_code=302)
         r.delete_cookie(OAUTH_STATE_COOKIE, path="/")
         _set_session_cookie(r, raw)
         return r
@@ -828,7 +845,10 @@ def google_callback(
     # New user: begin a Google-verified signup. Stash a short-lived intent and send them into
     # the wizard to pick preferences; the confirm email is skipped because Google verified them.
     raw = store.create_signup_intent(info["email"])
-    r = RedirectResponse(f"{SITE_URL}/?google=signup", status_code=302)
+    # Straight to the language-prefixed wizard, NOT to "/". The bare root is the language
+    # negotiator, and a client-side redirect there would drop `?google=signup` — the wizard
+    # would never enter Google mode and the picks stashed before the OAuth hop would strand.
+    r = RedirectResponse(f"{links.site_page()}?google=signup", status_code=302)
     r.delete_cookie(OAUTH_STATE_COOKIE, path="/")
     r.set_cookie(
         SIGNUP_COOKIE, raw, max_age=store.SIGNUP_INTENT_TTL_MIN * 60, httponly=True,
@@ -858,6 +878,7 @@ class GoogleSubscribeIn(LocationFieldsMixin):
     sectors: list[str] = Field(default_factory=list)
     min_score: int = 6
     frequency: str = "daily"
+    language: str = i18n.DEFAULT_LOCALE
     cv_signals: Optional[dict] = None
 
     _valid_roles = field_validator("role_categories")(_check_role_categories)
@@ -904,8 +925,8 @@ def subscribe_google(body: GoogleSubscribeIn, request: Request, response: Respon
     # Welcome email carries their manage link as a backup credential — best-effort, never fatal
     # (they're already logged in via the session).
     try:
-        manage_url = links.preferences_link(profile["manage_token"])
-        subject, html_body, text = transactional.render_welcome(email, manage_url)
+        manage_url = links.preferences_link(profile["manage_token"], _lang(profile))
+        subject, html_body, text = transactional.render_welcome(email, manage_url, _lang(profile))
         mailer.send(email, subject, html_body, text)
     except Exception:
         logging.exception("welcome email failed for google signup %s", email)
@@ -946,17 +967,31 @@ def _match_view(j: dict) -> dict:
 
 
 @app.get("/matches")
-def get_matches(request: Request, token: Optional[str] = None) -> dict:
-    """Everything the matcher found for this subscriber (not just the emailed few),
-    ranked best-first. Authenticated by the private magic-link token or the session cookie."""
+def get_matches(request: Request, token: Optional[str] = None, offset: int = 0) -> dict:
+    """One page of everything the matcher found for this subscriber (not just the emailed
+    few), ranked best-first. Authenticated by the private magic-link token or the session
+    cookie.
+
+    `count` is the unbounded total and `jobs` is a page of at most MATCHES_PAGE_LIMIT, so the
+    caller must page with `offset` until it has `count` of them. Returning the two without
+    the caller doing that is what made the page claim "127 matches … this is the full list"
+    while rendering 25: every subscriber was over the limit, and the ~100 rows below the cut
+    are exactly the sub-EMAIL_MIN_SCORE picks this page exists to show. /matches is the
+    complete record that makes never-email-twice suppression safe — it has to be complete.
+    """
     profile = _resolve_subscriber(request, token, mutating=False)
     if not profile:
         raise HTTPException(404, "Unknown or expired link.")
-    jobs = store.matched_jobs(profile["id"], limit=MATCHES_PAGE_LIMIT)
+    # Clamp rather than 422: a hand-edited offset should show an empty last page, not break
+    # someone's match list.
+    offset = max(0, offset)
+    jobs = store.matched_jobs(profile["id"], limit=MATCHES_PAGE_LIMIT, offset=offset)
     return {
         "email": profile.get("email"),
         "label": profile.get("label"),
         "count": store.match_count(profile["id"]),
+        "offset": offset,
+        "limit": MATCHES_PAGE_LIMIT,
         "jobs": [_match_view(j) for j in jobs],
     }
 

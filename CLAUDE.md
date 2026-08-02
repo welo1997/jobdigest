@@ -183,6 +183,71 @@ and skips a malformed record rather than aborting everyone's digest. Do not rela
 `shortlists.json` must **never** contain email addresses. A profile is an opaque UUID. This
 is what makes the transfer non-identifying and is load-bearing for the privacy policy.
 
+### The site speaks eight languages, and the stored subscription speaks none of them
+
+`en cs de sk pl es fr it`, declared once in `web/i18n/config.ts`. Locale lives in the URL
+(`/cs/preferences/`) — a language nobody can link to is a language no crawler indexes and no
+subscriber can share. `localStorage` only remembers the *choice*, so the bare `/` negotiator
+can honour it; it is never what decides what renders.
+
+- **What is stored must never depend on the display language.** A Czech and an English
+  visitor tapping the same chip must produce byte-identical subscriptions. Chips are keyed by
+  stable ids in `web/lib/options.ts` (`data_analyst`, `fulltime`, `junior`) and the label is
+  only a rendering of the id. This is not tidiness: the maps used to be keyed by the English
+  label, so translating one would have missed `ROLE_CAT`, dropped the chip through the
+  category path into `stack` as a keyword, and given the subscriber a filter they never
+  chose — with nothing failing anywhere. A category-less chip contributes `roleKeyword(id)`,
+  the **English** word, because the shortlist full-text query runs against posting text, which
+  is not in the visitor's UI language either.
+- **`web/lib/geo.ts` is not translated — it is drift-tested against `service/geo.py`.**
+  Country names are localised through the `geo.countries` overlay in each catalogue, which
+  falls back to `geo.ts`. `en.ts`'s overlay is deliberately **empty**, so English has exactly
+  one spelling and `test_geo.py` can still see drift in what the site renders. City names stay
+  in their curated form in every language.
+- **Two root layouts, no `app/layout.tsx`.** `app/(site)/[locale]/layout.tsx` renders
+  `<html lang>` for the translated pages; `app/(plain)/layout.tsx` covers `/`, `/privacy`,
+  `/terms` and the unlinked `/v2`. That split is what puts a real `lang` attribute in the
+  exported HTML instead of patching it after hydration. Cross-group links must be plain
+  `<a>` — a client-side transition cannot cross root layouts.
+- **The privacy policy and terms exist in two languages, not eight** (`LEGAL_LOCALES`, `en`
+  and `cs`), and the English is authoritative — the Czech copy says so in its own last
+  section. Rule 4 below treats the policy as a specification, and every translation is a
+  second specification that can drift out of step without anything failing. Two is the most
+  that is worth carrying: `cs` because a Czech subscriber's own data rights should be
+  readable to them. The cost is real and permanent — a change to what the product does with
+  data now means editing **both** copies in that same commit, not one.
+- Plurals go through `Intl.PluralRules`, never `n === 1 ? a : b` — Czech and Slovak split 2–4
+  from 5+, Polish splits again at 5. `service/tests/test_web_i18n.py` fails if a catalogue
+  drops a form, a role id, a country, or is declared in `LOCALES` but never wired up.
+  TypeScript catches a missing *section*; only that test catches a missing *entry*.
+- Error messages returned by the API (`service/webapp.py`) are still English wherever the UI
+  surfaces `e.message`. Translating those means translating the backend, not the site.
+
+**Emails follow the subscriber, not the server.** `profiles.language` (migration 013) stores
+the locale someone signed up under; `service/i18n.py` is the email-side catalogue, and
+`links.site_page(path, lang)` points every emailed link back at that language. It cannot be
+derived at send time — the digest runs from a systemd timer with no browser and no
+`Accept-Language`. Saving from `/cs/preferences/` rewrites it, deliberately with no separate
+language control: a second setting that can disagree with the one they just used is how the
+site and the mail drift apart again. Four things that bite:
+
+- **`plural_category()` implements CLDR, not `n == 1`.** Czech and Slovak split 2–4 from 5+,
+  Polish splits again at 5 and needs `many`. Getting it wrong renders fine and reads as broken
+  Czech; `test_i18n.py` pins the categories against the CLDR chart.
+- **A role word in a subject line cannot be an adjective in Slavic languages.** It has to
+  agree with a noun whose case changes with the plural category — `3 nové datové nabídky` but
+  `5 nových datových nabídek` — so one string cannot serve all three. `SUBJECT_WORDS` for
+  cs/sk/pl are case-neutral **nouns**, rendered parenthetically (`3 nové nabídky (data)`).
+  Shipped wrong once; the test asserts the word is not an inflected adjective.
+- **Never `strftime("%b")`.** It renders in the C locale, so every language got an English
+  month. `i18n.format_date` writes the date the way each language does.
+- **`clean_locale` degrades, never raises.** It runs inside the send loop, so an unknown
+  column value must produce an English digest rather than a failed send.
+
+The legal pages are the exception to all of this: `LEGAL_LOCALES` is `en`+`cs` only, and
+`language` being a **stored field** is why the privacy policy's section 2 lists it — in both
+copies, per rule 4.
+
 ### Deployment reality
 
 `/opt/jobdigest` on the VPS is **scp'd, not a git checkout**. Local `master` and the box can
@@ -314,8 +379,14 @@ These are not style preferences. Breaking one has consequences outside this repo
   `WORK_MODES`, `work_mode()`, `clean_work_modes()`, `work_mode_predicate()` — and its TS
   mirror is drift-tested too. Changing what counts as hybrid means re-running the backfill.
 - `role_category` has **one** definition: `service/taxonomy.py`. The dbt YAML and
-  `web/app/page.tsx` cannot import it, so tests assert they do not drift. Adding a category
-  means: pattern, subject word, shortlist keywords, dbt `accepted_values`, run tests.
+  `web/lib/options.ts` cannot import it, so tests assert they do not drift. Adding a category
+  means: pattern, subject word, shortlist keywords, dbt `accepted_values`, a chip in
+  `ROLE_OPTIONS` + a label in all eight catalogues, run tests.
+- User-facing copy has **one** definition per language: `web/i18n/messages/*.ts`, shaped by
+  `web/i18n/schema.ts`. Never inline a user-visible string in a component under
+  `app/(site)/`. Adding one means: a key in the schema, a value in all eight catalogues.
+  Adding a *language* means: `LOCALES`, `LOCALE_NAME`, a catalogue, the `CATALOGUES` map,
+  run tests — `test_web_i18n.py` fails on any of those left undone.
 - Shell scripts and systemd units are LF-only (`.gitattributes`) — CRLF breaks them on the
   VPS in ways that look like unrelated failures.
 - Commits: conventional (`feat:` `fix:` `chore:` `docs:` `refactor:` `analysis:`).

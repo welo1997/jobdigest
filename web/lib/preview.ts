@@ -34,6 +34,12 @@ const CAP: Record<string, string> = {
 };
 export const cap = (s: string) => CAP[s.toLowerCase()] || s;
 
+/**
+ * `work` and `levels` carry the stable ids from `lib/options.ts` (`freelance`, `junior`), not
+ * display labels. They used to be the English labels, which meant the preview quietly stopped
+ * filtering the moment a label was translated — the chips would visibly change and the list
+ * below them would not.
+ */
 export function pickJobs(
   skills: Set<string>,
   work: Set<string>,
@@ -41,7 +47,7 @@ export function pickJobs(
   limit: number
 ): PreviewJob[] {
   let jobs = JOBS.slice();
-  if (work.has("Freelance") && !work.has("Full-time") && !work.has("Part-time")) {
+  if (work.has("freelance") && !work.has("fulltime") && !work.has("parttime")) {
     jobs = jobs.filter((j) => j.fl);
   }
   // Seniority is a hard filter in the real matcher; mirror that here so the preview honestly

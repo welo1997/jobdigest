@@ -6,10 +6,18 @@ line and the CV parser, so those four cannot drift. Two consumers can't import P
   - ``dbt/models/staging/stg_job_postings.yml`` — an `accepted_values` test that runs in
     Snowflake. If a category is added here and not there, `dbt test` fails in CI on real
     data, which is a slow and confusing way to find out.
-  - ``web/app/page.tsx`` — the signup form maps display labels to categories. A typo or a
-    renamed category here silently produces a profile that matches nothing.
+  - ``web/lib/options.ts`` — the vocabulary both signup forms offer, mapping each role chip
+    to a category. A typo or a renamed category here silently produces a profile that
+    matches nothing.
 
 So these tests read those two files as text and assert they agree with `CATEGORIES`.
+
+The web side moved twice and the paths below record where it landed. The pages now live
+under ``web/app/(site)/[locale]/`` because the site is exported once per language, and the
+chip → category maps moved out of the pages into ``web/lib/options.ts`` because a chip is
+now keyed by a stable id rather than by its English label — a label that eight catalogues
+rewrite cannot also be a lookup key. That refactor is precisely the kind of change these
+tests exist to catch, so they follow it rather than being relaxed around it.
 """
 
 import re
@@ -21,7 +29,8 @@ from service import taxonomy
 
 ROOT = Path(__file__).resolve().parents[2]
 DBT_SCHEMA = ROOT / "dbt" / "models" / "staging" / "stg_job_postings.yml"
-WEB_PAGE = ROOT / "web" / "app" / "page.tsx"
+WEB_OPTIONS = ROOT / "web" / "lib" / "options.ts"
+WEB_PAGE = ROOT / "web" / "app" / "(site)" / "[locale]" / "page.tsx"
 
 
 # ------------------------------------------------------------------ classifier ---
@@ -116,22 +125,64 @@ def test_dbt_accepted_values_match_the_taxonomy():
 
 
 def test_frontend_maps_only_reference_real_categories():
-    """The signup form maps display labels to categories. A stale value here produces a
-    profile whose role filter matches nothing, with no error on any side."""
-    text = WEB_PAGE.read_text(encoding="utf-8")
+    """The chip vocabulary maps role ids to categories. A stale value here produces a
+    profile whose role filter matches nothing, with no error on any side.
+
+    Each block is read with a pattern that picks out only the *category* positions. A blanket
+    ``"[a-z_]+"`` sweep would also collect the chip ids and keywords that now sit alongside
+    them (``product_manager``, ``data_engineer``) and report every one as an unknown category —
+    a test that fails for a reason that isn't real is a test that gets deleted.
+    """
+    text = WEB_OPTIONS.read_text(encoding="utf-8")
     referenced = set()
-    for block_name in ("ROLE_CAT", "CV_ROLE_LABEL"):
-        match = re.search(rf"const {block_name}[^=]*=\s*\{{(.*?)\}};", text, re.S)
-        assert match, f"{block_name} not found in {WEB_PAGE.name}"
-        body = match.group(1)
-        # ROLE_CAT is label -> category (values); CV_ROLE_LABEL is category -> label (keys).
-        referenced |= set(re.findall(r'"([a-z_]+)"', body))
-        referenced |= set(re.findall(r"^\s*([a-z_]+):", body, re.M))
+
+    # ROLE_OPTIONS: [{ id, category, keyword }, …] — only `category:` names a category, and
+    # `category: null` is the deliberate "no category models this" case, not a value.
+    options = re.search(r"export const ROLE_OPTIONS[^=]*=\s*\[(.*?)\n\];", text, re.S)
+    assert options, f"ROLE_OPTIONS not found in {WEB_OPTIONS.name}"
+    referenced |= set(re.findall(r'category:\s*"([a-z_]+)"', options.group(1)))
+
+    # Both of these are keyed *by* category: CV signals -> chip, and stored slug -> chip.
+    for block_name in ("CV_ROLE_ID", "ROLE_ID_FOR_CATEGORY"):
+        match = re.search(rf"export const {block_name}[^=]*=\s*\{{(.*?)\n\}};", text, re.S)
+        assert match, f"{block_name} not found in {WEB_OPTIONS.name}"
+        referenced |= set(re.findall(r"^\s*([a-z_]+):", match.group(1), re.M))
+
+    assert referenced, "no categories extracted — the parse, not the frontend, is broken"
     unknown = referenced - set(taxonomy.CATEGORIES)
-    assert not unknown, f"web/app/page.tsx references unknown role_category values: {sorted(unknown)}"
+    assert not unknown, (
+        f"web/lib/options.ts references unknown role_category values: {sorted(unknown)}"
+    )
 
 
-SIGNUP_FORMS = [WEB_PAGE, ROOT / "web" / "app" / "v2" / "page.tsx"]
+def test_every_language_names_every_category_in_its_subject_words():
+    """`i18n.SUBJECT_WORDS` is what the digest subject calls a category, per language.
+
+    A category missing from one language falls back to the English word, which produces a
+    subject line that is Czech apart from one English noun — readable enough that nobody
+    reports it, wrong enough to look machine-made. The English table here must also match
+    `taxonomy.SUBJECT_WORDS`, which stays the single Python definition.
+    """
+    from service import i18n
+
+    assert i18n.SUBJECT_WORDS["en"] == taxonomy.SUBJECT_WORDS, (
+        "i18n.SUBJECT_WORDS['en'] and taxonomy.SUBJECT_WORDS disagree — the English subject "
+        "word has two definitions and they have drifted."
+    )
+    # Compared against the English table, not `CATEGORIES`: `uncategorised` is deliberately
+    # absent from both, because a digest of unclassified postings should not claim a category
+    # in its subject at all. The invariant is that every language names the same set English
+    # does — no more, no less.
+    expected = set(taxonomy.SUBJECT_WORDS)
+    assert expected <= set(taxonomy.CATEGORIES)
+    for locale in i18n.LOCALES:
+        missing = expected - set(i18n.SUBJECT_WORDS.get(locale, {}))
+        assert not missing, f"i18n.SUBJECT_WORDS[{locale!r}] is missing: {sorted(missing)}"
+        unknown = set(i18n.SUBJECT_WORDS[locale]) - expected
+        assert not unknown, f"i18n.SUBJECT_WORDS[{locale!r}] names unknown categories: {sorted(unknown)}"
+
+
+SIGNUP_FORMS = [WEB_PAGE, ROOT / "web" / "app" / "(plain)" / "v2" / "page.tsx"]
 
 
 @pytest.mark.parametrize("form", SIGNUP_FORMS, ids=lambda p: p.parent.name)
@@ -145,18 +196,29 @@ def test_part_time_only_is_not_read_straight_off_the_chip(form):
 
     Asserted as text because this is TSX the test suite cannot import — same approach, and
     same reason, as the role_category drift tests above.
+
+    Two chip vocabularies are accepted because the two forms are on different sides of the
+    i18n refactor: the live wizard keys its chips by stable id (`fulltime`/`parttime`), while
+    the unlinked `/v2` copy still keys them by English label. What is being asserted is the
+    *derivation*, which is identical either way, so matching both spellings tests the same
+    property rather than the spelling.
     """
     text = form.read_text(encoding="utf-8")
-    assert 'part_time_only: work.has("Part-time")' not in text, (
+    assert not re.search(r'part_time_only:\s*work\.has\(', text), (
         f"{form.name} maps part_time_only straight off the chip — a subscriber who also "
         "selected Full-time is recorded as part-time-only."
     )
-    assert 'work.has("Part-time") && !work.has("Full-time")' in text, (
+    assert re.search(
+        r'work\.has\("(?:Part-time|parttime)"\)\s*&&\s*!work\.has\("(?:Full-time|fulltime)"\)',
+        text,
+    ), (
         f"{form.name} must derive part_time_only from Part-time selected AND Full-time not."
     )
 
 
-ROLE_INPUT_FORMS = SIGNUP_FORMS + [ROOT / "web" / "app" / "preferences" / "page.tsx"]
+ROLE_INPUT_FORMS = SIGNUP_FORMS + [
+    ROOT / "web" / "app" / "(site)" / "[locale]" / "preferences" / "page.tsx"
+]
 
 
 @pytest.mark.parametrize("form", ROLE_INPUT_FORMS, ids=lambda p: p.parent.name)
@@ -172,9 +234,13 @@ def test_a_typed_role_is_never_silently_dropped(form):
 
     The correct handling is to carry it into `stack`, which the shortlist full-text query
     searches — the word still steers retrieval even though nothing classified it.
+
+    `ROLE_CAT[...]` and `roleCategory(...)` are the same lookup either side of the i18n
+    refactor: the map moved into `web/lib/options.ts` and became a function when chips stopped
+    being keyed by their English label.
     """
     text = form.read_text(encoding="utf-8")
-    assert re.search(r"filter\(\(?\w+\)? =>\s*!ROLE_CAT\[", text), (
+    assert re.search(r"filter\(\(?\w+\)? =>\s*!(?:ROLE_CAT\[|roleCategory\()", text), (
         f"{form.name} does not separate role chips that map to no category — a typed role "
         "is either dropped or slugified into a filter that can never match."
     )

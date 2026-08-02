@@ -6,23 +6,25 @@ import Link from "next/link";
 import { Nav, Footer } from "@/components/SiteChrome";
 import { PreviewJobCard, PreviewResponse } from "@/lib/api";
 import { safeHref } from "@/lib/url";
+import { rich, useI18n } from "@/i18n/context";
 
 function PreviewRow({ j }: { j: PreviewJobCard }) {
+  const { t } = useI18n();
   // Feed URLs are untrusted; a non-http(s) scheme renders no link (same rule as /matches).
   const href = safeHref(j.url);
   return (
     <div className="match">
       <div className="bd">
-        <h3>{j.title || "Role"} <span>— {j.company || ""}</span></h3>
+        <h3>{j.title || t.common.roleFallback} <span>— {j.company || ""}</span></h3>
         <div className="tags">
-          {j.tags.map((t, i) => (
-            <span key={i} className={`tag${/free|contract/i.test(t) ? " fl" : ""}`}>{t}</span>
+          {j.tags.map((tag, i) => (
+            <span key={i} className={`tag${/free|contract/i.test(tag) ? " fl" : ""}`}>{tag}</span>
           ))}
         </div>
         {j.why && <div className="why">{j.why}</div>}
         {href && (
           <a className="apply" href={href} target="_blank" rel="noopener noreferrer">
-            View &amp; apply →
+            {t.common.viewAndApply}
           </a>
         )}
       </div>
@@ -31,7 +33,8 @@ function PreviewRow({ j }: { j: PreviewJobCard }) {
 }
 
 function Inner() {
-  const email = useSearchParams().get("email") || "your inbox";
+  const { t, href } = useI18n();
+  const email = useSearchParams().get("email") || t.checkInbox.yourInbox;
   const [jobs, setJobs] = useState<PreviewJobCard[]>([]);
 
   // Read the instant preview stashed by the signup form. One-shot: removed after reading so a
@@ -55,16 +58,15 @@ function Inner() {
       <div className="state-wrap">
         <div className="state-card">
           <div className="ic">✉</div>
-          <h1>Check your inbox</h1>
+          <h1>{t.checkInbox.title}</h1>
           <p>
-            We sent a confirmation link to <b>{email}</b>. Click it and your daily digest starts
-            tomorrow morning at 7:00.
-            {hasJobs && " In the meantime, here are live jobs matching your search:"}
+            {rich(t.checkInbox.body, [<b key="e">{email}</b>])}
+            {hasJobs && t.checkInbox.inMeantime}
           </p>
-          <p className="label" style={{ marginTop: 14 }}>Double opt-in · GDPR consent</p>
+          <p className="label" style={{ marginTop: 14 }}>{t.checkInbox.doubleOptIn}</p>
           {!hasJobs && (
             <p style={{ marginTop: 18 }}>
-              <Link href="/">← Back to home</Link>
+              <Link href={href("/")}>{t.common.backToHome}</Link>
             </p>
           )}
         </div>
@@ -73,17 +75,18 @@ function Inner() {
       {hasJobs && (
         <>
           <div className="wrap" style={{ maxWidth: 720, margin: "0 auto", textAlign: "center" }}>
-            <span className="label">Instant preview · keyword match</span>
+            <span className="label">{t.checkInbox.instantPreview}</span>
             <p style={{ fontSize: "var(--fs-sm)", color: "var(--muted)", marginTop: 6 }}>
-              A quick keyword match to get you started. Tomorrow&apos;s email is <b>AI-ranked</b> —
-              each role scored, with a reason it fits you.
+              {rich(t.checkInbox.instantNote, [
+                <b key="ai">{t.checkInbox.instantNoteEmphasis}</b>,
+              ])}
             </p>
           </div>
           <div className="matches">
             {jobs.map((j) => <PreviewRow key={j.posting_id} j={j} />)}
           </div>
           <div className="wrap" style={{ textAlign: "center", marginBottom: 60 }}>
-            <Link href="/">← Back to home</Link>
+            <Link href={href("/")}>{t.common.backToHome}</Link>
           </div>
         </>
       )}
@@ -96,11 +99,16 @@ export default function CheckInbox() {
     <>
       <Nav />
       <main>
-        <Suspense fallback={<div className="state-wrap"><div className="state-card"><h1>Check your inbox</h1></div></div>}>
+        <Suspense fallback={<Loading />}>
           <Inner />
         </Suspense>
       </main>
       <Footer />
     </>
   );
+}
+
+function Loading() {
+  const { t } = useI18n();
+  return <div className="state-wrap"><div className="state-card"><h1>{t.checkInbox.title}</h1></div></div>;
 }

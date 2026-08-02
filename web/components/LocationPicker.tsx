@@ -23,10 +23,12 @@
 
 import { CSSProperties, useState } from "react";
 import {
-  CITIES, COUNTRIES, REMOTE_SCOPES, REMOTE_SCOPE_LABEL, RemoteScope,
-  WORK_MODES, WORK_MODE_HINT, WORK_MODE_LABEL, WorkMode,
-  citiesFor, cityLabel, cleanWorkModes, countryOptions, qualify, slugifyCity, splitCity,
+  CITIES, COUNTRIES, REMOTE_SCOPES, RemoteScope,
+  WORK_MODES, WorkMode,
+  citiesFor, cityLabel, cleanWorkModes, qualify, slugifyCity, splitCity,
 } from "@/lib/geo";
+import { fmt } from "@/i18n/config";
+import { useI18n } from "@/i18n/context";
 
 // Offered as one-tap chips: the markets that actually carry postings for this audience.
 // Everything else is one <select> away, so this is a shortcut, not a limit.
@@ -52,6 +54,7 @@ export function LocationPicker({
   onChange: (next: LocationValue) => void;
   idPrefix?: string;
 }) {
+  const { t, locale, country } = useI18n();
   const [typed, setTyped] = useState<Record<string, string>>({});
   const { countries, cities, remoteScope } = value;
   const workModes = cleanWorkModes(value.workModes);
@@ -100,25 +103,30 @@ export function LocationPicker({
     if (!cities.includes(key)) onChange({ ...value, cities: [...cities, key] });
   };
 
-  const unselected = countryOptions().filter((c) => !countries.includes(c.code));
+  // Alphabetical *in the reader's language* — the English sort order puts Germany under G,
+  // which is nowhere near where a Czech ("Německo") or Spanish ("Alemania") reader looks.
+  const unselected = Object.keys(COUNTRIES)
+    .filter((code) => !countries.includes(code))
+    .map((code) => ({ code, name: country(code) }))
+    .sort((a, b) => a.name.localeCompare(b.name, locale));
 
   return (
     <>
       <div className="field">
-        <label>Countries you can work in</label>
+        <label>{t.location.countriesLabel}</label>
         <div className="chips">
           {[...new Set([...QUICK, ...countries])].map((code) => (
             <button key={code} type="button" className="chip"
               aria-pressed={countries.includes(code)} onClick={() => toggleCountry(code)}>
-              {COUNTRIES[code] || code}
+              {country(code)}
             </button>
           ))}
         </div>
         {unselected.length > 0 && (
           <div className="addwrap">
-            <select aria-label="Add another country" value=""
+            <select aria-label={t.location.addCountryAria} value=""
               onChange={(e) => e.target.value && toggleCountry(e.target.value)}>
-              <option value="">Add another country…</option>
+              <option value="">{t.location.addCountryOption}</option>
               {unselected.map((c) => (
                 <option key={c.code} value={c.code}>{c.name}</option>
               ))}
@@ -134,17 +142,15 @@ export function LocationPicker({
         return (
           <div className="field" key={code}>
             <label htmlFor={`${idPrefix}-city-${code}`}>
-              Cities in {COUNTRIES[code] || code}
+              {fmt(t.location.citiesIn, { country: country(code) })}
               {" — "}
               <span style={{ fontWeight: 400, color: "var(--muted)" }}>
-                {picked.length === 0
-                  ? "any city (on-site roles anywhere in the country)"
-                  : "on-site roles only in the cities you pick"}
+                {picked.length === 0 ? t.location.anyCityNote : t.location.pickedCityNote}
               </span>
             </label>
             <div className="chips">
               <button type="button" className="chip" aria-pressed={picked.length === 0}
-                onClick={() => clearCities(code)}>Any city</button>
+                onClick={() => clearCities(code)}>{t.location.anyCity}</button>
               {shown.map((slug) => (
                 <button key={slug} type="button" className="chip"
                   aria-pressed={picked.includes(slug)}
@@ -160,9 +166,9 @@ export function LocationPicker({
                 onKeyDown={(e) => {
                   if (e.key === "Enter") { e.preventDefault(); addTypedCity(code); }
                 }}
-                placeholder={`Add another town in ${COUNTRIES[code] || code}…`}
-                aria-label={`Add a city in ${COUNTRIES[code] || code}`} />
-              <button type="button" onClick={() => addTypedCity(code)}>Add</button>
+                placeholder={fmt(t.location.addTownPlaceholder, { country: country(code) })}
+                aria-label={fmt(t.location.addCityAria, { country: country(code) })} />
+              <button type="button" onClick={() => addTypedCity(code)}>{t.common.add}</button>
             </div>
           </div>
         );
@@ -170,64 +176,40 @@ export function LocationPicker({
 
       <div className="field">
         <label>
-          Work setup
+          {t.location.workSetup}
           {" — "}
           <span style={{ fontWeight: 400, color: "var(--muted)" }}>
             {workModes.length === WORK_MODES.length
-              ? "anything goes"
-              : "we'll leave out the rest"}
+              ? t.location.anythingGoes
+              : t.location.leaveOutRest}
           </span>
         </label>
         <div className="chips">
           {WORK_MODES.map((m) => (
             <button key={m} type="button" className="chip"
               aria-pressed={workModes.includes(m)}
-              title={WORK_MODE_HINT[m]}
+              title={t.geo.workModeHint[m]}
               onClick={() => toggleWorkMode(m)}>
-              {WORK_MODE_LABEL[m]}
+              {t.geo.workModeLabel[m]}
             </button>
           ))}
         </div>
-        <p style={HINT}>
-          Hybrid means part of the week in the office, so it still has to be somewhere you can
-          get to. Plenty of ads never say either way — we keep those and let the matcher read
-          the description rather than guess.
-        </p>
+        <p style={HINT}>{t.location.hybridNote}</p>
       </div>
 
       <div className="field">
-        <label htmlFor={`${idPrefix}-remote`}>Fully remote roles — how far afield?</label>
+        <label htmlFor={`${idPrefix}-remote`}>{t.location.remoteLabel}</label>
         <select id={`${idPrefix}-remote`} value={remoteScope}
           disabled={!workModes.includes("remote")}
           onChange={(e) => onChange({ ...value, remoteScope: e.target.value as RemoteScope })}>
           {REMOTE_SCOPES.map((s) => (
-            <option key={s} value={s}>{REMOTE_SCOPE_LABEL[s]}</option>
+            <option key={s} value={s}>{t.geo.remoteScope[s]}</option>
           ))}
         </select>
         {!workModes.includes("remote") && (
-          <p style={HINT}>Only applies once &ldquo;Fully remote&rdquo; is selected above.</p>
+          <p style={HINT}>{t.location.remoteDisabledNote}</p>
         )}
       </div>
     </>
   );
-}
-
-/** One-line summary of a selection, for a review step or a collapsed row. */
-export function describeLocation(v: LocationValue): string {
-  if (v.countries.length === 0) return "—";
-  const parts = v.countries.map((code) => {
-    const picked = citiesFor(code, v.cities);
-    const name = COUNTRIES[code] || code;
-    return picked.length
-      ? `${name} (${picked.map((s) => cityLabel(code, s)).join(", ")})`
-      : name;
-  });
-  const remote = v.remoteScope === "worldwide" ? "remote worldwide"
-    : v.remoteScope === "eu" ? "remote in the EU"
-      : "remote in those countries";
-  const modes = cleanWorkModes(v.workModes);
-  // Only when narrowed — "on-site, hybrid or fully remote" on every review step is noise.
-  const setup = modes.length === WORK_MODES.length
-    ? "" : ` · ${modes.map((m) => WORK_MODE_LABEL[m].toLowerCase()).join(" / ")} only`;
-  return `${parts.join(", ")} · ${remote}${setup}`;
 }
