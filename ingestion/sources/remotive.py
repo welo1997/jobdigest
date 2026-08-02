@@ -12,7 +12,13 @@ from ingestion.base import BaseSource, JobPosting, make_posting_id
 
 logger = logging.getLogger(__name__)
 
-REMOTIVE_API_URL = "https://remotive.com/api/remote-jobs?category=data"
+# No `category=data`. That parameter was here since this repo served one person hunting data
+# roles, and as of 2026-08-01 Remotive's public API **ignores it**: the filtered and unfiltered
+# calls return the same 34 jobs, spread across 13 categories with exactly one in "Data and
+# Analytics". So it narrowed nothing and merely misdescribed what this source returns —
+# a reader would reasonably assume the other eight taxonomy categories were being excluded
+# here, and act on that. Dropped for honesty; the volume is unchanged either way.
+REMOTIVE_API_URL = "https://remotive.com/api/remote-jobs"
 
 
 class RemotiveSource(BaseSource):

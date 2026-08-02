@@ -18,9 +18,18 @@ logger = logging.getLogger(__name__)
 
 REMOTEOK_API_URL = "https://remoteok.com/api"
 HEADERS = {"User-Agent": "Mozilla/5.0 (compatible; job-market-intel/1.0)"}
-# Tag-filtered feeds concentrate data/analytics roles (the unfiltered feed is
-# mostly non-tech). Results are deduped by id across tags.
-TAGS = ["data", "analytics", "machine-learning"]
+# RemoteOK answers with ~100 jobs per request whatever you ask for, and a tag selects *which*
+# 100 — so the tag list is not a filter narrowing one pool, it is how many pools we read.
+# Measured 2026-08-01: every tag below returns 60-101 jobs, and three tags were yielding 177
+# unique postings where twelve yield several times that.
+#
+# The old list was `data`, `analytics`, `machine-learning`, from when this repo served one
+# person looking for data roles. JobDigest matches nine categories, and the shortlist recall
+# predicate is `category OR keyword`, so a subscriber who asked for design or sales could
+# never be shown a RemoteOK posting — not because none existed, but because none were fetched.
+# Results are deduped by id across tags.
+TAGS = ["data", "analytics", "machine-learning", "dev", "engineer", "devops",
+        "design", "product", "marketing", "sales", "support", "finance"]
 
 
 class RemoteOKSource(BaseSource):

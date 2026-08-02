@@ -21,8 +21,10 @@ logger = logging.getLogger(__name__)
 
 HIMALAYAS_API_URL = "https://himalayas.app/jobs/api"
 HEADERS = {"User-Agent": "Mozilla/5.0 (compatible; job-market-intel/1.0)"}
+#: What we ask for. Himalayas caps a response at 20 regardless, so this is an upper bound and
+#: never a stride — see `fetch`, which advances by the count actually received.
 PAGE_SIZE = 100
-MAX_PAGES = 5
+MAX_PAGES = 15
 
 # Map common Himalayas location-restriction strings to ISO-3166 alpha-2.
 _COUNTRY_MAP = {
@@ -42,9 +44,22 @@ class HimalayasSource(BaseSource):
         return "himalayas"
 
     def fetch(self) -> list[dict]:
+        """Page by what the API *returns*, not by what we asked for.
+
+        Himalayas caps a response at 20 jobs however large a `limit` you send. The loop used
+        to advance `offset` by the requested PAGE_SIZE (100) and stop on
+        `len(jobs) < PAGE_SIZE` — so the first response, 20 jobs against a request for 100,
+        satisfied the stop condition every single time. This source has been returning exactly
+        one page since it was written; the other four pages were never fetched, and the 80
+        jobs between each offset step would have been skipped even if they had been.
+
+        Neither half is visible from the outside: 20 postings is a plausible number for a
+        remote board, and nothing logs a short page. Advancing by the received count fixes
+        both at once and needs no constant to stay in sync with their server.
+        """
         all_jobs: list[dict] = []
-        for page in range(MAX_PAGES):
-            offset = page * PAGE_SIZE
+        offset = 0
+        for _ in range(MAX_PAGES):
             try:
                 resp = requests.get(
                     HIMALAYAS_API_URL,
@@ -60,9 +75,8 @@ class HimalayasSource(BaseSource):
             if not jobs:
                 break
             all_jobs.extend(jobs)
-            if len(jobs) < PAGE_SIZE:
-                break
-        logger.info("Himalayas: fetched %d postings", len(all_jobs))
+            offset += len(jobs)
+        logger.info("Himalayas: fetched %d postings over %d pages", len(all_jobs), MAX_PAGES)
         return all_jobs
 
     def normalize(self, raw_items: list[dict]) -> list[JobPosting]:
