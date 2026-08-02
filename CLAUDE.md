@@ -35,7 +35,9 @@ enrichment/       Claude skill extraction + the routine file exchange (Snowflake
 dbt/              staging → intermediate → marts
 service/          JobDigest: webapp, matcher, digest, mailer, store, taxonomy, cvparse
   service/tests/  the tests that matter most — see "Testing"
-web/              Next.js 15 static export (landing, preferences, matches, privacy)
+web/              Next.js 15 static export; app/(site)/[locale]/ is the translated site,
+                  app/(plain)/ the rest — two root layouts, no app/layout.tsx
+  web/i18n/       the eight message catalogues + LOCALES; one definition per language
 deploy/           Compose, Caddy, systemd units, backup + matcher runbooks
 notes/            session logs, security review; notes/INFRA.local.md is gitignored
 ```
@@ -332,10 +334,15 @@ These are not style preferences. Breaking one has consequences outside this repo
    session transcripts as much as to commits.
 3. **A GET must not change state.** `/unsubscribe` renders a confirm button; the POST acts.
    Link scanners and mail clients fetch URLs found in email.
-4. **The privacy policy is a specification.** `web/app/privacy/page.tsx` makes concrete
-   promises — no IP stored, CV discarded, unsubscribed profiles erased within 30 days, data
-   sent to the matcher carries no email. Changing retention, adding a processor, or storing
-   a new field means changing that page in the same commit, or the policy becomes false.
+4. **The privacy policy is a specification.** `web/components/legal/PrivacyEn.tsx` makes
+   concrete promises — no IP stored, CV discarded, unsubscribed profiles erased within 30
+   days, data sent to the matcher carries no email. Changing retention, adding a processor,
+   or storing a new field means changing that page in the same commit, or the policy becomes
+   false. Since 2026-08-02 there are **two** copies: `PrivacyCs.tsx` says the same things in
+   Czech, and `TermsEn`/`TermsCs` alongside them. Both must move together — a translation
+   that lags is a policy that is false in one language, which is the failure the English
+   original was never allowed to have. English is authoritative and the Czech copy says so,
+   but that clause is a tie-breaker, not permission to skip the edit.
 5. **Backups contain bearer tokens.** `manage_token` grants full control of a subscription.
    Dumps are encrypted before leaving the box and must never be written into the matcher's
    Drive folder — `jobdigest-backup.sh` enforces this.

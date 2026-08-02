@@ -43,6 +43,10 @@ A subscriber fills in a short profile (roles, stack, region, work type — optio
 autofilled from a CV), confirms by email, and receives a daily digest of jobs ranked for
 them, each with a one-line explanation of the fit.
 
+The site serves in **eight languages** (en cs de sk pl es fr it) under locale-prefixed URLs,
+and the digest arrives in the one they signed up in — `profiles.language`, since a mail sent
+from a timer has no browser to ask.
+
 ### How the matching works
 
 Retrieve, then rerank. A cheap SQL/full-text prefilter builds a shortlist of ~120 candidate
@@ -77,8 +81,10 @@ identify anyone. See `deploy/matcher-routine.md`.
 
 ### Privacy design
 
-- **No accounts, no passwords.** Management is via 256-bit `secrets.token_urlsafe(32)`
-  links from the email. No credential database exists to breach.
+- **No passwords, ever.** Management is via 256-bit `secrets.token_urlsafe(32)` links from
+  the email, optionally exchanged for a session cookie so a device stays signed in; "Continue
+  with Google" is the other way in, and Google returns nothing but a confirmed address. There
+  is no credential database to breach.
 - **Double opt-in.** Nothing is sent until the address is confirmed.
 - **CVs are parse-and-discard.** The file is read in memory, a short summary line is
   derived, and the document is dropped. It is never stored or transmitted.
@@ -98,6 +104,7 @@ identify anyone. See `deploy/matcher-routine.md`.
 | Store | Postgres 16 (`postings`, `profiles`, `matches`, `digest_sends`, `suppression`, `events`) |
 | Matching | Claude (`claude-haiku-4-5`) or the claude.ai routine |
 | Web | Next.js 15 static export, Caddy, Cloudflare |
+| Languages | en cs de sk pl es fr it — `web/i18n/` for the site, `service/i18n.py` for the mail |
 | Email | Resend (EU), RFC 8058 one-click unsubscribe |
 | Host | Hetzner VPS, Docker Compose, systemd timers |
 
@@ -240,7 +247,7 @@ ingestion/        source adapters (BaseSource) + Snowflake load
 enrichment/       Claude skill extraction + the routine file exchange
 dbt/              staging → intermediate → marts
 service/          JobDigest: API, matcher, digest, mailer, store, taxonomy
-web/              Next.js landing + preferences/matches pages
+web/              Next.js landing + preferences/matches pages, in eight languages
 deploy/           Docker Compose, Caddy, systemd timers, runbooks
 notes/            session logs and the security review
 ```
