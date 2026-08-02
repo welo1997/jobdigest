@@ -197,10 +197,16 @@ def gather(include_cz: bool) -> list[JobPosting]:
     # Adzuna only if keys are present.
     try:
         from ingestion.sources.adzuna import AdzunaSource
-        AdzunaSource()  # raises KeyError if creds missing
+        AdzunaSource()  # raises if creds are missing, empty, or unresolved op:// refs
         sources.append(AdzunaSource)
-    except Exception:
-        logger.info("Adzuna skipped (no ADZUNA_APP_ID / ADZUNA_API_KEY in env).")
+    except KeyError as exc:
+        name = exc.args[0] if exc.args else "ADZUNA_APP_ID / ADZUNA_API_KEY"
+        logger.info("Adzuna skipped (no %s in env).", name)
+    except Exception as exc:
+        # Not the missing-key case, so say which one it is. A fixed "no keys in env" line
+        # here sent you looking for an absent variable when the variable was present and
+        # holding an unresolved 1Password reference.
+        logger.info("Adzuna skipped: %s", exc)
     if include_cz:
         from ingestion.sources.jobscz import JobsCzSource
         from ingestion.sources.startupjobs import StartupJobsSource

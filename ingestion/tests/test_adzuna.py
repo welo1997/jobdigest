@@ -121,3 +121,37 @@ def test_a_transient_page_failure_is_still_skipped(monkeypatch):
 
     monkeypatch.setattr(requests, "get", _boom)
     assert AdzunaSource(app_id="test", api_key="test").fetch() == []
+
+
+# --- credentials that are present but are not credentials ------------------------------
+#
+# `os.environ["ADZUNA_APP_ID"]` only raises when the variable is *absent*. A variable that
+# is present and holds an empty string, or an unresolved `op://vault/item/field` 1Password
+# reference, reaches the API verbatim — so the source was constructed, appended to
+# gather()'s list, and every call in the run rejected. The repo's own .env holds op://
+# references, so this is the configuration the next person actually meets.
+
+def test_an_unresolved_1password_reference_is_refused_before_any_request(monkeypatch):
+    monkeypatch.setenv("ADZUNA_APP_ID", "op://Private Vault/Adzuna/app_id")
+    monkeypatch.setenv("ADZUNA_API_KEY", "op://Private Vault/Adzuna/credential")
+
+    def _no_calls(*a, **k):
+        raise AssertionError("Adzuna was called with an unresolved op:// reference")
+
+    monkeypatch.setattr(requests, "get", _no_calls)
+    with pytest.raises(AdzunaAuthError, match="1Password"):
+        AdzunaSource()
+
+
+def test_an_empty_credential_is_refused_rather_than_sent(monkeypatch):
+    monkeypatch.setenv("ADZUNA_APP_ID", "")
+    monkeypatch.setenv("ADZUNA_API_KEY", "")
+    with pytest.raises(AdzunaAuthError, match="empty"):
+        AdzunaSource()
+
+
+def test_a_real_looking_credential_still_constructs(monkeypatch):
+    """The guard must not reject the working configuration it exists to protect."""
+    monkeypatch.setenv("ADZUNA_APP_ID", "12ab34cd")
+    monkeypatch.setenv("ADZUNA_API_KEY", "0123456789abcdef0123456789abcdef")
+    assert AdzunaSource().source_name == "adzuna"

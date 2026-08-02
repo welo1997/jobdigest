@@ -86,6 +86,28 @@ class AdzunaSource(BaseSource):
     ):
         self._app_id = app_id or os.environ["ADZUNA_APP_ID"]
         self._api_key = api_key or os.environ["ADZUNA_API_KEY"]
+        # Validate the *shape* here, not on the first HTTP call. A missing key raises
+        # KeyError above and `gather` skips the source; a key that is present but not a
+        # credential used to sail through and be sent to Adzuna verbatim, so every call in
+        # the run was rejected and the source only admitted it after burning them. Both
+        # known non-credentials are silent to the eye in a .env:
+        #   - an unresolved `op://vault/item/field` 1Password reference, which is what this
+        #     repo's .env actually holds — it resolves only under `op run --env-file=.env`,
+        #     and without that the literal string is what reaches the API;
+        #   - an empty value, which `os.environ[...]` returns happily rather than raising,
+        #     so it never reaches the KeyError path that would have skipped the source.
+        for name, value in (("ADZUNA_APP_ID", self._app_id),
+                            ("ADZUNA_API_KEY", self._api_key)):
+            if not value.strip():
+                raise AdzunaAuthError(
+                    f"{name} is set but empty — Adzuna would reject every call this run."
+                )
+            if value.startswith("op://"):
+                raise AdzunaAuthError(
+                    f"{name} is an unresolved 1Password reference, not a credential. "
+                    "Run under `op run --env-file=.env -- <command>` so op resolves it, or "
+                    "put the literal value in the environment."
+                )
 
     @property
     def source_name(self) -> str:
