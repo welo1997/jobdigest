@@ -93,6 +93,26 @@ const de: Messages = {
     },
   },
 
+  educationLevels: {
+    secondary: "Schulabschluss / Abitur",
+    vocational: "Ausbildung",
+    bachelor: "Bachelor",
+    master: "Master / Diplom",
+    doctorate: "Promotion / PhD",
+  },
+
+  education: {
+    label: "Abschluss, den eine Stelle verlangen darf",
+    anyLevel: "alles möglich",
+    narrowed: "den Rest lassen wir weg",
+    note:
+      "Die meisten Anzeigen nennen gar keine Anforderung — die behalten wir alle und lassen stattdessen den Matcher die Beschreibung lesen. Weggelassen werden nur die wenigen, die ausdrücklich einen Abschluss verlangen, den du nicht hast.",
+    fieldLabel: "Was du studiert hast (optional)",
+    fieldPlaceholder: "Wirtschaft, Informatik…",
+    fieldHint:
+      "Wird nie als Filter verwendet — es hilft dem Matcher nur einzuschätzen, ob eine Rolle zu deinem Hintergrund passt.",
+  },
+
   location: {
     countriesLabel: "Länder, in denen du arbeiten kannst",
     addCountryAria: "Weiteres Land hinzufügen",
@@ -271,26 +291,6 @@ const de: Messages = {
     tagHybrid: "Hybrid",
     tagRemote: "Remote",
     tagFreelance: "Freelance",
-  },
-
-  checkInbox: {
-    title: "Schau in dein Postfach",
-    body: "Wir haben einen Bestätigungslink an {0} geschickt. Klick ihn an — dein täglicher Digest startet morgen früh um 7:00.",
-    inMeantime: " In der Zwischenzeit: aktuelle Jobs, die zu deiner Suche passen:",
-    doubleOptIn: "Double Opt-in · DSGVO-Einwilligung",
-    yourInbox: "dein Postfach",
-    instantPreview: "Sofort-Vorschau · Stichwort-Treffer",
-    instantNote:
-      "Ein schneller Stichwort-Abgleich für den Anfang. Die E-Mail von morgen ist {0} — jede Stelle bewertet, mit einer Begründung, warum sie passt.",
-    instantNoteEmphasis: "KI-sortiert",
-  },
-
-  manage: {
-    sentTitle: "Schau in dein Postfach",
-    sentBody:
-      "Falls {0} ein JobDigest-Abo hat, haben wir gerade den privaten Einstellungslink dorthin geschickt. Öffne ihn, um Einstellungen zu ändern, zu pausieren oder dich abzumelden — ohne Passwort.",
-    didntGet: "Nichts bekommen? Schau in den Spam oder versuch es in ein paar Minuten erneut.",
-    title: "Bei JobDigest anmelden",
     hideHint:
       "Schon beworben oder kein Interesse? Hak die Jobs ab und blende sie aus — sie verschwinden von dieser Seite und aus deiner täglichen E-Mail.",
     selectAll: "Alle angezeigten auswählen",
@@ -327,6 +327,26 @@ const de: Messages = {
       one: "{shown} von {n} ausgeblendeten Treffer angezeigt",
       other: "{shown} von {n} ausgeblendeten Treffern angezeigt",
     },
+  },
+
+  checkInbox: {
+    title: "Schau in dein Postfach",
+    body: "Wir haben einen Bestätigungslink an {0} geschickt. Klick ihn an — dein täglicher Digest startet morgen früh um 7:00.",
+    inMeantime: " In der Zwischenzeit: aktuelle Jobs, die zu deiner Suche passen:",
+    doubleOptIn: "Double Opt-in · DSGVO-Einwilligung",
+    yourInbox: "dein Postfach",
+    instantPreview: "Sofort-Vorschau · Stichwort-Treffer",
+    instantNote:
+      "Ein schneller Stichwort-Abgleich für den Anfang. Die E-Mail von morgen ist {0} — jede Stelle bewertet, mit einer Begründung, warum sie passt.",
+    instantNoteEmphasis: "KI-sortiert",
+  },
+
+  manage: {
+    sentTitle: "Schau in dein Postfach",
+    sentBody:
+      "Falls {0} ein JobDigest-Abo hat, haben wir gerade den privaten Einstellungslink dorthin geschickt. Öffne ihn, um Einstellungen zu ändern, zu pausieren oder dich abzumelden — ohne Passwort.",
+    didntGet: "Nichts bekommen? Schau in den Spam oder versuch es in ein paar Minuten erneut.",
+    title: "Bei JobDigest anmelden",
     body: "Keine Passwörter. Gib deine Adresse ein und wir schicken dir einen sicheren Link — ein Klick und du bist angemeldet, und bleibst es auf diesem Gerät.",
     googleNoSub:
       "Dieses Google-Konto hat noch kein Abo. Registriere dich zuerst, danach kannst du dich mit Google anmelden.",

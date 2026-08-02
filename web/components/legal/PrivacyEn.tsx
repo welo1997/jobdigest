@@ -24,17 +24,18 @@ export default function PrivacyEn() {
           <li><b>Your email address</b> — so we can send your digest and confirmation.</li>
           <li><b>Your search preferences</b> — roles, skills/keywords, the countries and cities
             you want to work in, which work setups you&apos;ll take (on-site, hybrid, fully
-            remote), how far afield a fully remote role may be, type of work, and
+            remote), which education requirements you&apos;ll accept and, if you choose to give
+            it, what you studied, how far afield a fully remote role may be, type of work, and
             frequency, as you enter them, and the language you read the site in — so your emails
               arrive in it too.</li>
           <li><b>CV-derived signals</b> — if you upload a CV (optional), see section 4.</li>
           <li><b>Delivery records</b> — which jobs we&apos;ve already emailed you, so we never send
             the same posting twice, plus timestamps of sends and confirmation.</li>
-          <li><b>Anonymous usage statistics</b> — which pages are viewed and which steps of the
           <li><b>Jobs you hide</b> — if you hide a job from your matches page (because you
             already applied, or it isn&apos;t for you), we record that choice against your
             subscription so we stop listing and emailing it. You can see and undo every one of
             them on your hidden-jobs page.</li>
+          <li><b>Anonymous usage statistics</b> — which pages are viewed and which steps of the
             signup form are reached or fail, so we can fix what&apos;s confusing. See section 6.</li>
         </ul>
         <p>We do <b>not</b> collect names, phone numbers, payment details, or track you across other
@@ -54,10 +55,12 @@ export default function PrivacyEn() {
           &quot;Do Not Track&quot; and Global Privacy Control settings automatically.</p>
 
         <h2>4. Your CV — parse &amp; discard</h2>
-        <p>If you choose to upload a CV, we read it <b>once, in memory</b>, to detect relevant skills
-          and roles, and then <b>delete the file immediately</b>. We never store the document itself,
-          and it is never sent to any third party. Only a short derived summary — for example
-          &quot;Detected: data engineering, dbt, Snowflake · ~4 yrs&quot; — is saved.</p>
+        <p>If you choose to upload a CV, we read it <b>once, in memory</b>, to detect relevant skills,
+          roles and your highest level of education, and then <b>delete the file immediately</b>. We
+          never store the document itself, and it is never sent to any third party. Only a short
+          derived summary — for example &quot;Detected: data engineering, dbt, Snowflake · ~4 yrs ·
+          master&apos;s in Economics&quot; — is saved. The education level we detect is only used to
+          fill in the form for you, where you can change it before subscribing.</p>
         <p>That summary is part of your matching profile, so it is processed by our matching provider
           along with your other preferences (section 5). The document itself, and any detail in it we
           did not summarise — employers, dates, contact details, anything you wrote — is gone the
@@ -85,7 +88,8 @@ export default function PrivacyEn() {
         <ul>
           <li>a random identifier — <b>not your email address, and not your name</b>;</li>
           <li>your stated preferences (roles, skills, the countries and cities you chose, the
-            work setups you&apos;ll take, type of work);</li>
+            work setups you&apos;ll take, the education requirements you&apos;ll accept and what
+            you studied if you gave it, type of work);</li>
           <li>your CV-derived summary line, if you uploaded one (section 4);</li>
           <li>the public job listings we are asking it to rank.</li>
         </ul>

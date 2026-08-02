@@ -22,6 +22,11 @@ create table if not exists postings (
     city           text,                            -- resolved slug ('prague'), null = unknown
     remote_signal  boolean,                          -- true only when FULLY remote, not hybrid
     work_mode      text,                             -- remote | hybrid | onsite | null=unknown
+    -- Lowest qualification the ad demands (migration 014): secondary | vocational | bachelor |
+    -- master | doctorate | null=never said. Null for ~97% of rows and for 100% of the CZ/SK
+    -- inventory, which carries no description text at all — the gate keeps nulls and defers to
+    -- the AI matcher. See service/education.py before relying on this.
+    education_min  text,
     salary_raw     text,
     currency       text,
     posted_at      date,
@@ -54,6 +59,8 @@ create index if not exists idx_postings_geo         on postings (country_code, c
 create index if not exists idx_postings_filters     on postings (role_category, region, seniority, work_type);
 create index if not exists idx_postings_eligibility on postings (eligibility);
 create index if not exists idx_postings_dedup       on postings (dedup_key);
+-- Partial: only ~3% of rows carry a requirement, and the null-majority path never needs it.
+create index if not exists idx_postings_education   on postings (education_min) where education_min is not null;
 create index if not exists idx_postings_title_trgm  on postings using gin (title gin_trgm_ops);
 create index if not exists idx_postings_search_tsv  on postings using gin (search_tsv);
 
@@ -77,6 +84,11 @@ create table if not exists profiles (
     -- Which work setups they'll accept (migration 012). All three = no filter; a posting whose
     -- work_mode is unknown always passes and is judged by the matcher. See service/geo.py.
     work_modes      text[]  not null default '{onsite,hybrid,remote}',
+    -- Which education requirements they'll accept (migration 014). All five = no filter; a
+    -- posting whose requirement is unknown always passes. `education_field` is free text for
+    -- the AI matcher and is never filtered on. See service/education.py.
+    education_levels text[] not null default '{secondary,vocational,bachelor,master,doctorate}',
+    education_field  text,
     regions         text[]  not null default '{cz,eu,worldwide}',   -- derived, coarse
     role_categories text[]  not null default '{}',  -- empty = all data roles
     work_types      text[]  not null default '{permanent,freelance/contract}',

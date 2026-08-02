@@ -87,6 +87,26 @@ const en: Messages = {
     },
   },
 
+  educationLevels: {
+    secondary: "High school",
+    vocational: "Vocational / apprenticeship",
+    bachelor: "Bachelor's",
+    master: "Master's",
+    doctorate: "Doctorate / PhD",
+  },
+
+  education: {
+    label: "Education a job may ask for",
+    anyLevel: "anything goes",
+    narrowed: "we'll leave out the rest",
+    note:
+      "Most ads never state a requirement at all — we keep every one of those and let the matcher read the description instead. This only leaves out the few that spell out a qualification you don't have.",
+    fieldLabel: "What you studied (optional)",
+    fieldPlaceholder: "Economics, Computer Science…",
+    fieldHint:
+      "Never used as a filter — it only helps the matcher judge whether a role suits your background.",
+  },
+
   location: {
     countriesLabel: "Countries you can work in",
     addCountryAria: "Add another country",
@@ -262,26 +282,6 @@ const en: Messages = {
     tagHybrid: "Hybrid",
     tagRemote: "Remote",
     tagFreelance: "Freelance",
-  },
-
-  checkInbox: {
-    title: "Check your inbox",
-    body: "We sent a confirmation link to {0}. Click it and your daily digest starts tomorrow morning at 7:00.",
-    inMeantime: " In the meantime, here are live jobs matching your search:",
-    doubleOptIn: "Double opt-in · GDPR consent",
-    yourInbox: "your inbox",
-    instantPreview: "Instant preview · keyword match",
-    instantNote:
-      "A quick keyword match to get you started. Tomorrow's email is {0} — each role scored, with a reason it fits you.",
-    instantNoteEmphasis: "AI-ranked",
-  },
-
-  manage: {
-    sentTitle: "Check your inbox",
-    sentBody:
-      "If {0} has a JobDigest subscription, we've just emailed its private settings link. Open it to edit your preferences, pause, or unsubscribe — no password needed.",
-    didntGet: "Didn't get it? Check spam, or try again in a few minutes.",
-    title: "Log in to JobDigest",
     hideHint:
       "Already applied, or not interested? Tick those jobs and hide them — they leave this page and your daily email.",
     selectAll: "Select all shown",
@@ -310,6 +310,26 @@ const en: Messages = {
       one: "Showing {shown} of {n} hidden job",
       other: "Showing {shown} of {n} hidden jobs",
     },
+  },
+
+  checkInbox: {
+    title: "Check your inbox",
+    body: "We sent a confirmation link to {0}. Click it and your daily digest starts tomorrow morning at 7:00.",
+    inMeantime: " In the meantime, here are live jobs matching your search:",
+    doubleOptIn: "Double opt-in · GDPR consent",
+    yourInbox: "your inbox",
+    instantPreview: "Instant preview · keyword match",
+    instantNote:
+      "A quick keyword match to get you started. Tomorrow's email is {0} — each role scored, with a reason it fits you.",
+    instantNoteEmphasis: "AI-ranked",
+  },
+
+  manage: {
+    sentTitle: "Check your inbox",
+    sentBody:
+      "If {0} has a JobDigest subscription, we've just emailed its private settings link. Open it to edit your preferences, pause, or unsubscribe — no password needed.",
+    didntGet: "Didn't get it? Check spam, or try again in a few minutes.",
+    title: "Log in to JobDigest",
     body: "No passwords here. Enter your address and we'll email you a secure link — click it and you're signed in, and you'll stay signed in on this device.",
     googleNoSub:
       "That Google account isn't subscribed yet. Sign up first, then you can sign in with Google.",

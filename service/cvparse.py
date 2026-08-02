@@ -19,7 +19,9 @@ import io
 import re
 import zipfile
 
-from service import taxonomy
+from typing import Optional
+
+from service import education, taxonomy
 
 MAX_BYTES = 8 * 1024 * 1024          # reject anything over 8 MB (compressed / on-the-wire)
 # A DOCX is a ZIP; the 8 MB cap is on the *compressed* size, so a decompression bomb can
@@ -182,6 +184,51 @@ def _sectors(text: str) -> list[str]:
     return sorted(set(out))
 
 
+# --- education ----------------------------------------------------------------
+# Deliberately a *narrower* vocabulary than service/education.py's. That module reads job ads,
+# which argue about requirements in prose; a CV states a qualification, usually as a title or a
+# section heading. Czech and Slovak CVs mostly carry the abbreviated title rather than the word
+# — "Ing." is a master's, "Bc." a bachelor's — and without those a Czech CV reads as no
+# education at all.
+_CV_EDUCATION: tuple[tuple[str, "re.Pattern[str]"], ...] = (
+    ("doctorate", re.compile(
+        r"\bph\.?\s?d\.?\b|\bdoctorate\b|\bdoctoral\b|\bdoktor\w*|\bcsc\.\b|\brndr\.\b", re.I)),
+    ("master", re.compile(
+        r"\bmaster'?s?\b|\bm\.?sc\.?\b|\bm\.?a\.?\b|\bmba\b|\bmagistr\w*|\bmgr\.?\b|"
+        r"\bing\.\b|\bmga\.\b|\bdipl\.?[- ]ing\b", re.I)),
+    ("bachelor", re.compile(
+        r"\bbachelor'?s?\b|\bb\.?sc\.?\b|\bb\.?a\.?\b|\bbakal[áa][řr]\w*|\bbc\.\b", re.I)),
+    ("vocational", re.compile(
+        r"\bapprenticeship\b|\bvocational\b|\bberufsausbildung\b|\bvyu[čc]en\w*|"
+        r"\bv[ýy]u[čc]n[íi]\s+list\b|\bst[řr]edn[íi]\s+odborn\w*", re.I)),
+    ("secondary", re.compile(
+        r"\bhigh\s+school\b|\bsecondary\s+school\b|\bgymn[áa]zium\b|\bgymn[áa]zia\b|"
+        r"\bst[řr]edn[íi]\s+[šs]kola\b|\bmaturit(?!y)\w*|\babitur\b", re.I)),
+)
+
+# "MSc in Economics", "Bachelor of Computer Science", "studium informatiky". Stops at the first
+# comma, bracket, digit or line break — a CV line is "MSc in Economics, Charles University 2019"
+# far more often than it is a sentence, and the university is not the field.
+_CV_FIELD = re.compile(
+    r"\b(?:degree|bachelor'?s?|master'?s?|ph\.?\s?d\.?|m\.?sc\.?|b\.?sc\.?|mba|studium|"
+    r"studi[uo]m|obor)\b[^\S\n]*(?:degree[^\S\n]*)?\b(?:in|of|v|z|oboru)\b[^\S\n]*"
+    r"([A-Za-zÀ-ž][A-Za-zÀ-ž&/ -]{2,60})", re.I)
+
+
+def _education(text: str) -> tuple[Optional[str], Optional[str]]:
+    """(highest level found, field of study) — either may be None.
+
+    Highest, not lowest: this reads what somebody *has*, whereas
+    `education.classify_requirement` reads what a job *demands*, and the safe direction is
+    opposite in the two cases. Over-reading a CV would narrow the subscriber's own digest;
+    over-reading an ad would delete a job from it.
+    """
+    level = next((lv for lv, pat in _CV_EDUCATION if pat.search(text or "")), None)
+    m = _CV_FIELD.search(text or "")
+    field = " ".join(m.group(1).split()).strip(" -/&") if m else None
+    return level, (field or None)
+
+
 def extract_signals(text: str) -> dict:
     """Turn raw CV text into storable profile signals. Never returns raw CV content."""
     text = text or ""
@@ -190,6 +237,7 @@ def extract_signals(text: str) -> dict:
     roles = _roles(text)
     sectors = _sectors(text)
     seniorities = _seniority(text, years)
+    edu_level, edu_field = _education(text)
 
     bits = []
     if roles:
@@ -201,6 +249,9 @@ def extract_signals(text: str) -> dict:
         bits.append(f"~{years} yr{'s' if years != 1 else ''}")
     if sectors:
         bits.append(sectors[0])
+    if edu_level:
+        bits.append(education.LEVEL_LABELS[edu_level].lower()
+                    + (f" in {edu_field}" if edu_field else ""))
     summary = "Detected: " + " · ".join(bits) if bits else "We couldn't detect much — add details yourself."
 
     return {
@@ -209,6 +260,11 @@ def extract_signals(text: str) -> dict:
         "seniorities": seniorities,
         "sectors": sectors,
         "years_experience": years,
+        # The highest qualification detected. The browser uses it to *pre-tick* the education
+        # checkboxes so the person can see and correct it — it is deliberately not applied as
+        # a filter server-side. See `merge_into_profile`.
+        "education": edu_level,
+        "education_field": edu_field,
         "summary": summary,
     }
 
@@ -232,6 +288,17 @@ def merge_into_profile(data: dict, signals: dict) -> dict:
     _union("role_categories", signals.get("role_categories", []))
     _union("seniorities", signals.get("seniorities", []))
     _union("sectors", signals.get("sectors", []))
+
+    # Field of study is additive and harmless: it reaches the AI matcher as context and is
+    # never filtered on, so a wrong guess costs a slightly worse-phrased prompt.
+    if not data.get("education_field") and signals.get("education_field"):
+        data["education_field"] = signals["education_field"]
+    # `education_levels` is deliberately NOT set from the CV, even though the level was
+    # detected. Accepting levels "up to what you have" *narrows* the digest, so a CV that never
+    # spells out a master's would silently delete every master-requiring role from it — a
+    # filter the subscriber never chose, with nothing failing anywhere, which is the exact
+    # failure mode CLAUDE.md's taxonomy rules exist to prevent. The detected level goes back to
+    # the browser in `signals["education"]` and pre-ticks the boxes, where a human can see it.
 
     data["has_cv"] = True
     data["cv_summary"] = signals.get("summary")

@@ -86,6 +86,26 @@ const it: Messages = {
     },
   },
 
+  educationLevels: {
+    secondary: "Diploma di maturità",
+    vocational: "Formazione professionale",
+    bachelor: "Laurea triennale",
+    master: "Laurea magistrale",
+    doctorate: "Dottorato / PhD",
+  },
+
+  education: {
+    label: "Titolo di studio che un ruolo può richiedere",
+    anyLevel: "qualsiasi",
+    narrowed: "escluderemo il resto",
+    note:
+      "La maggior parte degli annunci non indica alcun requisito: li teniamo tutti e lasciamo che sia il matcher a leggere la descrizione. Escludiamo solo i pochi che chiedono esplicitamente un titolo che non hai.",
+    fieldLabel: "Cosa hai studiato (facoltativo)",
+    fieldPlaceholder: "Economia, Informatica…",
+    fieldHint:
+      "Non viene mai usato come filtro: aiuta solo il matcher a valutare se un ruolo è in linea con il tuo percorso.",
+  },
+
   location: {
     countriesLabel: "Paesi in cui puoi lavorare",
     addCountryAria: "Aggiungi un altro paese",
@@ -264,26 +284,6 @@ const it: Messages = {
     tagHybrid: "Ibrido",
     tagRemote: "Da remoto",
     tagFreelance: "Freelance",
-  },
-
-  checkInbox: {
-    title: "Controlla la posta",
-    body: "Abbiamo inviato un link di conferma a {0}. Cliccalo e il tuo digest quotidiano parte domani mattina alle 7:00.",
-    inMeantime: " Nel frattempo, ecco offerte attive che corrispondono alla tua ricerca:",
-    doubleOptIn: "Double opt-in · consenso GDPR",
-    yourInbox: "la tua casella",
-    instantPreview: "Anteprima immediata · corrispondenza per parole chiave",
-    instantNote:
-      "Una rapida corrispondenza per parole chiave, tanto per iniziare. L'e-mail di domani invece è {0} — ogni posizione con un punteggio e il motivo per cui ti si addice.",
-    instantNoteEmphasis: "ordinata dall'IA",
-  },
-
-  manage: {
-    sentTitle: "Controlla la posta",
-    sentBody:
-      "Se {0} ha un abbonamento JobDigest, abbiamo appena inviato lì il suo link privato alle impostazioni. Aprilo per modificare le preferenze, mettere in pausa o disiscriverti — senza password.",
-    didntGet: "Non è arrivata? Controlla lo spam o riprova tra qualche minuto.",
-    title: "Accedi a JobDigest",
     hideHint:
       "Ti sei già candidato o non ti interessa? Spunta quelle offerte e nascondile — spariscono da questa pagina e dalla tua e-mail quotidiana.",
     selectAll: "Seleziona tutte quelle mostrate",
@@ -314,6 +314,26 @@ const it: Messages = {
       one: "In elenco: {shown} di {n} offerta nascosta",
       other: "In elenco: {shown} di {n} offerte nascoste",
     },
+  },
+
+  checkInbox: {
+    title: "Controlla la posta",
+    body: "Abbiamo inviato un link di conferma a {0}. Cliccalo e il tuo digest quotidiano parte domani mattina alle 7:00.",
+    inMeantime: " Nel frattempo, ecco offerte attive che corrispondono alla tua ricerca:",
+    doubleOptIn: "Double opt-in · consenso GDPR",
+    yourInbox: "la tua casella",
+    instantPreview: "Anteprima immediata · corrispondenza per parole chiave",
+    instantNote:
+      "Una rapida corrispondenza per parole chiave, tanto per iniziare. L'e-mail di domani invece è {0} — ogni posizione con un punteggio e il motivo per cui ti si addice.",
+    instantNoteEmphasis: "ordinata dall'IA",
+  },
+
+  manage: {
+    sentTitle: "Controlla la posta",
+    sentBody:
+      "Se {0} ha un abbonamento JobDigest, abbiamo appena inviato lì il suo link privato alle impostazioni. Aprilo per modificare le preferenze, mettere in pausa o disiscriverti — senza password.",
+    didntGet: "Non è arrivata? Controlla lo spam o riprova tra qualche minuto.",
+    title: "Accedi a JobDigest",
     body: "Qui niente password. Inserisci il tuo indirizzo e ti manderemo un link sicuro — un clic e sei dentro, e resti collegato su questo dispositivo.",
     googleNoSub:
       "Questo account Google non ha ancora un abbonamento. Registrati prima, poi potrai accedere con Google.",

@@ -92,6 +92,26 @@ const sk: Messages = {
     },
   },
 
+  educationLevels: {
+    secondary: "Stredná škola",
+    vocational: "Vyučený/á v odbore",
+    bachelor: "Bakalár",
+    master: "Magister / Ing.",
+    doctorate: "Doktorát / PhD.",
+  },
+
+  education: {
+    label: "Vzdelanie, ktoré môže inzerát požadovať",
+    anyLevel: "čokoľvek",
+    narrowed: "ostatné vynecháme",
+    note:
+      "Väčšina inzerátov vzdelanie neuvádza — tie všetky ponìhávame a popis namiesto toho prečíta matcher. Vynecháme len tých pár, ktoré výslovne žiadajú titul, ktorý nemáte.",
+    fieldLabel: "Čo ste študovali (nepovinné)",
+    fieldPlaceholder: "Ekonómia, Informatika…",
+    fieldHint:
+      "Nikdy sa nepoužíva ako filter — len pomáha matcheru posúdiť, či k vám rola sedí.",
+  },
+
   location: {
     countriesLabel: "Krajiny, kde môžete pracovať",
     addCountryAria: "Pridať ďalšiu krajinu",
@@ -287,26 +307,6 @@ const sk: Messages = {
     tagHybrid: "Hybridne",
     tagRemote: "Na diaľku",
     tagFreelance: "Freelance",
-  },
-
-  checkInbox: {
-    title: "Skontrolujte e-mail",
-    body: "Poslali sme potvrdzovací odkaz na {0}. Kliknite naň a denný prehľad začne zajtra ráno o 7:00.",
-    inMeantime: " Medzitým sú tu aktuálne ponuky zodpovedajúce vášmu hľadaniu:",
-    doubleOptIn: "Dvojité potvrdenie · súhlas podľa GDPR",
-    yourInbox: "vašu schránku",
-    instantPreview: "Okamžitá ukážka · zhoda podľa kľúčových slov",
-    instantNote:
-      "Rýchla zhoda podľa kľúčových slov na úvod. Zajtrajší e-mail už {0} — každá ponuka obodovaná a s dôvodom, prečo vám sadne.",
-    instantNoteEmphasis: "zoradí AI",
-  },
-
-  manage: {
-    sentTitle: "Skontrolujte e-mail",
-    sentBody:
-      "Ak má {0} odber JobDigest, práve sme na túto adresu poslali súkromný odkaz na nastavenia. Otvorte ho a upravte si nastavenia, pozastavte odber alebo ho zrušte — bez hesla.",
-    didntGet: "Neprišlo? Skontrolujte spam alebo to o pár minút skúste znova.",
-    title: "Prihláste sa do JobDigest",
     hideHint:
       "Už ste sa prihlásili, alebo vás ponuka nezaujíma? Označte ju a skryte — zmizne z tejto stránky aj z denného e-mailu.",
     selectAll: "Označiť všetko zobrazené",
@@ -349,6 +349,26 @@ const sk: Messages = {
       few: "Zobrazené {shown} z {n} skrytých ponúk",
       other: "Zobrazené {shown} z {n} skrytých ponúk",
     },
+  },
+
+  checkInbox: {
+    title: "Skontrolujte e-mail",
+    body: "Poslali sme potvrdzovací odkaz na {0}. Kliknite naň a denný prehľad začne zajtra ráno o 7:00.",
+    inMeantime: " Medzitým sú tu aktuálne ponuky zodpovedajúce vášmu hľadaniu:",
+    doubleOptIn: "Dvojité potvrdenie · súhlas podľa GDPR",
+    yourInbox: "vašu schránku",
+    instantPreview: "Okamžitá ukážka · zhoda podľa kľúčových slov",
+    instantNote:
+      "Rýchla zhoda podľa kľúčových slov na úvod. Zajtrajší e-mail už {0} — každá ponuka obodovaná a s dôvodom, prečo vám sadne.",
+    instantNoteEmphasis: "zoradí AI",
+  },
+
+  manage: {
+    sentTitle: "Skontrolujte e-mail",
+    sentBody:
+      "Ak má {0} odber JobDigest, práve sme na túto adresu poslali súkromný odkaz na nastavenia. Otvorte ho a upravte si nastavenia, pozastavte odber alebo ho zrušte — bez hesla.",
+    didntGet: "Neprišlo? Skontrolujte spam alebo to o pár minút skúste znova.",
+    title: "Prihláste sa do JobDigest",
     body: "Žiadne heslá. Zadajte svoju adresu a pošleme vám bezpečný odkaz — kliknutím sa prihlásite a na tomto zariadení zostanete prihlásení.",
     googleNoSub:
       "Tento účet Google zatiaľ odber nemá. Najprv sa zaregistrujte, potom sa budete môcť prihlásiť cez Google.",

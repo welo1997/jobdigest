@@ -35,10 +35,14 @@ DB is Supabase). The routine only ever touches the two files.
                   "regions": ["cz","eu"],
                   "work_modes": ["hybrid","remote"],
                   "work_setup": "hybrid or fully remote roles only",
+                  "education_levels": ["secondary","vocational","bachelor"],
+                  "education": "only roles requiring High school, Vocational / apprenticeship or Bachelor's",
+                  "education_field": "Economics",
                   "sectors": ["ecommerce"], "years_experience": 3, "cv_summary": "..."},
       "candidates": [
         {"posting_id": "md5…", "title": "...", "company": "...", "location": "...",
          "region": "cz", "city": "Brno", "remote": false, "work_mode": "hybrid",
+         "education_min": null,
          "seniority": "unstated", "work_type": "permanent",
          "part_time": false,
          "salary": "45 000 – 90 000 Kč", "description": "…≤320 chars…"}
@@ -120,6 +124,23 @@ always emits them, which is why `ROUTINE_INSTRUCTIONS` has no such clause.
 > the field was empty. Note `"work_mode": "remote"` and `"remote": true` are the same claim
 > said twice; `"hybrid"` means part of the week in that city, so the location rule above
 > applies to it in full.
+>
+> **Education**: `"education_levels"` / `"education"` appear on a profile **only when the
+> subscriber has ruled some requirement levels out** — most have not, and their absence means
+> anything goes. When present, a candidate whose `"education_min"` is above every level they
+> accept is not a fit: omit it, or score it below 4.
+>
+> `"education_min": null` is by far the most common value and means **the requirement was never
+> read**, not that there is none. About 97% of postings carry null, and every Czech and Slovak
+> posting does, because those boards ship no description text at all. So where there *is* a
+> description, read it and judge; and **never drop a posting merely for being silent** — a
+> requirement nobody wrote down is not a requirement. A degree named as "preferred", "nice to
+> have" or "or equivalent experience" disqualifies nobody, and the classifier already refuses
+> to record those.
+>
+> `"education_field"` is what the subscriber studied. It is context for judging how well a role
+> suits them and is **never** a reason to exclude one — whether a degree is "in a related field"
+> is your judgement to make, which is exactly why it is not a filter.
 >
 > **Work schedule**: if the profile has `"part_time_only": true`, a full-time posting is not
 > what they asked for — score it at most 5 (it still appears on their matches page, it just

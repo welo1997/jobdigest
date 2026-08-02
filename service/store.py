@@ -21,7 +21,7 @@ import psycopg2
 import psycopg2.extras
 from psycopg2.pool import ThreadedConnectionPool
 
-from service import geo, i18n, taxonomy
+from service import education, geo, i18n, taxonomy
 
 _POOL: Optional[ThreadedConnectionPool] = None
 
@@ -62,7 +62,7 @@ def cursor(commit: bool = False):
 _UPSERT_SQL = """
 insert into postings (
     posting_id, source, title, company, url, description, location, country_code, city,
-    remote_signal, work_mode, salary_raw, currency, posted_at,
+    remote_signal, work_mode, education_min, salary_raw, currency, posted_at,
     role_category, region, eligibility, seniority, work_type, is_part_time, dedup_key,
     last_seen_at, is_active
 ) values %s
@@ -75,6 +75,7 @@ on conflict (posting_id) do update set
     city = excluded.city,
     remote_signal = excluded.remote_signal,
     work_mode = excluded.work_mode,
+    education_min = excluded.education_min,
     salary_raw = excluded.salary_raw,
     currency = excluded.currency,
     posted_at = excluded.posted_at,
@@ -96,7 +97,8 @@ def upsert_postings(rows: Iterable[dict]) -> int:
         (
             r["posting_id"], r["source"], r.get("title"), r.get("company"), r["url"],
             r.get("description"), r.get("location"), r.get("country_code"), r.get("city"),
-            r.get("remote_signal"), r.get("work_mode"), r.get("salary_raw"), r.get("currency"),
+            r.get("remote_signal"), r.get("work_mode"), r.get("education_min"),
+            r.get("salary_raw"), r.get("currency"),
             r.get("posted_at"),
             r.get("role_category"), r.get("region"), r.get("eligibility"),
             r.get("seniority"), r.get("work_type"), r.get("is_part_time", False),
@@ -106,8 +108,15 @@ def upsert_postings(rows: Iterable[dict]) -> int:
     ]
     if not values:
         return 0
-    template = ("(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,"
+    # 22 placeholders for the 22 columns above `last_seen_at`. Counted, not eyeballed: these
+    # bind by position, so one missing %s shifts every column after it by one and psycopg2
+    # cannot tell — it would write `dedup_key` into `is_part_time` and fail on the type, or
+    # worse, not fail at all. The assert below is cheap and turns that into a loud error.
+    template = ("(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,"
                 "now(), true)")
+    assert template.count("%s") == len(values[0]), (
+        f"upsert template has {template.count('%s')} placeholders "
+        f"for {len(values[0])} values")
     with cursor(commit=True) as cur:
         psycopg2.extras.execute_values(cur, _UPSERT_SQL, values, template=template,
                                        page_size=500)
@@ -231,6 +240,10 @@ def query_candidates(profile: dict, limit: int = 100) -> list[dict]:
     if loc_sql != "true":
         where.append(loc_sql)
         params.extend(loc_params)
+    edu_sql, edu_params = education.education_predicate(profile)
+    if edu_sql != "true":
+        where.append(edu_sql)
+        params.extend(edu_params)
     if profile.get("seniorities"):
         where.append("p.seniority = any(%s)")
         params.append(profile["seniorities"])
@@ -246,7 +259,7 @@ def query_candidates(profile: dict, limit: int = 100) -> list[dict]:
     sql = f"""
         select distinct on (coalesce(p.dedup_key, p.posting_id))
                p.posting_id, p.source, p.title, p.company, p.url, p.location,
-               p.city, p.country_code, p.remote_signal, p.work_mode,
+               p.city, p.country_code, p.remote_signal, p.work_mode, p.education_min,
                p.region, p.eligibility, p.seniority, p.work_type, p.is_part_time,
                p.role_category, p.salary_raw, p.posted_at, p.description
         from postings p
@@ -406,6 +419,14 @@ def query_shortlist_meta(profile: dict, limit: int = 120) -> tuple[list[dict], d
         if loc_sql != "true":
             where.append(loc_sql)
             where_params.extend(loc_params)
+        # Deliberately outside the `recall_on` branch, so it survives the widening pass. The
+        # floor widens *retrieval* — it must not quietly re-admit roles demanding a
+        # qualification the subscriber said they do not have. A posting whose requirement is
+        # unknown passes either way (~97% of them), so this narrows far less than it looks.
+        edu_sql, edu_params = education.education_predicate(profile)
+        if edu_sql != "true":
+            where.append(edu_sql)
+            where_params.extend(edu_params)
         if profile.get("eligible_only", True):
             where.append("p.eligibility in ('eligible','verify UK right-to-work','unknown')")
 
@@ -440,7 +461,7 @@ def query_shortlist_meta(profile: dict, limit: int = 120) -> tuple[list[dict], d
                  else "d.first_seen_at desc, d.rotation")
         sql = f"""
             select posting_id, source, title, company, url, location, city, country_code,
-                   remote_signal, work_mode,
+                   remote_signal, work_mode, education_min,
                    region, eligibility, seniority, work_type, is_part_time,
                    role_category, salary_raw, currency, posted_at, description
             from (
@@ -454,6 +475,7 @@ def query_shortlist_meta(profile: dict, limit: int = 120) -> tuple[list[dict], d
                     select distinct on (coalesce(p.dedup_key, p.posting_id))
                            p.posting_id, p.source, p.title, p.company, p.url, p.location,
                            p.city, p.country_code, p.remote_signal, p.work_mode,
+                           p.education_min,
                            p.region, p.eligibility, p.seniority, p.work_type, p.is_part_time,
                            p.role_category, p.salary_raw, p.currency, p.posted_at,
                            p.description, p.last_seen_at, p.first_seen_at,
@@ -511,10 +533,19 @@ def matched_jobs(profile_id: str, limit: int = 50, offset: int = 0,
     `score desc, posted_at desc` is not, because posted_at is null for whole sources
     (jobs.cz, profesia), so ties are broken arbitrarily and a row could appear on two pages
     or on none. `posting_id` last makes it deterministic.
+
+    **Hidden jobs are excluded by default, and that is deliberately also true of the
+    digest** — `digest.build_digest` reads through here, so a job the subscriber hid because
+    they already applied to it stops being emailed as well as stops being listed. Pass
+    `hidden=True` for the /hidden page, which is the only place they remain visible: hiding
+    must never be a delete, or unhiding could not exist. That view is ordered by when it was
+    hidden (`updated_at`), because "what did I just hide" is the question it answers; a bulk
+    hide stamps one `now()` across the batch, so `posting_id` breaks the tie and keeps the
+    ordering total for paging here too.
     """
     with cursor() as cur:
         cur.execute(
-            """
+            f"""
             select p.posting_id, p.source, p.title, p.company, p.url, p.location,
                    p.region, p.city, p.eligibility, p.seniority, p.work_type, p.is_part_time,
                    p.remote_signal, p.work_mode,
@@ -536,15 +567,6 @@ def matched_jobs(profile_id: str, limit: int = 50, offset: int = 0,
 
 def match_count(profile_id: str, hidden: bool = False) -> int:
     """How many active matches this profile has (same filter as matched_jobs) — used to
-
-    **Hidden jobs are excluded by default, and that is deliberately also true of the
-    digest** — `digest.build_digest` reads through here, so a job the subscriber hid because
-    they already applied to it stops being emailed as well as stops being listed. Pass
-    `hidden=True` for the /hidden page, which is the only place they remain visible: hiding
-    must never be a delete, or unhiding could not exist. That view is ordered by when it was
-    hidden (`updated_at`), because "what did I just hide" is the question it answers; a bulk
-    hide stamps one `now()` across the batch, so `posting_id` breaks the tie and keeps the
-    ordering total for paging here too.
     show 'see all N matches' in the email and the page header.
 
     Must stay in lockstep with `matched_jobs`: the header is built from this and the rows
@@ -552,7 +574,7 @@ def match_count(profile_id: str, hidden: bool = False) -> int:
     list that can only ever reach 124."""
     with cursor() as cur:
         cur.execute(
-            """select count(*) as n
+            f"""select count(*) as n
                from matches m join postings p on p.posting_id = m.posting_id
                where m.profile_id = %s and p.is_active and m.score is not null
                  and m.status {'=' if hidden else '<>'} %s""",
@@ -566,12 +588,16 @@ def match_count(profile_id: str, hidden: bool = False) -> int:
 def create_profile(user_id: str, data: dict) -> dict:
     data = {**data, **_location_prefs(data, ensure=True)}
     cols = ["user_id", "label", "stack", "seniorities", "countries", "cities",
-            "remote_scope", "work_modes", "regions", "role_categories",
+            "remote_scope", "work_modes", "education_levels", "education_field",
+            "regions", "role_categories",
             "work_types", "part_time_only", "eligible_only", "sectors", "min_score"]
     vals = [user_id, data.get("label", "My search"), data.get("stack", []),
             data.get("seniorities", ["junior", "mid"]),
             data["countries"], data["cities"], data["remote_scope"],
-            geo.clean_work_modes(data.get("work_modes")), data["regions"],
+            geo.clean_work_modes(data.get("work_modes")),
+            education.clean_levels(data.get("education_levels")),
+            education.clean_field(data.get("education_field")),
+            data["regions"],
             data.get("role_categories", []),
             data.get("work_types", ["permanent", "freelance/contract"]),
             data.get("part_time_only", False), data.get("eligible_only", True),
@@ -645,32 +671,6 @@ def set_match_status(profile_id: str, posting_id: str, status: str) -> None:
                     (status, profile_id, posting_id))
 
 
-# --- email subscriptions (v1 digest product) -----------------------------------
-
-_SUBSCRIBER_FIELDS = ["label", "stack", "seniorities", "countries", "cities",
-                      "remote_scope", "work_modes", "regions", "role_categories",
-                      "work_types", "part_time_only", "eligible_only", "sectors",
-                      "min_score", "frequency", "language"]
-
-_LOCATION_KEYS = ("countries", "cities", "remote_scope", "regions")
-
-
-def _location_prefs(data: dict, current: Optional[dict] = None, *,
-                    ensure: bool = False) -> dict:
-    """The location columns to write, normalised and mutually consistent.
-
-    One rule, applied on every write: `countries` / `cities` / `remote_scope` are the truth —
-    they are what `geo.location_predicate` filters on — and `regions` is *derived* from them.
-
-    Two paths have to be kept honest:
-
-      * A caller that sends only `regions` (an older client, or the pre-v1 API) is translated
-        the other way first. Writing its `regions` verbatim would leave the row's country list
-        contradicting it, i.e. the SQL filter and the matcher prompt disagreeing about where
-        the person wants to work — the exact class of silent mismatch this feature exists to
-        remove.
-      * A partial update that sends only `cities` is merged against the stored row, so a city
-        list is always validated against the countries actually selected.
 def set_matches_hidden(profile_id: str, posting_ids: list[str], hidden: bool) -> int:
     """Hide (or unhide) several of this profile's matches at once. Returns rows changed.
 
@@ -698,6 +698,35 @@ def set_matches_hidden(profile_id: str, posting_ids: list[str], hidden: bool) ->
         return cur.rowcount
 
 
+# --- email subscriptions (v1 digest product) -----------------------------------
+
+_SUBSCRIBER_FIELDS = ["label", "stack", "seniorities", "countries", "cities",
+                      "remote_scope", "work_modes", "regions", "role_categories",
+                      "work_types", "part_time_only", "eligible_only", "sectors",
+                      "min_score", "frequency", "language",
+                      # migration 014. `education_levels` gates; `education_field` is free text
+                      # for the matcher and is never filtered on. See service/education.py.
+                      "education_levels", "education_field"]
+
+_LOCATION_KEYS = ("countries", "cities", "remote_scope", "regions")
+
+
+def _location_prefs(data: dict, current: Optional[dict] = None, *,
+                    ensure: bool = False) -> dict:
+    """The location columns to write, normalised and mutually consistent.
+
+    One rule, applied on every write: `countries` / `cities` / `remote_scope` are the truth —
+    they are what `geo.location_predicate` filters on — and `regions` is *derived* from them.
+
+    Two paths have to be kept honest:
+
+      * A caller that sends only `regions` (an older client, or the pre-v1 API) is translated
+        the other way first. Writing its `regions` verbatim would leave the row's country list
+        contradicting it, i.e. the SQL filter and the matcher prompt disagreeing about where
+        the person wants to work — the exact class of silent mismatch this feature exists to
+        remove.
+      * A partial update that sends only `cities` is merged against the stored row, so a city
+        list is always validated against the countries actually selected.
 
     Returns {} when the caller changed no location field, so a plain "change my frequency"
     update does not rewrite four columns. `ensure=True` (subscription creation) always
@@ -766,6 +795,10 @@ def create_email_subscription(email: str, data: dict, *, confirmed: bool = False
         # Cleaned rather than trusted: this value comes off a public request body and then
         # decides which language every future email to this person is written in.
         i18n.clean_locale(data.get("language")),
+        # Same rule as `work_modes`: normalised on write, so an empty or junk selection widens
+        # to every level rather than narrowing to none and silently emptying the digest.
+        education.clean_levels(data.get("education_levels")),
+        education.clean_field(data.get("education_field")),
         data.get("has_cv", False), data.get("cv_summary"), data.get("years_experience"),
     ]
     placeholders = ",".join(["%s"] * len(cols))
@@ -1088,6 +1121,11 @@ def update_subscription(manage_token: str, data: dict) -> Optional[dict]:
     # but this is the only path every client shares (see `geo.clean_work_modes`).
     if "work_modes" in data:
         data = {**data, "work_modes": geo.clean_work_modes(data["work_modes"])}
+    # Same reasoning for education: an empty `education_levels` is "no preference" and widens.
+    if "education_levels" in data:
+        data = {**data, "education_levels": education.clean_levels(data["education_levels"])}
+    if "education_field" in data:
+        data = {**data, "education_field": education.clean_field(data["education_field"])}
     if "language" in data:
         data = {**data, "language": i18n.clean_locale(data["language"])}
     sets, params = [], []

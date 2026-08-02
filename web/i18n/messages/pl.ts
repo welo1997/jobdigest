@@ -90,6 +90,26 @@ const pl: Messages = {
     },
   },
 
+  educationLevels: {
+    secondary: "Szkoła średnia",
+    vocational: "Wykształcenie zawodowe",
+    bachelor: "Licencjat / inżynier",
+    master: "Magister",
+    doctorate: "Doktorat / PhD",
+  },
+
+  education: {
+    label: "Wykształcenie, którego może wymagać ogłoszenie",
+    anyLevel: "cokolwiek",
+    narrowed: "resztę pominiemy",
+    note:
+      "Większość ogłoszeń w ogóle nie podaje wymagań — wszystkie je zachowujemy, a opis czyta zamiast tego matcher. Pomijamy tylko te nieliczne, które wprost wymagają dyplomu, którego nie masz.",
+    fieldLabel: "Co studiowałeś/aś (opcjonalnie)",
+    fieldPlaceholder: "Ekonomia, Informatyka…",
+    fieldHint:
+      "Nigdy nie jest używane jako filtr — pomaga tylko matcherowi ocenić, czy rola pasuje do twojego doświadczenia.",
+  },
+
   location: {
     countriesLabel: "Kraje, w których możesz pracować",
     addCountryAria: "Dodaj kolejny kraj",
@@ -290,26 +310,6 @@ const pl: Messages = {
     tagHybrid: "Hybrydowo",
     tagRemote: "Zdalnie",
     tagFreelance: "Freelance",
-  },
-
-  checkInbox: {
-    title: "Sprawdź skrzynkę",
-    body: "Wysłaliśmy link potwierdzający na {0}. Kliknij go, a codzienny przegląd ruszy jutro rano o 7:00.",
-    inMeantime: " W międzyczasie — aktualne oferty pasujące do Twojego wyszukiwania:",
-    doubleOptIn: "Podwójna zgoda · RODO",
-    yourInbox: "Twoją skrzynkę",
-    instantPreview: "Natychmiastowy podgląd · dopasowanie po słowach kluczowych",
-    instantNote:
-      "Szybkie dopasowanie po słowach kluczowych na start. Jutrzejszy e-mail będzie już {0} — każda oferta oceniona, z powodem, dlaczego pasuje.",
-    instantNoteEmphasis: "uszeregowany przez AI",
-  },
-
-  manage: {
-    sentTitle: "Sprawdź skrzynkę",
-    sentBody:
-      "Jeśli {0} ma subskrypcję JobDigest, właśnie wysłaliśmy tam prywatny link do ustawień. Otwórz go, aby zmienić ustawienia, wstrzymać lub wypisać się — bez hasła.",
-    didntGet: "Nie dotarł? Sprawdź spam albo spróbuj ponownie za kilka minut.",
-    title: "Zaloguj się do JobDigest",
     // Bez form rodzajowych („ukryłeś/ukryłaś”): zgłoszenie wysłane, nie „wysłałeś”.
     hideHint:
       "Masz już wysłane zgłoszenie albo oferta Cię nie interesuje? Zaznacz ją i ukryj — zniknie z tej strony i z codziennego e-maila.",
@@ -357,6 +357,26 @@ const pl: Messages = {
       many: "Pokazano {shown} z {n} ukrytych ofert",
       other: "Pokazano {shown} z {n} ukrytych ofert",
     },
+  },
+
+  checkInbox: {
+    title: "Sprawdź skrzynkę",
+    body: "Wysłaliśmy link potwierdzający na {0}. Kliknij go, a codzienny przegląd ruszy jutro rano o 7:00.",
+    inMeantime: " W międzyczasie — aktualne oferty pasujące do Twojego wyszukiwania:",
+    doubleOptIn: "Podwójna zgoda · RODO",
+    yourInbox: "Twoją skrzynkę",
+    instantPreview: "Natychmiastowy podgląd · dopasowanie po słowach kluczowych",
+    instantNote:
+      "Szybkie dopasowanie po słowach kluczowych na start. Jutrzejszy e-mail będzie już {0} — każda oferta oceniona, z powodem, dlaczego pasuje.",
+    instantNoteEmphasis: "uszeregowany przez AI",
+  },
+
+  manage: {
+    sentTitle: "Sprawdź skrzynkę",
+    sentBody:
+      "Jeśli {0} ma subskrypcję JobDigest, właśnie wysłaliśmy tam prywatny link do ustawień. Otwórz go, aby zmienić ustawienia, wstrzymać lub wypisać się — bez hasła.",
+    didntGet: "Nie dotarł? Sprawdź spam albo spróbuj ponownie za kilka minut.",
+    title: "Zaloguj się do JobDigest",
     body: "Żadnych haseł. Podaj swój adres, a wyślemy Ci bezpieczny link — kliknięcie loguje Cię i zostaniesz zalogowany na tym urządzeniu.",
     googleNoSub:
       "To konto Google nie ma jeszcze subskrypcji. Najpierw się zarejestruj, potem zalogujesz się przez Google.",

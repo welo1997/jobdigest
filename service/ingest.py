@@ -24,7 +24,7 @@ from search_jobs import (  # noqa: E402
     dedup_key, eligibility, gather, is_part_time,
     seniority, work_region, work_type,
 )
-from service import geo, store, taxonomy  # noqa: E402
+from service import education, geo, store, taxonomy  # noqa: E402
 
 logger = logging.getLogger("service.ingest")
 
@@ -52,7 +52,13 @@ def build_row(p) -> dict:
         "posting_id": p.posting_id, "source": p.source, "title": p.title,
         "company": p.company, "url": p.url, "description": p.description,
         "location": p.location, "country_code": country_code, "city": city,
-        "remote_signal": remote, "work_mode": mode, "salary_raw": p.salary_raw,
+        "remote_signal": remote, "work_mode": mode,
+        # Null whenever the ad does not state a binding requirement, which is the answer for
+        # ~97% of postings — and necessarily for every source that ships no description text
+        # (jobs.cz, profesia, cocuma). See service/education.py before reading anything into
+        # a low count here.
+        "education_min": education.classify_requirement(p.description, p.title),
+        "salary_raw": p.salary_raw,
         "currency": p.currency, "posted_at": p.posted_at,
         "role_category": role_category(p.title, getattr(p, "source_category", None)),
         "region": region,

@@ -14,7 +14,11 @@ import {
 } from "@/lib/api";
 import { track } from "@/lib/analytics";
 import { LocationPicker, LocationValue } from "@/components/LocationPicker";
+import { EducationPicker, EducationValue } from "@/components/EducationPicker";
 import { WORK_MODES } from "@/lib/geo";
+import {
+  EDUCATION_LEVELS, cleanEducationField, cleanEducationLevels, levelsUpTo,
+} from "@/lib/education";
 import {
   CV_ROLE_ID, DEFAULT_ROLE_IDS, SENIORITY_IDS, SKILL_OPTS, WORK_TYPE_IDS,
   roleCategory, roleKeyword,
@@ -35,6 +39,13 @@ const DEFAULT_LEVELS = ["junior", "mid"];
 // never narrowed by a choice they did not make.
 const DEFAULT_LOCATION: LocationValue = {
   countries: ["CZ"], cities: [], remoteScope: "eu", workModes: [...WORK_MODES],
+};
+
+// Every level ticked, i.e. no education filter at all. Same principle as the location default:
+// a visitor who skips this step must not be narrowed by a choice they did not make, and this
+// axis can only ever exclude postings, never add any.
+const DEFAULT_EDUCATION: EducationValue = {
+  levels: [...EDUCATION_LEVELS], field: "",
 };
 
 const LAST = 3;
@@ -61,6 +72,7 @@ export default function Landing() {
   const [roles, setRoles] = useState<Set<string>>(new Set(DEFAULT_ROLES));
   const [skills, setSkills] = useState<Set<string>>(new Set(DEFAULT_SKILLS));
   const [loc, setLoc] = useState<LocationValue>(DEFAULT_LOCATION);
+  const [edu, setEdu] = useState<EducationValue>(DEFAULT_EDUCATION);
   const [work, setWork] = useState<Set<string>>(new Set(DEFAULT_WORK));
   const [levels, setLevels] = useState<Set<string>>(new Set(DEFAULT_LEVELS));
   const [email, setEmail] = useState("");
@@ -108,7 +120,7 @@ export default function Landing() {
     try {
       sessionStorage.setItem("jd_google_wiz", JSON.stringify({
         roleOpts, skillOpts, roles: [...roles], skills: [...skills], loc,
-        work: [...work], levels: [...levels], cvSignals, step, consent,
+        work: [...work], levels: [...levels], cvSignals, step, consent, edu,
       }));
     } catch {}
   };
@@ -129,6 +141,7 @@ export default function Landing() {
         setLoc(s.loc && s.loc.countries?.length ? s.loc : DEFAULT_LOCATION);
         setWork(new Set<string>(s.work || []));
         setLevels(new Set<string>(s.levels || []));
+        setEdu(s.edu && s.edu.levels?.length ? s.edu : DEFAULT_EDUCATION);
         setCvSignals(s.cvSignals || null);
         // Carried so someone who ticked the box before the OAuth hop is not asked twice.
         // `=== true` because anything else — absent key, older stashed state — must read as
@@ -222,6 +235,17 @@ export default function Landing() {
       const cvLevels = (sig.seniorities || [])
         .filter((c) => (SENIORITY_IDS as readonly string[]).includes(c));
       if (cvLevels.length) setLevels(new Set(cvLevels));
+      // Prefill education the same way — visibly, in the form, where it can be corrected.
+      // `levelsUpTo` turns "we detected a bachelor's" into the levels such a person can apply
+      // for. Deliberately a *UI* prefill only: the server never derives this from a CV, because
+      // a CV that failed to mention a master's would otherwise silently delete every
+      // master-requiring role from the digest. See `cvparse.merge_into_profile`.
+      if (sig.education || sig.education_field) {
+        setEdu({
+          levels: sig.education ? levelsUpTo(sig.education) : [...EDUCATION_LEVELS],
+          field: sig.education_field || "",
+        });
+      }
       setCvSignals(sig);
       setCvName(file.name);
       // Skill count, not the skills themselves — "parsed but found nothing" is a distinct
@@ -279,6 +303,8 @@ export default function Landing() {
       cities: loc.cities,
       remote_scope: loc.remoteScope,
       work_modes: loc.workModes,
+      education_levels: cleanEducationLevels(edu.levels),
+      education_field: cleanEducationField(edu.field),
       work_types: workTypes.length ? workTypes : ["permanent", "freelance/contract"],
       part_time_only: partTimeOnly,
       sectors: cvSignals?.sectors || [],
@@ -494,6 +520,7 @@ export default function Landing() {
                     <div className="wz-q">{t.landing.q3}</div>
                     <p className="wz-hint">{t.landing.q3hint}</p>
                     <LocationPicker value={loc} onChange={setLoc} idPrefix="wz" />
+                    <EducationPicker value={edu} onChange={setEdu} idPrefix="wz" />
                     <p className="wz-hint" style={{ marginTop: 16 }}>{t.landing.workTypeHint}</p>
                     <div className="chips">
                       {WORK_TYPE_IDS.map((o) => (

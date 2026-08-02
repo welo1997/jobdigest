@@ -30,7 +30,7 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from search_jobs import seniority_stated  # noqa: E402
-from service import geo, store  # noqa: E402
+from service import education, geo, store  # noqa: E402
 
 logger = logging.getLogger("service.matcher")
 
@@ -110,6 +110,22 @@ def _profile_block(p: dict) -> str:
         lines.append(
             f"Work setup: {geo.describe_work_modes(modes)}. Most postings never state theirs, "
             "so judge an unstated one from its description rather than assuming it qualifies")
+    # Same "only when narrowed" rule. This line matters more than most: the SQL gate can only
+    # act on the ~3% of postings whose description states a requirement, and on **none** of the
+    # Czech/Slovak inventory, which carries no description text at all. For everything else the
+    # model is the only thing that can enforce this, and it can only do so where the posting
+    # itself says something — so the instruction is to read, not to assume.
+    levels = education.clean_levels(p.get("education_levels"))
+    field = education.clean_field(p.get("education_field"))
+    if len(levels) < len(education.LEVELS):
+        lines.append(
+            f"Education: {education.describe_levels(levels, field)}. A posting that demands a "
+            "higher qualification than these is not a fit (omit it / score it below 4), but "
+            "most postings never state one — do not infer a requirement that is not written "
+            "down, and do not exclude a posting merely for being silent")
+    elif field:
+        # No filter, but the field of study is still worth knowing for judging relevance.
+        lines.append(f"Studied: {field}")
     # Stated on the signup form but, until now, never shown to the model or used in the SQL
     # prefilter — subscribers who ticked "part-time only" were being emailed full-time roles.
     if p.get("part_time_only"):
@@ -237,6 +253,16 @@ ROUTINE_INSTRUCTIONS = (
     "(omit it / score it below 4). \"work_mode\":null means the posting never stated one — "
     "most do not — so read its description and judge it, rather than letting it through "
     "because the field was empty. "
+    "If (and only if) the profile has an \"education\" line, the subscriber has ruled out roles "
+    "demanding a qualification above the levels listed: a candidate whose \"education_min\" is "
+    "higher than any level they accept is not a fit (omit it / score it below 4). "
+    "\"education_min\":null means the posting's requirement was never read — most were not, and "
+    "the entire Czech and Slovak inventory has no description at all — so read the description "
+    "where there is one and judge it, and **never exclude a posting just for being silent**: a "
+    "requirement nobody wrote down is not a requirement. A degree named as \"preferred\", \"nice "
+    "to have\" or \"or equivalent experience\" does not disqualify anyone. "
+    "\"education_field\" is what the subscriber studied — context for judging how well a role "
+    "fits them, never a reason to exclude one. "
     "If the profile has \"part_time_only\":true, a full-time posting is not what they asked "
     "for: score it at most 5 (it still shows on their matches page, it just must not headline "
     "the email) and prefer candidates with \"part_time\":true. Postings may be "
@@ -269,6 +295,16 @@ def _profile_export(p: dict) -> dict:
     if len(modes) < len(geo.WORK_MODES):
         out["work_modes"] = modes
         out["work_setup"] = geo.describe_work_modes(modes)
+    # Same rule again: present only when the subscriber has an opinion. `education_field` is
+    # emitted whenever it is set, filter or no filter — it is context for judging relevance,
+    # not a constraint, and it is the one part of this axis that never reaches SQL.
+    levels = education.clean_levels(p.get("education_levels"))
+    if len(levels) < len(education.LEVELS):
+        out["education_levels"] = levels
+        out["education"] = education.describe_levels(levels)
+    field = education.clean_field(p.get("education_field"))
+    if field:
+        out["education_field"] = field
     # Only when true: an explicit "part_time_only": false in every profile is noise the model
     # has to read past, and false is already the default reading of its absence.
     if p.get("part_time_only"):
@@ -285,6 +321,10 @@ def _candidate_export(c: dict) -> dict:
         # "remote"|"hybrid"|"onsite"|null. `remote` stays the boolean the location rule keys
         # on; this is the finer answer, and null genuinely means the posting never said.
         "work_mode": c.get("work_mode"),
+        # Lowest qualification the ad demands, or null when it never said — which is the answer
+        # for ~97% of postings and for all of the CZ/SK inventory. Null is not "no requirement";
+        # it is "unread", and the prompt tells the model to treat it that way.
+        "education_min": c.get("education_min"),
         "seniority": _seniority_for_model(c), "work_type": c.get("work_type"),
         "part_time": bool(c.get("is_part_time")),
         "salary": c.get("salary_raw"), "description": desc,

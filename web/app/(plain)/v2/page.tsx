@@ -9,7 +9,11 @@ import { useToast } from "@/components/useToast";
 import { cap } from "@/lib/preview";
 import { CVSignals, parseCV, subscribe, SubscribePayload } from "@/lib/api";
 import { LocationPicker, LocationValue } from "@/components/LocationPicker";
+import { EducationPicker, EducationValue } from "@/components/EducationPicker";
 import { WORK_MODES } from "@/lib/geo";
+import {
+  EDUCATION_LEVELS, cleanEducationField, cleanEducationLevels,
+} from "@/lib/education";
 
 const ROLE_OPTS = ["Product Manager", "Marketing", "Social Media", "Data Analyst", "Designer", "Software Engineer", "Data Engineer", "DevOps", "Finance"];
 const SKILL_OPTS = ["SQL", "Figma", "Analytics", "Excel", "Python", "SEO", "Looker", "Roadmapping", "Power BI", "dbt"];
@@ -27,6 +31,8 @@ const ROLE_CAT: Record<string, string> = {
 const DEFAULT_LOCATION: LocationValue = {
   countries: ["CZ"], cities: [], remoteScope: "eu", workModes: [...WORK_MODES],
 };
+// Every level ticked = no education filter, matching the main wizard.
+const DEFAULT_EDUCATION: EducationValue = { levels: [...EDUCATION_LEVELS], field: "" };
 const CV_ROLE_LABEL: Record<string, string> = {
   data_engineering: "Data Engineer", data_analysis: "Data Analyst",
   machine_learning: "ML Engineer", software_engineering: "Software Engineer",
@@ -53,6 +59,7 @@ export default function Landing() {
   const [roles, setRoles] = useState<Set<string>>(new Set(["Product Manager", "Marketing", "Data Analyst", "Designer"]));
   const [skills, setSkills] = useState<Set<string>>(new Set(["SQL", "Figma", "Analytics"]));
   const [loc, setLoc] = useState<LocationValue>(DEFAULT_LOCATION);
+  const [edu, setEdu] = useState<EducationValue>(DEFAULT_EDUCATION);
   const [work, setWork] = useState<Set<string>>(new Set(["Full-time", "Freelance"]));
   const [email, setEmail] = useState("");
   const [consent, setConsent] = useState(true);
@@ -160,6 +167,8 @@ export default function Landing() {
       cities: loc.cities,
       remote_scope: loc.remoteScope,
       work_modes: loc.workModes,
+      education_levels: cleanEducationLevels(edu.levels),
+      education_field: cleanEducationField(edu.field),
       work_types: workTypes.length ? workTypes : ["permanent", "freelance/contract"],
       part_time_only: partTimeOnly,
       sectors: cvSignals?.sectors || [],
@@ -314,6 +323,7 @@ export default function Landing() {
                       roles anywhere else are dropped; fully remote ones are not.
                     </p>
                     <LocationPicker value={loc} onChange={setLoc} idPrefix="v2" />
+                    <EducationPicker value={edu} onChange={setEdu} idPrefix="v2" />
                     <p className="wz-hint" style={{ marginTop: 16 }}>Type of work — tap all that fit.</p>
                     <div className="chips">
                       {WORK_OPTS.map((o) => (

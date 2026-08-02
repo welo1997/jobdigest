@@ -191,6 +191,50 @@ Three things to hold on to:
 - **An empty selection widens to all three**, in `geo.clean_work_modes`, `store`, the API and
   the browser. "No preference" is the only reading that cannot silently empty a digest.
 
+**Education is a fourth axis, and it is mostly unprovable — that is stated, not hidden**
+(migration 014). `service/education.py` is the one definition, mirrored in
+`web/lib/education.ts` and drift-tested. `postings.education_min` is
+`secondary | vocational | bachelor | master | doctorate | null`; `profiles.education_levels` is
+which of those a subscriber will accept, shaped exactly like `work_modes` — set membership, not
+a ceiling, empty widens to all five, all five applies no filter. `profiles.education_field` is
+free text that reaches only the AI matcher.
+
+Measured before it was built, against 20 763 active postings on 2026-08-02:
+
+| | |
+|---|---|
+| state any degree requirement | 952 (4.6%) |
+| …softened ("or equivalent", "preferred") | 286 |
+| **binding and readable** | **~666 (3.2%)** |
+
+The ceiling is not employer silence: **70% of the corpus has no description to read.** Median
+description length is 35 characters — `jobscz` (9 639 postings, the largest source) averages
+32 and stores scraps like "70 000 – 80 000 Kč", `profesia` (4 365) stores the empty string,
+`cocuma` (319) averages 9. **The entire Czech and Slovak inventory will hold `null` forever**,
+so this filter is real for English-language ATS postings and inert for someone searching only
+Czech boards. Three consequences:
+
+- **Null always passes the gate**, as with `work_mode` and an unresolved city. It is ~97% of
+  rows; a gate that dropped nulls would not narrow a digest, it would empty it. `test_education_sql.py`
+  executes that against a real Postgres, because `x = any(...)` on a null column is `NULL`, and
+  `WHERE` discards `NULL` exactly as it discards `false` — the string cannot show you that.
+- **The classifier's only safe error is a miss.** A false positive deletes a job from an inbox
+  for a qualification the ad never demanded, so a softened mention ("or equivalent" — 30% of
+  them) and a self-describing employer both classify as null. Every false-positive case in
+  `test_education.py` is real production text that classified *wrongly* first: an `<img
+  src=".../ausbildung-1.svg">` benefits icon, English "maturity" caught by the Czech
+  "maturita" pattern, a university advertising its own "doctoral degree programs", "220
+  veterinarians, PhD nutritionists", "post secondary" (which means tertiary). **Where several
+  levels are named, the lowest wins** — an ad is satisfied by the lowest, and it caps the
+  damage of any blurb the rules miss.
+- **A CV never narrows this server-side.** `cvparse` detects a level and the browser pre-ticks
+  the boxes with it, visibly; `merge_into_profile` deliberately does not write
+  `education_levels`, because a CV that failed to mention a master's would otherwise silently
+  delete every master-requiring role from that person's digest.
+
+Changing the patterns means re-running `python -m service.backfill_education`, or stored rows
+keep the old answer while new ingests use the new one and the column means two things at once.
+
 **A source's `remote_signal` is a claim, not a fact — `is_fully_remote` checks the posting's
 own words before trusting it.** `remote_signal` exempts a posting from the location gate
 entirely, so a wrong one is not a cosmetic error: it is an on-site job in the wrong country
@@ -497,6 +541,13 @@ written to fail when the guarantee breaks — not merely to pass:
 - `test_webapp_lifecycle.py` — a GET never unsubscribes; one-click still works; `/event`
   is bounded.
 - `test_taxonomy.py` — classification, ordering, and drift against dbt + the frontend.
+- `test_education.py` — a requirement nobody wrote down is never invented; every
+  false-positive case is real production text that classified wrongly first.
+- `test_education_sql.py` — a null `education_min` passes the real gate, on both the narrow
+  and the widened retrieval path. SQL-backed, so CI fails if it goes back to skipping.
+- `test_hidden_sql.py` — hiding is a move, not a delete: the two queries behind the page
+  agree, a re-score cannot resurrect a hidden job, and one subscriber cannot hide another's.
+  SQL-backed, so it skips without `TEST_DATABASE_URL` — and CI fails if it does.
 
 When adding a guard, mutation-check it: break the thing deliberately and confirm the test
 goes red. A test that cannot fail documents nothing.
@@ -541,13 +592,6 @@ goes red. A test that cannot fail documents nothing.
   small, measure what it holds before believing it.**
 - **Greenhouse/Lever/Ashby/SmartRecruiters/Workday** curated company lists, no domain-wide crawls.
   A board that goes dark is a **silent zero**: `fetch` skips a non-200 without an error-level
-- `test_education.py` — a requirement nobody wrote down is never invented; every
-  false-positive case is real production text that classified wrongly first.
-- `test_education_sql.py` — a null `education_min` passes the real gate, on both the narrow
-  and the widened retrieval path. SQL-backed, so CI fails if it goes back to skipping.
-- `test_hidden_sql.py` — hiding is a move, not a delete: the two queries behind the page
-  agree, a re-score cannot resurrect a hidden job, and one subscriber cannot hide another's.
-  SQL-backed, so it skips without `TEST_DATABASE_URL` — and CI fails if it does.
   log. Re-probe the lists rather than assuming (`dbtlabsinc` and `nubank` were both dead when
   the seed was last checked). Do not add a company that another adapter already carries —
   `clickhouse` and `qonto` are live on Ashby *and* on Greenhouse/Lever respectively, and the

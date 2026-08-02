@@ -87,6 +87,26 @@ const fr: Messages = {
     },
   },
 
+  educationLevels: {
+    secondary: "Baccalauréat",
+    vocational: "Formation professionnelle",
+    bachelor: "Licence",
+    master: "Master",
+    doctorate: "Doctorat / PhD",
+  },
+
+  education: {
+    label: "Diplôme qu'un poste peut exiger",
+    anyLevel: "peu importe",
+    narrowed: "nous écarterons le reste",
+    note:
+      "La plupart des annonces n'indiquent aucune exigence : nous les gardons toutes et laissons le matcher lire la description. Nous n'écartons que les rares annonces qui exigent explicitement un diplôme que vous n'avez pas.",
+    fieldLabel: "Ce que vous avez étudié (facultatif)",
+    fieldPlaceholder: "Économie, Informatique…",
+    fieldHint:
+      "Jamais utilisé comme filtre : cela aide seulement le matcher à juger si un poste correspond à votre parcours.",
+  },
+
   location: {
     countriesLabel: "Pays où vous pouvez travailler",
     addCountryAria: "Ajouter un autre pays",
@@ -265,26 +285,6 @@ const fr: Messages = {
     tagHybrid: "Hybride",
     tagRemote: "Remote",
     tagFreelance: "Freelance",
-  },
-
-  checkInbox: {
-    title: "Vérifiez votre boîte mail",
-    body: "Nous avons envoyé un lien de confirmation à {0}. Cliquez dessus et votre digest quotidien démarre demain matin à 7:00.",
-    inMeantime: " En attendant, voici des offres en ligne qui correspondent à votre recherche :",
-    doubleOptIn: "Double opt-in · consentement RGPD",
-    yourInbox: "votre boîte mail",
-    instantPreview: "Aperçu immédiat · correspondance par mots-clés",
-    instantNote:
-      "Une correspondance rapide par mots-clés pour démarrer. L'e-mail de demain, lui, est {0} — chaque poste noté, avec la raison pour laquelle il vous correspond.",
-    instantNoteEmphasis: "classé par IA",
-  },
-
-  manage: {
-    sentTitle: "Vérifiez votre boîte mail",
-    sentBody:
-      "Si {0} a un abonnement JobDigest, nous venons d'y envoyer son lien privé de réglages. Ouvrez-le pour modifier vos préférences, mettre en pause ou vous désinscrire — sans mot de passe.",
-    didntGet: "Rien reçu ? Regardez dans les spams ou réessayez dans quelques minutes.",
-    title: "Connexion à JobDigest",
     hideHint:
       "Déjà candidat ou pas intéressé ? Cochez ces offres et masquez-les — elles quittent cette page et votre e-mail quotidien.",
     selectAll: "Tout sélectionner",
@@ -315,6 +315,26 @@ const fr: Messages = {
       one: "Affichage : {shown} sur {n} offre masquée",
       other: "Affichage : {shown} sur {n} offres masquées",
     },
+  },
+
+  checkInbox: {
+    title: "Vérifiez votre boîte mail",
+    body: "Nous avons envoyé un lien de confirmation à {0}. Cliquez dessus et votre digest quotidien démarre demain matin à 7:00.",
+    inMeantime: " En attendant, voici des offres en ligne qui correspondent à votre recherche :",
+    doubleOptIn: "Double opt-in · consentement RGPD",
+    yourInbox: "votre boîte mail",
+    instantPreview: "Aperçu immédiat · correspondance par mots-clés",
+    instantNote:
+      "Une correspondance rapide par mots-clés pour démarrer. L'e-mail de demain, lui, est {0} — chaque poste noté, avec la raison pour laquelle il vous correspond.",
+    instantNoteEmphasis: "classé par IA",
+  },
+
+  manage: {
+    sentTitle: "Vérifiez votre boîte mail",
+    sentBody:
+      "Si {0} a un abonnement JobDigest, nous venons d'y envoyer son lien privé de réglages. Ouvrez-le pour modifier vos préférences, mettre en pause ou vous désinscrire — sans mot de passe.",
+    didntGet: "Rien reçu ? Regardez dans les spams ou réessayez dans quelques minutes.",
+    title: "Connexion à JobDigest",
     body: "Pas de mot de passe ici. Saisissez votre adresse et nous vous enverrons un lien sécurisé — un clic et vous êtes connecté, et vous le restez sur cet appareil.",
     googleNoSub:
       "Ce compte Google n'a pas encore d'abonnement. Inscrivez-vous d'abord, ensuite vous pourrez vous connecter avec Google.",

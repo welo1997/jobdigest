@@ -56,7 +56,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, RedirectResponse
 from pydantic import BaseModel, EmailStr, Field, field_validator
 
-from service import cvparse, geo, i18n, links, mailer, store, taxonomy, transactional
+from service import (cvparse, education, geo, i18n, links, mailer, store, taxonomy,
+                     transactional)
 from service.digest import C, SANS, SERIF
 
 # Where users land back (frontend). Used for the "homepage" links on API-served pages.
@@ -333,6 +334,29 @@ def _check_work_modes(v: Optional[list[str]]) -> Optional[list[str]]:
     return geo.clean_work_modes(modes)
 
 
+def _check_education_levels(v: Optional[list[str]]) -> Optional[list[str]]:
+    """Reject an unknown level outright, but let an empty list through.
+
+    Exactly the asymmetry `_check_work_modes` documents, for exactly the same reason: a typo'd
+    level is a client bug that `education.clean_levels` would otherwise widen back to all five,
+    leaving the subscriber believing they set a filter that does nothing; an empty list is a
+    subscriber who unticked every box, which is "no preference", not "nothing is acceptable".
+    """
+    if v is None:
+        return v
+    levels = [str(m).strip().lower() for m in v]
+    unknown = [m for m in levels if m and m not in education.LEVELS]
+    if unknown:
+        raise ValueError(f"unknown education_levels: {', '.join(unknown[:5])}. "
+                         f"Valid values: {', '.join(education.LEVELS)}")
+    return education.clean_levels(levels)
+
+
+def _check_education_field(v: Optional[str]) -> Optional[str]:
+    """Trim and cap the free-text field of study. Never raises: it is prose, not a vocabulary."""
+    return education.clean_field(v) if v is not None else v
+
+
 class LocationFieldsMixin(BaseModel):
     """The location preferences, shared by every form that can set them.
 
@@ -349,11 +373,21 @@ class LocationFieldsMixin(BaseModel):
     # forms. Defaults to all three: a client that has never heard of this field must not
     # narrow the subscriber it is creating.
     work_modes: list[str] = Field(default_factory=lambda: list(geo.DEFAULT_WORK_MODES))
+    # Nor is this location — it rides here for the same reason `work_modes` does: it belongs on
+    # the same three forms (signup, preview, Google signup), and this codebase's history is of
+    # filters silently applied at one call site and not the other. One shared mixin cannot be
+    # half-forgotten. Defaults to all five levels, so a client that has never heard of the
+    # field cannot narrow the subscriber it is creating.
+    education_levels: list[str] = Field(
+        default_factory=lambda: list(education.DEFAULT_LEVELS))
+    education_field: Optional[str] = None
 
     _valid_countries = field_validator("countries")(_check_countries)
     _valid_cities = field_validator("cities")(_check_cities)
     _valid_scope = field_validator("remote_scope")(_check_remote_scope)
     _valid_work_modes = field_validator("work_modes")(_check_work_modes)
+    _valid_education = field_validator("education_levels")(_check_education_levels)
+    _valid_education_field = field_validator("education_field")(_check_education_field)
 
 
 class SubscribeIn(LocationFieldsMixin):
@@ -643,6 +677,7 @@ def confirm(token: str) -> HTMLResponse:
 
 _PUBLIC_FIELDS = ["email", "status", "label", "stack", "seniorities",
                   "countries", "cities", "remote_scope", "regions", "work_modes",
+                  "education_levels", "education_field",
                   "role_categories", "work_types", "part_time_only", "eligible_only",
                   "sectors", "min_score", "frequency", "has_cv", "cv_summary",
                   "years_experience", "paused_until"]
@@ -668,6 +703,8 @@ class PreferencesIn(BaseModel):
     remote_scope: Optional[str] = None
     regions: Optional[list[str]] = None
     work_modes: Optional[list[str]] = None
+    education_levels: Optional[list[str]] = None
+    education_field: Optional[str] = None
     role_categories: Optional[list[str]] = None
     work_types: Optional[list[str]] = None
     part_time_only: Optional[bool] = None
@@ -684,6 +721,8 @@ class PreferencesIn(BaseModel):
     _valid_cities = field_validator("cities")(_check_cities)
     _valid_scope = field_validator("remote_scope")(_check_remote_scope)
     _valid_work_modes = field_validator("work_modes")(_check_work_modes)
+    _valid_education = field_validator("education_levels")(_check_education_levels)
+    _valid_education_field = field_validator("education_field")(_check_education_field)
 
 
 class SessionIn(BaseModel):
@@ -983,6 +1022,10 @@ def get_matches(request: Request, token: Optional[str] = None, offset: int = 0,
     while rendering 25: every subscriber was over the limit, and the ~100 rows below the cut
     are exactly the sub-EMAIL_MIN_SCORE picks this page exists to show. /matches is the
     complete record that makes never-email-twice suppression safe — it has to be complete.
+
+    `hidden=true` returns the other half of the same record: the jobs the subscriber hid
+    (already applied, not interested). Both counts come back either way, so the visible page
+    can link to "Hidden (n)" without a second round trip and the hidden page can link back.
     """
     profile = _resolve_subscriber(request, token, mutating=False)
     if not profile:
@@ -999,53 +1042,10 @@ def get_matches(request: Request, token: Optional[str] = None, offset: int = 0,
         "hidden_count": store.match_count(profile["id"], hidden=True),
         "offset": offset,
         "limit": MATCHES_PAGE_LIMIT,
+        "hidden": hidden,
         "jobs": [_match_view(j) for j in jobs],
     }
 
-
-@app.post("/preferences")
-def update_preferences(body: PreferencesIn, request: Request) -> dict:
-    profile = _resolve_subscriber(request, body.token, mutating=True)
-    if not profile:
-        raise HTTPException(404, "Unknown or expired link.")
-    changes = body.model_dump(exclude={"token"}, exclude_none=True)
-    updated = store.update_subscription(profile["manage_token"], changes)
-    if not updated:
-        raise HTTPException(404, "Unknown or expired link.")
-    return _public_view(updated)
-
-
-class PauseIn(BaseModel):
-    token: Optional[str] = None
-    days: int = 14
-
-
-@app.post("/pause")
-def pause(body: PauseIn, request: Request) -> dict:
-    profile = _resolve_subscriber(request, body.token, mutating=True)
-    if not profile:
-
-    `hidden=true` returns the other half of the same record: the jobs the subscriber hid
-    (already applied, not interested). Both counts come back either way, so the visible page
-    can link to "Hidden (n)" without a second round trip and the hidden page can link back.
-        raise HTTPException(404, "Unknown or expired link.")
-    until = datetime.now(timezone.utc) + timedelta(days=max(1, body.days))
-    store.pause_subscription(profile["manage_token"], until)
-    return {"ok": True, "status": "paused", "paused_until": until.isoformat()}
-
-
-class TokenIn(BaseModel):
-    token: Optional[str] = None
-
-
-@app.post("/resume")
-def resume(body: TokenIn, request: Request) -> dict:
-    profile = _resolve_subscriber(request, body.token, mutating=True)
-    if not profile:
-        "hidden": hidden,
-        raise HTTPException(404, "Unknown or expired link.")
-    store.resume_subscription(profile["manage_token"])
-    return {"ok": True, "status": "active"}
 
 # How many jobs one hide/unhide call may name. A page shows MATCHES_PAGE_LIMIT rows and the
 # UI only ever submits what is on screen, so this is far above any honest request — it is
@@ -1096,6 +1096,45 @@ def unhide_matches(body: MatchHideIn, request: Request) -> dict:
     """Put hidden jobs back on the matches page. Hiding is never a delete — this is why."""
     return _set_hidden(body, request, hidden=False)
 
+
+@app.post("/preferences")
+def update_preferences(body: PreferencesIn, request: Request) -> dict:
+    profile = _resolve_subscriber(request, body.token, mutating=True)
+    if not profile:
+        raise HTTPException(404, "Unknown or expired link.")
+    changes = body.model_dump(exclude={"token"}, exclude_none=True)
+    updated = store.update_subscription(profile["manage_token"], changes)
+    if not updated:
+        raise HTTPException(404, "Unknown or expired link.")
+    return _public_view(updated)
+
+
+class PauseIn(BaseModel):
+    token: Optional[str] = None
+    days: int = 14
+
+
+@app.post("/pause")
+def pause(body: PauseIn, request: Request) -> dict:
+    profile = _resolve_subscriber(request, body.token, mutating=True)
+    if not profile:
+        raise HTTPException(404, "Unknown or expired link.")
+    until = datetime.now(timezone.utc) + timedelta(days=max(1, body.days))
+    store.pause_subscription(profile["manage_token"], until)
+    return {"ok": True, "status": "paused", "paused_until": until.isoformat()}
+
+
+class TokenIn(BaseModel):
+    token: Optional[str] = None
+
+
+@app.post("/resume")
+def resume(body: TokenIn, request: Request) -> dict:
+    profile = _resolve_subscriber(request, body.token, mutating=True)
+    if not profile:
+        raise HTTPException(404, "Unknown or expired link.")
+    store.resume_subscription(profile["manage_token"])
+    return {"ok": True, "status": "active"}
 
 
 # --------------------------------------------------------------- unsubscribe ---

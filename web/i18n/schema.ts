@@ -69,6 +69,20 @@ export interface Messages {
     workModeHint: Record<string, string>;
   };
 
+  /** Education requirement chips, keyed by the stable ids in `lib/education.ts`. */
+  educationLevels: Record<string, string>;
+
+  education: {
+    label: string;
+    anyLevel: string;
+    narrowed: string;
+    /** Must say that most ads state no requirement and are kept — only ~3% can be filtered. */
+    note: string;
+    fieldLabel: string;
+    fieldPlaceholder: string;
+    fieldHint: string;
+  };
+
   location: {
     countriesLabel: string;
     addCountryAria: string;
@@ -238,20 +252,6 @@ export interface Messages {
     tagHybrid: string;
     tagRemote: string;
     tagFreelance: string;
-  };
-
-  checkInbox: {
-    title: string;
-    body: string;
-    inMeantime: string;
-    doubleOptIn: string;
-    yourInbox: string;
-    instantPreview: string;
-    instantNote: string;
-    instantNoteEmphasis: string;
-  };
-
-  manage: {
     /** Hiding: tick jobs already applied to / not wanted, confirm, and they move to /hidden. */
     hideHint: string;
     selectAll: string;
@@ -281,6 +281,20 @@ export interface Messages {
     unhiding: string;
     unhideFailed: string;
     showing: PluralForms;
+  };
+
+  checkInbox: {
+    title: string;
+    body: string;
+    inMeantime: string;
+    doubleOptIn: string;
+    yourInbox: string;
+    instantPreview: string;
+    instantNote: string;
+    instantNoteEmphasis: string;
+  };
+
+  manage: {
     sentTitle: string;
     sentBody: string;
     didntGet: string;

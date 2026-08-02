@@ -34,17 +34,18 @@ export default function PrivacyCs() {
           <li><b>Vaši e-mailovou adresu</b> — abychom vám mohli poslat přehled a potvrzení.</li>
           <li><b>Vaše vyhledávací předvolby</b> — pozice, dovednosti a klíčová slova, země a
             města, kde chcete pracovat, jaké formy práce přijmete (z kanceláře, hybridně, plně
-            na dálku), jak daleko může být plně vzdálená pozice, typ práce a frekvenci, tak jak
+            na dálku), jaké požadavky na vzdělání přijmete a — pokud jej uvedete — co jste
+            studovali, jak daleko může být plně vzdálená pozice, typ práce a frekvenci, tak jak
             je zadáte, a jazyk, ve kterém web čtete — aby vám v něm chodily i e-maily.</li>
           <li><b>Signály odvozené z životopisu</b> — pokud životopis nahrajete (nepovinné), viz
             oddíl 4.</li>
           <li><b>Záznamy o doručení</b> — které nabídky jsme vám již poslali, abychom stejnou
             nabídku nikdy neposlali dvakrát, a časové značky odeslání a potvrzení.</li>
-          <li><b>Anonymní statistiky používání</b> — které stránky se zobrazují a které kroky
           <li><b>Nabídky, které skryjete</b> — když nabídku na stránce se svými nabídkami
             skryjete (protože jste se už přihlásili nebo pro vás není), uložíme si tuto volbu
             k vašemu odběru, abychom ji přestali zobrazovat i posílat e-mailem. Všechny je
             vidíte na stránce se skrytými nabídkami a můžete je kdykoli vrátit zpět.</li>
+          <li><b>Anonymní statistiky používání</b> — které stránky se zobrazují a které kroky
             registračního formuláře jsou dosaženy nebo selžou, abychom mohli opravit, co je
             matoucí. Viz oddíl 6.</li>
         </ul>
@@ -68,10 +69,12 @@ export default function PrivacyCs() {
 
         <h2>4. Váš životopis — přečíst a zahodit</h2>
         <p>Pokud se rozhodnete nahrát životopis, přečteme jej <b>jednou, v paměti</b>, abychom
-          rozpoznali relevantní dovednosti a pozice, a poté soubor <b>okamžitě smažeme</b>.
-          Samotný dokument nikdy neukládáme a nikdy jej nepředáváme žádné třetí straně. Uloží se
-          pouze krátké odvozené shrnutí — například „Rozpoznáno: datové inženýrství, dbt,
-          Snowflake · ~4 roky“.</p>
+          rozpoznali relevantní dovednosti, pozice a vaše nejvyšší dosažené vzdělání, a poté
+          soubor <b>okamžitě smažeme</b>. Samotný dokument nikdy neukládáme a nikdy jej
+          nepředáváme žádné třetí straně. Uloží se pouze krátké odvozené shrnutí — například
+          „Rozpoznáno: datové inženýrství, dbt, Snowflake · ~4 roky · magistr ekonomie“.
+          Rozpoznané vzdělání slouží jen k předvyplnění formuláře, kde jej před odesláním
+          můžete změnit.</p>
         <p>Toto shrnutí je součástí vašeho profilu pro párování, takže je spolu s ostatními
           předvolbami zpracováno naším poskytovatelem párování (oddíl 5). Samotný dokument a
           jakýkoli detail v něm, který jsme neshrnuli — zaměstnavatelé, data, kontaktní údaje,
@@ -100,7 +103,8 @@ export default function PrivacyCs() {
         <ul>
           <li>náhodný identifikátor — <b>nikoli vaši e-mailovou adresu a nikoli vaše jméno</b>;</li>
           <li>vámi uvedené předvolby (pozice, dovednosti, zvolené země a města, formy práce,
-            které přijmete, typ práce);</li>
+            které přijmete, požadavky na vzdělání, které přijmete, a co jste studovali, pokud
+            jste to uvedli, typ práce);</li>
           <li>shrnutí odvozené z vašeho životopisu, pokud jste jej nahráli (oddíl 4);</li>
           <li>veřejné pracovní nabídky, které má seřadit.</li>
         </ul>

@@ -9,6 +9,11 @@ export interface CVSignals {
   seniorities: string[];
   sectors: string[];
   years_experience: number | null;
+  /** Highest qualification detected in the CV. Used to *pre-tick* the education chips so the
+   *  person can see and correct it — never applied as a filter server-side, because narrowing
+   *  a digest from a regex over a CV is a filter nobody chose. See `levelsUpTo`. */
+  education: string | null;
+  education_field: string | null;
   summary: string;
 }
 
@@ -25,6 +30,10 @@ export interface SubscribePayload {
   regions?: string[];
   // Which work setups they'll accept. Omit for "no preference" — all three.
   work_modes?: string[];
+  // Which education requirements they'll accept. Omit for "no preference" — all five.
+  // `education_field` is free text for the AI matcher and is never filtered on.
+  education_levels?: string[];
+  education_field?: string | null;
   role_categories?: string[];
   work_types?: string[];
   part_time_only?: boolean;
@@ -52,6 +61,10 @@ export interface Preferences {
   regions: string[];
   // Optional: absent on a subscription that predates migration 012. See `cleanWorkModes`.
   work_modes?: string[];
+  // Optional: absent on a subscription that predates migration 014. `cleanEducationLevels`
+  // reads that as "no preference" and returns all five, which is the column default too.
+  education_levels?: string[];
+  education_field?: string | null;
   role_categories: string[];
   work_types: string[];
   part_time_only: boolean;
@@ -90,9 +103,22 @@ export interface MatchesResponse {
   /** Total matches in *this* view (visible or hidden) — not the length of `jobs`, which is
    *  one page. */
   count: number;
+  /** Total hidden matches, returned by both views so each can link to the other. */
+  hidden_count: number;
   offset: number;
   limit: number;
+  /** Which half this response is: false = the matches page, true = the hidden page. */
+  hidden: boolean;
   jobs: MatchJob[];
+}
+
+/** What a hide/unhide leaves behind: how many rows actually changed, and the fresh totals
+ *  for both lists so the caller can update its headers without refetching. */
+export interface HideResponse {
+  ok: boolean;
+  changed: number;
+  visible_count: number;
+  hidden_count: number;
 }
 
 // Instant keyword preview shown right after signup (POST /preview). No score — this is
@@ -103,24 +129,11 @@ export interface PreviewJobCard {
   company: string | null;
   url: string | null;
   location: string | null;
-  /** Total hidden matches, returned by both views so each can link to the other. */
-  hidden_count: number;
   region: string | null;
   seniority: string | null;
-  /** Which half this response is: false = the matches page, true = the hidden page. */
-  hidden: boolean;
   work_type: string | null;
   tags: string[];
   why: string;
-/** What a hide/unhide leaves behind: how many rows actually changed, and the fresh totals
- *  for both lists so the caller can update its headers without refetching. */
-export interface HideResponse {
-  ok: boolean;
-  changed: number;
-  visible_count: number;
-  hidden_count: number;
-}
-
 }
 
 export interface PreviewResponse {
@@ -230,24 +243,11 @@ export function getMatches(token?: string, offset = 0, hidden = false) {
   const q = new URLSearchParams();
   if (token) q.set("token", token);
   if (offset) q.set("offset", String(offset));
+  if (hidden) q.set("hidden", "true");
   const s = q.toString();
   return req<MatchesResponse>(`/matches${s ? `?${s}` : ""}`);
 }
 
-export function updatePreferences(changes: Partial<Preferences>, token?: string) {
-  return req<Preferences>("/preferences", {
-    method: "POST",
-    body: JSON.stringify(token ? { token, ...changes } : changes),
-  });
-}
-
-export function pause(days = 14, token?: string) {
-  return req<{ ok: boolean; status: string; paused_until: string }>("/pause", {
-  if (hidden) q.set("hidden", "true");
-    method: "POST",
-    body: JSON.stringify(token ? { token, days } : { days }),
-  });
-}
 // Hide jobs from the matches page and from future digests — "I already applied", "not for
 // me". Never a delete: they move to /hidden, and setHidden(ids, false) puts them back.
 export function setMatchesHidden(postingIds: string[], hidden: boolean, token?: string) {
@@ -259,6 +259,19 @@ export function setMatchesHidden(postingIds: string[], hidden: boolean, token?: 
   });
 }
 
+export function updatePreferences(changes: Partial<Preferences>, token?: string) {
+  return req<Preferences>("/preferences", {
+    method: "POST",
+    body: JSON.stringify(token ? { token, ...changes } : changes),
+  });
+}
+
+export function pause(days = 14, token?: string) {
+  return req<{ ok: boolean; status: string; paused_until: string }>("/pause", {
+    method: "POST",
+    body: JSON.stringify(token ? { token, days } : { days }),
+  });
+}
 
 export function resume(token?: string) {
   return req<{ ok: boolean; status: string }>("/resume", {

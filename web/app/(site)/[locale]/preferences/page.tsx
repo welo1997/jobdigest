@@ -11,7 +11,9 @@ import {
 } from "@/lib/api";
 import { cap } from "@/lib/preview";
 import { LocationPicker, LocationValue } from "@/components/LocationPicker";
+import { EducationPicker, EducationValue } from "@/components/EducationPicker";
 import { REMOTE_SCOPES, RemoteScope, WORK_MODES, cleanWorkModes } from "@/lib/geo";
+import { EDUCATION_LEVELS, cleanEducationField, cleanEducationLevels } from "@/lib/education";
 import {
   DEFAULT_ROLE_IDS, ROLE_ID_FOR_CATEGORY, SENIORITY_IDS, SKILL_OPTS,
   prettifyCategory, roleCategory, roleKeyword,
@@ -77,6 +79,9 @@ function Inner() {
   const [loc, setLoc] = useState<LocationValue>({
     countries: ["CZ"], cities: [], remoteScope: "eu", workModes: [...WORK_MODES],
   });
+  const [edu, setEdu] = useState<EducationValue>({
+    levels: [...EDUCATION_LEVELS], field: "",
+  });
   const [levels, setLevels] = useState<Set<string>>(new Set());
 
   type SetSetter = (updater: (prev: Set<string>) => Set<string>) => void;
@@ -111,6 +116,13 @@ function Inner() {
       setSkillSet(new Set(skillLabels));
       setFreq(FREQS.includes(p.frequency) ? p.frequency : "daily");
       setLoc(locationFrom(p));
+      // Absent on a subscription that predates migration 014 — `cleanEducationLevels` reads
+      // that as "no preference" and returns all five, which is the column default too. The
+      // form must never open on a narrower selection than the one being enforced.
+      setEdu({
+        levels: cleanEducationLevels(p.education_levels),
+        field: p.education_field || "",
+      });
       setLevels(new Set((p.seniorities || [])
         .filter((c) => (SENIORITY_IDS as readonly string[]).includes(c))));
     };
@@ -178,6 +190,8 @@ function Inner() {
         cities: loc.cities,
         remote_scope: loc.remoteScope,
         work_modes: loc.workModes,
+        education_levels: cleanEducationLevels(edu.levels),
+        education_field: cleanEducationField(edu.field),
         seniorities: seniorities.length ? seniorities : ["junior", "mid", "senior"],
         // Saving from /cs/preferences/ means "write to me in Czech". There is no separate
         // language control on purpose: a subscriber who switched the site to their language
@@ -310,6 +324,8 @@ function Inner() {
             </div>
           </div>
           <LocationPicker value={loc} onChange={setLoc} idPrefix="p" />
+
+          <EducationPicker value={edu} onChange={setEdu} idPrefix="p" />
 
           <div className="field">
             <label htmlFor="p-freq">{t.prefs.frequency}</label>
