@@ -6,7 +6,17 @@ __pycache__/
 .env
 .env.*
 web/
-dbt/
+# dbt/ is market-intel and does not belong in the backend image — with one exception.
+# `ingestion/sources/greenhouse.py` reads its curated board tokens from this seed at
+# runtime, so excluding the whole directory made GreenhouseSource load zero boards and
+# fetch nothing, silently: the loader catches FileNotFoundError, logs a warning and
+# returns []. Excluding the parent then re-including one file needs the walk-down form —
+# a bare `!dbt/seeds/target_companies.csv` after `dbt/` does not work, because Docker
+# never descends into an excluded directory.
+dbt/*
+!dbt/seeds
+dbt/seeds/*
+!dbt/seeds/target_companies.csv
 analytics*/
 logs/
 notes/

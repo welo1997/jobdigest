@@ -1,5 +1,6 @@
 # JobDigest backend — serves the public API (service.webapp) and runs the daily pipeline
-# (service.pipeline). One lean image, no Snowflake/dbt. Build context = repo root.
+# (service.pipeline). One lean image, no Snowflake and no dbt beyond the one seed file
+# GreenhouseSource reads at runtime (see below). Build context = repo root.
 FROM python:3.12-slim AS base
 
 ENV PYTHONUNBUFFERED=1 \
@@ -23,6 +24,11 @@ RUN pip install -r service/requirements-worker.txt
 COPY service/ ./service/
 COPY ingestion/ ./ingestion/
 COPY search_jobs.py ./search_jobs.py
+# Not a dbt dependency despite the path: GreenhouseSource loads its curated board tokens
+# from this seed at runtime, resolved relative to ingestion/sources/. Without it the
+# largest source fetches nothing and says so only in a warning — which is how it
+# contributed 0 rows to production while every check stayed green.
+COPY dbt/seeds/target_companies.csv ./dbt/seeds/target_companies.csv
 
 # Run as non-root.
 RUN useradd -m app && chown -R app /app
