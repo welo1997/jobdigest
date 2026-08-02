@@ -7,7 +7,6 @@ Twilio,greenhouse,twilio,communications
 Figma,greenhouse,figma,design
 Airtable,greenhouse,airtable,productivity
 Vercel,greenhouse,vercel,infrastructure
-dbt Labs,greenhouse,dbtlabsinc,data
 Fivetran,greenhouse,fivetran,data
 Grafana Labs,greenhouse,grafanalabs,observability
 Databricks,greenhouse,databricks,data
@@ -42,7 +41,6 @@ N26,greenhouse,n26,fintech
 GoCardless,greenhouse,gocardless,fintech
 Mercury,greenhouse,mercury,fintech
 Chime,greenhouse,chime,fintech
-Nubank,greenhouse,nubank,fintech
 Tide,greenhouse,tide,fintech
 Marqeta,greenhouse,marqeta,fintech
 Bitpanda,greenhouse,bitpanda,fintech
@@ -54,3 +52,42 @@ Bloomreach,greenhouse,bloomreach,ecommerce
 Wolt,greenhouse,wolt,ecommerce
 Mirakl,greenhouse,mirakl,ecommerce
 Algolia,greenhouse,algolia,ecommerce
+Anthropic,greenhouse,anthropic,ai
+Dataiku,greenhouse,dataiku,ai
+AssemblyAI,greenhouse,assemblyai,ai
+Celonis,greenhouse,celonis,data
+Starburst,greenhouse,starburst,data
+Dremio,greenhouse,dremio,data
+SingleStore,greenhouse,singlestore,data
+Neo4j,greenhouse,neo4j,data
+Contentful,greenhouse,contentful,devtools
+JetBrains,greenhouse,jetbrains,devtools
+Temporal,greenhouse,temporaltechnologies,devtools
+Samsara,greenhouse,samsara,infrastructure
+Dropbox,greenhouse,dropbox,productivity
+Asana,greenhouse,asana,productivity
+Staffbase,greenhouse,staffbase,productivity
+Pinterest,greenhouse,pinterest,social
+Airbnb,greenhouse,airbnb,ecommerce
+Lyft,greenhouse,lyft,ecommerce
+GetYourGuide,greenhouse,getyourguide,ecommerce
+trivago,greenhouse,trivago,ecommerce
+SumUp,greenhouse,sumup,fintech
+Trade Republic,greenhouse,traderepublic,fintech
+Raisin,greenhouse,raisin,fintech
+Solaris,greenhouse,solarisbank,fintech
+Gusto,greenhouse,gusto,hr
+Doctolib,greenhouse,doctolib,healthtech
+Braze,greenhouse,braze,marketing
+Attentive,greenhouse,attentive,marketing
+Iterable,greenhouse,iterable,marketing
+Customer.io,greenhouse,customerio,marketing
+Graphcore,greenhouse,graphcore,ai
+Postman,greenhouse,postman,devtools
+LaunchDarkly,greenhouse,launchdarkly,devtools
+CircleCI,greenhouse,circleci,devtools
+Duolingo,greenhouse,duolingo,edtech
+Calendly,greenhouse,calendly,productivity
+Ivalua,greenhouse,ivalua,enterprise
+TrueLayer,greenhouse,truelayer,fintech
+KONUX,greenhouse,konux,industrial

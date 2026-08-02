@@ -18,9 +18,14 @@ logger = logging.getLogger(__name__)
 
 HEADERS = {"User-Agent": "Mozilla/5.0 (compatible; job-market-intel/1.0)"}
 
-# Verified-live Lever boards (EU-heavy tech + fintech / ecommerce).
+# Verified-live Lever boards (EU-heavy tech + fintech / ecommerce). Re-probed 2026-08-01:
+# all 10 originals still serve jobs. Lever has the lowest hit rate of the three ATS adapters
+# — 6 live out of 82 EU/US candidates probed — because most of the companies that used it
+# have since moved to Greenhouse or Ashby. Check the other two adapters before adding here.
 ORGS = ["spotify", "qonto", "contentsquare", "aircall", "swile", "blablacar",
-        "zopa", "moonpig", "moonpay", "vestiairecollective"]
+        "zopa", "moonpig", "moonpay", "vestiairecollective",
+        # added 2026-08-01, FR/PT/EE-heavy
+        "farfetch", "malt", "agicap", "360learning", "pipedrive", "ledger"]
 
 
 class LeverSource(BaseSource):

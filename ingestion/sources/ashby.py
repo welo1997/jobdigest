@@ -18,12 +18,35 @@ logger = logging.getLogger(__name__)
 
 HEADERS = {"User-Agent": "Mozilla/5.0 (compatible; job-market-intel/1.0)"}
 
-# Verified-live Ashby boards (remote-first / data / AI + fintech / ecommerce).
+# Verified-live Ashby boards (remote-first / data / AI + fintech / ecommerce). Whole list
+# re-probed 2026-08-01: all 18 originals still serve jobs, and the additions below were
+# confirmed the same way. A board that goes dark is a silent zero — `fetch` skips a non-200
+# and logs nothing at error level — so re-probe rather than assume when volume drops.
+#
+# Deliberately NOT here despite being live on Ashby: `clickhouse` (already a Greenhouse board
+# in dbt/seeds/target_companies.csv) and `qonto` (already a Lever org). Both serve the same
+# postings under a second source, and while `digest.dedupe_key` would collapse them in the
+# email, they would still occupy two rows and two shortlist slots each.
 ORGS = [
     "notion", "openai", "ramp", "cohere", "supabase", "elevenlabs",
     "baseten", "linear", "posthog", "langchain", "modal",
     # fintech / trading / ecommerce
     "plaid", "pleo", "wealthsimple", "mollie", "keyrock", "backmarket", "deliveroo",
+    # AI / applied ML, added 2026-08-01
+    "harvey", "sierra", "cursor", "synthesia", "lovable", "writer", "abridge",
+    "runway", "photoroom", "langfuse", "n8n",
+    # data / infra / devtools
+    "airbyte", "prefect", "motherduck", "neon", "render", "railway", "resend",
+    "vanta", "attio", "tldraw", "dune",
+    # EU-based (FR/DE/NL/PT), which the rest of this list is thin on
+    "alan", "swan", "tacto", "forto", "choco", "oyster",
+    # second wave, verified 2026-08-01 — AI labs and applied-AI, the densest hiring segment
+    "perplexity", "cognition", "decagon", "mercor", "suno", "pika", "listenlabs",
+    "physicalintelligence", "poolside", "rogo", "legora", "granola",
+    # fintech / infra / devtools
+    "airwallex", "column", "primer", "unit", "vivid", "warp", "zed", "chromatic",
+    # GB-based, which this list had almost none of
+    "wayve", "applied",
 ]
 
 # Map Ashby address country names to ISO-3166 alpha-2.
