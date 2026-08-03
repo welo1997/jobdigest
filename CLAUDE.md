@@ -592,10 +592,22 @@ goes red. A test that cannot fail documents nothing.
   no CZ or SK index, which is what the Czech scrapers are for). A run costs
   `sum(pages) × len(SEARCH_TERMS)`, so the two lists multiply and one small-looking edit to
   each is a 30-call increase; `test_adzuna.py` fails if a change busts `DAILY_REQUEST_BUDGET`.
-  **The credentials in `.env` were rejecting every call with AUTH_FAIL on 2026-08-01** and
-  had left no trace: a 401 was caught as an ordinary `RequestException`, logged per page, and
-  `fetch` returned `[]`, which downstream is indistinguishable from a quiet day. 401/403 now
-  raises `AdzunaAuthError` instead. Until the key is replaced this source contributes nothing.
+  **The AUTH_FAIL on 2026-08-01 was never a bad credential — it was an unresolved
+  `op://` reference** being sent to Adzuna verbatim. The developer `.env` stores both values as
+  1Password references, which resolve only under `op run --env-file=.env`; run any other way,
+  the literal string travels as the app id. It left no trace either: a 401 was caught as an
+  ordinary `RequestException`, logged per page, and `fetch` returned `[]`, which downstream is
+  indistinguishable from a quiet day. 401/403 now raises `AdzunaAuthError`, and the constructor
+  refuses an empty or `op://` value rather than spending the budget discovering it one 401 at
+  a time.
+  **Live on the VPS since 2026-08-03.** The box gets the *literal* values in `deploy/.env` —
+  nothing there runs `op`, so a reference would reproduce the original failure exactly. They
+  are runtime variables, not build args, so `docker compose run` picks them up with no
+  rebuild. One run is 165 of the 250 daily calls, which is why a manual re-run on the same day
+  can push past the quota; a 429 is swallowed into an empty list, so it would read as "Adzuna
+  got quieter", not as an error. Copy them with `op read`, never `op run` — **`op run` masks
+  secrets in the child process's stdout**, so piping a value through it writes
+  `<concealed by 1Password>` into the target file.
 - **Never use LinkedIn beyond its public RSS** — account ban risk, and never Playwright. As
   of 2026-08-01 that RSS returns 0 entries, as does EuroJobs (Cloudflare interstitial), so
   both adapters are **not wired into `gather()`**; the README used to list them as coverage.
