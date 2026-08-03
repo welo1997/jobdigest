@@ -106,7 +106,7 @@ const cs: Messages = {
     anyLevel: "cokoli",
     narrowed: "ostatní vynecháme",
     note:
-      "Většina inzerátů žádné vzdělání neuvádí — ty všechny ponìháváme a popis místo toho přečte matcher. Vynecháme jen těch pár, které výslovně žádají titul, jaký nemáte.",
+      "Většina inzerátů žádné vzdělání neuvádí — ty všechny ponecháváme a popis místo toho přečte matcher. Vynecháme jen těch pár, které výslovně žádají titul, jaký nemáte.",
     fieldLabel: "Co jste studovali (nepovinné)",
     fieldPlaceholder: "Ekonomie, Informatika…",
     fieldHint:

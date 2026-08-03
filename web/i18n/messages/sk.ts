@@ -105,7 +105,7 @@ const sk: Messages = {
     anyLevel: "čokoľvek",
     narrowed: "ostatné vynecháme",
     note:
-      "Väčšina inzerátov vzdelanie neuvádza — tie všetky ponìhávame a popis namiesto toho prečíta matcher. Vynecháme len tých pár, ktoré výslovne žiadajú titul, ktorý nemáte.",
+      "Väčšina inzerátov vzdelanie neuvádza — tie všetky ponechávame a popis namiesto toho prečíta matcher. Vynecháme len tých pár, ktoré výslovne žiadajú titul, ktorý nemáte.",
     fieldLabel: "Čo ste študovali (nepovinné)",
     fieldPlaceholder: "Ekonómia, Informatika…",
     fieldHint:
