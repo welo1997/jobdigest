@@ -33,8 +33,8 @@ export default function TermsEn() {
         <p>We link to the original listing rather than reproducing it: what you see here is the job
           title, the employer, and a short summary we write ourselves. Sources include Adzuna,
           Remote OK, Remotive, Jobicy, Himalayas, We Work Remotely, Working Nomads, Arbeitnow, The
-          Muse, Jobs.cz, Profesia, StartupJobs and Cocuma, along with employers&apos; own career
-          sites hosted on Greenhouse, Lever, Ashby, SmartRecruiters and Workday.</p>
+          Muse, StartupJobs and Cocuma, along with employers&apos; own career sites hosted on
+          Greenhouse, Lever, Ashby, SmartRecruiters and Workday.</p>
 
         <h2>3a. If you operate a job board or a career site</h2>
         <p>Our crawler identifies itself as <b>JobDigest/1.0</b> and honours{" "}

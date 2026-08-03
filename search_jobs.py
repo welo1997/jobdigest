@@ -208,11 +208,21 @@ def gather(include_cz: bool) -> list[JobPosting]:
         # holding an unresolved 1Password reference.
         logger.info("Adzuna skipped: %s", exc)
     if include_cz:
-        from ingestion.sources.jobscz import JobsCzSource
+        # Jobs.cz and Profesia are NOT here, and their adapters are kept only as code —
+        # `ingestion/sources/jobscz.py` and `profesia.py` still work and are still tested.
+        # Both are Alma Career brands, and Alma Career's Podmínky používání §4.11 forbids
+        # automated processing of the data in their systems and "načítat prezentovaná data …
+        # pro další strojové či automatizované zpracování", with §4.7(e) making bulk automated
+        # reading grounds for termination. Their robots.txt permits the paths we fetched, but
+        # robots.txt is a crawling convention and the terms are the binding document; the same
+        # words — vytěžovat / zužitkovávat — are the statutory language of the EU database
+        # right (96/9/EC), which applies with or without a contract.
+        # Excluded 2026-08-03 pending a conversation with Alma Career about a feed. The cost
+        # is deliberate and large: 92% of Czech and 99% of Slovak inventory. Do not re-add
+        # either one because the digest looks thin — re-add them when there is permission.
         from ingestion.sources.startupjobs import StartupJobsSource
         from ingestion.sources.cocuma import CocumaSource
-        from ingestion.sources.profesia import ProfesiaSource
-        sources += [StartupJobsSource, JobsCzSource, CocumaSource, ProfesiaSource]
+        sources += [StartupJobsSource, CocumaSource]
 
     postings: list[JobPosting] = []
     for cls in sources:

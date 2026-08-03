@@ -168,7 +168,7 @@ const en: Messages = {
     livePreview: "Live preview",
     trustEmail: "One email a day",
     trustUnsub: "Unsubscribe in one click",
-    trustFree: "Free to start · 13 sources scanned nightly",
+    trustFree: "Free to start · 16 sources scanned nightly",
     howItWorks: "How it works",
     step1Title: "Tap your profile",
     step1Body: "Roles, skills, where you can work. Twenty seconds, mostly tapping.",

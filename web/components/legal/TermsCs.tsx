@@ -35,8 +35,8 @@ export default function TermsCs() {
         <p>Odkazujeme na původní inzerát, místo abychom ho přebírali: zobrazujeme název pozice,
           zaměstnavatele a krátké shrnutí, které píšeme sami. Mezi zdroje patří Adzuna, Remote OK,
           Remotive, Jobicy, Himalayas, We Work Remotely, Working Nomads, Arbeitnow, The Muse,
-          Jobs.cz, Profesia, StartupJobs a Cocuma a dále kariérní weby samotných zaměstnavatelů
-          provozované na Greenhouse, Lever, Ashby, SmartRecruiters a Workday.</p>
+          StartupJobs a Cocuma a dále kariérní weby samotných zaměstnavatelů provozované na
+          Greenhouse, Lever, Ashby, SmartRecruiters a Workday.</p>
 
         <h2>3a. Pro provozovatele pracovních portálů a kariérních webů</h2>
         <p>Náš robot se představuje jako <b>JobDigest/1.0</b> a respektuje soubor{" "}

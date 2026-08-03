@@ -169,7 +169,7 @@ const fr: Messages = {
     livePreview: "Aperçu en direct",
     trustEmail: "Un e-mail par jour",
     trustUnsub: "Désinscription en un clic",
-    trustFree: "Démarrage gratuit · 13 sources parcourues chaque nuit",
+    trustFree: "Démarrage gratuit · 16 sources parcourues chaque nuit",
     howItWorks: "Comment ça marche",
     step1Title: "Composez votre profil",
     step1Body: "Postes, compétences, où vous pouvez travailler. Vingt secondes, surtout des clics.",

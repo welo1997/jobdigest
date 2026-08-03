@@ -174,7 +174,7 @@ const sk: Messages = {
     livePreview: "Živá ukážka",
     trustEmail: "Jeden e-mail denne",
     trustUnsub: "Odhlásenie jedným kliknutím",
-    trustFree: "Začiatok zadarmo · 13 zdrojov prehľadávame každú noc",
+    trustFree: "Začiatok zadarmo · 16 zdrojov prehľadávame každú noc",
     howItWorks: "Ako to funguje",
     step1Title: "Naklikajte si profil",
     step1Body: "Pozície, zručnosti, kde môžete pracovať. Dvadsať sekúnd, hlavne klikanie.",

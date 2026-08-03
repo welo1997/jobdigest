@@ -175,7 +175,7 @@ const de: Messages = {
     livePreview: "Live-Vorschau",
     trustEmail: "Eine E-Mail pro Tag",
     trustUnsub: "Abmelden mit einem Klick",
-    trustFree: "Kostenlos starten · 13 Quellen jede Nacht durchsucht",
+    trustFree: "Kostenlos starten · 16 Quellen jede Nacht durchsucht",
     howItWorks: "So funktioniert's",
     step1Title: "Profil antippen",
     step1Body: "Positionen, Fähigkeiten, wo du arbeiten kannst. Zwanzig Sekunden, fast nur Tippen.",

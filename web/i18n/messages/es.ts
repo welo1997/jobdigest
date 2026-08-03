@@ -168,7 +168,7 @@ const es: Messages = {
     livePreview: "Vista previa en vivo",
     trustEmail: "Un correo al día",
     trustUnsub: "Baja con un clic",
-    trustFree: "Empezar es gratis · 13 fuentes revisadas cada noche",
+    trustFree: "Empezar es gratis · 16 fuentes revisadas cada noche",
     howItWorks: "Cómo funciona",
     step1Title: "Marca tu perfil",
     step1Body: "Puestos, habilidades, dónde puedes trabajar. Veinte segundos, casi todo tocando.",

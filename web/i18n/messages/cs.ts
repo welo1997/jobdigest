@@ -175,7 +175,7 @@ const cs: Messages = {
     livePreview: "Živá ukázka",
     trustEmail: "Jeden e-mail denně",
     trustUnsub: "Odhlášení jedním kliknutím",
-    trustFree: "Začátek zdarma · 13 zdrojů prohledáváme každou noc",
+    trustFree: "Začátek zdarma · 16 zdrojů prohledáváme každou noc",
     howItWorks: "Jak to funguje",
     step1Title: "Naklikejte si profil",
     step1Body: "Pozice, dovednosti, kde můžete pracovat. Dvacet vteřin, hlavně klikání.",

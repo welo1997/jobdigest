@@ -624,9 +624,14 @@ goes red. A test that cannot fail documents nothing.
   čtení anebo kopírování obsahu"* grounds for termination. That is our two Czech/Slovak
   scrapers described exactly, and *vytěžovat / zužitkovávat* is the statutory language of the
   EU database right (96/9/EC), not just contract. **12 861 active postings, 33% of inventory.**
-  This is recorded as a known, undecided risk — not an oversight, and not something the
-  politeness layer fixes. The options are stop, ask Alma Career for a feed, or accept the risk
-  knowingly; do not quietly assume it was settled.
+  **Decided 2026-08-03: both are excluded from `gather()`**, pending a conversation with Alma
+  Career about a feed. The adapters are kept as working, tested code — like `linkedin` and
+  `eurojobs` — so reversing this is a decision, not a rewrite. `test_source_exclusions.py`
+  fails if either returns to `gather()`, because re-adding one is a two-word edit that nothing
+  else would notice. **The price is deliberate and severe: Czech inventory falls 10 402 → 874
+  (−92%) and Slovak 3 362 → 29 (−99%).** Do not re-add either because the digest looks thin;
+  re-add them when there is permission. Rebuilding CZ coverage means more curated Czech
+  employers on Greenhouse/Lever/Ashby, or a board that permits it — not this.
   Cocuma's terms are B2B and carry no such clause. **Remote OK's API terms require a
   *followed* link back and naming Remote OK as a source** — hence the source list in Terms §3
   and `rel="noopener"` (not `noreferrer`) on `MatchCard`, so the referral they ask for actually
