@@ -18,6 +18,7 @@ import requests
 from bs4 import BeautifulSoup
 
 from ingestion.base import BaseSource, JobPosting, make_posting_id
+from ingestion import politeness
 
 logger = logging.getLogger(__name__)
 
@@ -110,12 +111,17 @@ class JobsCzSource(BaseSource):
     def _fetch_field(self, label: str, field_id: str, hint: str | None,
                      seen_urls: set[str], sink: list[dict]) -> int:
         added = 0
+        if not politeness.robots_allows(BASE_URL):
+            logger.warning("Jobs.cz [%s]: %s is disallowed by robots.txt — skipping",
+                           label, BASE_URL)
+            return 0
         for page in range(1, MAX_PAGES + 1):
             try:
+                politeness.throttle(BASE_URL)
                 resp = requests.get(
                     BASE_URL,
                     params={"field[]": field_id, "page": page},
-                    headers={"User-Agent": "Mozilla/5.0"},
+                    headers=politeness.HEADERS,
                     timeout=15,
                 )
                 resp.raise_for_status()

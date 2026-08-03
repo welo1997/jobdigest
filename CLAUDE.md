@@ -608,6 +608,29 @@ goes red. A test that cannot fail documents nothing.
   got quieter", not as an error. Copy them with `op read`, never `op run` — **`op run` masks
   secrets in the child process's stdout**, so piping a value through it writes
   `<concealed by 1Password>` into the target file.
+- **Source terms of use — read on 2026-08-03, and one of them is a real problem.**
+  `ingestion/politeness.py` is the one place for the crawler's identity: `USER_AGENT`
+  (`JobDigest/1.0` + contact URL + address — every adapter used to send a browser string, and
+  the three scrapers a bare `Mozilla/5.0`), `robots_allows()`, and `throttle()` at 1 s/host.
+  `test_politeness.py` fails if any adapter reintroduces a browser agent. **robots.txt permits
+  every path we fetch** on jobs.cz (`/prace/`), profesia.cz/.sk (`/prace/`, `/praca/`) and
+  cocuma (`/jobs/page/N/`); none declares a `Crawl-delay`. All three still return 200 to the
+  honest agent — verified, because an identifier no board accepts is a dead source.
+  **But robots.txt is not the binding document.** Alma Career's *Podmínky používání* — which
+  govern **jobs.cz + prace.cz** (§4.11 CZ) and **profesia.sk/.cz** (§4.11 SK, identical text)
+  — say a user may not *"zpracovávat automatizovaně data … ani jiným obdobným způsobem
+  vytěžovat či zužitkovávat databáze Alma Career"* or *"načítat prezentovaná data … pro další
+  strojové či automatizované zpracování"*, and §4.7(e) makes *"pokusy o automatické či hromadné
+  čtení anebo kopírování obsahu"* grounds for termination. That is our two Czech/Slovak
+  scrapers described exactly, and *vytěžovat / zužitkovávat* is the statutory language of the
+  EU database right (96/9/EC), not just contract. **12 861 active postings, 33% of inventory.**
+  This is recorded as a known, undecided risk — not an oversight, and not something the
+  politeness layer fixes. The options are stop, ask Alma Career for a feed, or accept the risk
+  knowingly; do not quietly assume it was settled.
+  Cocuma's terms are B2B and carry no such clause. **Remote OK's API terms require a
+  *followed* link back and naming Remote OK as a source** — hence the source list in Terms §3
+  and `rel="noopener"` (not `noreferrer`) on `MatchCard`, so the referral they ask for actually
+  arrives. Terms §3a tells any board how to have us stop; that mailbox is `hello@jobdigest.eu`.
 - **Never use LinkedIn beyond its public RSS** — account ban risk, and never Playwright. As
   of 2026-08-01 that RSS returns 0 entries, as does EuroJobs (Cloudflare interstitial), so
   both adapters are **not wired into `gather()`**; the README used to list them as coverage.

@@ -13,10 +13,11 @@ from typing import Optional
 import requests
 
 from ingestion.base import BaseSource, JobPosting, make_posting_id
+from ingestion import politeness
 
 logger = logging.getLogger(__name__)
 
-HEADERS = {"User-Agent": "Mozilla/5.0 (compatible; job-market-intel/1.0)"}
+HEADERS = politeness.HEADERS
 
 # Verified-live Lever boards (EU-heavy tech + fintech / ecommerce). Re-probed 2026-08-01:
 # all 10 originals still serve jobs. Lever has the lowest hit rate of the three ATS adapters

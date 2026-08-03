@@ -9,6 +9,7 @@ import requests
 from bs4 import BeautifulSoup
 
 from ingestion.base import BaseSource, JobPosting, make_posting_id
+from ingestion import politeness
 
 logger = logging.getLogger(__name__)
 
@@ -28,9 +29,13 @@ class CocumaSource(BaseSource):
         for page in range(1, MAX_PAGES + 1):
             try:
                 url = BASE_URL if page == 1 else f"{BASE_URL}page/{page}/"
+                if not politeness.robots_allows(url):
+                    logger.warning("Cocuma: %s is disallowed by robots.txt — stopping", url)
+                    break
+                politeness.throttle(url)
                 resp = requests.get(
                     url,
-                    headers={"User-Agent": "Mozilla/5.0"},
+                    headers=politeness.HEADERS,
                     timeout=15,
                 )
                 resp.raise_for_status()

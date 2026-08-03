@@ -32,6 +32,19 @@ export default function TermsCs() {
           zaměstnavatel ani personální agentura. <b>Před podáním přihlášky si vždy ověřte údaje
           přímo na webu zaměstnavatele.</b> JobDigest není stranou žádné přihlášky, pohovoru ani
           rozhodnutí o přijetí a nenese za ně odpovědnost.</p>
+        <p>Odkazujeme na původní inzerát, místo abychom ho přebírali: zobrazujeme název pozice,
+          zaměstnavatele a krátké shrnutí, které píšeme sami. Mezi zdroje patří Adzuna, Remote OK,
+          Remotive, Jobicy, Himalayas, We Work Remotely, Working Nomads, Arbeitnow, The Muse,
+          Jobs.cz, Profesia, StartupJobs a Cocuma a dále kariérní weby samotných zaměstnavatelů
+          provozované na Greenhouse, Lever, Ashby, SmartRecruiters a Workday.</p>
+
+        <h2>3a. Pro provozovatele pracovních portálů a kariérních webů</h2>
+        <p>Náš robot se představuje jako <b>JobDigest/1.0</b> a respektuje soubor{" "}
+          <code>robots.txt</code> včetně pravidla adresovaného tomuto jménu. Pokud si nepřejete,
+          abychom vaše inzeráty načítali — z jakéhokoli důvodu a bez nutnosti ho vysvětlovat —
+          napište na <b>hello@jobdigest.eu</b> a přestaneme s tím a odstraníme, co máme uloženo.
+          Raději se s vámi domluvíme, než abychom byli zablokováni: máte-li API nebo feed, který
+          bychom měli používat přednostně, dejte nám vědět a přejdeme na něj.</p>
 
         <h2>4. Přijatelné užívání</h2>
         <p>Přehled slouží k vašemu osobnímu hledání práce. Zavazujete se jeho obsah nestahovat

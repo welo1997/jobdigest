@@ -16,11 +16,12 @@ from typing import Optional
 import requests
 
 from ingestion.base import BaseSource, JobPosting, make_posting_id
+from ingestion import politeness
 
 logger = logging.getLogger(__name__)
 
 HIMALAYAS_API_URL = "https://himalayas.app/jobs/api"
-HEADERS = {"User-Agent": "Mozilla/5.0 (compatible; job-market-intel/1.0)"}
+HEADERS = politeness.HEADERS
 #: What we ask for. Himalayas caps a response at 20 regardless, so this is an upper bound and
 #: never a stride — see `fetch`, which advances by the count actually received.
 PAGE_SIZE = 100

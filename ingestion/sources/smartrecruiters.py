@@ -35,11 +35,12 @@ from typing import Optional
 import requests
 
 from ingestion.base import BaseSource, JobPosting, make_posting_id
+from ingestion import politeness
 
 logger = logging.getLogger(__name__)
 
 API = "https://api.smartrecruiters.com/v1/companies"
-HEADERS = {"User-Agent": "Mozilla/5.0 (compatible; job-market-intel/1.0)"}
+HEADERS = politeness.HEADERS
 
 # Verified live 2026-08-01, with the posting count each tenant carried on that day. These
 # are whole-company totals, not what we ingest — the `q` terms below cut them down.

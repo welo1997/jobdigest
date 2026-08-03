@@ -19,6 +19,7 @@ import requests
 from bs4 import BeautifulSoup
 
 from ingestion.base import BaseSource, JobPosting, make_posting_id
+from ingestion import politeness
 
 logger = logging.getLogger(__name__)
 
@@ -123,12 +124,16 @@ class ProfesiaSource(BaseSource):
     def _fetch_profession(self, site: dict, slug: str, hint: str | None,
                           seen: set[str], sink: list[dict]) -> None:
         base = f"{site['root']}{site['path']}{slug}/"
+        if not politeness.robots_allows(base):
+            logger.warning("Profesia: %s is disallowed by robots.txt — skipping", base)
+            return
         for page in range(1, MAX_PAGES + 1):
             try:
+                politeness.throttle(base)
                 resp = requests.get(
                     base,
                     params={"page_num": page} if page > 1 else None,
-                    headers={"User-Agent": "Mozilla/5.0"},
+                    headers=politeness.HEADERS,
                     timeout=15,
                 )
                 resp.raise_for_status()

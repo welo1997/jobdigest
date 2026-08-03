@@ -30,6 +30,19 @@ export default function TermsEn() {
           a recruiter. <b>Always verify the details on the employer&apos;s own site before
           applying.</b> JobDigest is not a party to, and takes no responsibility for, any application,
           interview, or hiring decision.</p>
+        <p>We link to the original listing rather than reproducing it: what you see here is the job
+          title, the employer, and a short summary we write ourselves. Sources include Adzuna,
+          Remote OK, Remotive, Jobicy, Himalayas, We Work Remotely, Working Nomads, Arbeitnow, The
+          Muse, Jobs.cz, Profesia, StartupJobs and Cocuma, along with employers&apos; own career
+          sites hosted on Greenhouse, Lever, Ashby, SmartRecruiters and Workday.</p>
+
+        <h2>3a. If you operate a job board or a career site</h2>
+        <p>Our crawler identifies itself as <b>JobDigest/1.0</b> and honours{" "}
+          <code>robots.txt</code>, including a rule addressed to that name. If you would rather we
+          did not index your listings — for any reason, and without having to explain it — email{" "}
+          <b>hello@jobdigest.eu</b> and we will stop and remove what we hold. We would also rather
+          hear from you than be blocked: if you have an API or a feed you would prefer we used, tell
+          us and we will switch to it.</p>
 
         <h2>4. Acceptable use</h2>
         <p>The digest is for your personal job search. You agree not to scrape, resell, republish, or

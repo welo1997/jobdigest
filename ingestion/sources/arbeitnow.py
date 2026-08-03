@@ -9,11 +9,12 @@ from typing import Optional
 import requests
 
 from ingestion.base import BaseSource, JobPosting, make_posting_id
+from ingestion import politeness
 
 logger = logging.getLogger(__name__)
 
 ARBEITNOW_API_URL = "https://www.arbeitnow.com/api/job-board-api"
-HEADERS = {"User-Agent": "Mozilla/5.0 (compatible; job-market-intel/1.0)"}
+HEADERS = politeness.HEADERS
 MAX_PAGES = 3
 
 

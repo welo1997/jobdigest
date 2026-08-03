@@ -82,7 +82,14 @@ export function MatchCard(
             className="apply"
             href={href}
             target="_blank"
-            rel="noopener noreferrer"
+            // `noopener` only. `noreferrer` was also stripping the Referer header, which is
+            // how a source sees that we sent the visit — Remote OK's API terms ask for a
+            // followed link and the traffic back, and several boards treat referred traffic as
+            // the whole reason to tolerate an aggregator. Nothing sensitive leaks: the token is
+            // removed from the URL once it is traded for a session, so the referrer is the bare
+            // /matches path. `noopener` still blocks the reverse-tabnabbing hole, which is the
+            // part that was ever a security property.
+            rel="noopener"
             // Score only — never the job, company or URL. Tells us whether the ranking is
             // trusted (are low-scored matches ever clicked?) without profiling anyone.
             onClick={() => track("match_clicked", { count: score }, token || undefined)}

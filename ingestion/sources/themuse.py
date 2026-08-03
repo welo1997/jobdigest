@@ -33,11 +33,12 @@ from typing import Optional
 import requests
 
 from ingestion.base import BaseSource, JobPosting, make_posting_id
+from ingestion import politeness
 
 logger = logging.getLogger(__name__)
 
 API = "https://www.themuse.com/api/public/jobs"
-HEADERS = {"User-Agent": "Mozilla/5.0 (compatible; job-market-intel/1.0)"}
+HEADERS = politeness.HEADERS
 
 #: Muse category -> role_category hint, and the categories we ask for at all. Verified live
 #: 2026-08-01 with the listing count each carried; names must match exactly ("IT" and

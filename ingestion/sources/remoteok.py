@@ -13,11 +13,12 @@ from typing import Optional
 import requests
 
 from ingestion.base import BaseSource, JobPosting, make_posting_id
+from ingestion import politeness
 
 logger = logging.getLogger(__name__)
 
 REMOTEOK_API_URL = "https://remoteok.com/api"
-HEADERS = {"User-Agent": "Mozilla/5.0 (compatible; job-market-intel/1.0)"}
+HEADERS = politeness.HEADERS
 # RemoteOK answers with ~100 jobs per request whatever you ask for, and a tag selects *which*
 # 100 — so the tag list is not a filter narrowing one pool, it is how many pools we read.
 # Measured 2026-08-01: every tag below returns 60-101 jobs, and three tags were yielding 177
