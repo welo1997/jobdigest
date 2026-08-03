@@ -332,6 +332,38 @@ The legal pages are the exception to all of this: `LEGAL_LOCALES` is `en`+`cs` o
 `language` being a **stored field** is why the privacy policy's section 2 lists it — in both
 copies, per rule 4.
 
+### Running it locally
+
+`dev/` — three processes, no image rebuilds in the loop, nothing that can reach production.
+Full instructions in `dev/README.md`; the whole of it is:
+
+```powershell
+.\dev\db.ps1 reset          # postgres :5433 — see below for why `reset`
+. .\dev\env.ps1
+python dev\seed.py          # 40 synthetic postings, a confirmed subscriber, matches
+.\dev\api.ps1               # service.webapp on localhost:8811
+.\dev\web.ps1               # next dev on localhost:3000
+```
+
+Four things that are decisions rather than convenience:
+
+- **`reset` is the only migration path.** `schema.sql` is mounted into
+  `/docker-entrypoint-initdb.d/` and Postgres runs it **only on an empty data directory**, so a
+  volume older than migration 012/013/014 keeps the old schema for ever — and the symptom is a
+  500 from a missing column, which reads as an application bug. `db.ps1 status` prints whether
+  those columns exist, and `seed.py` refuses to run without them.
+- **Both servers are on `localhost`, not one on `127.0.0.1`.** The session cookie is
+  `SameSite=Lax`; the two spellings are different hosts and therefore cross-site, so the
+  browser would refuse to send it. Same name, different port, is same-site. Never loosen
+  `samesite` in `webapp.py` to make dev work — that is a production property.
+- **`seed.py` lives outside `service/`** because the Dockerfile does `COPY service/`, and a
+  script that creates a confirmed subscriber with a live `manage_token` must not be able to
+  ship in the image. It also refuses any `DATABASE_URL` that does not name localhost. **Never
+  copy the production database down** instead (security rules 1, 2, 5).
+- **`next dev` is not what ships.** Production is `output: "export"` behind Caddy, same-origin
+  `/api`, with the redirects and the CSP header. `npm run build` and
+  `deploy/docker-compose.smoke.yml` are the two checks that see what `next dev` cannot.
+
 ### Deployment reality
 
 `/opt/jobdigest` on the VPS is **not a git checkout**. Local `master` and the box can drift,

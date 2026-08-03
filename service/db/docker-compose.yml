@@ -7,7 +7,10 @@ services:
       POSTGRES_PASSWORD: jobmatch
       POSTGRES_DB: jobmatch
     ports:
-      - "5433:5432"          # 5433 on host to avoid clashing with a local pg
+      # 5433 on host to avoid clashing with a local pg. Overridable because it is not the
+      # only thing on this port on a dev machine — set JD_DB_PORT (dev/env.ps1) and the
+      # DATABASE_URL built there follows it.
+      - "${JD_DB_PORT:-5433}:5432"
     volumes:
       - jobmatch_pgdata:/var/lib/postgresql/data
       - ./schema.sql:/docker-entrypoint-initdb.d/01_schema.sql:ro

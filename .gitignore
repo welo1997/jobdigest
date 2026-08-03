@@ -26,6 +26,9 @@ deploy/origin/
 # never commit a certificate or private key
 *.pem
 
+# Playwright MCP scratch output (page snapshots, console logs) from local UI walk-throughs
+.playwright-mcp/
+
 # Local-only infrastructure reference (VPS IP, Cloudflare zone/account IDs).
 # Public notes refer to these by placeholder; see notes/INFRA.local.md.
 notes/INFRA.local.md

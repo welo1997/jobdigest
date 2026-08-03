@@ -24,8 +24,16 @@ ingestion/ sources ──► service/ingest.py ──► Postgres (postings)
 
 ## Run locally
 
+**See `dev/README.md`** — `dev/db.ps1`, `dev/api.ps1`, `dev/web.ps1` and `dev/seed.py` are the
+maintained way to run the whole product on a laptop, including the frontend and a seeded
+subscriber.
+
+The block below is what that grew out of, and it starts the wrong app: `service.api` is the
+pre-v1 internal API described on this page — no auth, **not deployed**. The live webapp is
+`service.webapp`, on port 8811. Keep this only for working on `api.py` itself.
+
 ```bash
-# 1. Postgres (schema auto-applied on first boot)
+# 1. Postgres (schema auto-applied on first boot — and ONLY on an empty volume)
 docker compose -f service/db/docker-compose.yml up -d
 export DATABASE_URL="postgresql://jobmatch:jobmatch@localhost:5433/jobmatch"
 
@@ -35,7 +43,7 @@ pip install -r service/requirements.txt
 # 3. ingest (add --cz for Czech sources)
 python -m service.ingest
 
-# 4. API
+# 4. the pre-v1 internal API (not the deployed one)
 uvicorn service.api:app --reload --port 8099
 ```
 
