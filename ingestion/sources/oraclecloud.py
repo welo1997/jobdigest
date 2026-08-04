@@ -93,6 +93,14 @@ SITES: list[tuple[str, str, str, str]] = [
     #    and Dąbrowa Górnicza. Note the tenant shape: Oracle's newer provisioning names look
     #    like `fa-eonj-saasfaprod1`, not the short `hdjq` form, so anything matching tenants
     #    must allow hyphens. Only 30% carry a description, the weakest here.
+    ("eofe", "us2", "BNY-Careers", "BNY Mellon"),
+    #   1568 — added 2026-08-04 from the Polish discovery pass, and the largest single board
+    #   found in it. Real per-posting country codes (US/GB/IN/IE/DE/LU/BR), so the location
+    #   gate can act on it. **But 0 of 25 sampled rows carried a `ShortDescriptionStr`**,
+    #   against the 86% that makes this adapter worth having elsewhere — so this tenant
+    #   contributes titles and locations, not text the matcher can read. Recorded rather than
+    #   assumed from the source's general behaviour. Note the site slug is a *name*,
+    #   `BNY-Careers`, not the usual `CX_n` — one more thing that cannot be derived.
     ("hdjd", "em3", "CX_1001", "Cummins"),      #   17 — a Middle East regional site (SA/AE),
     #   not Cummins' global board, which no public tenant answered for. Kept because it is
     #   correct and costs one request; it contributes no EU inventory, so if it ever needs

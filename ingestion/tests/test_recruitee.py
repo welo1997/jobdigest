@@ -78,3 +78,28 @@ def test_curated_companies_are_lowercase_and_unique():
 def test_text_helper_handles_empty_and_none():
     assert _text(None) is None
     assert _text("<p></p>") is None
+
+
+def test_impostor_slugs_never_return_to_the_curated_list():
+    """A live Recruitee board is not evidence that it belongs to the company it is named for.
+
+    Recruitee refuses an invented slug outright — `zzz-not-a-company-9174` gets no answer —
+    so `probe_api_slugs` guessing a household name and getting a 200 reads exactly like a
+    genuine find. It is not one. On 2026-08-04 the slugs `accenture`, `ccc`, `samsung` and
+    `wp` each answered with one or two Amsterdam/Berlin postings titled "Senior Marketer
+    (Sample)" or "(Muster)" — Recruitee's own demo content on an unclaimed vanity slug — and
+    `ey`, which had been shipping in this list since 2026-08-03, turned out to be the same
+    thing: three Amsterdam offers, one of them literally "Senior Marketer (Sample)".
+
+    The failure that reaches a subscriber is a fabricated marketing job in a Polish digest
+    under a household brand name, which is worse than a thin digest. Re-adding one is a
+    one-word edit to a list of one-word entries, and the discovery CSV will keep proposing
+    them on every run, with a live job count next to each.
+    """
+    from ingestion.sources.recruitee import KNOWN_IMPOSTORS
+
+    offenders = KNOWN_IMPOSTORS & set(COMPANIES)
+    assert not offenders, (
+        f"{sorted(offenders)} answer with a live board that is not that company's — "
+        "identity-check against the postings' own company and city, not a 200"
+    )

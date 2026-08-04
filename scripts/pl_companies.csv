@@ -1,0 +1,149 @@
+company,domain,tier
+# Polish employers likely to run a public ATS board, ordered roughly by prominence.
+# `tier` is a rough prominence band, used only to order the probe and the report.
+# Source: hand-assembled, like scripts/cz_companies.csv. Deliberately NOT derived from any
+# job board's employer roster — see the note in scripts/discover_ats.py. Built because
+# Poland's national register (CBOP) is licensed CC BY 4.0 but gated behind a signed
+# application quoting NIP/REGON/KRS/PESEL, and this project skips gated sources: employer
+# ATS boards are the route into Polish inventory that needs nobody's permission.
+Allegro,allegro.pl,1
+CD Projekt,cdprojekt.com,1
+Techland,techland.net,1
+11 bit studios,11bitstudios.com,1
+Docplanner,docplanner.com,1
+Booksy,booksy.com,1
+Brainly,brainly.com,1
+InPost,inpost.pl,1
+LiveChat,livechat.com,1
+RTB House,rtbhouse.com,1
+Comarch,comarch.com,1
+Asseco Poland,asseco.com,1
+Netguru,netguru.com,1
+STX Next,stxnext.com,1
+Spyrosoft,spyro-soft.com,1
+Software Mind,softwaremind.com,1
+Objectivity,objectivity.co.uk,1
+Sii Polska,sii.pl,1
+Grupa Pracuj,grupapracuj.pl,1
+DataWalk,datawalk.com,1
+Synerise,synerise.com,1
+Packhelp,packhelp.com,1
+Tylko,tylko.com,1
+Ramp Network,ramp.network,1
+Vue Storefront,vuestorefront.io,1
+GetResponse,getresponse.com,1
+Shoper,shoper.pl,1
+IdoSell,idosell.com,1
+Autenti,autenti.com,1
+Nomagic,nomagic.ai,1
+Silvair,silvair.com,1
+Edrone,edrone.me,1
+CallPage,callpage.io,1
+Survicate,survicate.com,1
+Sotrender,sotrender.com,1
+Emplocity,emplocity.pl,2
+Modivo,modivo.com,2
+Answear,answear.com,2
+x-kom,x-kom.pl,2
+Zabka Group,zabka.pl,2
+Zabka Nano,zabkagroup.com,2
+Media Expert,mediaexpert.pl,2
+CCC,ccc.eu,2
+LPP,lpp.com,2
+Orange Polska,orange.pl,2
+Play,play.pl,2
+T-Mobile Polska,t-mobile.pl,2
+Netia,netia.pl,2
+Santander Bank Polska,santander.pl,2
+PKO Bank Polski,pkobp.pl,2
+mBank,mbank.pl,2
+ING Hubs Poland,inghubspoland.com,2
+BNP Paribas Polska,bnpparibas.pl,2
+Alior Bank,aliorbank.pl,2
+Bank Millennium,bankmillennium.pl,2
+Credit Agricole Polska,credit-agricole.pl,2
+Nest Bank,nestbank.pl,2
+PayU,payu.pl,2
+Autopay,autopay.pl,2
+Blue Media,bluemedia.pl,2
+Tpay,tpay.com,2
+Straal,straal.com,2
+PZU,pzu.pl,2
+Warta,warta.pl,2
+Aviva Polska,aviva.pl,2
+Nationale-Nederlanden,nn.pl,2
+Capgemini Polska,capgemini.com,2
+Accenture Polska,accenture.com,2
+EPAM Poland,epam.com,2
+Luxoft Poland,luxoft.com,2
+Infosys Poland,infosysbpm.com,2
+Atos Polska,atos.net,2
+Sabre Polska,sabre.com,2
+Motorola Solutions Polska,motorolasolutions.com,2
+Nokia Poland,nokia.com,2
+Samsung R&D Poland,samsung.com,2
+ABB Polska,abb.com,2
+Aptiv,aptiv.com,2
+Bosch Polska,bosch.pl,2
+Volvo Polska,volvogroup.com,2
+Man Trucks Poland,man.eu,2
+Ocado Technology,ocadogroup.com,2
+Revolut Poland,revolut.com,2
+UBS Poland,ubs.com,2
+Goldman Sachs Poland,goldmansachs.com,2
+Citi Poland,citigroup.com,2
+State Street Poland,statestreet.com,2
+BNY Mellon Poland,bny.com,2
+HSBC Poland,hsbc.com,2
+JPMorgan Poland,jpmorgan.com,2
+Roche Polska,roche.com,2
+GSK Poland,gsk.com,2
+Grupa Zywiec,grupazywiec.pl,3
+Selena Group,selena.com,3
+Nowy Styl,nowystyl.com,3
+Amica,amica.pl,3
+Solaris Bus,solarisbus.com,3
+Pesa Bydgoszcz,pesa.pl,3
+Grupa Azoty,grupaazoty.com,3
+Ciech,ciechgroup.com,3
+Cyfrowy Polsat,grupapolsat.pl,3
+Wirtualna Polska,wp.pl,3
+Onet,onet.pl,3
+Ringier Axel Springer Polska,ringieraxelspringer.pl,3
+Empik,empik.com,3
+Zalando Poland,zalando.pl,3
+Amazon Poland,amazon.jobs,3
+Dell Poland,dell.com,3
+HP Poland,hp.com,3
+Intel Poland,intel.com,3
+IBM Poland,ibm.com,3
+SAS Poland,sas.com,3
+Ericsson Poland,ericsson.com,3
+Siemens Polska,siemens.com,3
+Schneider Electric Polska,se.com,3
+Signify Poland,signify.com,3
+Whirlpool Poland,whirlpool.com,3
+Electrolux Poland,electrolux.com,3
+Jeronimo Martins Polska,jeronimomartins.com,3
+Rossmann Polska,rossmann.pl,3
+Decathlon Polska,decathlon.pl,3
+IKEA Polska,ikea.com,3
+Zooplus Poland,zooplus.com,3
+Trans.eu,trans.eu,3
+Cargounit,cargounit.pl,3
+Grupa Raben,raben-group.com,3
+DPD Polska,dpd.com.pl,3
+Poczta Polska,poczta-polska.pl,3
+Nordea Poland,nordea.com,3
+SoftServe Poland,softserveinc.com,3
+Ideo,ideo.pl,3
+Unity Group,unitygroup.com,3
+Divante,divante.com,3
+Applover,applover.com,3
+Boldare,boldare.com,3
+Merixstudio,merixstudio.com,3
+Espeo Software,espeo.eu,3
+The Software House,tsh.io,3
+Miquido,miquido.com,3
+Codete,codete.com,3
+Neoteric,neoteric.eu,3

@@ -89,6 +89,20 @@ SITES: list[tuple[str, str, str]] = [
     ("kyndryl", "wd5", "KyndrylEarlyCareers"),       #   40 — early-careers only. No public
     #   external Kyndryl site answered; six plausible slugs all 404. Junior-weighted, which
     #   suits the digest, but it is a subset — re-probe if a general board turns up.
+    # Third pass, 2026-08-04 (141 Polish companies). Every triple below was read off the
+    # employer's own careers page and then checked against its postings' locations, because
+    # the site slug is the unguessable half — `2`, `Global`, `WDExternal` and
+    # `external_career_site` are not derivable from anything.
+    ("citi", "wd5", "2"),                            # 2000 — Olsztyn/Warsaw PL among IN/US.
+    #   The site slug really is the single character "2".
+    ("statestreet", "wd1", "Global"),                # 1128 — Gdańsk/Kraków PL among IN/CN
+    ("motorolasolutions", "wd5", "Careers"),         #  924 — Kraków PL, its largest EU site
+    ("lighting", "wd3", "jobs-and-careers"),         #  244 — Signify (ex-Philips Lighting).
+    #   The tenant is `lighting`, not `signify`; nothing about the brand name reaches it.
+    ("nngroup", "wd3", "WDExternal"),                #  219 — Nationale-Nederlanden, NL/RO/HU/PL
+    ("cloudflight", "wd103", "external_career_site"),  # 13 — Cloudflight, which acquired the
+    #   Polish software house Divante; Divante's careers page is what led here. Small, but it
+    #   is AT/DE/PL inventory and costs one query. Note the `wd103` shard.
 ]
 
 #: Role terms, matched by Workday's own full-text search. English-only for the same reason as

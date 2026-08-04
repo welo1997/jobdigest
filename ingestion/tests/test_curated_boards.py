@@ -93,6 +93,14 @@ def test_oraclecloud_sites_are_complete_quadruples():
     It is not `us2` by default: Honeywell's is `ocs`. `scripts/discover_ats.py` captured the
     tenant and threw the region away for its whole life, which is why every oraclecloud row
     in the results CSV sat unverified. Two of the four are also not `CX_1`.
+
+    This used to assert the site starts with `CX`, generalised from the only four sites the
+    repo had seen. BNY Mellon's is **`BNY-Careers`** — verified live at 1 568 jobs — so the
+    rule was a coincidence in a sample of four, and the test would have refused a real board.
+    What is actually load-bearing is that the site is *its own* value: the bug this guards
+    against is a triple written as if the site were derivable, with the tenant or the region
+    copied into its place. `_verify` cannot catch that either, because Oracle answers for the
+    tenant when the site is unrecognised (see `scripts/probe_boards.py`).
     """
     for entry in ORACLECLOUD:
         assert len(entry) == 4, entry
@@ -100,7 +108,8 @@ def test_oraclecloud_sites_are_complete_quadruples():
         assert tenant and region and site_no and company, entry
         assert tenant == tenant.lower(), f"{tenant!r} becomes a hostname"
         assert region == region.lower(), f"{region!r} becomes a hostname"
-        assert site_no.upper().startswith("CX"), f"{company}: {site_no!r} is not a site number"
+        assert site_no not in (tenant, region), \
+            f"{company}: site {site_no!r} duplicates the tenant or region — it is a third key"
 
 
 # --- the seed has to reach the backend image, not just the repo ------------------------

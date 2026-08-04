@@ -54,6 +54,10 @@ ORGS = [
     # against Greenhouse's four, which no one would have guessed from the existing lists.
     "gen-digital", "rohlik", "kiwi-com", "apify", "gooddata",
     "braiins", "deepnote", "rossum.ai", "satoshilabs",
+    # Polish-headquartered, added 2026-08-04 and identity-checked. Docplanner is a Warsaw
+    # company whose board is Barcelona-heavy (13 ES / 8 PL) — the postings are what makes it
+    # worth having, not the flag on the head office.
+    "docplanner",
 ]
 
 # Map Ashby address country names to ISO-3166 alpha-2.

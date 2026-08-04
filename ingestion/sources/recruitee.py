@@ -49,8 +49,24 @@ COMPANIES = [
     # Genuine company boards, but Dutch entities rather than Czech — kept because subscribers
     # choose countries and NL is one of them, not because they help the CZ gap.
     "konicaminolta",  # 11 — "Konica Minolta Business Solutions", Gouda NL
-    "ey",             # 3 — EY, Amsterdam NL
+    # Polish, added 2026-08-04 from scripts/pl_ats_discovery.csv, each identity-checked
+    # against its own postings rather than a live 200 — which is what caught four boards
+    # that answered but belonged to nobody (see the note below).
+    "tylko",          # 13 — Warszawa (+ Amstelveen), furniture ecommerce
+    "espeo",          #  6 — Poznań, software house
+    "11bitstudios",   #  3 — Warszawa, games (This War of Mine, Frostpunk)
 ]
+
+#: Slugs that answer with a live board which is **not the company whose name they spell**.
+#: Recruitee refuses an invented slug outright — `zzz-not-a-company-9174` gets no answer at
+#: all — so these are real registered accounts, which is exactly why probing by name is not
+#: verification. `accenture`, `ccc`, `samsung` and `wp` each returned one or two Amsterdam or
+#: Berlin postings titled "Senior Marketer (Sample)" / "(Muster)": Recruitee's own demo
+#: content sitting on an unclaimed vanity slug. Adding any of them would have put a fake
+#: marketing job into a Polish subscriber's digest under a household brand name.
+#: `ey` was in this list until 2026-08-04 for the same reason — three Amsterdam offers, one
+#: of them literally "Senior Marketer (Sample)", and no evidence it was EY's board.
+KNOWN_IMPOSTORS = frozenset({"accenture", "ccc", "samsung", "wp", "ey"})
 
 _TIMEOUT = 20
 _TAG = re.compile(r"<[^>]+>")

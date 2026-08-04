@@ -39,6 +39,11 @@ HEADERS = politeness.HEADERS
 ACCOUNTS = [
     "innovatrics",   # 23 — Bratislava, biometrics
     "cloudtalk",     #  8 — Prague / Bratislava, calling software
+    # Polish, added 2026-08-04 and identity-checked against each board's own postings.
+    "booksy-1",      # 35 — Poland/Spain/UK, booking marketplace. Note the `-1` suffix: the
+                     #      bare `booksy` slug is not this board, so it cannot be derived.
+    "netguru",       # 28 — Poland (Poznań), software house
+    "getresponse",   #  4 — Gdańsk, email marketing
 ]
 
 _TIMEOUT = 20
