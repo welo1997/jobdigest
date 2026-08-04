@@ -86,6 +86,13 @@ COUNTRY_ALIASES: dict[str, str] = {
     "cyprus": "CY", "malta": "MT",
     "united kingdom": "GB", "great britain": "GB", "england": "GB", "scotland": "GB",
     "united states": "US", "usa": "US",
+    # The two-letter forms, which are how these two countries are actually written in a
+    # location field and were the largest unresolved strings in production: "London, UK"
+    # (272), "Remote - US" (558), "Remote U.S." (57). `normalise` splits on punctuation, so
+    # "U.S." arrives as the two tokens "u s" and needs its own entry. Both are matched as
+    # whole tokens, never substrings — "Columbus, OH" is one token and cannot contain "us".
+    "uk": "GB", "u k": "GB", "us": "US", "u s": "US", "u s a": "US",
+    "costa rica": "CR",
     # CZ/SK exonyms. A Czech or Slovak advert names the country in its own language, and
     # without these the posting resolves to *no* country — which the location gate keeps,
     # because an unknown country is left for the AI matcher. p09 (Prague-only) was therefore
@@ -268,6 +275,115 @@ CITY_ALIASES: dict[str, dict[str, str]] = {
 # already known, so "Nice to have" in a location field cannot become Nice, France.
 _AMBIGUOUS = {"nice", "split", "cork", "essen", "bari", "lund", "faro", "murcia"}
 
+# --- places outside the selectable set, named only so the gate can exclude them ---------
+#
+# `COUNTRY_ALIASES` already names ~60 countries we never offer, under the rule that a country
+# we cannot name is a country we cannot exclude. It only works when the posting writes the
+# country out. **The largest single group of postings in production writes a bare city
+# instead**, and no country at all: measured 2026-08-04, 7 147 of 30 043 active postings had
+# a null `country_code`, 4 681 of them Greenhouse and 1 134 Ashby, and the top strings were
+# "San Francisco" (275), "London" (218), "New York" (167), "Chicago" (114), "Toronto" (89).
+#
+# Those are not European postings, but `location_predicate` keeps an unknown country and
+# hands it to the AI matcher — so every one of them was spending a slot in the ~120-posting
+# shortlist of a subscriber who can only work in the EEA, to be rejected by a model that had
+# to read it first. This is the "India, Bengaluru" problem of 2026-08-01, in the one form
+# `COUNTRY_ALIASES` structurally cannot reach.
+#
+# Three rules hold this table safe, and all three are the `georgia` rule in a new place:
+#
+#   1. **It resolves a country and never a city.** We do not offer cities outside the EEA,
+#      so there is no slug to return and nothing here can reach the picker. It is therefore
+#      deliberately NOT mirrored in `web/lib/geo.ts` — see `test_geo.py`.
+#   2. **It runs after the selectable-city lookup**, so it can never overrule an EEA
+#      resolution. "Berlin" is Germany before this table is ever consulted.
+#   3. **A name that is also a European city, a common word, or a country stays out.**
+#      Excluded on purpose: `georgia` (US state, already the rule), `cambridge`,
+#      `birmingham`, `manchester`, `paris`, `berlin`, `vienna`, `athens`, `naples`, `milan`,
+#      `dublin`, `odessa`, `moscow`, `victoria`, `phoenix`, `springfield`.
+#
+# One consequence is deliberate and worth stating: **US-versus-Canada is not worth being
+# careful about.** "London" here is the English one, so "London, ON" resolves to GB rather
+# than Canada. Neither country is selectable and the gate excludes both identically, so the
+# error is invisible to every subscriber — whereas mistaking a German town for Delaware is
+# not, which is what rules 2 and 3 exist for.
+FOREIGN_CITIES: dict[str, str] = {
+    # United States — sampled from real unresolved locations, most frequent first.
+    "san francisco": "US", "south san francisco": "US", "sf": "US", "sf bay area": "US",
+    "san francisco bay area": "US", "bay area": "US", "silicon valley": "US",
+    "new york": "US", "new york city": "US", "nyc": "US", "brooklyn": "US",
+    "chicago": "US", "austin": "US", "seattle": "US", "bellevue": "US", "redmond": "US",
+    "boston": "US", "cambridge ma": "US", "denver": "US", "boulder": "US",
+    "los angeles": "US", "san diego": "US", "san jose": "US", "santa clara": "US",
+    "sunnyvale": "US", "mountain view": "US", "palo alto": "US", "menlo park": "US",
+    "san mateo": "US", "oakland": "US", "berkeley": "US", "cupertino": "US",
+    "atlanta": "US", "dallas": "US", "houston": "US", "miami": "US", "orlando": "US",
+    "philadelphia": "US", "pittsburgh": "US", "detroit": "US", "minneapolis": "US",
+    "salt lake city": "US", "las vegas": "US", "portland": "US", "raleigh": "US",
+    "charlotte": "US", "nashville": "US", "scottsdale": "US", "tempe": "US",
+    "washington dc": "US", "arlington va": "US", "bentonville": "US", "st louis": "US",
+    # US state and territory names. "Georgia" is absent for the reason it is absent from
+    # COUNTRY_ALIASES; "Washington" is safe because the state and the capital are one country.
+    "california": "US", "washington": "US", "washington state": "US",
+    "illinois": "US", "texas": "US",
+    "massachusetts": "US", "new jersey": "US", "pennsylvania": "US", "colorado": "US",
+    "arizona": "US", "florida": "US", "north carolina": "US", "virginia": "US",
+    "ohio": "US", "michigan": "US", "oregon": "US", "utah": "US", "tennessee": "US",
+    # United Kingdom and Ireland. Neither is in the EEA table's `CITIES` (GB is not
+    # selectable and Irish cities are), so these carry no city slug either.
+    "london": "GB", "manchester": "GB", "edinburgh": "GB", "glasgow": "GB",
+    "bristol": "GB", "leeds": "GB", "cardiff": "GB", "belfast": "GB", "oxford": "GB",
+    # Canada. `ontario` is deliberately absent — it is also a city in California, and it
+    # would shadow it in "Ontario, California". `toronto` and `ottawa` already reach the
+    # province in every string that matters.
+    "toronto": "CA", "vancouver": "CA", "montreal": "CA", "ottawa": "CA", "calgary": "CA",
+    "edmonton": "CA", "waterloo": "CA", "mississauga": "CA", "quebec": "CA",
+    "british columbia": "CA", "alberta": "CA",
+    # Rest of world, from the same measurement. Country names themselves are already in
+    # COUNTRY_ALIASES; these are the cities that arrive without one.
+    "bengaluru": "IN", "bangalore": "IN", "gurugram": "IN", "gurgaon": "IN",
+    "hyderabad": "IN", "pune": "IN", "chennai": "IN", "noida": "IN", "mumbai": "IN",
+    "sydney": "AU", "melbourne": "AU", "brisbane": "AU", "perth": "AU", "canberra": "AU",
+    "auckland": "NZ", "wellington": "NZ",
+    "tokyo": "JP", "osaka": "JP", "yokohama": "JP",
+    "seoul": "KR", "shanghai": "CN", "shenzhen": "CN", "beijing": "CN", "suzhou": "CN",
+    "guangzhou": "CN", "hangzhou": "CN", "taipei": "TW", "hsinchu": "TW",
+    "sao paulo": "BR", "rio de janeiro": "BR", "buenos aires": "AR", "bogota": "CO",
+    "mexico city": "MX", "guadalajara": "MX", "monterrey": "MX", "san jose costa rica": "CR",
+    "tel aviv": "IL", "jerusalem": "IL", "haifa": "IL",
+    "dubai": "AE", "abu dhabi": "AE", "riyadh": "SA", "doha": "QA", "cairo": "EG",
+    "manila": "PH", "cebu": "PH", "jakarta": "ID", "bangkok": "TH",
+    "kuala lumpur": "MY", "ho chi minh city": "VN", "hanoi": "VN",
+    "lagos": "NG", "nairobi": "KE", "cape town": "ZA", "johannesburg": "ZA",
+    "istanbul": "TR", "ankara": "TR", "karachi": "PK", "lahore": "PK", "dhaka": "BD",
+    "belgrade": "RS", "beograd": "RS", "novi sad": "RS", "kyiv": "UA", "kiev": "UA",
+    "bogota dc": "CO", "santiago de chile": "CL", "lima peru": "PE",
+}
+
+# A trailing subdivision code — "Austin, TX" — names no country the resolver can read, and
+# is the only thing left in the string once the city is one we do not carry. It is the last
+# rule tried, and the narrowest: it fires only on the **final** token, and only for codes
+# that cannot be a country a subscriber may select.
+#
+# `DE` (Delaware) and `MT` (Montana) are excluded because they are Germany and Malta, and
+# `NL` (Newfoundland) and `SK` (Saskatchewan) because they are the Netherlands and Slovakia.
+# Those four are the entire intersection between US/Canadian subdivision codes and the EEA,
+# and each one would delete a real European posting from the digest of a subscriber who
+# selected that country. Every other collision is with a country nobody can select
+# (`IL` Israel, `IN` India, `MA` Morocco, `CO` Colombia, `CA` Canada …) and is therefore
+# invisible — measured on 2026-08-04, all 470 "…, CA" postings were California except the
+# 17 reading "Toronto, ON, CA", which rule 2 above resolves from the city first.
+SUBDIVISION_CODES: dict[str, str] = {
+    # US states, less DE and MT.
+    **{c: "US" for c in (
+        "al", "ak", "az", "ar", "ca", "co", "ct", "dc", "fl", "ga", "hi", "ia", "id", "il",
+        "in", "ks", "ky", "la", "ma", "md", "me", "mi", "mn", "mo", "ms", "nc", "nd", "ne",
+        "nh", "nj", "nm", "nv", "ny", "oh", "ok", "or", "pa", "ri", "sc", "sd", "tn", "tx",
+        "ut", "va", "vt", "wa", "wi", "wv", "wy")},
+    # Canadian provinces, less NL and SK.
+    **{c: "CA" for c in ("ab", "bc", "mb", "nb", "ns", "nt", "nu", "on", "pe", "qc", "yt")},
+}
+
 # How a country maps onto the coarse legacy `region` bucket. Everything else is "eu".
 _REGION_OF = {"CZ": "cz", "GB": "uk", "US": "us"}
 
@@ -349,7 +465,26 @@ def _build_city_index() -> dict[str, list[tuple[str, str]]]:
 
 _CITY_INDEX = _build_city_index()
 _COUNTRY_INDEX = {normalise(k): v for k, v in COUNTRY_ALIASES.items()}
-_MAX_NGRAM = max(len(k.split()) for k in list(_CITY_INDEX) + list(_COUNTRY_INDEX))
+_FOREIGN_INDEX = {normalise(k): v for k, v in FOREIGN_CITIES.items()}
+
+
+def check_no_shadowed_cities(foreign: Iterable[str], offered: Iterable[str]) -> None:
+    """Raise if a foreign place name is also a city we offer.
+
+    A name may not sit in both tables: `_CITY_INDEX` returns a city a subscriber can select
+    and `_FOREIGN_INDEX` a country they never can, so a collision is a European posting
+    resolving to another continent and vanishing from the digest of everyone who chose that
+    country. Nothing would fail — which is why this runs at import, on the real tables, and
+    is a named function so a test can prove it is still wired up.
+    """
+    clash = sorted(set(foreign) & set(offered))
+    if clash:
+        raise ValueError(f"FOREIGN_CITIES shadows a selectable city: {clash}")
+
+
+check_no_shadowed_cities(_FOREIGN_INDEX, _CITY_INDEX)
+_MAX_NGRAM = max(len(k.split())
+                 for k in list(_CITY_INDEX) + list(_COUNTRY_INDEX) + list(_FOREIGN_INDEX))
 
 
 def is_place_term(word: str) -> bool:
@@ -365,7 +500,8 @@ def is_place_term(word: str) -> bool:
     source. See `store._shortlist_terms`.
     """
     key = normalise(word)
-    return bool(key) and (key in _CITY_INDEX or key in _COUNTRY_INDEX)
+    return bool(key) and (key in _CITY_INDEX or key in _COUNTRY_INDEX
+                          or key in _FOREIGN_INDEX)
 
 
 def _ngrams(tokens: list[str]) -> Iterable[tuple[int, str]]:
@@ -415,6 +551,18 @@ def resolve_location(location: Optional[str],
         # No country yet: only an unambiguous city may imply one.
         if len(candidates) == 1 and phrase not in _AMBIGUOUS:
             return candidates[0][0], candidates[0][1]
+
+    if country is None:
+        # Nothing we offer matched. Before giving up — which keeps the posting for everyone,
+        # because an unknown country passes the gate — try the two rules that can only ever
+        # name a country outside the selectable set. Both run here, last, so neither can
+        # overrule a city or country resolved above.
+        for _, phrase in _ngrams(tokens):
+            hit = _FOREIGN_INDEX.get(phrase)
+            if hit:
+                return hit, None
+        # "Austin, TX": a subdivision code, and only as the final token.
+        country = SUBDIVISION_CODES.get(tokens[-1])
     return country, None
 
 

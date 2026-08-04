@@ -84,14 +84,21 @@ def test_a_country_we_do_not_serve_is_named_rather_than_left_unknown(location, e
     assert expected not in geo.COUNTRIES
 
 
-def test_georgia_stays_unknown_because_it_is_also_a_us_state():
+def test_georgia_is_never_the_country_however_it_is_written():
     """The country lookup runs before the city lookup, so an alias here would win.
 
     "Atlanta, Georgia" is overwhelmingly more likely than Tbilisi in this inventory, and
     resolving it to the country would drop the posting from the digest of every subscriber
-    who selected the US. Unknown is the cheaper mistake.
+    who selected the US.
+
+    Until 2026-08-04 the answer was "unknown", as the cheaper of two mistakes. It is now
+    "US", from the city rather than the state name — which is the right answer and not merely
+    the safe one. The guarantee under test is unchanged and is the reason `georgia` may never
+    be added to `COUNTRY_ALIASES`: whatever else happens, this is not Tbilisi.
     """
-    assert geo.resolve_location("Atlanta, Georgia", None) == (None, None)
+    for text in ("Atlanta, Georgia", "Atlanta, GA", "Savannah, Georgia"):
+        assert geo.resolve_location(text, None)[0] in ("US", None), text
+    assert "georgia" not in geo.COUNTRY_ALIASES
 
 
 def test_an_ambiguous_word_needs_a_country_to_become_a_city():
@@ -473,6 +480,136 @@ def test_island_never_resolves_to_iceland(location):
     `islande` are safe and are the ones that carry the Spanish, Italian and French spellings.
     """
     assert geo.resolve_location(location)[0] != "IS"
+
+
+@pytest.mark.parametrize("location,expected", [
+    # Every string below is real production text, and every one of them resolved to *no
+    # country* before 2026-08-04 — which meant `location_predicate` kept it and it spent a
+    # slot in the ~120-posting shortlist of subscribers who can only work in the EEA. The
+    # counts are active postings carrying that exact string.
+    ("San Francisco", "US"),          # 275
+    ("London", "GB"),                 # 218
+    ("New York", "US"),               # 167
+    ("New York City", "US"),          # 142
+    ("Chicago", "US"),                # 114
+    ("New York, NY (HQ)", "US"),      # 98
+    ("Toronto", "CA"),                # 89
+    ("San Francisco, California", "US"),   # 72
+    ("Sydney", "AU"),                 # 63
+    ("Bengaluru", "IN"),              # 60
+    ("Tokyo", "JP"),                  # 59
+    ("Remote U.S.", "US"),            # 57 — punctuation splits into the tokens "u s"
+    ("Austin", "US"),                 # 51
+    ("Mountain View, California", "US"),   # 43
+    ("Toronto, Ontario", "CA"),       # 41
+    ("Gurugram", "IN"),               # 41
+    ("São Paulo", "BR"),              # 37
+    ("NYC", "US"),                    # 35
+    ("Cardiff, London or Remote (UK)", "GB"),   # 34
+    ("SF Office", "US"),              # 32
+    ("New York, US, New York", "US"), # 31
+    ("AU - Sydney", "AU"),            # 28
+    ("UK", "GB"),                     # 25
+    ("CN - Shanghai", "CN"),          # 24
+    ("Bellevue, Washington", "US"),   # 20
+    ("Dubai - Main Office", "AE"),    # 18
+    ("KR - Seoul", "KR"),             # 15
+    ("Montréal, Québec", "CA"),       # 13
+    ("Boston, MA", "US"),             # 87, via the subdivision code
+    ("Denver, CO", "US"),             # 18, a code that is also Colombia
+    ("Chicago, IL", "US"),            # 35, a code that is also Israel
+    ("Vancouver, BC", "CA"),          # 23
+    ("Toronto, ON, CA", "CA"),        # 17 — the city decides, not the trailing "CA"
+])
+def test_a_bare_foreign_city_names_its_country(location, expected):
+    """The `COUNTRY_ALIASES` rule, applied to postings that write no country at all.
+
+    A country we cannot name is a country we cannot exclude — and the largest group in
+    production named none, only a city. None of these countries becomes *selectable*; naming
+    them is purely what lets the gate act instead of handing 7 147 postings to the matcher.
+    """
+    assert geo.resolve_location(location, None)[0] == expected
+    assert expected not in geo.COUNTRIES
+
+
+@pytest.mark.parametrize("location", [
+    "Wilmington, DE",        # Delaware, and Germany. Germany is selectable.
+    "Billings, MT",          # Montana, and Malta.
+    "St. John's, NL",        # Newfoundland, and the Netherlands.
+    "Saskatoon, SK",         # Saskatchewan, and Slovakia.
+])
+def test_a_subdivision_code_that_is_also_a_selectable_country_stays_unknown(location):
+    """These four codes are absent from the table, so these towns resolve to nothing.
+
+    That is the intended answer, and the asymmetry is the point. Being wrong about a US town
+    costs a subscriber nothing — neither the US nor Canada is selectable, and the gate
+    excludes both identically. Resolving the *country* instead would put a Delaware job in
+    front of everyone who asked for Germany, and there is no alias that could tell them
+    apart: `COUNTRY_ALIASES` names countries in words, never as two letters, precisely so
+    that "DE" cannot mean Germany here. Unknown is kept and handed to the matcher, which is
+    the same call an unresolvable city gets.
+    """
+    assert geo.resolve_location(location, None)[0] is None
+    # And the European reading of the same code still works, because the *city* carries it.
+    assert geo.resolve_location("Berlin, DE", None) == ("DE", "berlin")
+    assert geo.resolve_location("Bratislava, SK", None) == ("SK", "bratislava")
+
+
+def test_no_subdivision_code_can_shadow_a_country_anyone_may_select():
+    """The mutation guard for the list above: adding "de" back must fail here, not in a digest."""
+    selectable = {c.lower() for c in geo.COUNTRIES}
+    assert not (selectable & set(geo.SUBDIVISION_CODES)), (
+        "a subdivision code collides with a selectable country")
+
+
+def test_a_subdivision_code_only_counts_as_the_last_token():
+    """"OR" is Oregon at the end of a string and a conjunction inside one.
+
+    The rule is deliberately positional rather than clever. A two-letter token matched
+    anywhere would fire on ordinary words, in exactly the place location text is least
+    careful about punctuation.
+    """
+    assert geo.resolve_location("Portland, OR", None)[0] == "US"
+    assert geo.resolve_location("Brno or Praha", None)[0] == "CZ"
+    assert geo.resolve_location("Remote", None)[0] is None
+    # No city resolves in either of these, so the subdivision rule is the only one left and
+    # the assertion is sensitive to it: matching any token rather than the last turns the
+    # conjunction into Oregon and the preposition into Indiana.
+    assert geo.resolve_location("Remote or Hybrid", None)[0] is None
+    assert geo.resolve_location("Hybrid in office", None)[0] is None
+    # A province name that is also a Californian city is left out of the table rather than
+    # ranked, because the n-gram scan reads left to right and would answer Canada.
+    assert "ontario" not in geo.FOREIGN_CITIES
+
+
+def test_the_foreign_table_never_overrules_a_place_we_offer():
+    """Vienna is Austria's capital and a town in Virginia; Berlin is also in New Hampshire.
+
+    What protects these is not the order of the lookups — it is that the American namesakes
+    are **absent from the table**. A name that named both would be a European city resolving
+    to another continent, so the module refuses to import rather than choosing.
+    """
+    assert geo.resolve_location("Vienna", None) == ("AT", "vienna")
+    assert geo.resolve_location("Berlin", None) == ("DE", "berlin")
+    assert geo.resolve_location("Paris", None) == ("FR", "paris")
+    assert geo.resolve_location("Dublin", None)[0] == "IE"
+    for name in ("vienna", "berlin", "paris", "dublin", "cambridge", "birmingham",
+                 "athens", "naples", "milan", "georgia", "ontario"):
+        assert name not in geo.FOREIGN_CITIES, name
+
+
+def test_a_foreign_name_that_shadows_a_selectable_city_refuses_to_import():
+    """The guard that makes the lookup order unable to matter, checked by causing it.
+
+    A silent collision is the expensive failure here: adding "Cork" or "Waterloo" to
+    FOREIGN_CITIES would quietly move an Irish or Belgian posting to another continent and
+    delete it from the digest of everyone who chose that country, with nothing raising. So
+    the check runs at import, and this test is what proves it is still wired up.
+    """
+    with pytest.raises(ValueError, match="shadows a selectable city"):
+        geo.check_no_shadowed_cities({"prague", "san francisco"}, {"prague", "brno"})
+    # And it is called on the real tables at import, which is what the clean run proves.
+    geo.check_no_shadowed_cities(geo.FOREIGN_CITIES, {"prague", "brno"})
 
 
 def test_the_eea_and_switzerland_are_selectable():
