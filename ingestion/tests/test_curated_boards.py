@@ -21,6 +21,9 @@ from pathlib import Path
 from ingestion.sources.ashby import ORGS as ASHBY
 from ingestion.sources.greenhouse import GreenhouseSource
 from ingestion.sources.lever import ORGS as LEVER
+from ingestion.sources.oraclecloud import SITES as ORACLECLOUD
+from ingestion.sources.recruitee import COMPANIES as RECRUITEE
+from ingestion.sources.workable import ACCOUNTS as WORKABLE
 from ingestion.sources.smartrecruiters import TENANTS as SMARTRECRUITERS
 from ingestion.sources.workday import SITES as WORKDAY
 
@@ -42,6 +45,21 @@ def _lists() -> dict[str, list[str]]:
         "lever": list(LEVER),
         "smartrecruiters": [t.lower() for t in SMARTRECRUITERS],
         "workday": [tenant.lower() for tenant, _, _ in WORKDAY],
+        # Added 2026-08-03. The invariant is about a *company* appearing twice, so a new
+        # adapter that is not listed here is a hole in it, not a smaller version of it.
+        "recruitee": [t.lower() for t in RECRUITEE],
+        "workable": [t.lower() for t in WORKABLE],
+        # Added 2026-08-04. Compared by *company name*, not by tenant: an Oracle tenant is an
+        # opaque Oracle-assigned string (`egup`, `ibqbjb`) that cannot collide with a
+        # greenhouse or lever slug even when both name the same employer, so keying on it
+        # would make this row decorative. The name is the identity here, and it is the field
+        # the adapter carries precisely because Oracle's API returns none.
+        #
+        # The limit, stated because it is invisible otherwise: this catches a collision only
+        # where the other list's slug *is* the company name. Workday carries Johnson Controls
+        # as `jci`, so adding it here would pass. Check by hand when the name and the slug
+        # could differ.
+        "oraclecloud": [name.lower() for *_, name in ORACLECLOUD],
     }
 
 
@@ -67,6 +85,22 @@ def test_workday_sites_are_complete_triples():
         tenant, host, site = entry
         assert tenant and site, entry
         assert host.startswith("wd"), f"{tenant}: {host!r} is not a Workday host shard"
+
+
+def test_oraclecloud_sites_are_complete_quadruples():
+    """(tenant, region, site, company) — and the region is the one people drop.
+
+    It is not `us2` by default: Honeywell's is `ocs`. `scripts/discover_ats.py` captured the
+    tenant and threw the region away for its whole life, which is why every oraclecloud row
+    in the results CSV sat unverified. Two of the four are also not `CX_1`.
+    """
+    for entry in ORACLECLOUD:
+        assert len(entry) == 4, entry
+        tenant, region, site_no, company = entry
+        assert tenant and region and site_no and company, entry
+        assert tenant == tenant.lower(), f"{tenant!r} becomes a hostname"
+        assert region == region.lower(), f"{region!r} becomes a hostname"
+        assert site_no.upper().startswith("CX"), f"{company}: {site_no!r} is not a site number"
 
 
 # --- the seed has to reach the backend image, not just the repo ------------------------

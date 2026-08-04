@@ -37,6 +37,8 @@ from ingestion.sources.greenhouse import GreenhouseSource
 from ingestion.sources.himalayas import HimalayasSource
 from ingestion.sources.jobicy import JobicySource
 from ingestion.sources.lever import LeverSource
+from ingestion.sources.oraclecloud import OracleCloudSource
+from ingestion.sources.platsbanken import PlatsbankenSource
 from ingestion.sources.remoteok import RemoteOKSource
 from ingestion.sources.remotive import RemotiveSource
 from ingestion.sources.smartrecruiters import SmartRecruitersSource
@@ -189,11 +191,25 @@ def gather(include_cz: bool) -> list[JobPosting]:
                GreenhouseSource, AshbySource, LeverSource,
                # Located (non-remote-only) inventory, which everything above is thin on:
                # The Muse is the widest US source in the stack; SmartRecruiters and Workday
-               # reach the large European employers outside the startup belt. The last two
-               # are last on purpose — both must fetch each posting's description with its
-               # own request, so they are by far the slowest, and a failure in either should
-               # not cost everything that runs before it.
-               TheMuseSource, SmartRecruitersSource, WorkdaySource]
+               # reach the large European employers outside the startup belt. Oracle
+               # Recruiting Cloud reaches the large *industrials* neither of those touches —
+               # Vertiv, Honeywell and Emerson, which between them hold 32 Czech and Slovak
+               # engineering roles that no other adapter here carries. It sits before the
+               # last two rather than beside them because it is not an N+1 adapter: its list
+               # rows already carry descriptions, so a full pull is ~17 requests, not ~1 200.
+               TheMuseSource, OracleCloudSource,
+               # Platsbanken is the Swedish labour office's own register, published as open
+               # data by Arbetsförmedlingen — the MPSV pattern in a second country, and the
+               # single largest permitted national source found so far: ~15 200 white-collar
+               # ads with 100% descriptions at a median of 3 775 characters. Germany's
+               # equivalent is ~55× bigger and is NOT here: the Bundesagentur's terms §2a(3)
+               # forbid automated reading of the portal, which is the Alma Career situation
+               # again. See the README before reaching for it.
+               PlatsbankenSource,
+               # The last two are last on purpose — both must fetch each posting's
+               # description with its own request, so they are by far the slowest, and a
+               # failure in either should not cost everything that runs before it.
+               SmartRecruitersSource, WorkdaySource]
     # Adzuna only if keys are present.
     try:
         from ingestion.sources.adzuna import AdzunaSource
@@ -222,7 +238,21 @@ def gather(include_cz: bool) -> list[JobPosting]:
         # either one because the digest looks thin — re-add them when there is permission.
         from ingestion.sources.startupjobs import StartupJobsSource
         from ingestion.sources.cocuma import CocumaSource
-        sources += [StartupJobsSource, CocumaSource]
+        # MPSV is the Czech public employment service's own register, published as open data
+        # by the Ministry of Labour. Its licence metadata expressly disclaims the sui generis
+        # database right — the exact right that put Jobs.cz and Profesia out of reach — so it
+        # is the one large CZ source this repo can read without asking anyone. ~7 300
+        # white-collar vacancies, 1 576 of them in Prague. Recruitee carries the mid-size
+        # Czech employers that no existing ATS adapter reaches.
+        # Workable exists for Slovakia specifically: there is no Slovak equivalent of MPSV
+        # (the labour office publishes no per-vacancy open data, only aggregate counts) and
+        # worki.sk forbids further dissemination without written consent, so company ATS
+        # boards are the only open route into Slovak inventory at all.
+        from ingestion.sources.mpsv import MpsvSource
+        from ingestion.sources.recruitee import RecruiteeSource
+        from ingestion.sources.workable import WorkableSource
+        sources += [StartupJobsSource, CocumaSource, RecruiteeSource, WorkableSource,
+                    MpsvSource]
 
     postings: list[JobPosting] = []
     for cls in sources:
