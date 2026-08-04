@@ -264,8 +264,26 @@ licensed *this* dataset, and there is no EURES dataset on `data.europa.eu`. It a
 the tempting route to Germany: ELA's notice sends you to the rightholder, which is the
 Bundesagentur, which has already said no — **an aggregator does not launder a refusal.**
 Separately, `europa.eu/robots.txt` permits the paths but sets `Crawl-delay: 10` on the `*`
-group, which alone puts a full pull at ~47 hours. **Reopen only on an answer from ELA**, not on
-a re-reading of the same notice. Checked 2026-08-04; see `notes/2026-08-04-eures.md`.
+group, which alone puts a full pull at ~47 hours. Checked 2026-08-04; see
+`notes/2026-08-04-eures.md`.
+
+**Poland's CBOP is the best-licensed register found so far, and it is skipped too — because a
+licence and an access route are different gates.** The Ministry of Family and Social Policy
+publishes the Centralna Baza Ofert Pracy under **CC BY 4.0**, updated daily, and its own
+description invites automated retrieval by external entities; §1.2 of its terms makes access
+free. Nothing refuses us. But retrieval requires a signed application (profil zaufany or
+qualified e-signature) quoting **NIP, REGON, KRS and PESEL** — Polish identifiers with no
+foreign equivalent on the form. That is an application, and **this project does not apply,
+negotiate or write to publishers**: a source either already permits us or it is skipped.
+The same rule closes Finland's Työmarkkinatori (KEHA activation and verification) and ends
+the "pending a conversation with Alma Career" state that this file used to record. Checked
+2026-08-04.
+
+**The consequence is worth stating plainly: the queue of buildable national registers is
+empty.** MPSV and Platsbanken were the two that could be had by writing code, and both are
+built. Everything else is refused or gated. Country coverage from here grows through curated
+employers on the ATS adapters via `scripts/discover_ats.py` — which needs nobody's permission,
+and is how Slovak coverage was rebuilt after Alma Career.
 
 **Oracle Recruiting Cloud reaches the large industrials, which no other adapter here did**
 (added 2026-08-04). Vertiv, Honeywell, Emerson, Brembo and Cummins — 4 225 postings, 678 in the

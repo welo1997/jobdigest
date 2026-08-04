@@ -233,9 +233,10 @@ def gather(include_cz: bool) -> list[JobPosting]:
         # robots.txt is a crawling convention and the terms are the binding document; the same
         # words — vytěžovat / zužitkovávat — are the statutory language of the EU database
         # right (96/9/EC), which applies with or without a contract.
-        # Excluded 2026-08-03 pending a conversation with Alma Career about a feed. The cost
-        # is deliberate and large: 92% of Czech and 99% of Slovak inventory. Do not re-add
-        # either one because the digest looks thin — re-add them when there is permission.
+        # Excluded 2026-08-03, and closed rather than pending: this project does not write to
+        # publishers, so a source either already permits us or it is skipped. The cost is
+        # deliberate and large: 92% of Czech and 99% of Slovak inventory. Do not re-add either
+        # one because the digest looks thin.
         from ingestion.sources.startupjobs import StartupJobsSource
         from ingestion.sources.cocuma import CocumaSource
         # MPSV is the Czech public employment service's own register, published as open data

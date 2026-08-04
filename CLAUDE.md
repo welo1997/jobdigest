@@ -608,6 +608,19 @@ goes red. A test that cannot fail documents nothing.
   got quieter", not as an error. Copy them with `op read`, never `op run` — **`op run` masks
   secrets in the child process's stdout**, so piping a value through it writes
   `<concealed by 1Password>` into the target file.
+- **If a source does not already permit us, we skip it. We do not write to publishers.**
+  Decided 2026-08-04, and it settles a whole class of question rather than one source. A
+  refusal (Alma Career, the Bundesagentur, worki.sk, EURES) is final, not an opening position;
+  a source gated behind an application, a signed agreement, a verification step or a
+  negotiated feed (Poland's CBOP, Finland's Työmarkkinatori) is **skipped on the same footing
+  as a refusal**, because the thing standing between us and the data is correspondence and we
+  do not do correspondence. Do not draft a letter, do not open a "pending a conversation"
+  state, and do not record a source as *waiting* on anyone — waiting is what turns a closed
+  question back into an open one every time a session reads the file. The permitted set is
+  discoverable by reading terms, and it is the whole buildable set. What remains open without
+  asking anyone is **curated employers on Greenhouse/Lever/Ashby/Recruitee/Workable/
+  SmartRecruiters/Workday/Oracle** via `scripts/discover_ats.py` — that is how Slovak coverage
+  was rebuilt after Alma Career, and it is the route for any country whose register is gated.
 - **Source terms of use — read on 2026-08-03, and one of them is a real problem.**
   `ingestion/politeness.py` is the one place for the crawler's identity: `USER_AGENT`
   (`JobDigest/1.0` + contact URL + address — every adapter used to send a browser string, and
@@ -624,8 +637,8 @@ goes red. A test that cannot fail documents nothing.
   čtení anebo kopírování obsahu"* grounds for termination. That is our two Czech/Slovak
   scrapers described exactly, and *vytěžovat / zužitkovávat* is the statutory language of the
   EU database right (96/9/EC), not just contract. **12 861 active postings, 33% of inventory.**
-  **Decided 2026-08-03: both are excluded from `gather()`**, pending a conversation with Alma
-  Career about a feed. The adapters are kept as working, tested code — like `linkedin` and
+  **Decided 2026-08-03: both are excluded from `gather()`.** The adapters are kept as working,
+  tested code — like `linkedin` and
   `eurojobs` — so reversing this is a decision, not a rewrite. `test_source_exclusions.py`
   fails if either returns to `gather()`, because re-adding one is a two-word edit that nothing
   else would notice. **The price is deliberate and severe: Czech inventory falls 10 402 → 874
@@ -749,10 +762,29 @@ goes red. A test that cannot fail documents nothing.
   barely buildable, because `Crawl-delay: 10` on the `*` group puts ~17 000 requests at ~47 h
   against a 05:00→07:00 window, `resultsPerPage` caps at 50 and `page` at 200 (a hard 10 000-row
   ceiling per query, so Germany could not be pulled in one query anyway), and `publicationPeriod`
-  takes enum strings (`LAST_WEEK`), not integers. **Reopen only on an answer from ELA** — the
-  question is whether CC BY 4.0 reaches PES-supplied vacancy content, and a "no" closes the
-  largest unknown in the stack as usefully as a "yes" opens it. Checked 2026-08-04, full
-  workings in `notes/2026-08-04-eures.md`.
+  takes enum strings (`LAST_WEEK`), not integers. **Closed, not pending** — per the skip rule
+  above, nobody is being asked whether CC BY 4.0 reaches PES-supplied vacancy content. Checked
+  2026-08-04, full workings in `notes/2026-08-04-eures.md`.
+- **Poland's CBOP is the best-licensed source this repo has ever found and is still skipped —
+  the licence and the access are two different gates.** The Ministry of Family and Social
+  Policy publishes the Centralna Baza Ofert Pracy on `dane.gov.pl` under **CC BY 4.0**, updated
+  daily, describing a WebService *"umożliwiającą podmiotom zewnętrznym pobieranie drogą
+  elektroniczną, w zautomatyzowany sposób"* — a publisher inviting exactly this, more explicit
+  than MPSV's disclaimer — and §1.2 of its *Warunki udostępniania* makes access free. Nothing
+  here refuses us. But §1.5 requires emailing the completed terms to `apicbop@praca.gov.pl`
+  **signed with a profil zaufany or qualified electronic signature**, and §5 demands **NIP,
+  REGON, KRS and PESEL** — four Polish identifiers a Czech applicant does not have, with no
+  field for a foreign equivalent — plus the IP of the accessing machine. That is an
+  application, so it is skipped. Recorded because the temptation to reopen it is stronger than
+  for any refused source: the data genuinely is free, and it is 8 003 EU-27 ISCO 1–3 rows.
+  Three design facts kept in case the gate ever disappears: §3 answers **only 17:00–07:00
+  local** (15:00–05:00 UTC in summer — the 05:00 export starts as it closes, so it would need
+  its own earlier timer, not a slot in `gather()`), serves a 16:00 snapshot, and caps **20
+  queries per cycle** against slices of country/voivodeship/labour office; §2 contractually
+  forbids **publishing out-of-date offers**, making the Muse zombie problem an obligation
+  rather than a preference; and transport is **SOAP**, one operation `Dane` at
+  `oferty.praca.gov.pl/integration/services/oferta` (hand-rollable as an XML POST — no `zeep`).
+  `robots.txt` is 404 at the host root. Checked 2026-08-04.
 - **Check robots.txt at the host root, and quote the clause that would refuse you.** Both
   errors happened in one session: `europa.eu/eures/robots.txt` 404'd and was reported as a
   finding, when robots.txt is only ever authoritative at the root — where it exists, is 4 930
