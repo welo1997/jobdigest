@@ -123,12 +123,27 @@ FINGERPRINTS: list[tuple[str, re.Pattern[str]]] = [
 ]
 
 #: ATSes we already ingest — a hit here is a seed/adapter row and nothing more to build.
-SUPPORTED = {"greenhouse", "lever", "ashby", "smartrecruiters", "workday"}
+#: ATSes `gather()` actually has an adapter for. This is a copy of a fact that lives in
+#: `search_jobs.py`, and on 2026-08-04 it was **out of date in the direction that loses
+#: findings**: `recruitee`, `workable` and `oraclecloud` had all been live sources for days
+#: and were reported here as unsupported. The thin-country pass turned up four Greek boards
+#: on Workable — for a country holding 43 active postings in the whole corpus — every one of
+#: them printed as `no`, which is the same thing as not finding them.
+#: `test_discovery_supported.py` fails if this drifts from the adapters again.
+SUPPORTED = {"greenhouse", "lever", "ashby", "smartrecruiters", "workday",
+             "recruitee", "workable", "oraclecloud"}
 
 #: Alma Career's own ATS. A hit is recorded but must NOT be treated as a free win: the
 #: careers page is served from the infrastructure whose terms excluded jobs.cz and profesia.
 #: Different product, plausibly a different document — check before ingesting, don't assume.
-RESTRICTED = {"teamio"}
+#: BambooHR is here for a different reason than Teamio and the distinction matters: its public
+#: `/careers/list` endpoint works, answers 200 to the honest agent, and its per-tenant
+#: robots.txt *allows* it. Its ToS §4.2 forbids "any robot, spider, other automated device, or
+#: manual process to monitor or copy any content from the Service", and the Developer ToS
+#: forbids crawling "without BambooHR's prior written consent". The thin-country pass found
+#: eight tenants on it — none of them usable. Marked rather than dropped so a hit is reported
+#: with the reason attached, instead of turning up again next run as an apparent free win.
+RESTRICTED = {"teamio", "bamboohr"}
 
 
 @dataclass
