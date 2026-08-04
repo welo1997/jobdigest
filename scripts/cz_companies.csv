@@ -1,0 +1,262 @@
+company,domain,tier
+# Ordered top (largest / most prominent Czech employers and tech companies) to bottom.
+# `tier` is a rough prominence band, used only to order the probe and the report.
+# Source: hand-assembled. Deliberately NOT derived from jobs.cz — see scripts/discover_ats.py.
+JetBrains,jetbrains.com,1
+Gen Digital (Avast),gendigital.com,1
+Seznam.cz,seznam.cz,1
+Alza.cz,alza.cz,1
+Skoda Auto,skoda-auto.cz,1
+CEZ Group,cez.cz,1
+Kiwi.com,kiwi.com,1
+Rohlik Group,rohlik.group,1
+Notino,notino.com,1
+Packeta,packeta.com,1
+Productboard,productboard.com,1
+Mews,mews.com,1
+Bloomreach,bloomreach.com,1
+Emplifi,emplifi.io,1
+Ataccama,ataccama.com,1
+Heureka Group,heureka.group,1
+Livesport,livesport.eu,1
+Red Hat,redhat.com,1
+Ceska sporitelna,csas.cz,1
+CSOB,csob.cz,1
+Komercni banka,kb.cz,1
+O2 Czech Republic,o2.cz,1
+T-Mobile Czech Republic,t-mobile.cz,1
+Vodafone Czech Republic,vodafone.cz,1
+Moneta Money Bank,moneta.cz,1
+Air Bank,airbank.cz,1
+Raiffeisenbank CZ,rb.cz,1
+UniCredit Bank CZ,unicreditbank.cz,1
+Fio banka,fio.cz,1
+Dr. Max,drmax.cz,1
+GoodData,gooddata.com,2
+Y Soft,ysoft.com,2
+Apify,apify.com,2
+Keboola,keboola.com,2
+Rossum,rossum.ai,2
+Resistant AI,resistant.ai,2
+ThreatMark,threatmark.com,2
+Manta,getmanta.com,2
+Recombee,recombee.com,2
+CDN77,cdn77.com,2
+SatoshiLabs,satoshilabs.com,2
+Braiins,braiins.com,2
+Twisto,twisto.cz,2
+Liftago,liftago.com,2
+DoDo,dodo.delivery,2
+Kentico,kentico.com,2
+Progress Flowmon,flowmon.com,2
+Codasip,codasip.com,2
+TESCAN,tescan.com,2
+Deepnote,deepnote.com,2
+Slevomat,slevomat.cz,2
+Pilulka,pilulka.cz,2
+Kosik.cz,kosik.cz,2
+Footshop,footshop.com,2
+Bonami,bonami.cz,2
+Mall Group,mallgroup.com,2
+Allegro,allegro.eu,2
+CZC.cz,czc.cz,2
+Datart,datart.cz,2
+Benu,benu.cz,2
+Storyous,storyous.com,2
+Fidoo,fidoo.com,2
+Woltair,woltair.cz,2
+Nano Energies,nanoenergies.cz,2
+Behavio,behavio.cz,2
+Tanganica,tanganica.com,2
+Neuron soundware,neuronsw.com,2
+Datamole,datamole.ai,2
+Filuta AI,filuta.ai,2
+Oracle NetSuite,oracle.com,3
+SolarWinds,solarwinds.com,3
+Cisco,cisco.com,3
+Broadcom,broadcom.com,3
+SUSE,suse.com,3
+IBM,ibm.com,3
+Microsoft,microsoft.com,3
+Amazon,amazon.jobs,3
+Honeywell,honeywell.com,3
+Siemens,siemens.com,3
+Bosch,bosch.com,3
+ABB,abb.com,3
+Thermo Fisher Scientific,thermofisher.com,3
+Johnson Controls,johnsoncontrols.com,3
+Kyndryl,kyndryl.com,3
+Deutsche Telekom IT Solutions CZ,deutschetelekomitsolutions.cz,3
+Accenture,accenture.com,3
+Deloitte,deloitte.com,3
+MSD,msd.com,3
+Zebra Technologies,zebra.com,3
+Vertiv,vertiv.com,3
+Barclays,barclays.com,3
+ExxonMobil,exxonmobil.com,3
+Novartis,novartis.com,3
+Sanofi,sanofi.com,3
+DHL,dhl.com,3
+Continental,continental.com,3
+Valeo,valeo.com,3
+Forvia,forvia.com,3
+Bohemia Interactive,bohemia.net,4
+Warhorse Studios,warhorsestudios.cz,4
+SCS Software,scssoft.com,4
+Madfinger Games,madfingergames.com,4
+Amanita Design,amanita-design.net,4
+Hangar 13,hangar13games.com,4
+Beat Games,beatgames.com,4
+Charles Games,charlesgames.cz,4
+BISim,bisim.com,4
+STRV,strv.com,5
+Ackee,ackee.cz,5
+Applifting,applifting.cz,5
+Etnetera,etnetera.cz,5
+Cleverlance,cleverlance.com,5
+Unicorn,unicorn.com,5
+Profinit,profinit.eu,5
+Adastra,adastragrp.com,5
+Trask Solutions,trask.cz,5
+Aricoma,aricoma.com,5
+Solitea,solitea.com,5
+ABRA Software,abra.eu,5
+Asseco Central Europe,asseco.com,5
+Stormware,stormware.cz,5
+Gordic,gordic.cz,5
+K2 atmitec,k2.cz,5
+Vema,vema.cz,5
+Anect,anect.com,5
+Aimtec,aimtecglobal.com,5
+Ness Czech,ness.com,5
+Sabris,sabris.com,5
+Tovek,tovek.cz,5
+ShipMonk,shipmonk.com,2
+Zonky,zonky.cz,2
+Portu,portu.cz,2
+Fondee,fondee.cz,2
+Skip Pay,skippay.cz,2
+Wultra,wultra.com,2
+Tatum,tatum.io,2
+Cleevio,cleevio.com,2
+Futured,futured.app,2
+eMan,eman.cz,2
+Qest,qest.cz,2
+Whalebone,whalebone.io,2
+TeskaLabs,teskalabs.com,2
+Semantic Visions,semantic-visions.com,2
+Geneea,geneea.com,2
+DataSentics,datasentics.com,2
+Blindspot Solutions,blindspot.ai,2
+Gauss Algorithmic,gaussalgo.com,2
+CN Group,cngroup.dk,5
+Sprinx,sprinx.com,5
+Lundegaard,lundegaard.eu,5
+Actum Digital,actumdigital.com,5
+Symbio,symbio.agency,5
+Komix,komix.cz,5
+Certicon,certicon.cz,5
+ICZ,i.cz,5
+Datasys,datasys.cz,5
+Algotech,algotech.cz,5
+Rockaway Capital,rockawaycapital.com,2
+Aukro,aukro.cz,2
+Vivantis,vivantis.cz,2
+Astratex,astratex.cz,2
+Zoot,zoot.cz,2
+Sportisimo,sportisimo.cz,2
+Smarty,smarty.cz,2
+Planeo,planeo.cz,2
+Wube Software,factorio.com,4
+Grip Digital,gripdigital.com,4
+Creditas,creditas.cz,1
+Trinity Bank,trinitybank.cz,2
+Partners Banka,partnersbanka.cz,2
+Ceska narodni banka,cnb.cz,1
+Generali Ceska pojistovna,generaliceska.cz,1
+Kooperativa,koop.cz,1
+Allianz CZ,allianz.cz,1
+Direct pojistovna,direct.cz,2
+Ceske drahy,cd.cz,1
+RegioJet,regiojet.cz,2
+Leo Express,leoexpress.com,2
+Dopravni podnik Praha,dpp.cz,1
+Smartwings,smartwings.com,2
+Letiste Praha,prg.aero,1
+Skoda Transportation,skoda.cz,1
+Doosan Skoda Power,doosanskodapower.com,2
+Agrofert,agrofert.cz,1
+Synthesia,synthesia.cz,2
+Brose CZ,brose.com,2
+Hella,hella.com,2
+ZF,zf.com,2
+Denso,denso.com,2
+Tatra Trucks,tatra.cz,2
+Zetor,zetor.cz,2
+Schneider Electric,se.com,2
+Eaton,eaton.com,2
+Emerson,emerson.com,2
+GE Aerospace,geaerospace.com,2
+Safran,safran-group.com,2
+Meopta,meopta.com,2
+Linet,linet.com,2
+Preciosa,preciosa.com,2
+Zentiva,zentiva.com,1
+Teva,teva.cz,2
+Sotio,sotio.com,2
+Contipro,contipro.com,2
+Bioveta,bioveta.cz,2
+KPMG,kpmg.com,3
+EY,ey.com,3
+PwC,pwc.com,3
+Capgemini,capgemini.com,3
+Infosys,infosys.com,3
+Tata Consultancy Services,tcs.com,3
+Cognizant,cognizant.com,3
+DXC Technology,dxc.com,3
+Atos,atos.net,3
+Sopra Steria,soprasteria.com,3
+Devoteam,devoteam.com,3
+Konica Minolta,konicaminolta.cz,3
+Albert,albert.cz,1
+Lidl CZ,lidl.cz,1
+Kaufland CZ,kaufland.cz,1
+Globus CZ,globus.cz,2
+Makro CZ,makro.cz,2
+Tesco CZ,itesco.cz,1
+ESET,eset.com,1
+Sygic,sygic.com,2
+Photoneo,photoneo.com,2
+Innovatrics,innovatrics.com,2
+Pixel Federation,pixelfederation.com,2
+Vacuumlabs,vacuumlabs.com,2
+Sudolabs,sudolabs.com,2
+Slido,slido.com,2
+CloudTalk,cloudtalk.io,2
+Websupport,websupport.sk,2
+GymBeam,gymbeam.sk,2
+Powerful Medical,powerfulmedical.com,2
+Better Stack,betterstack.com,2
+Instarea,instarea.com,2
+Resco,resco.net,2
+Anasoft,anasoft.com,5
+Softec,softec.sk,5
+Gratex,gratex.com,5
+Soitron,soitron.com,5
+Datalan,datalan.sk,5
+Tempest,tempest.sk,5
+Sfera,sfera.sk,5
+Aliter Technologies,aliter.com,5
+Tatra banka,tatrabanka.sk,1
+Slovenska sporitelna,slsp.sk,1
+VUB banka,vub.sk,1
+365 bank,365.bank,2
+Orange Slovensko,orange.sk,1
+Telekom SK,telekom.sk,1
+O2 Slovakia,o2.sk,1
+Slovnaft,slovnaft.sk,1
+US Steel Kosice,usske.sk,1
+Volkswagen Slovakia,volkswagen.sk,1
+Kia Slovakia,kia.sk,1
+ZSE,zse.sk,1
+SPP,spp.sk,1
