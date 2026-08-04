@@ -1,0 +1,93 @@
+company,domain,tier
+# Slovak employers likely to run a public ATS board, ordered roughly by prominence.
+# `tier` is a rough prominence band, used only to order the probe and the report.
+# Source: hand-assembled, like scripts/cz_companies.csv. Deliberately NOT derived from any
+# job board's employer roster — see the note in scripts/discover_ats.py.
+# Built because Slovakia is the thinnest country in the corpus at 29 active postings: the
+# Alma Career exclusion removed 99% of Slovak inventory (profesia.sk), there is no Slovak
+# equivalent of MPSV publishing open data, and worki.sk forbids redistribution. Employer ATS
+# boards are the only open route into Slovak inventory.
+ESET,eset.com,1
+Sygic,sygic.com,1
+Pixel Federation,pixelfederation.com,1
+Photoneo,photoneo.com,1
+Sensoneo,sensoneo.com,1
+Slido,slido.com,1
+Minit,minit.io,1
+Vacuumlabs,vacuumlabs.com,1
+Resco,resco.net,1
+Kontentino,kontentino.com,1
+Websupport,websupport.sk,1
+GymBeam,gymbeam.sk,1
+Martinus,martinus.sk,1
+Anasoft,anasoft.com,1
+Softec,softec.sk,1
+Datalan,datalan.sk,1
+Tempest,tempest.sk,1
+Ness KDC,ness.com,1
+Piano Software,piano.io,1
+Instarea,instarea.com,1
+Powerful Medical,powerfulmedical.com,1
+Bloomreach,bloomreach.com,1
+Zoznam,zoznam.sk,2
+Zlavomat,zlavomat.sk,2
+Alza SK,alza.sk,2
+Tatra banka,tatrabanka.sk,2
+Slovenska sporitelna,slsp.sk,2
+VUB banka,vub.sk,2
+CSOB Slovakia,csob.sk,2
+365 bank,365.bank,2
+Prima banka,primabanka.sk,2
+Orange Slovensko,orange.sk,2
+Slovak Telekom,telekom.sk,2
+O2 Slovakia,o2.sk,2
+Deutsche Telekom IT Solutions Slovakia,deutschetelekomitsolutions.sk,2
+AT&T Slovakia,att.com,2
+Dell Slovakia,dell.com,2
+IBM Slovakia,ibm.com,2
+Accenture Slovakia,accenture.com,2
+Siemens Healthineers Slovakia,siemens-healthineers.com,2
+Johnson Controls Slovakia,johnsoncontrols.com,2
+Adient Slovakia,adient.com,2
+Kia Slovakia,kia.sk,2
+Volkswagen Slovakia,volkswagen.sk,2
+Jaguar Land Rover Slovakia,jaguarlandrover.com,2
+Stellantis Slovakia,stellantis.com,2
+Continental Slovakia,continental.com,2
+Whirlpool Slovakia,whirlpool.com,2
+Schaeffler Skalica,schaeffler.com,2
+ZF Slovakia,zf.com,2
+Mondelez Slovakia,mondelezinternational.com,3
+Henkel Slovensko,henkel.com,3
+Swiss Re Slovakia,swissre.com,3
+Zurich Insurance Slovakia,zurich.com,3
+Allianz SP,allianzsp.sk,3
+Generali Slovensko,generali.sk,3
+Union poistovna,union.sk,3
+Slovnaft,slovnaft.sk,3
+SPP,spp.sk,3
+Zapadoslovenska energetika,zse.sk,3
+Slovenske elektrarne,seas.sk,3
+Slovenska posta,posta.sk,3
+ZSSK,slovakrail.sk,3
+Letisko Bratislava,bts.aero,3
+Lidl Slovensko,lidl.sk,3
+Kaufland Slovensko,kaufland.sk,3
+Tesco Slovakia,tesco.sk,3
+Billa Slovensko,billa.sk,3
+dm drogerie SK,mojadm.sk,3
+Pantheon Technologies,pantheon.tech,3
+Sudolabs,sudolabs.com,3
+Lighting Beetle,lightingbeetle.com,3
+Exponea,exponea.com,3
+Bors,bors.sk,3
+Titans freelancers,titans.sk,3
+Siemens Slovakia,siemens.com,3
+Emtest,emtest.sk,3
+CEIT,ceitgroup.eu,3
+Matsuko,matsuko.com,3
+Nettle,nettle.sk,3
+Bart Digital,bart.sk,3
+Goodrequest,goodrequest.com,3
+Cleverfarm,cleverfarm.sk,3
+Trendwerk,trendwerk.sk,3

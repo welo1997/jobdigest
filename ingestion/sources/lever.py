@@ -31,7 +31,12 @@ ORGS = ["spotify", "qonto", "contentsquare", "aircall", "swile", "blablacar",
         # probing the Lever API directly: neither careers page carries an ATS link in its
         # HTML, so a page scan alone sees nothing. Job counts are small but the postings are
         # Prague-based, which is what the Czech inventory now lacks.
-        "ataccama", "keboola"]
+        "ataccama", "keboola",
+        # IT/ES pass, 2026-08-04, identity-checked. `reply` was found and rejected: it is
+        # genuinely Reply, but the board is its US arm (Chicago/Atlanta/Seattle) and carries
+        # no Italian roles, so it would add US inventory to a corpus already 24% US.
+        "musixmatch",     #  6 — Bologna
+        "jobandtalent"]   # 23 — Madrid HQ / Guadalajara / Stockholm
 
 
 class LeverSource(BaseSource):

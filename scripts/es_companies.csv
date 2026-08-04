@@ -1,0 +1,93 @@
+company,domain,tier
+# Spanish employers likely to run a public ATS board, ordered roughly by prominence.
+# `tier` is a rough prominence band, used only to order the probe and the report.
+# Source: hand-assembled, like scripts/cz_companies.csv. Deliberately NOT derived from any
+# job board's employer roster — see the note in scripts/discover_ats.py.
+# Spain holds 646 active postings and has the densest startup scene of the three countries
+# probed in this pass, so it is the most likely of them to pay off on Greenhouse/Ashby/Lever.
+Glovo,glovoapp.com,1
+Cabify,cabify.com,1
+Idealista,idealista.com,1
+Wallapop,wallapop.com,1
+Jobandtalent,jobandtalent.com,1
+Fever,feverup.com,1
+TravelPerk,travelperk.com,1
+Factorial,factorialhr.com,1
+Typeform,typeform.com,1
+Domestika,domestika.org,1
+Freepik,freepik.com,1
+Devo,devo.com,1
+Seedtag,seedtag.com,1
+Red Points,redpoints.com,1
+Paack,paack.co,1
+Exoticca,exoticca.com,1
+Clarity AI,clarity.ai,1
+Cobee,cobee.io,1
+Sesame HR,sesamehr.com,1
+Holded,holded.com,1
+Amenitiz,amenitiz.io,1
+Payflow,payflow.es,1
+Housfy,housfy.com,1
+Fintonic,fintonic.com,1
+eDreams ODIGEO,edreamsodigeo.com,1
+Amadeus,amadeus.com,2
+Telefonica,telefonica.com,2
+BBVA,bbva.com,2
+Banco Santander,santander.com,2
+CaixaBank,caixabank.com,2
+Banco Sabadell,bancsabadell.com,2
+Bankinter,bankinter.com,2
+Mapfre,mapfre.com,2
+Repsol,repsol.com,2
+Iberdrola,iberdrola.com,2
+Naturgy,naturgy.com,2
+Endesa,endesa.com,2
+Cepsa,cepsa.com,2
+Ferrovial,ferrovial.com,2
+Acciona,acciona.com,2
+ACS Group,grupoacs.com,2
+Sacyr,sacyr.com,2
+Indra,indracompany.com,2
+NTT Data Spain,nttdata.com,2
+GMV,gmv.com,2
+Sngular,sngular.com,2
+Making Science,makingscience.com,2
+Inditex,inditex.com,2
+Mango,mango.com,2
+Desigual,desigual.com,2
+Puig,puig.com,2
+Tendam,tendam.es,2
+Grifols,grifols.com,3
+Almirall,almirall.com,3
+Esteve,esteve.com,3
+Rovi,rovi.es,3
+Ferrer,ferrer.com,3
+Mercadona,mercadona.es,3
+Consum,consum.es,3
+Grupo Dia,diacorporate.com,3
+Alcampo,alcampo.es,3
+Lidl Espana,lidl.es,3
+Iberia,iberia.com,3
+Vueling,vueling.com,3
+Air Europa,aireuropa.com,3
+Renfe,renfe.com,3
+Correos,correos.es,3
+Melia Hotels,meliahotelsinternational.com,3
+NH Hotel Group,nh-hotels.com,3
+Barcelo,barcelogrupo.com,3
+Globalia,globalia.com,3
+Cellnex,cellnextelecom.com,3
+MasOrange,masorange.es,3
+Vodafone Espana,vodafone.es,3
+Prosegur,prosegur.com,3
+Gestamp,gestamp.com,3
+CIE Automotive,cieautomotive.com,3
+Antolin,grupoantolin.com,3
+Sener,group.sener,3
+Navantia,navantia.es,3
+Talgo,talgo.com,3
+CAF,caf.net,3
+Viscofan,viscofan.com,3
+Fluidra,fluidra.com,3
+Grupo Bimbo Iberia,grupobimbo.com,3
+Damm,damm.com,3

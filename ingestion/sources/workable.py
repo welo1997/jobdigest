@@ -44,6 +44,7 @@ ACCOUNTS = [
                      #      bare `booksy` slug is not this board, so it cannot be derived.
     "netguru",       # 28 — Poland (Poznań), software house
     "getresponse",   #  4 — Gdańsk, email marketing
+    "exoticca",      # 42 — Barcelona, travel. Added 2026-08-04, identity-checked.
 ]
 
 _TIMEOUT = 20

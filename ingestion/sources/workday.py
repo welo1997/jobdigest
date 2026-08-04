@@ -103,6 +103,18 @@ SITES: list[tuple[str, str, str]] = [
     ("cloudflight", "wd103", "external_career_site"),  # 13 — Cloudflight, which acquired the
     #   Polish software house Divante; Divante's careers page is what led here. Small, but it
     #   is AT/DE/PL inventory and costs one query. Note the `wd103` shard.
+    # Fourth pass, 2026-08-04 (84 SK + 85 IT + 84 ES companies). Two Slovak boards were found
+    # and both rejected: `att` (1 223) and `adient` (197) are the real companies, but every
+    # sampled posting was US or Mexican — no Slovak roles at all, so they would add US
+    # inventory to a corpus already 24% US rather than fix the country they were sought for.
+    ("santander", "wd3", "SantanderCareers"),        #  867 — global bank, EU sites incl. Wien
+    ("leonardocompany", "wd3", "LeonardoCareerSite"),#  683 — Italian defence group; the
+    #   sampled roles were UK (Luton, Southampton), so it is GB-weighted despite the HQ.
+    ("prysmiangroup", "wd3", "Careers"),             #  575 — Milan HQ, sampled US/BR/AR/CO
+    ("bracco", "wd103", "BraccoCareers"),            #  111 — Milan pharma; DE (Singen)/US/CN
+    ("eng", "wd3", "ExternalCareers"),               #   70 — Roma / Milano. Genuinely Italian.
+    ("teamsystem", "wd103", "TeamSystem"),           #   49 — Milano / Napoli / Padova
+    ("cerved", "wd3", "Cerved"),                     #   39 — San Donato Milanese / Milano
 ]
 
 #: Role terms, matched by Workday's own full-text search. English-only for the same reason as

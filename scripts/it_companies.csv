@@ -1,0 +1,94 @@
+company,domain,tier
+# Italian employers likely to run a public ATS board, ordered roughly by prominence.
+# `tier` is a rough prominence band, used only to order the probe and the report.
+# Source: hand-assembled, like scripts/cz_companies.csv. Deliberately NOT derived from any
+# job board's employer roster — see the note in scripts/discover_ats.py.
+# Italy holds 396 active postings against an economy the size of Poland's twice over, so the
+# gap is coverage rather than inventory. Brembo is already carried on Oracle; do not re-add.
+Bending Spoons,bendingspoons.com,1
+Satispay,satispay.com,1
+Scalapay,scalapay.com,1
+Musixmatch,musixmatch.com,1
+Casavo,casavo.com,1
+Everli,everli.com,1
+Prima Assicurazioni,prima.it,1
+Moneyfarm,moneyfarm.com,1
+Translated,translated.com,1
+Iubenda,iubenda.com,1
+Talent Garden,talentgarden.com,1
+Young Platform,youngplatform.com,1
+Docsity,docsity.com,1
+Cortilia,cortilia.it,1
+Credimi,credimi.com,1
+MutuiOnline,gruppomol.it,1
+Facile.it,facile.it,1
+Immobiliare.it,immobiliare.it,1
+Subito,subito.it,1
+YOOX Net-a-Porter,ynap.com,1
+Reply,reply.com,2
+Nexi,nexigroup.com,2
+TeamSystem,teamsystem.com,2
+Zucchetti,zucchetti.it,2
+Engineering Ingegneria Informatica,eng.it,2
+Almaviva,almaviva.it,2
+Cerved,cerved.com,2
+Sella,sella.it,2
+UniCredit,unicreditgroup.eu,2
+Intesa Sanpaolo,intesasanpaolo.com,2
+Generali,generali.com,2
+Poste Italiane,posteitaliane.it,2
+TIM,gruppotim.it,2
+Fastweb,fastweb.it,2
+WindTre,windtre.it,2
+Vodafone Italia,vodafone.it,2
+Enel,enel.com,2
+Eni,eni.com,2
+Snam,snam.it,2
+Terna,terna.it,2
+Leonardo,leonardo.com,2
+Fincantieri,fincantieri.com,2
+Pirelli,pirelli.com,2
+Stellantis,stellantis.com,2
+Iveco Group,ivecogroup.com,2
+Ferrari,ferrari.com,2
+Lamborghini,lamborghini.com,2
+Ducati,ducati.com,2
+Danieli,danieli.com,2
+Prysmian,prysmian.com,2
+Amplifon,amplifon.com,3
+Chiesi,chiesi.com,3
+Recordati,recordati.com,3
+Menarini,menarini.com,3
+Angelini,angelinipharma.com,3
+Bracco,bracco.com,3
+Zambon,zambon.com,3
+Alfasigma,alfasigma.com,3
+EssilorLuxottica,essilorluxottica.com,3
+Kering Italy,kering.com,3
+Prada,pradagroup.com,3
+Armani,armani.com,3
+Moncler,moncler.com,3
+OTB Group,otb.net,3
+Calzedonia,calzedoniagroup.com,3
+Barilla,barilla.com,3
+Ferrero,ferrero.com,3
+Lavazza,lavazza.com,3
+Campari,camparigroup.com,3
+Illycaffe,illy.com,3
+Granarolo,granarolo.it,3
+Esselunga,esselunga.it,3
+Conad,conad.it,3
+Coop Italia,e-coop.it,3
+Autogrill,autogrill.com,3
+Benetton,benettongroup.com,3
+Safilo,safilogroup.com,3
+De Longhi,delonghigroup.com,3
+Ariston,aristongroup.com,3
+Interpump,interpumpgroup.it,3
+Sacmi,sacmi.it,3
+IMA Group,ima.it,3
+Marposs,marposs.com,3
+Datalogic,datalogic.com,3
+Elica,elica.com,3
+Sisal,sisal.com,3
+Lottomatica,lottomaticagroup.com,3

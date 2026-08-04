@@ -101,6 +101,17 @@ SITES: list[tuple[str, str, str, str]] = [
     #   contributes titles and locations, not text the matcher can read. Recorded rather than
     #   assumed from the source's general behaviour. Note the site slug is a *name*,
     #   `BNY-Careers`, not the usual `CX_n` — one more thing that cannot be derived.
+    ("efuf", "em2", "CX_1", "Amplifon"),
+    #    698 — Milan hearing-care group, added 2026-08-04 from the Italian pass. Sampled
+    #    countries BE/DE/CH/US/AU/NZ, so it is a genuine multi-EU board rather than an
+    #    Italy-only one. Region `em2`, which no other tenant here uses.
+    ("fa-ewwx-saasfaprod1", "ocs", "CX_1", "Nexi"),
+    #     84 — Italian payments group, and the best EU spread of any Oracle tenant here:
+    #     PL 4, CH 2, DE 2, HR 1, DK 1 in a sample of 10. Polish inventory from an Italian
+    #     employer is exactly what the country-by-country search keeps failing to predict.
+    ("hdbs", "em2", "CX_1001", "Illycaffè"),
+    #      3 — Trieste, and all three roles are in Trieste. Tiny, but it is the only board in
+    #      the Italian pass whose inventory is *entirely* Italian, and it costs one request.
     ("hdjd", "em3", "CX_1001", "Cummins"),      #   17 — a Middle East regional site (SA/AE),
     #   not Cummins' global board, which no public tenant answered for. Kept because it is
     #   correct and costs one request; it contributes no EU inventory, so if it ever needs

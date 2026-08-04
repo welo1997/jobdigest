@@ -58,6 +58,10 @@ ORGS = [
     # company whose board is Barcelona-heavy (13 ES / 8 PL) — the postings are what makes it
     # worth having, not the flag on the head office.
     "docplanner",
+    # IT/ES pass, 2026-08-04, identity-checked against each board's own postings.
+    "satispay",    # 88 — Milan 45 / Luxembourg 15 / Barcelona 6 / Naples 4. The densest
+    #                    genuinely Italian board found in 85 companies.
+    "amenitiz",    # 18 — Barcelona 10 / Lisbon 4 / Lyon 2
 ]
 
 # Map Ashby address country names to ISO-3166 alpha-2.

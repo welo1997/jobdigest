@@ -55,6 +55,10 @@ COMPANIES = [
     "tylko",          # 13 — Warszawa (+ Amstelveen), furniture ecommerce
     "espeo",          #  6 — Poznań, software house
     "11bitstudios",   #  3 — Warszawa, games (This War of Mine, Frostpunk)
+    # SK/IT/ES pass, 2026-08-04. Same identity check: company name and city off the postings.
+    "goodrequest",    #  1 — Žilina, Slovakia. The *only* Slovak board found in 84 companies.
+    "holded",         # 11 — Barcelona, business software
+    "delonghigroup",  #  3 — De'Longhi, Neu-Isenburg DE + Wiener Neudorf AT
 ]
 
 #: Slugs that answer with a live board which is **not the company whose name they spell**.
@@ -66,7 +70,15 @@ COMPANIES = [
 #: marketing job into a Polish subscriber's digest under a household brand name.
 #: `ey` was in this list until 2026-08-04 for the same reason — three Amsterdam offers, one
 #: of them literally "Senior Marketer (Sample)", and no evidence it was EY's board.
-KNOWN_IMPOSTORS = frozenset({"accenture", "ccc", "samsung", "wp", "ey"})
+#:
+#: The SK/IT/ES pass added two of a second kind, which are not demo content but a *different
+#: real company* answering on a name-derived slug: `talent` is **Sysmex Iberia** (Barcelona),
+#: not Talent Garden, and `clarity` is **Clarity Travel** (Manchester), not Clarity AI —
+#: whose genuine board is `clarityai` on Greenhouse. Both would have been filed under the
+#: wrong employer in a subscriber's digest, which is the same harm by a different route.
+KNOWN_IMPOSTORS = frozenset({
+    "accenture", "ccc", "samsung", "wp", "ey", "talent", "clarity",
+})
 
 _TIMEOUT = 20
 _TAG = re.compile(r"<[^>]+>")

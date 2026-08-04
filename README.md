@@ -307,6 +307,17 @@ run by TREXIMA Bratislava) states that further dissemination of its job offers w
 consent infringes copyright, the same bar that excluded Alma Career. Company ATS boards are
 the only open route into Slovak inventory; that is what `workable` exists for.
 
+**And that route has now been measured, with a discouraging answer: 84 Slovak employers
+probed, one usable board.** The 2026-08-04 pass (`scripts/sk_companies.csv`) covered ESET,
+Sygic, Pixel Federation, Photoneo, the banks, the telecoms and the carmakers, and found 20
+live boards of which exactly one — GoodRequest, Žilina, **1 posting** — was both a real Slovak
+employer and on an adapter this repo runs. AT&T's and Adient's Workday boards are genuine and
+large (1 223 and 197) but every sampled role was US or Mexican, so they were rejected: they
+would add US inventory to a corpus already 24% US rather than fix the country they were sought
+for. Slovak employers cluster on BambooHR and Personio, both of which are closed to us on
+terms. **Slovakia stays at ~29 active postings and there is no further open route** — do not
+re-run this list expecting a different answer.
+
 **Jobs.cz and Profesia are no longer here** (2026-08-03). Both are Alma Career brands whose
 terms of use forbid automated processing of their data, so the adapters were removed from
 `gather()` and kept only as code; `ingestion/tests/test_source_exclusions.py` fails if either
