@@ -222,9 +222,65 @@ logins, no Playwright, no domain-wide crawls.
 | Group | Sources |
 |---|---|
 | Remote boards | Remotive, WeWorkRemotely, RemoteOK, Himalayas, Jobicy, WorkingNomads, Arbeitnow |
-| Czech / Slovak | Jobs.cz, StartupJobs, Profesia, Cocuma |
+| National registers | **MPSV** (CZ Úřad práce open data), **Platsbanken** (SE Arbetsförmedlingen open data) |
+| Czech | StartupJobs, Cocuma |
 | Aggregators | The Muse, Adzuna (AT/BE/CA/DE/ES/FR/GB/IT/NL/PL/US) |
-| ATS boards | Greenhouse, Lever, Ashby, SmartRecruiters, Workday — curated company list only |
+| ATS boards | Greenhouse, Lever, Ashby, SmartRecruiters, Workday, **Oracle Recruiting Cloud**, Recruitee, Workable — curated company list only |
+
+**A national employment service publishing open data is the best source shape there is, and
+Sweden is the second one** (added 2026-08-04). `platsbanken` reads Arbetsförmedlingen's
+JobSearch API — no key, `robots.txt` 404, and open data the agency says is "free for anyone to
+use". **15 201 white-collar ads, 100% with a company, a date and a description at a median of
+3 775 characters** — the richest text in the corpus by a wide margin. Scope is SSYK occupation
+field, the same call MPSV's ISCO 1–3 filter makes: seven fields of 21, excluding healthcare
+(5 012), hotel and restaurant, transport, construction and the rest of the ~21 000 ads the
+nine role categories cannot rank. Like MPSV it carries personal data — `application_contacts`
+names a recruiter on 29% of ads — so those fields are never read and free text is scrubbed.
+
+**Germany is the largest job source in Europe and it is excluded.** The Bundesagentur für
+Arbeit's Jobbörse holds **820 599 vacancies** and answers an undocumented public API. Its
+terms of use §2a(3) forbid precisely this: *"use robots, web spiders or similar technologies,
+or to use existing communication or programming interfaces contrary to the BA's intended
+purpose, and thus to read out content from the portal or apps for the purpose of data
+collection and evaluation"*. The BA has publicly called the community-documented interface
+"technisch wie rechtlich kritisch". That is the Alma Career decision again, at 55× the scale
+of what Sweden adds — **do not add it because the digest looks thin.** Checked 2026-08-04.
+
+**Oracle Recruiting Cloud reaches the large industrials, which no other adapter here did**
+(added 2026-08-04). Vertiv, Honeywell, Emerson, Brembo and Cummins — 4 225 postings, 678 in the
+EU-27 and 62 in Czechia and Slovakia, from plants in Nové Mesto nad Váhom, Stará Turá, Volyně,
+Nišovice, Bratislava and Brno. It is the highest-quality feed in the stack: 100% of rows carry
+an ISO country code and a posting date, and 85% a real description (median 401 characters,
+against jobs.cz's median of 35). Unusually for an enterprise ATS it is **not** an N+1 adapter —
+descriptions arrive in the list response — so a full pull is ~20 requests and 43 seconds, and
+there is no keyword ceiling because there are no detail calls to bound.
+
+**SAP SuccessFactors was checked and rejected the same day.** It is the other enterprise ATS
+behind large European employers (Lidl CZ, Allegro, ZF, Brose, Deloitte), and its per-company
+career sites are reachable — but the served page is a JS shell: 188 KB, 195 `<script>` tags,
+424 characters of visible text and zero job ids in the HTML, behind `loginFlowRequired`.
+Reading it would need a browser, and Playwright is out. Recorded so it is not re-probed.
+
+**Slovakia has no MPSV equivalent, and that is a checked conclusion rather than an omission.**
+The Slovak labour office publishes no per-vacancy open data — the national and EU catalogues
+carry only Štatistický úrad SR's aggregate vacancy counts — and worki.sk (successor to ISTP,
+run by TREXIMA Bratislava) states that further dissemination of its job offers without written
+consent infringes copyright, the same bar that excluded Alma Career. Company ATS boards are
+the only open route into Slovak inventory; that is what `workable` exists for.
+
+**Jobs.cz and Profesia are no longer here** (2026-08-03). Both are Alma Career brands whose
+terms of use forbid automated processing of their data, so the adapters were removed from
+`gather()` and kept only as code; `ingestion/tests/test_source_exclusions.py` fails if either
+returns. That cost 92% of Czech and 99% of Slovak inventory.
+
+**MPSV is the replacement, and it is not the same kind of source.** It is the Czech public
+employment service's own vacancy register, published as open data by the Ministry of Labour,
+whose licence metadata *expressly disclaims* the sui generis database right — the exact right
+at issue with Alma Career. ~39 000 vacancies nationwide, filtered at the adapter to the
+~7 300 white-collar ones (ISCO major groups 1–3), 100% carrying salary. It also declares that
+it contains personal data: every record names a contact person with their email and phone, and
+`ingestion/sources/mpsv.py` never reads that block and scrubs contacts out of description text
+as well. See the module docstring before changing any of that.
 
 Each source subclasses `BaseSource` and implements `fetch()` / `normalize()`. `posting_id`
 is `md5(url)`, so re-ingesting is an upsert that refreshes `last_seen_at`. Postings not seen

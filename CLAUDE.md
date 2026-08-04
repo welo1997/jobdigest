@@ -632,7 +632,29 @@ goes red. A test that cannot fail documents nothing.
   (−92%) and Slovak 3 362 → 29 (−99%).** Do not re-add either because the digest looks thin;
   re-add them when there is permission. Rebuilding CZ coverage means more curated Czech
   employers on Greenhouse/Lever/Ashby, or a board that permits it — not this.
-  Cocuma's terms are B2B and carry no such clause. **Remote OK's API terms require a
+  **The CZ gap is now partly filled, and not by another scraper** (2026-08-03). `mpsv` is the
+  Úřad práce's own vacancy register, published as open data by the Ministry of Labour. Its
+  DCAT metadata declares `databáze_chráněná_zvláštními_právy:
+  není-chráněna-zvláštním-právem-pořizovatele-databáze` — the sui generis database right, the
+  very right that puts Alma Career out of reach, **expressly disclaimed by the publisher** —
+  plus `neobsahuje-autorská-díla`, and `robots.txt` is `Disallow:` (allow-all). 39 063
+  vacancies nationwide; `ISCO_MAJOR_KEEP` trims to the 7 339 in ISCO major groups 1–3
+  (managers/professionals/technicians), because the register is the whole labour market and
+  loading the other 32 000 would put kitchen and warehouse work into the widened retrieval
+  path, which drops the recall predicate entirely. **1 576 Prague, 308 Brno, 100% with a
+  salary, 94% with a description** — against jobs.cz's median description of 35 characters.
+  Two things that must not be undone: it declares `obsahuje-osobní-údaje` and every record
+  names a contact person with a direct email and phone, so the adapter **never reads
+  `prvniKontaktSeZamestnavatelem`** and scrubs contacts out of description text — storing
+  either would add a personal-data category the privacy policy does not cover (rule 4); and
+  `country_code="CZ"` is a source-level constant, which is normally wrong, but is the sound
+  exception here because the Úřad práce registers vacancies in Czechia by statute. The
+  per-vacancy portal link (`up.gov.cz/volna-mista-v-cr?id=`) is stable and unique but its
+  deep-linking is **unverified** — the server returns an identical shell for a bogus id.
+  `recruitee` is the other addition: the mid-size Czech employers (STRV, Trask, Twisto,
+  Livesport) that no existing ATS adapter reached. Both found via `scripts/discover_ats.py`,
+  which reads a company's ATS slug off its own careers page. Cocuma's terms are B2B and carry
+  no such clause. **Remote OK's API terms require a
   *followed* link back and naming Remote OK as a source** — hence the source list in Terms §3
   and `rel="noopener"` (not `noreferrer`) on `MatchCard`, so the referral they ask for actually
   arrives. Terms §3a tells any board how to have us stop; that mailbox is `hello@jobdigest.eu`.
@@ -682,6 +704,57 @@ goes red. A test that cannot fail documents nothing.
   312 s for identical output. A full international `gather()` is ~15 min and ~22 500 postings;
   the 05:00 export has until the 07:00 import, and `Type=oneshot` means systemd sets no
   start timeout, so the window is the only real constraint.
+- **A national employment service publishing open data is the best source shape available,
+  and there are two: `mpsv` (CZ) and `platsbanken` (SE).** Sweden's is Arbetsförmedlingen's
+  JobSearch API — no key, robots 404, open data the agency calls "free for anyone to use".
+  15 201 ads, 100% with company/date/description, **median description 3 775 characters**
+  (Oracle 401, jobs.cz 35). Four things that bite: **`limit` caps at 100 and `offset` at
+  2 000**, so one query reaches 2 100 rows and five of the seven occupation fields hold more
+  — the way past it is **keyset paging** (`sort=pubdate-desc` + `published-before` set to the
+  oldest ad seen), not a second filter; **two filters of the same family are ORed, not
+  ANDed**, so `occupation-field` + `occupation-group` returns the *whole field* (2 710 vs
+  1 183 for the group alone) — a filter silently doing nothing, exactly Remotive's
+  `?category=data`, and it cost a run of 15 440 instead of 15 736 before the ceiling warning
+  exposed it; `stats.limit` hard-caps at 30 while four fields have more than 30 groups;
+  and **scope is SSYK occupation field**, the MPSV ISCO 1–3 call, keeping 7 of 21 fields.
+  Personal data is handled as in MPSV: `application_contacts` (29% of ads), `employer.email`
+  and `employer.phone_number` are **never read**, and free text is scrubbed — verified at
+  0 leaks across 15 201 live descriptions.
+- **Germany's Bundesagentur für Arbeit is the largest source in Europe (820 599 vacancies)
+  and is excluded on terms — do not add it.** Its Jobbörse answers an undocumented public API
+  at `rest.arbeitsagentur.de/jobboerse/jobsuche-service/pc/v6/jobs` with the well-known
+  `X-API-Key: jobboerse-jobsuche`, and it works. But the BA's terms of use §2a(3) forbid
+  *"use robots, web spiders or similar technologies, or to use existing communication or
+  programming interfaces contrary to the BA's intended purpose, and thus to read out content
+  from the portal or apps for the purpose of data collection and evaluation"*, and the BA has
+  publicly called the community-documented interface "technisch wie rechtlich kritisch". Same
+  bar as Alma Career, 55× the scale. Checked 2026-08-04.
+- **Oracle Recruiting Cloud is the one enterprise ATS here that is not N+1, and that is why
+  it has no keyword ceiling.** Its list rows carry `ShortDescriptionStr` (86% non-empty,
+  median 401 chars, Oracle-capped at 1 000), a real per-posting `PrimaryLocationCountry`, a
+  `PostedDate` and a structured `WorkplaceTypeCode` — so a full pull of five tenants is ~20
+  requests and 43 s for 4 225 postings. SmartRecruiters and Workday need `q`/`searchText` to
+  bound their *detail* calls; with no detail calls there is nothing to bound, and it was
+  measured rather than assumed: Workday's nine `SEARCH_TERMS` cost 9× the requests, removed
+  only 22% of the corpus, and **lowered** the EU-27 share from 16% to 12%, because English
+  tech phrases cut hardest into exactly the European industrial inventory subscribers can
+  take. Four things that bite: a site is a **`(tenant, region, site)` triple** and the region
+  is not `us2` by default — Honeywell's is `ocs`, Vertiv's site is `CX` and Cummins' `CX_1001`,
+  none of it derivable; **the company name must come from the curated list**, because
+  `LegalEmployer`, `Organization` and `BusinessUnit` are null on every tenant measured, so
+  that column is data and not a comment; **Oracle caps a response at 200 rows whatever `limit`
+  says**, so page by the count received or repeat the Himalayas bug; and `MAX_AGE_DAYS` is
+  **180, deliberately not The Muse's 45** — ORC medians are 26–43 days and most tenants do
+  expire, so 45 would delete live inventory, while 180 drops the genuine tail (Vertiv reaches
+  791 days, Cummins 1 293). Only `ORA_REMOTE` may set `remote_signal`; `ORA_HYBRID` is a
+  commute, and 64% of rows carry no workplace type at all (the label field is `''`, not null).
+- **SAP SuccessFactors cannot be read without a browser — do not re-probe it.** It is the ATS
+  behind Lidl CZ, Allegro, ZF, Brose and Deloitte, and the per-company career site *is*
+  reachable once you have the `company=` parameter off the employer's own page
+  (`lidlstiftuP2`, `allegrospz`, `brosefahrz`). But every route — `/careers`, `/career`,
+  `/services/xhr/jobsearch` — returns a JS shell behind `loginFlowRequired`: 188 KB, 195
+  `<script>` tags, **424 characters of visible text and zero job ids**. Playwright is out
+  (LinkedIn rule), so this is closed. Checked 2026-08-04.
 - **A Workday career site is a `(tenant, host shard, site slug)` triple, and the slug is
   unguessable.** Adobe's is `external_experienced`, NVIDIA's is `NVIDIAExternalCareerSite`.
   A brute-force sweep of 2 568 plausible combinations across 100 companies found **two**
