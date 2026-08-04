@@ -116,6 +116,13 @@ SITES: list[tuple[str, str, str, str]] = [
     #   not Cummins' global board, which no public tenant answered for. Kept because it is
     #   correct and costs one request; it contributes no EU inventory, so if it ever needs
     #   justifying, that is the number to weigh.
+    ("ebza", "em2", "CX_1001", "Telenet"),
+    #     69 — Mechelen, Belgium. From the thin-country pass, 2026-08-04, and the one Oracle
+    #     board in it. **The site number was verified the way this file's warning says to**:
+    #     the invented `CX_999` answers with 91 — the tenant's whole set, because Oracle
+    #     ignores an unrecognised `siteNumber` — while `CX_1001` returns a strict subset of
+    #     69. A live count proves the tenant; only the difference between the two proves the
+    #     site.
 ]
 
 #: Oracle's own ceiling. Asking for more returns 200; `_page` strides by what it receives.

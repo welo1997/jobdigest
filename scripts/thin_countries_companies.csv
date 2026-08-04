@@ -1,0 +1,246 @@
+company,domain,tier
+# Employers in the countries JobDigest is selectable for and has almost no inventory in.
+#
+# Measured 2026-08-04 against 30 043 active postings: 19 of the 31 selectable countries hold
+# under 300 active postings and 12 hold under 50 — DK 65, GR 43, EE 50, LT 24, SI 20, FI 19,
+# LU 14, LV 11, HR 11, MT 9, CY 17, IS 2. A subscriber in Athens or Riga cannot fill a
+# 120-posting shortlist at all: they go straight to the widened retrieval path, which drops
+# the recall predicate, and then to a RETRIEVAL alert from the watchdog.
+#
+# The national-register route is closed in every one of these countries (Denmark's Jobnet
+# needs an email to STAR, Belgium's VDAB a signed cooperation agreement, Austria's AMS
+# publishes statistics rather than vacancies), so curated employers on an ATS we already run
+# is the whole available route — the same one that rebuilt Slovak coverage.
+#
+# Hand-assembled, never derived from a job board: a roster of employers read off jobs.cz
+# would be a more substantial extraction of Alma Career's database than the postings
+# `gather()` already excludes. `tier` only orders the probe and the report.
+#
+# NOTE: a live 200 is NOT evidence that a board belongs to the company whose name it spells.
+# 24 of 75 candidates in the previous two passes were somebody else, and four Recruitee slugs
+# answered with demo content titled "Senior Marketer (Sample)". Every row that survives this
+# probe must have its own postings checked for company and city before it is added anywhere.
+
+# --- Austria (AT: 257 active) ---
+Erste Group,erstegroup.com,1
+Raiffeisen Bank International,rbinternational.com,1
+OMV,omv.com,1
+voestalpine,voestalpine.com,1
+Andritz,andritz.com,1
+AVL,avl.com,1
+Red Bull,redbull.com,1
+A1 Telekom Austria,a1.group,1
+Dynatrace,dynatrace.com,1
+Bitpanda,bitpanda.com,1
+Tricentis,tricentis.com,2
+Frequentis,frequentis.com,2
+TTTech,tttech.com,2
+Wienerberger,wienerberger.com,2
+Verbund,verbund.com,2
+Palfinger,palfinger.com,2
+Rosenbauer,rosenbauer.com,2
+Kapsch,kapsch.net,2
+GoStudent,gostudent.org,2
+Storyblok,storyblok.com,2
+Anyline,anyline.com,3
+Runtastic,runtastic.com,3
+Wien Energie,wienenergie.at,3
+Magenta Telekom,magenta.at,3
+# --- Netherlands (NL: 596) ---
+ASML,asml.com,1
+ING,ing.com,1
+Rabobank,rabobank.com,1
+ABN AMRO,abnamro.com,1
+Adyen,adyen.com,1
+Booking.com,booking.com,1
+NXP Semiconductors,nxp.com,1
+TomTom,tomtom.com,1
+Heineken,theheinekencompany.com,1
+KPN,kpn.com,1
+Coolblue,coolblue.nl,2
+bol,bol.com,2
+Mollie,mollie.com,2
+Backbase,backbase.com,2
+Picnic,picnic.app,2
+Just Eat Takeaway,justeattakeaway.com,2
+Exact,exact.com,2
+AFAS Software,afas.nl,2
+Sendcloud,sendcloud.com,3
+Bird,bird.com,3
+Elastic,elastic.co,3
+Framer,framer.com,3
+# --- Belgium (BE: 269) ---
+KBC,kbc.com,1
+Proximus,proximus.com,1
+Colruyt Group,colruytgroup.com,1
+Solvay,solvay.com,1
+Umicore,umicore.com,1
+UCB,ucb.com,1
+AB InBev,ab-inbev.com,1
+Barco,barco.com,2
+Materialise,materialise.com,2
+Odoo,odoo.com,2
+Collibra,collibra.com,2
+Showpad,showpad.com,2
+Teamleader,teamleader.eu,2
+Deliverect,deliverect.com,2
+Telenet,telenet.be,2
+bpost,bpost.be,3
+Silverfin,silverfin.com,3
+Unifiedpost,unifiedpost.com,3
+Lighthouse,mylighthouse.com,3
+# --- Portugal (PT: 204) ---
+OutSystems,outsystems.com,1
+Farfetch,farfetch.com,1
+Feedzai,feedzai.com,1
+Talkdesk,talkdesk.com,1
+Sword Health,swordhealth.com,1
+Unbabel,unbabel.com,1
+Galp,galp.com,1
+EDP,edp.com,1
+Jeronimo Martins,jeronimomartins.com,1
+Sonae,sonae.pt,1
+NOS,nos.pt,2
+Critical Software,criticalsoftware.com,2
+Mercedes-Benz.io,mercedes-benz.io,2
+Codacy,codacy.com,2
+Primavera BSS,primaverabss.com,3
+Cleverly,cleverly.works,3
+Veniam,veniam.com,3
+# --- Denmark (DK: 65) ---
+Novo Nordisk,novonordisk.com,1
+Maersk,maersk.com,1
+Vestas,vestas.com,1
+Danske Bank,danskebank.com,1
+Orsted,orsted.com,1
+Carlsberg,carlsberggroup.com,1
+LEGO,lego.com,1
+Grundfos,grundfos.com,1
+Coloplast,coloplast.com,1
+Demant,demant.com,1
+GN Group,gn.com,2
+Netcompany,netcompany.com,2
+KMD,kmd.dk,2
+Trustpilot,trustpilot.com,2
+Unity,unity.com,2
+Pleo,pleo.io,2
+Templafy,templafy.com,2
+Siteimprove,siteimprove.com,2
+Lunar,lunar.app,3
+Dixa,dixa.com,3
+Podimo,podimo.com,3
+# --- Ireland (IE: 393, but almost all US multinationals) ---
+Stripe,stripe.com,1
+Intercom,intercom.com,1
+Workhuman,workhuman.com,1
+AIB,aib.ie,1
+Bank of Ireland,bankofireland.com,1
+Ryanair,ryanair.com,1
+Kerry Group,kerry.com,1
+CRH,crh.com,1
+Smurfit Kappa,smurfitkappa.com,1
+ESB,esb.ie,2
+Version 1,version1.com,2
+Fenergo,fenergo.com,2
+Flipdish,flipdish.com,2
+Wayflyer,wayflyer.com,2
+Tines,tines.com,2
+LetsGetChecked,letsgetchecked.com,3
+Cubic Telecom,cubictelecom.com,3
+SoftCo,softco.com,3
+# --- Romania (RO: 105) ---
+UiPath,uipath.com,1
+Bitdefender,bitdefender.com,1
+Endava,endava.com,1
+eMAG,emag.ro,1
+Banca Transilvania,bancatransilvania.ro,1
+BRD,brd.ro,1
+Orange Romania,orange.ro,1
+Vodafone Romania,vodafone.ro,1
+Telekom Romania,telekom.ro,2
+NTT DATA Romania,nttdata.ro,2
+FintechOS,fintechos.com,2
+DRUID AI,druidai.com,2
+TypingDNA,typingdna.com,3
+Qualitance,qualitance.com,3
+Amdaris,amdaris.com,3
+Softbinator,softbinator.com,3
+# --- Greece (GR: 43) ---
+Viva Wallet,vivawallet.com,1
+Persado,persado.com,1
+Workable,workable.com,1
+Blueground,theblueground.com,1
+Skroutz,skroutz.gr,1
+Alpha Bank,alphaholdings.gr,1
+Eurobank,eurobank.gr,1
+National Bank of Greece,nbg.gr,1
+Cosmote,cosmote.gr,1
+Aegean Airlines,aegeanair.com,2
+Netcompany-Intrasoft,netcompany-intrasoft.com,2
+Intracom Telecom,intracom-telecom.com,2
+Orfium,orfium.com,2
+Hellas Direct,hellasdirect.gr,2
+Metlen,metlengroup.com,2
+TITAN Cement,titancement.com,3
+Pollfish,pollfish.com,3
+# --- Estonia (EE: 50) ---
+Bolt,bolt.eu,1
+Pipedrive,pipedrive.com,1
+Veriff,veriff.com,1
+Nortal,nortal.com,1
+Helmes,helmes.com,2
+LHV,lhv.ee,2
+Starship Technologies,starship.xyz,2
+Skeleton Technologies,skeletontech.com,2
+Glia,glia.com,2
+Katana,katanamrp.com,3
+Salv,salv.com,3
+Xolo,xolo.io,3
+# --- Latvia (LV: 11) ---
+Printful,printful.com,1
+Lokalise,lokalise.com,1
+Mintos,mintos.com,1
+airBaltic,airbaltic.com,1
+Tet,tet.lv,2
+Giraffe360,giraffe360.com,2
+Sonarworks,sonarworks.com,2
+Longenesis,longenesis.com,3
+# --- Lithuania (LT: 24) ---
+Vinted,vinted.com,1
+Nord Security,nordsecurity.com,1
+Hostinger,hostinger.com,1
+Oxylabs,oxylabs.io,1
+Kilo Health,kilo.health,1
+TransferGo,transfergo.com,2
+Eneba,eneba.com,2
+Whatagraph,whatagraph.com,2
+Trafi,trafi.com,3
+Interactio,interactio.io,3
+CityBee,citybee.lt,3
+# --- Finland (FI: 19) ---
+Nokia,nokia.com,1
+Wolt,wolt.com,1
+Supercell,supercell.com,1
+Kone,kone.com,1
+Neste,neste.com,1
+UPM,upm.com,1
+Vaisala,vaisala.com,2
+Relex Solutions,relexsolutions.com,2
+Smartly,smartly.io,2
+Reaktor,reaktor.com,2
+Futurice,futurice.com,2
+Aiven,aiven.io,2
+Unity Finland,unity.com,3
+# --- Slovenia / Croatia / Bulgaria (SI 20, HR 11, BG 63) ---
+Outfit7,outfit7.com,2
+Bitstamp,bitstamp.net,2
+NIL,nil.com,3
+Infobip,infobip.com,1
+Rimac Technology,rimac-technology.com,1
+Photomath,photomath.com,2
+Span,span.eu,2
+Telemach,telemach.hr,3
+Payhawk,payhawk.com,1
+Chaos,chaos.com,2
+Ontotext,ontotext.com,3
+Telerik,telerik.com,3

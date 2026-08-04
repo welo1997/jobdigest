@@ -36,7 +36,16 @@ ORGS = ["spotify", "qonto", "contentsquare", "aircall", "swile", "blablacar",
         # genuinely Reply, but the board is its US arm (Chicago/Atlanta/Seattle) and carries
         # no Italian roles, so it would add US inventory to a corpus already 24% US.
         "musixmatch",     #  6 — Bologna
-        "jobandtalent"]   # 23 — Madrid HQ / Guadalajara / Stockholm
+        "jobandtalent",   # 23 — Madrid HQ / Guadalajara / Stockholm
+        # Thin-country pass, 2026-08-04 (210 employers across AT/NL/BE/PT/DK/IE/RO/GR and the
+        # Baltics — the 19 selectable countries holding under 300 active postings each). Every
+        # token below was checked against its own postings' locations, not its job count.
+        "oxylabs",        # 49 — Vilnius / Warsaw. Lithuania had 24 active postings.
+        "swordhealth",    # 19 — Porto. Also answers on Greenhouse with **one** posting;
+        #                        taken here because it is the board carrying the inventory.
+        "deliverect"]     # 26 — Amersfoort + Ghent HQ. Belgian, but only 2 of 26 rows are
+        #                        BE (the rest Mexico City / Casablanca) — kept because it is
+        #                        genuine and small, not because it fills Belgium.
 
 
 class LeverSource(BaseSource):

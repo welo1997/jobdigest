@@ -62,6 +62,20 @@ ORGS = [
     "satispay",    # 88 — Milan 45 / Luxembourg 15 / Barcelona 6 / Naples 4. The densest
     #                    genuinely Italian board found in 85 companies.
     "amenitiz",    # 18 — Barcelona 10 / Lisbon 4 / Lyon 2
+    # Thin-country pass, 2026-08-04 (210 employers across the 19 selectable countries holding
+    # under 300 active postings each). Identity-checked against each board's own postings.
+    "nord-security",  # 140 — Vilnius / Warsaw. The largest Lithuanian board found.
+    "hostinger",      #  71 — Vilnius / Kaunas
+    "eneba",          #  30 — Kaunas + remote
+    "supercell",      #  38 — Helsinki / Shanghai
+    "reaktor",        #  21 — Helsinki / Tampere / Turku / Amsterdam
+    "wayflyer",       #  18 — Dublin / Berlin / Charlotte NC
+    "uipath",         # 113 — RO 20 of 113; the rest US/IN/APAC. Romania had 105 active
+    #                         postings, so 20 is material even at a 22% EEA share.
+    "glia",           #  30 — EE 5 / PL 4 among 13 US. Estonian-founded, US-weighted board.
+    # Rejected in the same pass, each on its own postings rather than its name:
+    #   `novo`   — New York fintech, not Novo Nordisk. `span` — Span.io of San Francisco,
+    #   not Span d.d. of Zagreb (18 US / 12 IN, 0 EEA).
 ]
 
 # Map Ashby address country names to ISO-3166 alpha-2.

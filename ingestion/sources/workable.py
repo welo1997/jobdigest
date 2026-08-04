@@ -45,6 +45,15 @@ ACCOUNTS = [
     "netguru",       # 28 — Poland (Poznań), software house
     "getresponse",   #  4 — Gdańsk, email marketing
     "exoticca",      # 42 — Barcelona, travel. Added 2026-08-04, identity-checked.
+    # Thin-country pass, 2026-08-04. Greece held **43 active postings** in the whole corpus;
+    # these four are Greek employers on their own boards, identity-checked by company name
+    # and city on the postings themselves.
+    "viva",          # 40 — "Viva.com", Marousi (Athens) + Lisbon. The largest of the four.
+    "blueground",    # 28 — Athens + Paris + New York. Note the bare slug `j` also answered
+                     #      during discovery and returned nothing usable — a live response is
+                     #      not a board.
+    "skroutz",       # 10 — "Skroutz S.A", Athens / Aspropyrgos / Paiania
+    "hellasdirect",  #  6 — Marousi + Nicosia + Bucharest
 ]
 
 _TIMEOUT = 20

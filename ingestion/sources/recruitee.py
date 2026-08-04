@@ -59,6 +59,10 @@ COMPANIES = [
     "goodrequest",    #  1 — Žilina, Slovakia. The *only* Slovak board found in 84 companies.
     "holded",         # 11 — Barcelona, business software
     "delonghigroup",  #  3 — De'Longhi, Neu-Isenburg DE + Wiener Neudorf AT
+    # Thin-country pass, 2026-08-04. Two more demo-content slugs were caught here and are in
+    # KNOWN_IMPOSTORS below: `alpha` (Alpha Bank) and `redbull` (Red Bull).
+    "colruytgroup",   #  8 — Halle, Belgium. Colruyt Group on its own postings.
+    "chaos",          # 11 — Sofia, Bulgaria (+ Karlsruhe). Chaos, the V-Ray developer.
 ]
 
 #: Slugs that answer with a live board which is **not the company whose name they spell**.
@@ -76,8 +80,17 @@ COMPANIES = [
 #: not Talent Garden, and `clarity` is **Clarity Travel** (Manchester), not Clarity AI —
 #: whose genuine board is `clarityai` on Greenhouse. Both would have been filed under the
 #: wrong employer in a subscriber's digest, which is the same harm by a different route.
+#:
+#: The thin-country pass, 2026-08-04, added two more of the demo-content kind, and they are
+#: the reason this list keeps growing rather than settling: the discovery CSV proposes them
+#: afresh every run, each with a plausible job count beside it. `alpha` (probing for Alpha
+#: Bank, Greece) is two Amsterdam postings titled "Recruiter (Sample)" and "Senior Marketer
+#: (Sample)". `redbull` is one posting, "Senior Marketer (Sample)", filed under the company
+#: name **"Fiture Marketing"** — the board itself says it is not Red Bull, which is exactly
+#: the field a job count does not show you.
 KNOWN_IMPOSTORS = frozenset({
     "accenture", "ccc", "samsung", "wp", "ey", "talent", "clarity",
+    "alpha", "redbull",
 })
 
 _TIMEOUT = 20
