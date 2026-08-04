@@ -72,6 +72,23 @@ _TIMEOUT = 20
 _TAG = re.compile(r"<[^>]+>")
 _WS = re.compile(r"\s+")
 
+#: Recruitee's own demo postings, which ship inside otherwise genuine boards.
+#:
+#: `trask` is a real Czech consultancy with real Prague roles, and three of its five offers
+#: on 2026-08-04 were "Senior Marketer (Sample)", "Recruiter (Sample)" and "Pracovní template
+#: - Freelancer" — seed content a customer never deleted. They were being ingested, scored and
+#: made emailable like any other job, and a subscriber receiving "Recruiter (Sample)" at a
+#: named employer is a product that looks broken.
+#:
+#: Deliberately narrow. It matches Recruitee's own bracketed marker and the word `template`,
+#: both of which are unambiguous, and nothing else. It does **not** touch open-application
+#: placeholders ("Nevidíš svoji pozici?" at livesport, "Didn't find a suitable position" at
+#: Brainly) or talent-pool ads ("Blockchain Developer - Talent Pool" at Espeo): those are
+#: posted deliberately by the employer, a subscriber may genuinely want to answer one, and
+#: guessing at their phrasing across eight languages is how a filter starts deleting real
+#: jobs. The rule for this repo's classifiers holds here too — the only safe error is a miss.
+_DEMO_TITLE = re.compile(r"\((?:sample|muster|voorbeeld)\)|\btemplate\b", re.I)
+
 
 def _text(html: Optional[str]) -> Optional[str]:
     """Plain text from Recruitee's HTML description fields."""
@@ -147,6 +164,10 @@ class RecruiteeSource(BaseSource):
             url = offer.get("careers_url")
             title = (offer.get("title") or "").strip()
             if not url or not title:
+                continue
+            if _DEMO_TITLE.search(title):
+                logger.info("Recruitee %s: skipping demo posting %r",
+                            offer.get("_company"), title)
                 continue
             salary_raw, currency = _salary(offer)
             description = _text(offer.get("description"))

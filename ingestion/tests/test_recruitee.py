@@ -103,3 +103,34 @@ def test_impostor_slugs_never_return_to_the_curated_list():
         f"{sorted(offenders)} answer with a live board that is not that company's — "
         "identity-check against the postings' own company and city, not a 200"
     )
+
+
+def test_recruitee_demo_postings_are_not_ingested():
+    """Seed content inside a genuine board must not reach a subscriber.
+
+    Found on `trask` — a real Czech consultancy with real Prague roles — where three of five
+    offers on 2026-08-04 were Recruitee demo rows a customer never deleted. They normalized
+    like any other job, so they were scoreable and emailable. "Recruiter (Sample)" arriving
+    at a named employer is a product that looks broken.
+    """
+    src = RecruiteeSource()
+    demo = [_offer(title="Senior Marketer (Sample)"), _offer(title="Recruiter (Sample)"),
+            _offer(title="Senior Marketer (Muster)"),
+            _offer(title="Pracovní template - Freelancer")]
+    assert src.normalize(demo) == []
+
+
+def test_real_postings_survive_the_demo_filter():
+    """The filter's only safe error is a miss, so prove it is not over-broad.
+
+    Open-application and talent-pool ads are posted deliberately by the employer and a
+    subscriber may want to answer one; a title merely *containing* a marketing word is an
+    ordinary job. If this test ever fails, the filter has started deleting real work.
+    """
+    src = RecruiteeSource()
+    real = ["Senior Marketer", "Nevidíš svoji pozici? Nevadí. Napiš nám.",
+            "Didn't find a suitable position for you? Let us know that you are interested!",
+            "Blockchain Developer - Talent Pool", "Templating Engine Developer",
+            "Java developer", "Sample Preparation Technician"]
+    got = [p.title for p in src.normalize([_offer(title=t) for t in real])]
+    assert got == real

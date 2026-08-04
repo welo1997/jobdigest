@@ -715,6 +715,21 @@ goes red. A test that cannot fail documents nothing.
   rejects a bad token outright (verified: bogus greenhouse/lever tokens and a bogus Workday site
   all read unreachable, and `nubank` still reads *dead* rather than live). To check an Oracle
   site, compare its count against the number in the `SITES` comment.
+  **A live board is not evidence that it belongs to the company whose name it spells.**
+  `discover_ats.py` guesses slugs from company names, and 12 of the 37 boards it found in the
+  Polish pass on 2026-08-04 were somebody else: `greenhouse:ideo` is the American design firm,
+  `greenhouse:sas` a security integrator in Canoga Park, `lever:blue` a LatAm staffing agency,
+  `recruitee:dpd` the Dutch DPD. Worst, `recruitee:accenture`, `:ccc`, `:samsung` and `:wp`
+  each answered with one or two Amsterdam/Berlin postings titled **"Senior Marketer
+  (Sample)"** — Recruitee's demo content on an unclaimed vanity slug — and Recruitee *refuses*
+  an invented slug outright, so those 200s are indistinguishable from real finds. `ey` shipped
+  in the list for a day on exactly that basis. **Check the board's own postings for company
+  and city before adding it**, never a live 200; `KNOWN_IMPOSTORS` + `test_recruitee.py` fail
+  if any of the five returns, because the discovery CSV keeps proposing them with a job count.
+  Separately, demo rows live *inside* genuine boards — `trask` is a real Prague consultancy
+  and 3 of its 5 offers were "(Sample)"/template seed content — so `_DEMO_TITLE` drops those
+  at normalize. It is deliberately narrow: open-application and talent-pool ads are posted on
+  purpose and are left alone.
   Do not add a company that another adapter already carries —
   `clickhouse` and `qonto` are live on Ashby *and* on Greenhouse/Lever respectively, and the
   duplicate would occupy two rows and two shortlist slots even though `digest.dedupe_key`
