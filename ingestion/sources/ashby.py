@@ -48,6 +48,12 @@ ORGS = [
     "airwallex", "column", "primer", "unit", "vivid", "warp", "zed", "chromatic",
     # GB-based, which this list had almost none of
     "wayve", "applied",
+    # Czech-headquartered, added 2026-08-03 via scripts/discover_ats.py and identity-checked
+    # against each board's own postings (Prague / Opatovice locations), not just a live 200.
+    # Ashby turned out to be where the Czech product companies actually are — nine of them
+    # against Greenhouse's four, which no one would have guessed from the existing lists.
+    "gen-digital", "rohlik", "kiwi-com", "apify", "gooddata",
+    "braiins", "deepnote", "rossum.ai", "satoshilabs",
 ]
 
 # Map Ashby address country names to ISO-3166 alpha-2.

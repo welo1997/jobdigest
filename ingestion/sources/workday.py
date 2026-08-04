@@ -67,6 +67,28 @@ SITES: list[tuple[str, str, str]] = [
     ("evonik", "wd3", "External_Careers"),           #  373 — DE chemicals
     ("equinix", "wd1", "External"),                  #  320 — US/NL/DE datacentres
     ("paypal", "wd1", "jobs"),                       #  112 — US/IE/DE
+    # Added 2026-08-03 via scripts/discover_ats.py, which reads the triple off the company's
+    # own careers page rather than guessing it — the only method that works here, and the
+    # reason these eleven took one run instead of a 2 568-combination sweep. All are large
+    # employers with real Czech engineering or shared-service sites.
+    ("jci", "wd5", "JCI"),                           # 2635 — Johnson Controls, CZ/US/IT
+    ("accenture", "wd103", "AccentureCareers"),      # 2000 — global, large CZ delivery centre
+    ("valeo", "wd3", "valeo_jobs"),                  # 1158 — FR/CZ/MX automotive
+    ("novartis", "wd3", "Novartis_Careers"),         #  997 — CH/CZ pharma. NOT
+    #   `Internal_Careers_for_Acquired_Entities`, which is what the discovery scan first
+    #   found: it answers 200 with 603 jobs, so nothing would have flagged it, but it is an
+    #   internal board for staff of acquired companies rather than the public one.
+    ("msd", "wd5", "SearchJobs"),                    #  831 — US/CZ pharma, Prague IT hub
+    ("zebra", "wd501", "Zebra_careers"),             #  244 — US/CZ, Brno R&D
+    ("redhat", "wd5", "jobs"),                       #  132 — Brno is its largest non-US site
+    ("deloitteie", "wd3", "Experienced_Professionals"),  # 62 — Deloitte Ireland (EU, not CZ)
+    ("suse", "wd3", "Jobsatsuse"),                   #   27 — DE/CZ, Prague engineering
+    # Second discovery pass, 2026-08-03 (258 CZ+SK companies).
+    ("dxctechnology", "wd1", "DXCJobs"),             #  758 — global IT services, CZ delivery
+    ("zentiva", "wd3", "Zentiva"),                   #  115 — Prague-headquartered pharma
+    ("kyndryl", "wd5", "KyndrylEarlyCareers"),       #   40 — early-careers only. No public
+    #   external Kyndryl site answered; six plausible slugs all 404. Junior-weighted, which
+    #   suits the digest, but it is a subset — re-probe if a general board turns up.
 ]
 
 #: Role terms, matched by Workday's own full-text search. English-only for the same reason as

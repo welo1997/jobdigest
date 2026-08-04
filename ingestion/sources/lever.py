@@ -26,7 +26,12 @@ HEADERS = politeness.HEADERS
 ORGS = ["spotify", "qonto", "contentsquare", "aircall", "swile", "blablacar",
         "zopa", "moonpig", "moonpay", "vestiairecollective",
         # added 2026-08-01, FR/PT/EE-heavy
-        "farfetch", "malt", "agicap", "360learning", "pipedrive", "ledger"]
+        "farfetch", "malt", "agicap", "360learning", "pipedrive", "ledger",
+        # CZ-headquartered, added 2026-08-03 via scripts/discover_ats.py. Both were found by
+        # probing the Lever API directly: neither careers page carries an ATS link in its
+        # HTML, so a page scan alone sees nothing. Job counts are small but the postings are
+        # Prague-based, which is what the Czech inventory now lacks.
+        "ataccama", "keboola"]
 
 
 class LeverSource(BaseSource):
