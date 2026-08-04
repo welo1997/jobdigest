@@ -671,6 +671,43 @@ goes red. A test that cannot fail documents nothing.
   *followed* link back and naming Remote OK as a source** — hence the source list in Terms §3
   and `rel="noopener"` (not `noreferrer`) on `MatchCard`, so the referral they ask for actually
   arrives. Terms §3a tells any board how to have us stop; that mailbox is `hello@jobdigest.eu`.
+- **Reading a company's own careers page does not work, and the measurement is the useful
+  part.** The idea recurs — "employer X has jobs on its own site, and it is one of many" — and
+  it is worth answering with numbers rather than intuition. The scalable form would be
+  **schema.org/JobPosting JSON-LD**, which publishers emit deliberately so machines can read
+  them (that is how Google for Jobs works), and which needs *one* parser rather than one per
+  employer. Measured 2026-08-04: **1 hit in ~400 companies** across the CZ and PL discovery
+  runs, and **0 of 8** hand-checked Czech consumer brands. What is left is a bespoke parser per
+  site, which breaks silently at every redesign; the pages are client-rendered anyway (Vilgain
+  is 1.5 MB of HTML with no markers), so reading them needs a browser, which is the constraint
+  that already closed SuccessFactors. And 3 of those 8 — Alza, Dr. Max, Mall — return **403 to
+  the honest `JobDigest/1.0` agent**, which by this repo's own rule is a dead source. The
+  `jsonld` column in `discover_ats.py` is effectively dead weight for the same reason: it can
+  only see HTML that was fetched. Reach these employers through an ATS or not at all.
+- **BambooHR is refused on terms, and it is the one that looked safest.** 19 companies and 121
+  jobs verified live across the CZ+PL discovery runs (Apify, Codasip, Hangar 13, České dráhy,
+  Dr. Max, Adastra, CD Projekt, Miquido) on a clean public JSON endpoint,
+  `https://{tenant}.bamboohr.com/careers/list`, which answers 200 to the honest agent — and
+  the per-tenant `robots.txt` **allows** it, disallowing only `/jobs/embed.php` and
+  `/jobs/embed2.php`. The terms say otherwise. ToS **§4.2** forbids using *"any robot, spider,
+  other automated device, or manual process to monitor or copy any content from the Service"*,
+  and the **Developer ToS** forbids *"scrape or crawl BambooHR interfaces or content without
+  BambooHR's prior written consent"* — consent this project does not ask for. **Third time
+  robots.txt has permitted what the terms refuse** (Alma Career, EURES, now BambooHR): settle a
+  source on the narrowest applicable clause, and never on robots.txt alone. Checked 2026-08-04.
+- **Teamio is Alma Career, so it was already decided.** 31 Czech household names sit on it
+  (Agrofert, Albert, ČEZ, Česká spořitelna) and it is tempting for exactly that reason.
+  `cz.teamio.com` is an Alma Career product, and the binding document is the same one that
+  excluded jobs.cz and profesia — *"Podmínky používání **Elektronických systémů Alma Career**
+  pro uživatele"*, whose §4.11 forbids automated processing and whose object is *"databáze Alma
+  Career"*, the company's databases generally rather than one portal's. `discover_ats.py`
+  already marks it `RESTRICTED`; leave it that way and do not treat a Teamio hit as a free win.
+- **Personio is unresolved, not refused — and still not built.** 8 companies, 27 jobs. Its
+  marketing site returned **429 to every path tried** (`/legal-notice/`, `/imprint/`,
+  `/terms/`, and the `.de` equivalents), so its terms could not be read at all. Permission
+  unestablished is not permission, so it is skipped; but record it as *unresolved* so a future
+  session re-reads the document rather than re-deriving the whole question. At 27 jobs it is
+  not worth much effort either way.
 - **Never use LinkedIn beyond its public RSS** — account ban risk, and never Playwright. As
   of 2026-08-01 that RSS returns 0 entries, as does EuroJobs (Cloudflare interstitial), so
   both adapters are **not wired into `gather()`**; the README used to list them as coverage.
