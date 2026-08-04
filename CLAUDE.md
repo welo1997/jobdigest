@@ -729,6 +729,36 @@ goes red. A test that cannot fail documents nothing.
   from the portal or apps for the purpose of data collection and evaluation"*, and the BA has
   publicly called the community-documented interface "technisch wie rechtlich kritisch". Same
   bar as Alma Career, 55× the scale. Checked 2026-08-04.
+- **EURES is refused on a carve-out inside a permission — the first source here to fail that
+  way, so read the reason rather than pattern-matching it to the others.** ELA's portal answers
+  an undocumented public API at `europa.eu/eures/api/jv-searchengine/public/jv-search/search`:
+  no key, 2 835 594 vacancies, **846 936 in the EU-27 within ISCO 1–3**, descriptions in the
+  list row (no N+1), per-posting NUTS 3 codes, and `occupationUris` accepting ISCO URIs that
+  expand down the hierarchy. Nothing prohibits automated reading and `europa.eu/robots.txt`
+  permits the paths. **The licence is what refuses it.** *"Re-use is authorised, provided that
+  ELA is acknowledged"* runs on Commission Decision 2011/833/EU, which licenses **content owned
+  by the EU** and then carves out the rest: *"To use or reproduce content that is not owned by
+  the EU, you may need to seek permission directly from the rightholders"* and *"…if a specific
+  content depicts identifiable private individuals."* The vacancies are the employers', routed
+  via national PES — ELA owns the portal, not the corpus — and 27 of 50 sampled descriptions
+  carried a named contact's email, so both clauses bite. MPSV's metadata disclaims the database
+  right and Arbetsförmedlingen states the data is free to use; **nobody has licensed this
+  dataset**, and it is not on `data.europa.eu`. Two consequences worth keeping: Germany is
+  settled rather than debatable — ELA's notice points at the rightholder, the rightholder is the
+  BA, and **an aggregator does not launder a refusal**; and had it been permitted it was still
+  barely buildable, because `Crawl-delay: 10` on the `*` group puts ~17 000 requests at ~47 h
+  against a 05:00→07:00 window, `resultsPerPage` caps at 50 and `page` at 200 (a hard 10 000-row
+  ceiling per query, so Germany could not be pulled in one query anyway), and `publicationPeriod`
+  takes enum strings (`LAST_WEEK`), not integers. **Reopen only on an answer from ELA** — the
+  question is whether CC BY 4.0 reaches PES-supplied vacancy content, and a "no" closes the
+  largest unknown in the stack as usefully as a "yes" opens it. Checked 2026-08-04, full
+  workings in `notes/2026-08-04-eures.md`.
+- **Check robots.txt at the host root, and quote the clause that would refuse you.** Both
+  errors happened in one session: `europa.eu/eures/robots.txt` 404'd and was reported as a
+  finding, when robots.txt is only ever authoritative at the root — where it exists, is 4 930
+  bytes, and carries the `Crawl-delay` above; and ELA's one-line reuse permission was quoted as
+  the licence answer while the sentence that guts it sat one page away in the policy it cites.
+  A source's terms are settled by the narrowest applicable clause, never the friendliest one.
 - **Oracle Recruiting Cloud is the one enterprise ATS here that is not N+1, and that is why
   it has no keyword ceiling.** Its list rows carry `ShortDescriptionStr` (86% non-empty,
   median 401 chars, Oracle-capped at 1 000), a real per-posting `PrimaryLocationCountry`, a

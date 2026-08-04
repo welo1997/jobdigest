@@ -246,6 +246,27 @@ collection and evaluation"*. The BA has publicly called the community-documented
 "technisch wie rechtlich kritisch". That is the Alma Career decision again, at 55× the scale
 of what Sweden adds — **do not add it because the digest looks thin.** Checked 2026-08-04.
 
+**EURES is the biggest source in Europe after that, and it is refused on a carve-out rather
+than a prohibition.** The European Labour Authority's portal answers an undocumented public API
+at `europa.eu/eures/api/jv-searchengine/public/jv-search/search` — no key, **2 835 594**
+vacancies, **846 936** of them in the EU-27 within ISCO major groups 1–3, with descriptions in
+the list row, per-posting NUTS 3 codes and ESCO/ISCO occupation URIs that filter hierarchically.
+It works, and it is the best-shaped payload probed so far. The problem is that ELA's *"Re-use is
+authorised, provided that ELA is acknowledged"* runs on the Commission's reuse policy, which
+licenses **content owned by the EU** and then says: *"To use or reproduce content that is not
+owned by the EU, you may need to seek permission directly from the rightholders"*, and *"You may
+be required to clear additional rights if a specific content depicts identifiable private
+individuals."* Vacancy text is the employer's, routed through the national employment services;
+ELA owns the portal, not the corpus. Both clauses bite — **27 of 50 sampled descriptions carried
+a named contact's email address**. Unlike MPSV, whose metadata expressly disclaims the database
+right, and Platsbanken, whose agency states the data is free for anyone to use, no publisher has
+licensed *this* dataset, and there is no EURES dataset on `data.europa.eu`. It also disposes of
+the tempting route to Germany: ELA's notice sends you to the rightholder, which is the
+Bundesagentur, which has already said no — **an aggregator does not launder a refusal.**
+Separately, `europa.eu/robots.txt` permits the paths but sets `Crawl-delay: 10` on the `*`
+group, which alone puts a full pull at ~47 hours. **Reopen only on an answer from ELA**, not on
+a re-reading of the same notice. Checked 2026-08-04; see `notes/2026-08-04-eures.md`.
+
 **Oracle Recruiting Cloud reaches the large industrials, which no other adapter here did**
 (added 2026-08-04). Vertiv, Honeywell, Emerson, Brembo and Cummins — 4 225 postings, 678 in the
 EU-27 and 62 in Czechia and Slovakia, from plants in Nové Mesto nad Váhom, Stará Turá, Volyně,
