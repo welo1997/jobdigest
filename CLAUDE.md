@@ -700,7 +700,22 @@ goes red. A test that cannot fail documents nothing.
 - **Greenhouse/Lever/Ashby/SmartRecruiters/Workday** curated company lists, no domain-wide crawls.
   A board that goes dark is a **silent zero**: `fetch` skips a non-200 without an error-level
   log. Re-probe the lists rather than assuming (`dbtlabsinc` and `nubank` were both dead when
-  the seed was last checked). Do not add a company that another adapter already carries —
+  the seed was last checked) — **`scripts/probe_boards.py` is what does that**, reading the
+  lists out of the adapters themselves rather than a copy, so a list that grows is covered
+  without editing it. It separates *dead* (answered, zero jobs — remove the row) from
+  *unreachable* (no answer — re-run before editing), because a transient failure and a retired
+  board look identical and only one is worth a commit. **Measured 2026-08-04: 239 of 239 boards
+  live, 49 834 jobs — greenhouse 97/11 721, workday 25/19 892, ashby 77/5 598,
+  smartrecruiters 8/7 501, oraclecloud 5/4 522, lever 18/541, recruitee 7/30, workable 2/29.**
+  That is the baseline to compare against; "a source looks small" is only meaningful with one.
+  **One blind spot, found by mutation-checking the prober rather than trusting it:**
+  `oraclecloud` verifies the tenant and *not* the site — Vertiv's real tenant with the invented
+  site `CX_999` returns 2 240 jobs, because Oracle ignores an unrecognised `siteNumber`. Same
+  shape as Remotive's ignored `?category=` and Platsbanken's ORed filters. Every other ATS
+  rejects a bad token outright (verified: bogus greenhouse/lever tokens and a bogus Workday site
+  all read unreachable, and `nubank` still reads *dead* rather than live). To check an Oracle
+  site, compare its count against the number in the `SITES` comment.
+  Do not add a company that another adapter already carries —
   `clickhouse` and `qonto` are live on Ashby *and* on Greenhouse/Lever respectively, and the
   duplicate would occupy two rows and two shortlist slots even though `digest.dedupe_key`
   collapses it in the email.
