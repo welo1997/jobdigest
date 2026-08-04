@@ -36,7 +36,7 @@ def _posting(**over) -> dict:
 
 
 def _one(**over):
-    return SmartRecruitersSource(tenants=[], terms=[]).normalize([_posting(**over)])[0]
+    return SmartRecruitersSource(tenants=[]).normalize([_posting(**over)])[0]
 
 
 def test_normalize():
@@ -52,7 +52,7 @@ def test_normalize():
 
 
 def test_skips_posting_with_no_identifiers():
-    assert SmartRecruitersSource(tenants=[], terms=[]).normalize(
+    assert SmartRecruitersSource(tenants=[]).normalize(
         [{"name": "Ghost", "location": {}}]) == []
 
 
