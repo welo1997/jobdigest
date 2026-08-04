@@ -185,6 +185,36 @@ absent — `georgia`, because the country lookup runs before the city lookup and
 Georgia" would resolve to Tbilisi's country and vanish from every US subscriber's digest.
 Before adding a name, check it is not also a city, a US state, or an ordinary word.
 
+**`FOREIGN_CITIES` and `SUBDIVISION_CODES` are the same rule for postings that name no
+country at all** (2026-08-04). `COUNTRY_ALIASES` only works when the ad writes the country
+out, and the largest group in production did not: 7 147 of 30 043 active postings had a null
+`country_code`, **4 681 of them Greenhouse and 1 134 Ashby**, and the top strings were "San
+Francisco" (275), "London" (218), "New York" (167), "Chicago" (114), "Toronto" (89). None of
+them European, all of them kept by the gate and handed to the AI matcher, each one spending a
+slot in the ~120-posting shortlist of a subscriber who can only work in the EEA. `uk` and `us`
+were not aliases either, which alone accounted for "London, UK" (272) and "Remote - US" (558).
+Four rules, and every one is the `georgia` rule in a new place:
+
+- **They resolve a country and never a city.** We offer no cities outside the EEA, so there is
+  no slug to return and nothing here can reach the picker. Deliberately **not** mirrored in
+  `web/lib/geo.ts` — it is resolver-only, and `test_geo.py` says so.
+- **They run last**, after the country and selectable-city lookups, so they cannot overrule an
+  EEA answer. Berlin is Germany before either table is consulted.
+- **A name in both tables is refused at import.** `geo.check_no_shadowed_cities` raises rather
+  than choosing, because a European city resolving to another continent would delete it from
+  the digest of everyone who chose that country with nothing failing.
+- **A trailing subdivision code fires only on the final token**, and `DE`, `MT`, `NL` and `SK`
+  are excluded from it — Delaware, Montana, Newfoundland and Saskatchewan are also Germany,
+  Malta, the Netherlands and Slovakia, and those four are the entire intersection with the
+  EEA. Every other collision (`IL` Israel, `IN` India, `MA` Morocco, `CA` Canada) is with a
+  country nobody can select, so being wrong is invisible: the gate excludes US and Canada
+  identically. Measured 2026-08-04, all 470 "…, CA" postings were California except the 17
+  reading "Toronto, ON, CA", which the city resolves first.
+
+Note what this does *not* do: it adds no country to the selectable set, and it removes nothing
+from anyone's digest that they asked for. It only lets the gate act where it previously could
+not. `python -m service.backfill_geo` is what applies it to stored rows.
+
 **Work setup is a third axis, not a finer grade of remote** (migration 012).
 `postings.work_mode` is `remote | hybrid | onsite | null`, `profiles.work_modes` is which of
 those a subscriber will accept, and `geo.work_mode` is the one classifier both come from —
@@ -785,17 +815,61 @@ goes red. A test that cannot fail documents nothing.
   collapses it in the email.
 - **SmartRecruiters and Workday are the N+1 adapters, and the sources of large-EU-employer
   inventory.** Neither list endpoint carries a description, so each posting needs its own
-  detail call, and both are bounded the same way: a keyword parameter (`q` / `searchText`) to
-  keep the pull tech-relevant, and a `MAX_DETAILS` ceiling sized *above* a normal run so it
-  only bites on a bulk import. Both run last in `gather()` because they are by far the slowest
-  and a failure there should not cost everything before it.
+  detail call, so both need a way to decide which postings are worth one. Both run last in
+  `gather()` because they are by far the slowest and a failure there should not cost
+  everything before it.
+  **Both were bounded by an ATS keyword parameter, and on 2026-08-04 both bounds turned out
+  to be wrong in ways nothing could see.** The shared lesson: *a search parameter belonging
+  to somebody else's ATS is not a filter you control, and a ceiling you never watch is a
+  ceiling you cannot tell from a total.*
+  - **SmartRecruiters had the Himalayas bug.** `_list` issued **one** `limit=100` request per
+    (tenant, term) with **no `offset` at all**. `totalFound` for "software engineer" at
+    BoschGroup is 1 866 and we took 100 of it, on every run since the adapter was written.
+    Worse, `q` was never a filter: it is a *ranked* full-text search — "software engineer"
+    returns 1 866 of BoschGroup's 4 714 and "data engineer" returns 2 109, and both hand back
+    the same first row — so the term matrix neither bounded the pull nor selected tech roles.
+    It now **pages the whole tenant** (88 list requests against the old 96 — *cheaper*, for
+    all 7 503 postings instead of a truncated 1 671) and decides relevance locally on the
+    title via `TECH_TITLE`. That filter is load-bearing, not tidiness: these are industrial
+    employers and the rows it drops are "Manifold Assembler I", "MSR-Techniker
+    Gebäudeautomation" and "HVAC Specialist", which would otherwise land in the *widened*
+    retrieval path that drops the recall predicate entirely — the reason `mpsv` keeps only
+    ISCO 1–3. Measured end to end: **7 502 listed → 2 355 tech-titled → 1 943 inside
+    `MAX_AGE_DAYS`, in ~6 min.** Note the honest size of the win: 1 671 → 1 943 is +16%, not
+    the 7 501 the board holds. Most of an industrial board is not for this product.
+  - **Workday's `MAX_DETAILS` was described as sized above a normal run and was three times
+    below one.** `probe_boards.py` reports 19 892 open postings across these sites; production
+    held 1 454 active Workday rows, 7%. Raised 1 200 → 6 000, and `MAX_PAGES_PER_QUERY` 3 →
+    10. Measured after the change: the list stage reaches **15 634 unique postings across 38
+    sites in 8 minutes** — 79% of everything those boards hold — so `MAX_DETAILS` is now the
+    only thing deciding what we take, which is where that decision belongs.
+  - **Workday never signals the end of a result set — it keeps serving full pages**, which is
+    why raising the page ceiling was nearly free of *benefit* before this was fixed.
+    `philips`, whose whole board is 1 017 postings, answered 4 000 hits for one search term
+    and stopped only when the measuring harness did; its nine terms returned 9 304 rows of
+    which **708 were distinct**, a 92% duplicate rate, and `nvidia` was 68%. So
+    `len(hits) < PAGE_SIZE` almost never fires. `_query` now also ends on **a page that
+    contributes no new posting** — the real end of the results, one page to discover — which
+    makes `MAX_PAGES_PER_QUERY` a runaway guard again rather than the thing deciding coverage.
+    `test_workday_paging.py` pins all three stop conditions.
+  - **`_age_rank` is what makes the Workday ceiling safe to raise**, and it is coarse: the
+    list gives relative prose ("Posted Today", "Posted 30+ Days Ago") and the real `startDate`
+    only arrives with the detail call. It orders well enough to decide what survives the cut
+    and cannot do more than that.
   **Run the list stage concurrently, not just the details.** Workday's list is 13 sites × 9
   terms = 117 independent queries; sequentially they cost ~500 s, more than the 1 200 detail
   calls after them, and the whole source took 730 s. Pooling the queries — paging still
   sequential *within* one, since each page decides whether there is another — brought it to
-  312 s for identical output. A full international `gather()` is ~15 min and ~22 500 postings;
-  the 05:00 export has until the 07:00 import, and `Type=oneshot` means systemd sets no
-  start timeout, so the window is the only real constraint.
+  312 s for identical output.
+  **The export's deadline is the ~06:00 routine, not the 07:00 import** — corrected
+  2026-08-04, because this line previously said the latter and it is the number these ceilings
+  get sized against. The claude.ai routine reads whatever `shortlists.json` is sitting in
+  Drive when it wakes at ~06:00. An export still running then does not delay it, it *misses*
+  it, and every subscriber gets yesterday's file or none — with no error anywhere, which is
+  this repo's recurring failure shape. So `gather()` has roughly **60 minutes**, not 120.
+  `Type=oneshot` means systemd sets no start timeout, so nothing else will stop it either.
+  Measured 2026-08-04 with the raised ceilings: SmartRecruiters 7 min, Workday 29 min at 8
+  detail workers and ~19 min at 16, which is why `workday.DETAIL_WORKERS` exists.
 - **A national employment service publishing open data is the best source shape available,
   and there are two: `mpsv` (CZ) and `platsbanken` (SE).** Sweden's is Arbetsförmedlingen's
   JobSearch API — no key, robots 404, open data the agency calls "free for anyone to use".
@@ -844,6 +918,33 @@ goes red. A test that cannot fail documents nothing.
   takes enum strings (`LAST_WEEK`), not integers. **Closed, not pending** — per the skip rule
   above, nobody is being asked whether CC BY 4.0 reaches PES-supplied vacancy content. Checked
   2026-08-04, full workings in `notes/2026-08-04-eures.md`.
+- **France Travail is permitted, self-service, and declined on cost rather than terms — the
+  first source to fail that way, so do not pattern-match it to the refusals.** Its API needs
+  only a francetravail.io account (no application, no signature, so the skip rule does not
+  apply), and its licence *assigns* **"l'intégralité des droits d'auteur et droits sui generis
+  sur la Base de données"** — stronger than MPSV, which merely disclaims the database right.
+  What stops it is two clauses that change the product rather than the adapter. **Art. 5.3**
+  requires *"faire figurer sur chaque offre d'emploi la totalité du Contenu mis à disposition
+  dans l'API"*, and JobDigest has nowhere to put that: a `MatchCard` shows a title, employer,
+  salary and the matcher's own line, and the description is stored but never displayed. **Art.
+  7** requires an expired offer to be stripped of company name, description, URL *and the
+  commune* — which empties `digest.dedupe_key`, whose seen-set joins `digest_sends` back to
+  `postings` over 90 days, and an empty key is deliberately "always unique, never a match". So
+  compliance would reintroduce duplicate emails through the back door. Also Art. 4: attribution
+  *plus* a published description of every modification made to the data. **Reopen only if a
+  per-posting detail page exists for some other reason** — then Art. 5.3 is free and only the
+  Art. 7 scrub remains. Not because France looks thin: `sanofi`, `valeo` and `salesforce` are
+  already French inventory on Workday. Full workings in `notes/2026-08-04-france-travail.md`.
+- **The national-register route is now closed in every remaining EEA country, and the reasons
+  differ** (checked 2026-08-04). Denmark's Jobnet webservice is free but arranged by email to
+  `spoc@star.dk`; Belgium's VDAB Vacature API needs an approved partnership, an intake call and
+  a signed cooperation agreement; Austria's AMS publishes *statistics* on data.gv.at — counts
+  of open positions by district, not vacancy records — and its HR-API is inbound, for employers
+  posting *to* the AMS; Switzerland's job-room.ch API is the same shape, a publishing channel
+  for the Stellenmeldepflicht with credentials on request; Portugal's IEFP puts only monthly
+  aggregate movements on dados.gov.pt. So `mpsv` (CZ) and `platsbanken` (SE) remain the only
+  two, France Travail is the only other permitted one, and **curated employers on an ATS is the
+  entire remaining route** for the countries that are empty.
 - **Poland's CBOP is the best-licensed source this repo has ever found and is still skipped —
   the licence and the access are two different gates.** The Ministry of Family and Social
   Policy publishes the Centralna Baza Ofert Pracy on `dane.gov.pl` under **CC BY 4.0**, updated
