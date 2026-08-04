@@ -115,6 +115,28 @@ SITES: list[tuple[str, str, str]] = [
     ("eng", "wd3", "ExternalCareers"),               #   70 — Roma / Milano. Genuinely Italian.
     ("teamsystem", "wd103", "TeamSystem"),           #   49 — Milano / Napoli / Padova
     ("cerved", "wd3", "Cerved"),                     #   39 — San Donato Milanese / Milano
+    # Fifth pass, 2026-08-04 (210 employers across the 19 selectable countries that hold under
+    # 300 active postings each). Every triple read off the employer's own careers page and
+    # then checked against its postings' cities — which is what rejected `wonder`: the slug
+    # was found probing for Just Eat Takeaway, the site is literally `Grubhub_Careers`, and
+    # all 51 postings are New York / Boston / Chicago. A real board for a different company.
+    ("kone", "wd3", "Careers"),                      #  919 — Budapest, Belgrade, Podgorica,
+    #   Ludwigsburg, Antalya. Finnish lifts; much of it is service technicians, which
+    #   `SEARCH_TERMS` is what keeps out.
+    ("nxp", "wd3", "careers"),                       #  805 — Eindhoven / Nijmegen NL.
+    #   Note the lower-case site slug; `Careers` is a different (404) site.
+    ("infobip", "wd3", "InfobipCareers"),            #  145 — Zagreb HR among São Paulo /
+    #   Curitiba. Croatia held 11 active postings.
+    ("gn", "wd3", "GN-Careers"),                     #   74 — Ballerup DK + Warszawa.
+    #   Denmark held 65.
+    ("upm", "wd103", "Careers"),                     #   60 — Wrocław / Kraków / Joroinen FI
+    ("materialise", "wd103", "Materialise_Jobs"),    #   46 — Leuven BE + Kyiv + Barcelona
+    ("tricentis", "wd1", "Tricentis_Careers"),       #   28 — CZ Prague / NL Amsterdam.
+    #   Austrian company, and not one Austrian posting on it — kept for the CZ/NL rows.
+    ("prodege", "wd108", "Prodege_Careers"),         #   24 — Athens GR among El Segundo /
+    #   Remote California. Found probing for Pollfish, which Prodege acquired: the parent is
+    #   the real board, and it is US-weighted with a genuine Greek presence.
+    ("workhuman", "wd1", "WorkhumanCareers"),        #   10 — Dublin IE + Framingham MA
 ]
 
 #: Role terms, matched by Workday's own full-text search. English-only for the same reason as
@@ -126,12 +148,48 @@ SEARCH_TERMS = [
 ]
 
 PAGE_SIZE = 20          # Workday's own page size; larger `limit` values are ignored
-MAX_PAGES_PER_QUERY = 3  # 60 hits per (site, term) — the tail is progressively less relevant
+MAX_PAGES_PER_QUERY = 10  # 200 hits per (site, term)
 
-#: Ceiling on the per-posting detail calls one run may issue, sized like SmartRecruiters':
-#: above what a normal run needs, so it only bites when a site bulk-imports. When it does,
-#: the postings Workday itself calls newest are kept — see `_age_rank`.
-MAX_DETAILS = 1200
+#: Ceiling on the per-posting detail calls one run may issue. When it bites, the postings
+#: Workday itself calls newest are kept — see `_age_rank`.
+#:
+#: **This was 1 200 and it bit on every single run, not on a bulk import.** Measured
+#: 2026-08-04: `scripts/probe_boards.py` reports 19 892 open postings across these sites and
+#: production held 1 454 active Workday rows — 7%. The comment claimed the ceiling was sized
+#: above a normal run; it was three times below one. Raising it is the cheapest inventory in
+#: the repo, because nothing about permission, adapters or discovery changes.
+#:
+#: What the size is chosen against: one request per (site, term) reports Workday's own
+#: `total`, and those totals sum to 74 560 across 38 sites × 9 terms — with heavy overlap,
+#: since a posting matching "cloud" often matches "devops" too. `total` itself saturates at
+#: 2 000, so accenture and citi are floors rather than counts. 6 000 is set from the time
+#: budget rather than that number: gather() runs at 05:00 and the import is at 07:00, a full
+#: international run is ~15 min, and the detail calls here are the slowest thing in it.
+MAX_DETAILS = 6000
+
+#: Concurrency for the detail stage, raised from 8 on 2026-08-04 because `MAX_DETAILS` at
+#: 6 000 does not fit the window at 8.
+#:
+#: **The window is the 05:00 export against the ~06:00 claude.ai routine, not the 07:00
+#: import.** The routine reads whatever `shortlists.json` is in Drive when it wakes; an export
+#: still running at 06:00 does not delay it, it misses it, and every subscriber gets yesterday's
+#: file or none. That is roughly 60 minutes for the whole of `gather()`, not 120.
+#:
+#: Measured 2026-08-04 over 240 real detail calls across 12 tenants:
+#:
+#:     workers=8   5.0 req/s  -> 6 000 details = 20.0 min
+#:     workers=16  9.5 req/s  -> 6 000 details = 10.6 min
+#:     workers=32 11.5 req/s  -> 6 000 details =  8.7 min
+#:
+#: 16 is the knee — 32 buys 20% more for double the concurrency. A full run at 8 measured
+#: 28.7 min (8 min list, 21 min details); at 16 that is ~19 min, which leaves real margin for
+#: the other 20 sources rather than spending the window on one of them.
+#:
+#: Politeness: a site is its own host (`{tenant}.{shard}.myworkdayjobs.com`) and there are 46
+#: of them, so 16 in flight is well under one request per second per employer — below this
+#: repo's own `politeness.DEFAULT_DELAY`. Raising this further without re-checking that
+#: arithmetic would not be.
+DETAIL_WORKERS = 16
 
 #: Workday states age as relative prose on the list ("Posted Today", "Posted 30+ Days Ago").
 #: It is far too coarse to filter on, but it orders well enough to decide what survives
@@ -177,7 +235,7 @@ class WorkdaySource(BaseSource):
 
         logger.info("Workday: %d unique postings across %d sites, fetching details",
                     len(found), len(self._sites))
-        with ThreadPoolExecutor(max_workers=8) as pool:
+        with ThreadPoolExecutor(max_workers=DETAIL_WORKERS) as pool:
             detailed = list(pool.map(self._detail, ordered))
 
         out = [d for d in detailed if d]
@@ -185,16 +243,35 @@ class WorkdaySource(BaseSource):
         return out
 
     def _query(self, site: tuple[str, str, str], term: str) -> list[dict]:
-        """All pages of one (career site, search term) query, tagged with their origin."""
+        """All pages of one (career site, search term) query, tagged with their origin.
+
+        **Workday does not signal the end of a result set** — it keeps serving full pages.
+        Measured 2026-08-04: `philips`, whose whole board is 1 017 postings, returned 4 000
+        hits for "data engineer" across 200 pages and stopped only because the harness did;
+        its nine terms produced 9 304 rows of which 708 were distinct, a 92% duplicate rate,
+        and `nvidia` was 68%. So `len(hits) < PAGE_SIZE` is a stop condition that almost
+        never fires, and the page ceiling was doing all the work — which means the cost of
+        raising it is paid entirely in duplicate requests.
+
+        A page that contributes **no new posting** ends the query. That is the real end of
+        the results, it costs one page to discover, and it makes `MAX_PAGES_PER_QUERY` a
+        runaway guard again rather than the thing deciding how much we see.
+        """
         tenant, host, slug = site
         out: list[dict] = []
+        seen: set[str] = set()
         for page in range(MAX_PAGES_PER_QUERY):
             hits = self._list(tenant, host, slug, term, page * PAGE_SIZE)
+            fresh = 0
             for hit in hits:
-                if hit.get("externalPath"):
-                    hit["_tenant"], hit["_host"], hit["_site"] = tenant, host, slug
-                    out.append(hit)
-            if len(hits) < PAGE_SIZE:
+                path = hit.get("externalPath")
+                if not path or path in seen:
+                    continue
+                seen.add(path)
+                hit["_tenant"], hit["_host"], hit["_site"] = tenant, host, slug
+                out.append(hit)
+                fresh += 1
+            if len(hits) < PAGE_SIZE or fresh == 0:
                 break
         return out
 
