@@ -34,7 +34,23 @@ import unicodedata
 from typing import Any, Iterable, Optional
 
 # --- countries -----------------------------------------------------------------
-# EU-27, the selectable set. Code -> display name.
+# The selectable set: EU-27 **plus the rest of the EEA and Switzerland** (2026-08-04).
+#
+# It was EU-27 for most of this project's life, and that was a quiet mistake rather than a
+# deliberate scope: the thing a subscriber actually needs to know is where they may work
+# without a permit, and for an EU citizen that area is the **EEA plus Switzerland** — Norway,
+# Iceland and Liechtenstein by the EEA Agreement, Switzerland by the free-movement accord.
+# A Czech subscriber can take a job in Oslo or Zurich as easily as one in Vienna, and could
+# not ask us for either.
+#
+# It was not hypothetical. On the day this changed, production held 28 active Swiss postings,
+# 23 Norwegian and 2 Icelandic that **no subscriber could select** — already ingested, already
+# stored, and reachable only by someone whose remote scope happened to be worldwide. The four
+# codes were already in `COUNTRY_ALIASES` so the gate could *exclude* them; that is what made
+# them invisible rather than merely unoffered.
+#
+# LI has no curated cities of its own beyond Vaduz, which is correct rather than lazy: the
+# whole country is smaller than most of the metropolitan areas in this table.
 COUNTRIES: dict[str, str] = {
     "AT": "Austria", "BE": "Belgium", "BG": "Bulgaria", "HR": "Croatia", "CY": "Cyprus",
     "CZ": "Czechia", "DK": "Denmark", "EE": "Estonia", "FI": "Finland", "FR": "France",
@@ -42,6 +58,8 @@ COUNTRIES: dict[str, str] = {
     "LV": "Latvia", "LT": "Lithuania", "LU": "Luxembourg", "MT": "Malta",
     "NL": "Netherlands", "PL": "Poland", "PT": "Portugal", "RO": "Romania",
     "SK": "Slovakia", "SI": "Slovenia", "ES": "Spain", "SE": "Sweden",
+    # EEA-EFTA and Switzerland.
+    "CH": "Switzerland", "IS": "Iceland", "LI": "Liechtenstein", "NO": "Norway",
 }
 
 # Accepted as *stored* values but not offered in the UI: `regions` could already hold `uk`
@@ -81,10 +99,21 @@ COUNTRY_ALIASES: dict[str, str] = {
     "dansko": "DK", "finsko": "FI", "irsko": "IE", "rumunsko": "RO", "bulharsko": "BG",
     "chorvatsko": "HR", "slovinsko": "SI", "recko": "GR", "portugalsko": "PT",
     "velka britanie": "GB", "anglie": "GB", "spojene state": "US",
-    # Not EU-27, so never offered as a *preference* — but naming it is what lets the gate
-    # exclude it, instead of the country reading as unknown and being kept.
-    "switzerland": "CH", "schweiz": "CH", "svycarsko": "CH", "svajciarsko": "CH",
-    "norway": "NO", "norge": "NO", "norsko": "NO",
+    # CH and NO were here long before they were selectable, under the rule that a country we
+    # cannot name is a country we cannot exclude. They are now offered as preferences too
+    # (see COUNTRIES); the aliases do the same job either way — resolve the posting's country
+    # so the gate can act on it rather than keeping it as unknown.
+    "switzerland": "CH", "schweiz": "CH", "suisse": "CH", "svizzera": "CH",
+    "svycarsko": "CH", "svajciarsko": "CH",
+    "norway": "NO", "norge": "NO", "noreg": "NO", "norsko": "NO", "norwegen": "NO",
+    # `island` is deliberately ABSENT, for the same reason as `georgia`. It is Icelandic and
+    # German for Iceland, but matching is per token n-gram, so it would resolve "Long Island,
+    # NY", "Rhode Island" and "Staten Island" to Iceland and delete them from every US
+    # subscriber's digest. `islandia` (ES/PL) and `islanda` (IT) are safe because they are
+    # not also ordinary English words.
+    "iceland": "IS", "islandia": "IS", "islanda": "IS", "islande": "IS",
+    "liechtenstein": "LI",
+    # Still not selectable, and named for the original reason: to be excludable.
     "ukraine": "UA", "ukrajina": "UA", "serbia": "RS", "srbsko": "RS",
     # The same rule, applied to the countries the enterprise ATS sources actually post from.
     # Workday and SmartRecruiters reach employers who hire globally — NVIDIA, Philips, Adobe,
@@ -183,6 +212,15 @@ CITIES: dict[str, dict[str, str]] = {
            "murcia": "Murcia"},
     "SE": {"stockholm": "Stockholm", "gothenburg": "Gothenburg", "malmo": "Malmö",
            "uppsala": "Uppsala", "linkoping": "Linköping", "lund": "Lund"},
+    # EEA-EFTA and Switzerland, added 2026-08-04 with the countries themselves.
+    "CH": {"zurich": "Zürich", "geneva": "Geneva", "basel": "Basel", "bern": "Bern",
+           "lausanne": "Lausanne", "zug": "Zug", "lugano": "Lugano"},
+    "NO": {"oslo": "Oslo", "bergen": "Bergen", "trondheim": "Trondheim",
+           "stavanger": "Stavanger", "tromso": "Tromsø"},
+    "IS": {"reykjavik": "Reykjavík"},
+    # One city, and that is correct rather than unfinished: Liechtenstein is smaller than
+    # most single entries elsewhere in this table.
+    "LI": {"vaduz": "Vaduz"},
 }
 
 # Alternative spellings a posting might use, per country: alias -> canonical slug. Only
@@ -190,6 +228,13 @@ CITIES: dict[str, dict[str, str]] = {
 # automatically below), i.e. local names and common English variants.
 CITY_ALIASES: dict[str, dict[str, str]] = {
     "AT": {"wien": "vienna"},
+    # EEA-EFTA and Switzerland. Swiss adverts name a city in whichever of the four national
+    # languages the employer writes in, so Geneva arrives as Genève, Genf or Ginevra.
+    "CH": {"geneve": "geneva", "genf": "geneva", "ginevra": "geneva",
+           "zuerich": "zurich", "basle": "basel", "bale": "basel", "berne": "bern",
+           "losanna": "lausanne"},
+    "NO": {"tromsoe": "tromso", "trondhjem": "trondheim"},
+    "IS": {"reykjavik": "reykjavik"},
     "BE": {"bruxelles": "brussels", "brussel": "brussels", "antwerpen": "antwerp",
            "anvers": "antwerp", "gent": "ghent", "gand": "ghent", "luik": "liege",
            "brugge": "bruges"},

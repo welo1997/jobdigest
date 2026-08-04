@@ -146,8 +146,20 @@ taxonomy from that list *and* real inventory — not from one person's free text
 
 ### Tables (Postgres)
 
-**Location preferences live in `service/geo.py`** — countries (EU-27), the curated cities per
-country, the free-text→(country, city) resolver, and the SQL gate. A subscriber picks
+**Location preferences live in `service/geo.py`** — countries (**EU-27 + EEA-EFTA + CH**), the
+curated cities per country, the free-text→(country, city) resolver, and the SQL gate.
+**The selectable set widened on 2026-08-04 and is no longer the EU-27.** The question a
+subscriber is answering is where they may work without a permit, and for an EU citizen that
+is the EEA plus Switzerland — so `CH`, `IS`, `LI` and `NO` are now offered. They were already
+in `COUNTRY_ALIASES` so the gate could *exclude* them, which is exactly what made the gap
+invisible: production held **28 active Swiss, 23 Norwegian and 2 Icelandic postings that no
+subscriber could ask for**. Two consequences. The `eu` remote scope resolves against
+`COUNTRIES`, so it now matches the wider set and its label was changed to "Anywhere in the EU
+or EEA" in all eight catalogues — a copy change is part of this, not an afterthought. And
+**`island` must never be added to `COUNTRY_ALIASES`**, though it is Icelandic and German for
+Iceland: matching is per token n-gram, so it would resolve "Long Island, NY" and "Rhode
+Island" to IS and delete them from every US subscriber's digest. That is the `georgia` rule,
+and `test_geo.py` now pins it. A subscriber picks
 countries, optionally specific cities per country (naming none means "any city there"), and a
 separate `remote_scope` (`country` | `eu` | `worldwide`) for *fully* remote roles. Three rules
 that are easy to break: **hybrid is not remote** (that is the point — a hybrid Brno role must

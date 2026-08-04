@@ -72,7 +72,7 @@ const en: Messages = {
     countries: {},
     remoteScope: {
       country: "Only in the countries I picked",
-      eu: "Anywhere in the EU",
+      eu: "Anywhere in the EU or EEA",
       worldwide: "Anywhere in the world",
     },
     workModeLabel: {

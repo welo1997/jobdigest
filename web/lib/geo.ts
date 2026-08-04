@@ -10,7 +10,12 @@
  * a posting's location text lives only on the Python side — the browser never needs it.
  */
 
-// ISO-2 -> display name. EU-27, the selectable set.
+// ISO-2 -> display name. The selectable set: EU-27 plus the rest of the EEA and Switzerland,
+// which is where an EU citizen may work without a permit — the question a subscriber is
+// actually answering. See the note in service/geo.py.
+//
+// Keep this object free of comments: test_geo.py parses it as JSON to compare against the
+// Python table, and a `//` line inside the literal makes that parse fail rather than drift.
 export const COUNTRIES: Record<string, string> = {
   "AT": "Austria",
   "BE": "Belgium",
@@ -38,7 +43,11 @@ export const COUNTRIES: Record<string, string> = {
   "SK": "Slovakia",
   "SI": "Slovenia",
   "ES": "Spain",
-  "SE": "Sweden"
+  "SE": "Sweden",
+  "CH": "Switzerland",
+  "IS": "Iceland",
+  "LI": "Liechtenstein",
+  "NO": "Norway"
 };
 
 // Main cities per country, in the order the picker offers them: slug -> display name.
@@ -265,6 +274,28 @@ export const CITIES: Record<string, Record<string, string>> = {
     "uppsala": "Uppsala",
     "linkoping": "Linköping",
     "lund": "Lund"
+  },
+  "CH": {
+    "zurich": "Zürich",
+    "geneva": "Geneva",
+    "basel": "Basel",
+    "bern": "Bern",
+    "lausanne": "Lausanne",
+    "zug": "Zug",
+    "lugano": "Lugano"
+  },
+  "NO": {
+    "oslo": "Oslo",
+    "bergen": "Bergen",
+    "trondheim": "Trondheim",
+    "stavanger": "Stavanger",
+    "tromso": "Tromsø"
+  },
+  "IS": {
+    "reykjavik": "Reykjavík"
+  },
+  "LI": {
+    "vaduz": "Vaduz"
   }
 };
 
@@ -274,7 +305,7 @@ export type RemoteScope = (typeof REMOTE_SCOPES)[number];
 // What each remote scope promises, in the words the form uses.
 export const REMOTE_SCOPE_LABEL: Record<RemoteScope, string> = {
   country: "Only in the countries I picked",
-  eu: "Anywhere in the EU",
+  eu: "Anywhere in the EU or EEA",
   worldwide: "Anywhere in the world",
 };
 

@@ -457,3 +457,37 @@ def test_frontend_work_mode_labels_match():
         "web/lib/geo.ts and service/geo.py disagree about what to call a work setup — the "
         "matcher prompt and the form the subscriber filled in would describe it differently."
     )
+
+
+@pytest.mark.parametrize("location", [
+    "Long Island, NY", "Rhode Island, United States", "Staten Island, New York",
+    "Island Park, Idaho",
+])
+def test_island_never_resolves_to_iceland(location):
+    """`island` is Icelandic and German for Iceland, and must never be a country alias.
+
+    The same trap as `georgia`, and worth its own test because Iceland became *selectable*
+    on 2026-08-04 and the obvious next edit is to add its endonym. Country matching is per
+    token n-gram, so a bare `island` would resolve every one of these to IS — deleting them
+    from US subscribers' digests with nothing failing anywhere. `islandia`/`islanda`/
+    `islande` are safe and are the ones that carry the Spanish, Italian and French spellings.
+    """
+    assert geo.resolve_location(location)[0] != "IS"
+
+
+def test_the_eea_and_switzerland_are_selectable():
+    """EU-27 was the selectable set until 2026-08-04, and it was too narrow.
+
+    An EU citizen may work in Norway, Iceland, Liechtenstein and Switzerland without a
+    permit, so those are countries a subscriber can genuinely take a job in. Production held
+    28 Swiss, 23 Norwegian and 2 Icelandic active postings that nobody could ask for.
+    """
+    for code in ("CH", "IS", "LI", "NO"):
+        assert code in geo.COUNTRIES, code
+        assert geo.CITIES.get(code), f"{code} is selectable but offers no cities"
+
+
+def test_swiss_cities_resolve_from_every_national_language():
+    """A Swiss advert names the city in whichever language the employer writes in."""
+    for text in ("Genève, Suisse", "Genf, Schweiz", "Ginevra, Svizzera"):
+        assert geo.resolve_location(text)[:2] == ("CH", "geneva"), text

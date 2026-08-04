@@ -75,10 +75,11 @@ const cs: Messages = {
       LV: "Lotyšsko", LT: "Litva", LU: "Lucembursko", MT: "Malta", NL: "Nizozemsko",
       PL: "Polsko", PT: "Portugalsko", RO: "Rumunsko", SK: "Slovensko", SI: "Slovinsko",
       ES: "Španělsko", SE: "Švédsko",
+      CH: "Švýcarsko", IS: "Island", LI: "Lichtenštejnsko", NO: "Norsko",
     },
     remoteScope: {
       country: "Jen v zemích, které jsem vybral(a)",
-      eu: "Kdekoli v EU",
+      eu: "Kdekoli v EU nebo EHP",
       worldwide: "Kdekoli na světě",
     },
     workModeLabel: {
