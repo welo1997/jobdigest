@@ -627,11 +627,10 @@ export default function Landing() {
           </div>
         </section>
       </main>
-      {/* Mobile-only sticky call-to-action — always-visible path to the sign-up wizard, since
-          the live preview pushes it well down the page on phones. */}
-      <a href="#wizard" className="mcta" aria-label={t.landing.mctaAria}>
-        {t.landing.mcta} <span aria-hidden="true">→</span>
-      </a>
+      {/* The mobile sticky "Get my digest" CTA was removed: the wizard now renders first on
+          phones (globals.css), so a button that only scrolled down to it — and read as a submit
+          on steps 2–4 while merely scrolling upward — no longer earned its place. The
+          `landing.mcta` / `landing.mctaAria` catalogue strings are now unused. */}
       <Footer />
       {toast}
     </>

@@ -332,24 +332,31 @@ a.hidden-link:hover{color:var(--brand);text-decoration:underline;}
   font-weight:600;box-shadow:var(--shadow-lg);pointer-events:none;transition:opacity .25s,transform .25s;z-index:80;}
 .toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
 
-/* ---- mobile sticky CTA (hidden on desktop) ---- */
+/* The mobile sticky CTA is gone: it only existed because the preview used to render above the
+   wizard on phones (order:-1), pushing the form ~900px down. The wizard now comes first on
+   mobile, so a button that merely scrolled to it was redundant — and past step 1 it read as a
+   "submit" that only scrolled upward. See the removed `.mcta` markup in the landing page. */
 .mcta{display:none;}
 
 /* ============================================================= RESPONSIVE */
 @media (max-width:920px){
-  .build{grid-template-columns:1fr;gap:26px;}.steps{grid-template-columns:1fr;}.peek{order:-1;}
-  /* Value-first: the preview renders above the wizard on mobile, so give people a
-     persistent tap-target that jumps straight to sign-up. */
-  .mcta{display:flex;align-items:center;justify-content:center;gap:9px;position:fixed;z-index:70;
-    left:16px;right:16px;bottom:16px;padding:15px 22px;border-radius:var(--r-pill);
-    font-weight:700;font-size:1.02rem;color:#fff;background:var(--brand);
-    box-shadow:0 8px 24px color-mix(in srgb,var(--brand) 40%,transparent),var(--shadow-lg);}
-  .mcta:hover,.mcta:active{background:var(--brand-deep);text-decoration:none;}
-  /* keep the footer clear of the pinned bar */
-  main{padding-bottom:84px;}
+  /* Wizard first, preview below: on phones the interactive form is what the visitor should land
+     on, not a 780px mock email they have to scroll past. (`.peek` no longer gets order:-1.) */
+  .build{grid-template-columns:1fr;gap:26px;}.steps{grid-template-columns:1fr;}
+  /* Restore the horizontal gutter that `.hero`/`.section` zero out with their `padding: X 0 Y`
+     shorthands. Below --maxw (1120px) that left the microtrust row, the "how it works" label and
+     every card flush against the screen edge on phones. `.wrap.hero`/`.wrap.section` (specificity
+     0,2,0) beats the `.hero`/`.section` shorthands for the left/right longhands while leaving
+     their vertical padding intact, so text and card edges share one consistent left line. */
+  .wrap.hero,.wrap.section{padding-left:24px;padding-right:24px;}
 }
 @media (max-width:560px){.hero{padding:32px 0 12px;}.row2{grid-template-columns:1fr;}.wizard{padding:20px;}
   .wz-q{font-size:1.3rem;}.brand{font-size:1.15rem;}
   .hero .lede{font-size:1.05rem;max-width:38ch;}
-  /* free the top bar on phones — the same link stays in the footer */
-  .nav-link{display:none;}}
+  /* Keep the auth + language controls reachable on phones rather than hiding them: a returning
+     subscriber had no visible way to log in, and a signed-in one no way to reach preferences or
+     log out from the top bar. They stay visible and wrap to a second line when the width can't
+     hold them — the signed-out "Log in" fits on one line; the signed-in trio wraps on narrow
+     phones. */
+  .nav .wrap{flex-wrap:wrap;height:auto;row-gap:8px;column-gap:12px;padding-top:10px;padding-bottom:10px;}
+  .nav-actions{gap:12px;flex-wrap:wrap;justify-content:flex-end;}}

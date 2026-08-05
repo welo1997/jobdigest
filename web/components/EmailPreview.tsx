@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { cap, pickJobs, PreviewJob } from "@/lib/preview";
 import { fmt } from "@/i18n/config";
 import { rich, useI18n } from "@/i18n/context";
@@ -35,8 +36,15 @@ export default function EmailPreview({ roles, skills, work, levels, email, limit
   const to = email || t.landing.emailPlaceholder;
   const jobs = pickJobs(skills, work, levels, limit);
   const cnt = jobs.length;
-  // Locale-formatted, so a German reader sees "1. Aug." rather than "1 Aug".
-  const dateStr = new Date().toLocaleDateString(locale, { day: "numeric", month: "short" });
+  // Today's date, but computed only *after* mount. In the static export this line also runs at
+  // build time, baking the build-day date into the prerendered HTML; the client then renders the
+  // real "today", and the text mismatch is React hydration error #418 (thrown away and re-rendered
+  // on every visit). Deferring it to an effect makes the server and first client render agree —
+  // no date yet — then fills in the real one. Locale-formatted, so a German reader sees "1. Aug.".
+  const [dateStr, setDateStr] = useState("");
+  useEffect(() => {
+    setDateStr(new Date().toLocaleDateString(locale, { day: "numeric", month: "short" }));
+  }, [locale]);
 
   // One role → name it ("3 new Product Manager roles"); several → stay generic. The named form
   // is its own plural set rather than a hole punched into the generic one, because several of
@@ -45,6 +53,12 @@ export default function EmailPreview({ roles, skills, work, levels, email, limit
   const headline = only
     ? count(cnt, t.preview.roleCountNamed, { role: t.roles[only] ?? only })
     : count(cnt, t.preview.roleCount);
+
+  // On the pre-mount frame `dateStr` is still empty; trim the dangling separator so the subject
+  // reads "3 new roles for you" rather than "… for you —" until the effect fills the date in.
+  const subject = dateStr
+    ? fmt(t.preview.subject, { count: headline, date: dateStr })
+    : fmt(t.preview.subject, { count: headline, date: "" }).replace(/[\s—–-]+$/, "");
 
   return (
     <div className="mail-frame">
@@ -63,9 +77,7 @@ export default function EmailPreview({ roles, skills, work, levels, email, limit
           </div>
           <div className="time">{t.preview.time}</div>
         </div>
-        <div className="mail-subject">
-          {fmt(t.preview.subject, { count: headline, date: dateStr })}
-        </div>
+        <div className="mail-subject">{subject}</div>
       </div>
       <div className="mail-body">
         {roles.size === 0 ? (
