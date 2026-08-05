@@ -229,6 +229,11 @@ const fr: Messages = {
     addSkillPlaceholder: "Ajouter une compétence…",
     addRoleAria: "Ajouter un poste",
     addSkillAria: "Ajouter une compétence",
+    sectors: "Secteurs qui vous intéressent (facultatif)",
+    sectorsHint:
+      "Domaines dans lesquels vous aimeriez le plus travailler : e-commerce, finance, jeux vidéo… Nous l'utilisons pour évaluer l'adéquation, jamais comme filtre strict.",
+    addSectorPlaceholder: "Ajouter un secteur…",
+    addSectorAria: "Ajouter un secteur",
     seniorityLabel: "Niveau — nous n'envoyons que des postes aux niveaux choisis",
     frequency: "Fréquence",
     freqDaily: "Quotidien",

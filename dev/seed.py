@@ -268,7 +268,9 @@ PROFILE_DATA = {
     "work_types": ["permanent", "freelance/contract"],
     "part_time_only": False,
     "eligible_only": True,
-    "sectors": [],
+    # Pre-filled so /preferences opens with the industry chips already selected — a soft signal
+    # for the matcher, editable on the page.
+    "sectors": ["ecommerce", "finance"],
     "min_score": 6,
     "frequency": "daily",
     "language": "en",

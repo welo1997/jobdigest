@@ -246,6 +246,11 @@ const sk: Messages = {
     addSkillPlaceholder: "Pridať zručnosť…",
     addRoleAria: "Pridať pozíciu",
     addSkillAria: "Pridať zručnosť",
+    sectors: "Odvetvia, ktoré vás zaujímajú (nepovinné)",
+    sectorsHint:
+      "Oblasti, v ktorých by ste najradšej pracovali — e-commerce, financie, hry… Používame to na posúdenie vhodnosti, nikdy ako striktný filter.",
+    addSectorPlaceholder: "Pridať odvetvie…",
+    addSectorAria: "Pridať odvetvie",
     seniorityLabel: "Úroveň — posielame len ponuky na úrovniach, ktoré vyberiete",
     frequency: "Frekvencia",
     freqDaily: "Denne",

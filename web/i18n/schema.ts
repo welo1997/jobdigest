@@ -201,6 +201,12 @@ export interface Messages {
     addSkillPlaceholder: string;
     addRoleAria: string;
     addSkillAria: string;
+    /** Free-text industries/domains of interest (`profiles.sectors`). A soft signal for the
+     *  AI matcher, never a hard filter — the hint must say so. */
+    sectors: string;
+    sectorsHint: string;
+    addSectorPlaceholder: string;
+    addSectorAria: string;
     seniorityLabel: string;
     frequency: string;
     freqDaily: string;

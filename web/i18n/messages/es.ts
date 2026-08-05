@@ -228,6 +228,11 @@ const es: Messages = {
     addSkillPlaceholder: "Añadir una habilidad…",
     addRoleAria: "Añadir un puesto",
     addSkillAria: "Añadir una habilidad",
+    sectors: "Sectores que te interesan (opcional)",
+    sectorsHint:
+      "Ámbitos en los que más te gustaría trabajar: comercio electrónico, finanzas, videojuegos… Lo usamos para valorar la afinidad, nunca como filtro estricto.",
+    addSectorPlaceholder: "Añadir un sector…",
+    addSectorAria: "Añadir un sector",
     seniorityLabel: "Nivel — solo enviamos puestos en los niveles que elijas",
     frequency: "Frecuencia",
     freqDaily: "Diario",

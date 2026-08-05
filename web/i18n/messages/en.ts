@@ -226,6 +226,11 @@ const en: Messages = {
     addSkillPlaceholder: "Add a skill…",
     addRoleAria: "Add a role",
     addSkillAria: "Add a skill",
+    sectors: "Industries you're interested in (optional)",
+    sectorsHint:
+      "Domains you'd most like to work in — e-commerce, finance, gaming… Used to judge fit, never as a hard filter.",
+    addSectorPlaceholder: "Add an industry…",
+    addSectorAria: "Add an industry",
     seniorityLabel: "Seniority — we only send roles at the levels you pick",
     frequency: "Frequency",
     freqDaily: "Daily",

@@ -247,6 +247,11 @@ const pl: Messages = {
     addSkillPlaceholder: "Dodaj umiejętność…",
     addRoleAria: "Dodaj stanowisko",
     addSkillAria: "Dodaj umiejętność",
+    sectors: "Branże, które Cię interesują (opcjonalne)",
+    sectorsHint:
+      "Obszary, w których najbardziej chciałbyś pracować — e-commerce, finanse, gry… Używamy tego do oceny dopasowania, nigdy jako sztywny filtr.",
+    addSectorPlaceholder: "Dodaj branżę…",
+    addSectorAria: "Dodaj branżę",
     seniorityLabel: "Poziom — wysyłamy tylko oferty na wybranych przez Ciebie poziomach",
     frequency: "Częstotliwość",
     freqDaily: "Codziennie",

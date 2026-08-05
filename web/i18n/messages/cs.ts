@@ -247,6 +247,11 @@ const cs: Messages = {
     addSkillPlaceholder: "Přidat dovednost…",
     addRoleAria: "Přidat pozici",
     addSkillAria: "Přidat dovednost",
+    sectors: "Obory, které vás zajímají (nepovinné)",
+    sectorsHint:
+      "Odvětví, ve kterých byste nejraději pracovali — e-commerce, finance, hry… Slouží k posouzení vhodnosti, nikdy jako striktní filtr.",
+    addSectorPlaceholder: "Přidat obor…",
+    addSectorAria: "Přidat obor",
     seniorityLabel: "Úroveň — posíláme jen nabídky na úrovních, které vyberete",
     frequency: "Frekvence",
     freqDaily: "Denně",

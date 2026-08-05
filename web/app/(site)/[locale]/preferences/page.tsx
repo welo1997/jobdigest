@@ -23,6 +23,14 @@ import { rich, useI18n } from "@/i18n/context";
 
 const FREQS = ["daily", "weekdays", "weekly"];
 
+// Suggestions only. `sectors` is free text and a *soft* signal for the AI matcher (never a
+// hard filter — see `service/geo.py` / the profile export), so a subscriber may add anything.
+// These are just common starting points; like skills, they display capitalised and are stored
+// lowercased, so a picked suggestion and a typed word collapse to the same value.
+const SECTOR_SUGGESTIONS = [
+  "E-commerce", "Fintech", "Finance", "Gaming", "Healthtech", "Trading", "Cybersecurity",
+];
+
 /**
  * A subscription created before city-level preferences existed still carries only the coarse
  * `regions` bucket. Translate it the same way the migration does, so the form opens on what
@@ -73,8 +81,11 @@ function Inner() {
   const [roleSet, setRoleSet] = useState<Set<string>>(new Set());
   const [skillOpts, setSkillOpts] = useState<string[]>(SKILL_OPTS);
   const [skillSet, setSkillSet] = useState<Set<string>>(new Set());
+  const [sectorOpts, setSectorOpts] = useState<string[]>(SECTOR_SUGGESTIONS);
+  const [sectorSet, setSectorSet] = useState<Set<string>>(new Set());
   const [addRole, setAddRole] = useState("");
   const [addSkill, setAddSkill] = useState("");
+  const [addSector, setAddSector] = useState("");
   const [freq, setFreq] = useState("daily");
   const [loc, setLoc] = useState<LocationValue>({
     countries: ["CZ"], cities: [], remoteScope: "eu", workModes: [...WORK_MODES],
@@ -114,6 +125,12 @@ function Inner() {
       const skillLabels = p.stack.map((s) => cap(s));
       setSkillOpts([...new Set([...SKILL_OPTS, ...skillLabels])]);
       setSkillSet(new Set(skillLabels));
+      // Same id-vs-label discipline as skills: a stored sector is a lowercase word, shown
+      // capitalised. Anything already on file (typed here, or detected from a CV at signup)
+      // joins the suggestion chips so it renders selected rather than silently dropping.
+      const sectorLabels = (p.sectors || []).map((s) => cap(s));
+      setSectorOpts([...new Set([...SECTOR_SUGGESTIONS, ...sectorLabels])]);
+      setSectorSet(new Set(sectorLabels));
       setFreq(FREQS.includes(p.frequency) ? p.frequency : "daily");
       setLoc(locationFrom(p));
       // Absent on a subscription that predates migration 014 — `cleanEducationLevels` reads
@@ -183,6 +200,8 @@ function Inner() {
       const updated = await updatePreferences({
         role_categories: roleSlugs,
         stack: [...new Set([...skillSet, ...freeRoles].map((s) => s.trim().toLowerCase()).filter(Boolean))],
+        // Free text, stored lowercased like `stack`; the matcher reads it as a soft signal.
+        sectors: [...new Set([...sectorSet].map((s) => s.trim().toLowerCase()).filter(Boolean))],
         frequency: freq,
         // No country selected would mean "nowhere". Fall back to the home market rather than
         // saving a filter that can never match — the same choice the server-side default makes.
@@ -313,6 +332,24 @@ function Inner() {
                 placeholder={t.prefs.addSkillPlaceholder} aria-label={t.prefs.addSkillAria} />
               <button type="button" onClick={() => addChip(addSkill, skillOpts, setSkillOpts, setSkillSet, () => setAddSkill(""))}>{t.common.add}</button>
             </div>
+          </div>
+          <div className="field">
+            <label>{t.prefs.sectors}</label>
+            <div className="chips">
+              {sectorOpts.map((o) => (
+                <button key={o} type="button" className="chip" aria-pressed={sectorSet.has(o)}
+                  onClick={() => toggleInSet(setSectorSet, o)}>{o}</button>
+              ))}
+            </div>
+            <div className="addwrap">
+              <input type="text" value={addSector} onChange={(e) => setAddSector(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addChip(addSector, sectorOpts, setSectorOpts, setSectorSet, () => setAddSector("")); } }}
+                placeholder={t.prefs.addSectorPlaceholder} aria-label={t.prefs.addSectorAria} />
+              <button type="button" onClick={() => addChip(addSector, sectorOpts, setSectorOpts, setSectorSet, () => setAddSector(""))}>{t.common.add}</button>
+            </div>
+            <p style={{ color: "var(--muted)", fontSize: "var(--fs-sm)", marginTop: 6 }}>
+              {t.prefs.sectorsHint}
+            </p>
           </div>
           <div className="field">
             <label>{t.prefs.seniorityLabel}</label>

@@ -235,6 +235,11 @@ const de: Messages = {
     addSkillPlaceholder: "Fähigkeit hinzufügen…",
     addRoleAria: "Position hinzufügen",
     addSkillAria: "Fähigkeit hinzufügen",
+    sectors: "Branchen, die dich interessieren (optional)",
+    sectorsHint:
+      "Bereiche, in denen du am liebsten arbeiten würdest — E-Commerce, Finanzen, Gaming… Wir nutzen es zur Einschätzung der Passung, nie als harten Filter.",
+    addSectorPlaceholder: "Branche hinzufügen…",
+    addSectorAria: "Branche hinzufügen",
     seniorityLabel: "Level — wir schicken nur Stellen auf den Leveln, die du wählst",
     frequency: "Häufigkeit",
     freqDaily: "Täglich",
