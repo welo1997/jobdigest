@@ -1,0 +1,158 @@
+company,domain,tier
+# US-headquartered employers, ordered roughly by prominence.
+# `tier` is a rough prominence band, used only to order the probe and the report.
+# Source: hand-assembled, like scripts/cz_companies.csv.
+#
+# IMPORTANT bias: JobDigest subscribers are EEA-work-eligible and the geo gate discards
+# non-EEA-located postings, so a pure-US board mostly adds inventory that is fetched then
+# gated out. This list is therefore deliberately skewed to US multinationals with real EEA
+# engineering / shared-service sites (Dublin, London, Amsterdam, Berlin, Warsaw, Prague,
+# Cork) whose Workday/Oracle boards carry European-located roles — that is the value-add.
+# US-only startups are largely already covered by the remote-first sources and the existing
+# Greenhouse/Lever/Ashby lists, so they are mostly omitted. Already-carried tenants
+# (nvidia, salesforce, mastercard, adobe, relx, autodesk, paypal, equinix, msd, zebra,
+# redhat, accenture, jci, dxctechnology, kyndryl, motorolasolutions, citi, statestreet) omitted.
+#
+# --- tier 1: large multinationals with known EEA sites ---
+Cisco,cisco.com,1
+IBM,ibm.com,1
+Intel,intel.com,1
+Dell Technologies,dell.com,1
+HP,hp.com,1
+Hewlett Packard Enterprise,hpe.com,1
+Qualcomm,qualcomm.com,1
+Micron,micron.com,1
+AMD,amd.com,1
+Broadcom,broadcom.com,1
+Oracle,oracle.com,1
+ServiceNow,servicenow.com,1
+Cognizant,cognizant.com,1
+Visa,visa.com,1
+American Express,aexp.com,1
+Pfizer,pfizer.com,1
+Johnson and Johnson,jnj.com,1
+Eli Lilly,lilly.com,1
+Amgen,amgen.com,1
+Medtronic,medtronic.com,1
+Abbott,abbott.com,1
+Thermo Fisher Scientific,thermofisher.com,1
+Danaher,danaher.com,1
+Boston Scientific,bostonscientific.com,1
+Stryker,stryker.com,1
+General Electric,ge.com,1
+Caterpillar,caterpillar.com,1
+John Deere,deere.com,1
+3M,3m.com,1
+Procter and Gamble,pg.com,1
+PepsiCo,pepsico.com,1
+Nike,nike.com,1
+Booking.com,booking.com,1
+Expedia,expedia.com,1
+Uber,uber.com,1
+#
+# --- tier 2: enterprise tech / SaaS with EEA offices ---
+Workday,workday.com,2
+Splunk,splunk.com,2
+VMware,vmware.com,2
+Analog Devices,analog.com,2
+Applied Materials,appliedmaterials.com,2
+NXP Semiconductors,nxp.com,2
+Synopsys,synopsys.com,2
+Cadence,cadence.com,2
+Datadog,datadoghq.com,2
+MongoDB,mongodb.com,2
+Confluent,confluent.io,2
+HashiCorp,hashicorp.com,2
+Databricks,databricks.com,2
+Snowflake,snowflake.com,2
+ServiceTitan,servicetitan.com,2
+Okta,okta.com,2
+Zendesk,zendesk.com,2
+Dropbox,dropbox.com,2
+Asana,asana.com,2
+Coupa,coupa.com,2
+Workiva,workiva.com,2
+Procore,procore.com,2
+Toast,pos.toasttab.com,2
+Klaviyo,klaviyo.com,2
+Coinbase,coinbase.com,2
+#
+# --- tier 3: remote-first / EU-hiring scale-ups not obviously carried ---
+Zapier,zapier.com,3
+Automattic,automattic.com,3
+GitLab,gitlab.com,3
+Grafana Labs,grafana.com,3
+Fivetran,fivetran.com,3
+dbt Labs,getdbt.com,3
+Retool,retool.com,3
+Vercel,vercel.com,3
+Netlify,netlify.com,3
+Postman,postman.com,3
+DigitalOcean,digitalocean.com,3
+Fastly,fastly.com,3
+Cockroach Labs,cockroachlabs.com,3
+Temporal,temporal.io,3
+Sourcegraph,sourcegraph.com,3
+Sentry,sentry.io,3
+Twilio,twilio.com,3
+# --- US-HQ tech (added 2026-08-05, after US became selectable: on-site US roles now surface,
+#     so US-headquartered employers are worth curating, not only EU-office multinationals) ---
+Brex,brex.com,2
+Mercury,mercury.com,2
+Chime,chime.com,2
+Affirm,affirm.com,2
+Marqeta,marqeta.com,2
+Bill.com,bill.com,2
+Deel,deel.com,2
+Rippling,rippling.com,2
+Gusto,gusto.com,2
+Carta,carta.com,2
+Chainalysis,chainalysis.com,2
+Circle,circle.com,2
+Anthropic,anthropic.com,2
+Scale AI,scale.com,2
+Together AI,together.ai,2
+Anyscale,anyscale.com,2
+Weights and Biases,wandb.com,2
+Glean,glean.com,2
+Cresta,cresta.com,2
+Pulumi,pulumi.com,2
+Docker,docker.com,2
+GitHub,github.com,2
+CircleCI,circleci.com,2
+PlanetScale,planetscale.com,2
+Dagster Labs,dagster.io,2
+Astronomer,astronomer.io,2
+Figma,figma.com,2
+Airtable,airtable.com,2
+Monday.com,monday.com,2
+ClickUp,clickup.com,2
+Loom,loom.com,2
+Miro,miro.com,2
+Webflow,webflow.com,2
+Grammarly,grammarly.com,2
+Sigma Computing,sigmacomputing.com,2
+Hex,hex.tech,2
+Monte Carlo,montecarlodata.com,2
+CrowdStrike,crowdstrike.com,2
+SentinelOne,sentinelone.com,2
+Wiz,wiz.io,2
+Abnormal Security,abnormalsecurity.com,2
+Netskope,netskope.com,2
+Sysdig,sysdig.com,2
+1Password,1password.com,2
+DoorDash,doordash.com,2
+Instacart,instacart.com,2
+Airbnb,airbnb.com,2
+Robinhood,robinhood.com,2
+Reddit,reddit.com,2
+Discord,discord.com,2
+Pinterest,pinterest.com,2
+Roblox,roblox.com,2
+Faire,faire.com,2
+Whatnot,whatnot.com,2
+Ro,ro.co,3
+Hims and Hers,hims.com,3
+Oscar Health,hioscar.com,3
+Included Health,includedhealth.com,3
+Komodo Health,komodohealth.com,3

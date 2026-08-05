@@ -63,6 +63,14 @@ COMPANIES = [
     # KNOWN_IMPOSTORS below: `alpha` (Alpha Bank) and `redbull` (Red Bull).
     "colruytgroup",   #  8 — Halle, Belgium. Colruyt Group on its own postings.
     "chaos",          # 11 — Sofia, Bulgaria (+ Karlsruhe). Chaos, the V-Ray developer.
+    # PL re-run, 2026-08-05. Three genuine Polish games studios, each identity-checked against
+    # its own postings (company name AND city), because recruitee slugs collide: `dpd` here is
+    # the Dutch DPD, not DPD Polska, and stayed rejected.
+    "tensquaregames", #  9 — Ten Square Games, Wrocław (data science / game design)
+    "huuuge",         #  8 — Huuuge Games, Warszawa / Szczecin
+    "blooberteam",    #  3 — Bloober Team SA, Kraków + remote
+    # IT re-run, 2026-08-05, identity-checked: company name Mia-Platform, Milano.
+    "miaplatform",    #  5 — Mia-Platform, Milano (+ London), cloud-native platform
 ]
 
 #: Slugs that answer with a live board which is **not the company whose name they spell**.

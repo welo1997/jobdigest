@@ -1,0 +1,126 @@
+company,domain,tier
+# French employers likely to run a public ATS board, ordered roughly by prominence.
+# `tier` is a rough prominence band, used only to order the probe and the report.
+# Source: hand-assembled, like scripts/cz_companies.csv. Deliberately NOT derived from any
+# job board's employer roster — see the note in scripts/discover_ats.py.
+# Companies already carried by an adapter (qonto, contentsquare, aircall, swile, blablacar,
+# malt, agicap, ledger, alan, swan, backmarket, photoroom, poolside, sanofi, valeo, 360learning)
+# are deliberately omitted to save probe budget.
+#
+# --- tier 1: large corporates + best-known scale-ups ---
+Dassault Systemes,3ds.com,1
+Capgemini,capgemini.com,1
+Thales,thalesgroup.com,1
+Safran,safran-group.com,1
+Atos,atos.net,1
+Worldline,worldline.com,1
+Schneider Electric,se.com,1
+Orange,orange.com,1
+TotalEnergies,totalenergies.com,1
+Renault,renaultgroup.com,1
+Stellantis,stellantis.com,1
+Michelin,michelin.com,1
+Airbus,airbus.com,1
+L'Oreal,loreal.com,1
+Danone,danone.com,1
+BNP Paribas,group.bnpparibas,1
+Societe Generale,societegenerale.com,1
+AXA,axa.com,1
+Air Liquide,airliquide.com,1
+Saint-Gobain,saint-gobain.com,1
+Legrand,legrand.com,1
+Engie,engie.com,1
+EDF,edf.fr,1
+Vinci,vinci.com,1
+Bouygues,bouygues.com,1
+Pernod Ricard,pernod-ricard.com,1
+Sodexo,sodexo.com,1
+Edenred,edenred.com,1
+Publicis Groupe,publicisgroupe.com,1
+Teleperformance,teleperformance.com,1
+JCDecaux,jcdecaux.com,1
+Accor,group.accor.com,1
+Decathlon,decathlon.com,1
+Carrefour,carrefour.com,1
+Ubisoft,ubisoft.com,1
+Criteo,criteo.com,1
+OVHcloud,ovhcloud.com,1
+Doctolib,doctolib.fr,1
+Dataiku,dataiku.com,1
+#
+# --- tier 2: established scale-ups / mid-market tech ---
+Mirakl,mirakl.com,2
+Payfit,payfit.com,2
+Spendesk,spendesk.com,2
+Pennylane,pennylane.com,2
+Alma,alma.eu,2
+Shift Technology,shift-technology.com,2
+ManoMano,manomano.com,2
+Sorare,sorare.com,2
+Ankorstore,ankorstore.com,2
+Believe,believe.com,2
+Deezer,deezer.com,2
+Dashlane,dashlane.com,2
+Algolia,algolia.com,2
+Hugging Face,huggingface.co,2
+Mistral AI,mistral.ai,2
+Younited,younited-credit.com,2
+Voodoo,voodoo.io,2
+Veepee,veepee.com,2
+Leboncoin,leboncoin.fr,2
+Ivalua,ivalua.com,2
+Kyriba,kyriba.com,2
+Brevo,brevo.com,2
+Exotec,exotec.com,2
+Akeneo,akeneo.com,2
+Cegid,cegid.com,2
+iAdvize,iadvize.com,2
+Pigment,pigment.com,2
+Welcome to the Jungle,welcometothejungle.com,2
+Jobteaser,jobteaser.com,2
+Ecovadis,ecovadis.com,2
+Getaround,getaround.com,2
+Vestiaire Collective,vestiairecollective.com,2
+Lydia,lydia-app.com,2
+Shine,shine.fr,2
+Indy,indy.fr,2
+Lifen,lifen.fr,2
+Owkin,owkin.com,2
+Sekoia,sekoia.io,2
+CybelAngel,cybelangel.com,2
+Vade,vadesecure.com,2
+Verkor,verkor.com,2
+Ynsect,ynsect.com,2
+Innovafeed,innovafeed.com,2
+Front,front.com,2
+Klaxoon,klaxoon.com,2
+Silae,silae.fr,2
+#
+# --- tier 3: smaller / newer startups ---
+PlayPlay,playplay.com,3
+Jow,jow.fr,3
+October,october.eu,3
+Memo Bank,memo.bank,3
+Doctrine,doctrine.fr,3
+Nabla,nabla.com,3
+Dust,dust.tt,3
+Kili Technology,kili-technology.com,3
+Descartes Underwriting,descartesunderwriting.com,3
+Yousign,yousign.com,3
+Upflow,upflow.io,3
+Libeo,libeo.io,3
+Defacto,getdefacto.com,3
+Partoo,partoo.co,3
+Gojob,gojob.com,3
+Greenly,greenly.earth,3
+Sweep,sweep.net,3
+Electra,electra.com,3
+Luko,luko.eu,3
+Kolet,kolet.com,3
+Payplug,payplug.com,3
+Skello,skello.io,3
+Combo,combo.hr,3
+Tehtris,tehtris.com,3
+Aledia,aledia.com,3
+Diabeloop,diabeloop.com,3
+Gleamer,gleamer.ai,3

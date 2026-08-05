@@ -142,8 +142,16 @@ def test_no_adapter_sends_a_browser_user_agent():
 
 def test_every_adapter_that_sets_a_user_agent_uses_the_shared_one():
     import pathlib
+    # usajobs is the one documented exception: the USAJOBS API *requires* the User-Agent to be
+    # the caller's registered email address — it is the account identifier the API authenticates
+    # on, alongside Authorization-Key. That is more identifying than the shared agent, not an
+    # attempt to look like a browser, so it is exempt. Any other adapter mentioning User-Agent
+    # must use `politeness.USER_AGENT`.
+    exempt = {"usajobs.py"}
     wrong = []
     for path in sorted(pathlib.Path("ingestion/sources").glob("*.py")):
+        if path.name in exempt:
+            continue
         text = path.read_text(encoding="utf-8")
         if "User-Agent" in text and "politeness.USER_AGENT" not in text:
             wrong.append(path.name)

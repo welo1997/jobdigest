@@ -76,6 +76,50 @@ ORGS = [
     # Rejected in the same pass, each on its own postings rather than its name:
     #   `novo`   — New York fintech, not Novo Nordisk. `span` — Span.io of San Francisco,
     #   not Span d.d. of Zagreb (18 US / 12 IN, 0 EEA).
+    # FR pass, 2026-08-05 via scripts/discover_ats.py, each identity-checked against its own
+    # postings. Ashby is where the French product/AI companies concentrate. Doctolib answers
+    # on BOTH Ashby (152) and Greenhouse (155) but is already carried on the greenhouse seed,
+    # so neither is added here — the same postings must not occupy two shortlist slots.
+    # Rejected on identity: `frontcareers` (Argentina/Chile/SF, 0 EEA), `shift` (Shift
+    # Technology, sampled all Sydney/Melbourne), `sweep` (NYC/USA/Tel Aviv).
+    "pennylane",   # 116 — Paris / Caen / Bordeaux / remote-EU. The densest French board found.
+    "voodoo",      # 103 — Paris 5 of 8 (mobile gaming)
+    "dust",        #  23 — Paris (applied-AI)
+    "nabla",       #  13 — Paris (health AI)
+    "owkin",       #   8 — Paris / UK (bio-AI)
+    "ankorstore",  #   4 — Paris
+    "sorare",      #   4 — Paris
+    # GB pass, 2026-08-05. UK is gated out (post-Brexit), so these are kept for their EEA seats,
+    # not their London ones. Identity-checked against the postings. `stackfuel` is the Berlin
+    # data-training company Multiverse acquired — its board is entirely Berlin, which is the
+    # EEA inventory that made it worth taking over Multiverse's UK-only board.
+    "stackfuel",   #  23 — Berlin (Multiverse DE)
+    "trainline",   #  48 — London + Paris; kept for Paris + any EU-remote
+    "quantexa",    #  32 — Munich among London/Singapore/NY
+    "causaly",     #   9 — Athens + London (Greek inventory is thin)
+    # US pass, 2026-08-05. US is gated out, so kept for the EEA seat only. Verified against the
+    # boards: snowflake has a Warsaw hub (9 of 396) plus scattered EU; sentry has Vienna. The
+    # US-dominant Workday medical/apparel giants (Abbott/J&J/Amgen/Medtronic/Nike) were skipped
+    # as N+1 budget hogs. ashby:temporal was skipped — Temporal is already carried on greenhouse.
+    "snowflake",   # 396 — Warsaw + EU among US/IN. Cheap board, so the US rows cost nothing.
+    "sentry",      #  48 — Vienna (AT) among San Francisco
+    # PL re-run, 2026-08-05, identity-checked. Rejected the documented impostors again:
+    # greenhouse:ideo (US design firm), greenhouse:sas (Canoga Park), lever:blue (LatAm).
+    "zowie",       #   9 — Warsaw (AI customer-service), genuinely Polish
+    "preply",      # 117 — Barcelona 60 / Kyiv / London. Listed under PL but it is the
+    #                      Barcelona inventory (ES) that makes it worth carrying.
+    # US-HQ pass, 2026-08-05 (US now selectable). Identity-checked. For Chainalysis, only the
+    # main `chainalysis-careers` board is taken, not its `-government-solutions` sibling; and
+    # Anyscale is taken on Ashby (19), not its 1-job Lever board — one company, one board.
+    "clickup",     #  65 — US (project management)
+    "docker",      #  58 — US / Canada
+    "miro",        #  46 — Amsterdam / Copenhagen / Tokyo (EEA + global)
+    "chainalysis-careers",  # 46 — DC / New York / Germany (blockchain analytics)
+    "astronomer",  #  29 — New York (data orchestration)
+    "hex",         #  28 — New York / San Francisco (analytics)
+    "anyscale",    #  19 — San Francisco / Bengaluru (Ray / LLM infra)
+    "hims-and-hers",  # 102 — New Albany OH; a lot of facilities roles, real US employer
+    "montecarlodata", # 6 — London / New York / San Francisco (data observability)
 ]
 
 # Map Ashby address country names to ISO-3166 alpha-2.

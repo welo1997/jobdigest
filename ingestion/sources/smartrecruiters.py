@@ -54,6 +54,12 @@ TENANTS = [
     "Sportradar",     # 70   — AT/SI/DE sports data
     "Visa",           # 2
     "Thales",         # 2
+    # SK re-run, 2026-08-05. Slovakia holds ~29 active postings in the whole corpus, so a
+    # single all-Slovak tenant is worth the N+1 detail calls. Verified: 15 of 15 sampled
+    # postings are Košice — a genuine large Slovak IT employer (ex-T-Systems). The other two
+    # SK hits were slug-collision impostors and rejected: greenhouse:pantheon is the US WebOps
+    # Pantheon (all US/Canada remote), not Slovak Pantheon.tech; ashby:union is a Seattle firm.
+    "deutschetelekomitsolutionsslovakia",  # 116 — Košice IT services (Slovak)
 ]
 
 #: Rows per list page. SmartRecruiters caps a response at 100 whatever `limit` says — asking

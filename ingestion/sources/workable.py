@@ -54,6 +54,14 @@ ACCOUNTS = [
                      #      not a board.
     "skroutz",       # 10 — "Skroutz S.A", Athens / Aspropyrgos / Paiania
     "hellasdirect",  #  6 — Marousi + Nicosia + Bucharest
+    # FR pass, 2026-08-05 via scripts/discover_ats.py, identity-checked against the postings.
+    "exotec",        # 72 — Lille / Wasquehal, warehouse-robotics engineering (French)
+    "huggingface",   #  7 — Paris + US-remote, ML/open-source
+    # GB pass, 2026-08-05. UK gated out post-Brexit; kept for the EEA seats. Identity-checked.
+    "withplum",      # 32 — Plum: Nicosia (CY) + Athens (GR) + London
+    "yapily",        # 11 — Vilnius (LT) + Málaga (ES) + London
+    # IT re-run, 2026-08-05, identity-checked against the postings.
+    "moneyfarm",     # 14 — Milan 10 / Cagliari 2 / London 2, wealth management
 ]
 
 _TIMEOUT = 20

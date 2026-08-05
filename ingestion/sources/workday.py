@@ -137,6 +137,24 @@ SITES: list[tuple[str, str, str]] = [
     #   Remote California. Found probing for Pollfish, which Prodege acquired: the parent is
     #   the real board, and it is US-weighted with a genuine Greek presence.
     ("workhuman", "wd1", "WorkhumanCareers"),        #   10 — Dublin IE + Framingham MA
+    # FR pass, 2026-08-05. Each triple read off the employer's own careers page and then
+    # checked against its postings' cities (the site slug is the unguessable half), and the
+    # EEA share measured because Workday is N+1 and an all-US board wastes the detail budget.
+    ("ag", "wd3", "Airbus"),                         # 2000 — Toulouse/Manching/Donauwörth/
+    #   Berlin/Lisbon/Bristol. ~70% EEA; the tenant is literally `ag`, not `airbus`.
+    ("airliquidehr", "wd3", "AirLiquideExternalCareer"),  # 1154 — global industrial gas;
+    #   France (Bagneux/Caen)/Poland (Kraków) the EEA slice among CN/US/SG/MY. Kept for the
+    #   genuine French engineering, but it is globally spread — not a French board.
+    ("pernodricard", "wd3", "pernod-ricard"),        #  309 — Paris/Ciudad Real/Warszawa/
+    #   Dublin/Vienna among São Paulo/Istanbul/Chennai. ~40% EEA.
+    ("kyriba", "wd5", "Kyriba-Careers"),             #   34 — Warsaw/Remote-Poland/La Défense/
+    #   London the bulk; French treasury-SaaS, EEA-weighted despite the small size.
+    # US-HQ pass, 2026-08-05 (US now selectable, so US-onsite is wanted). These are N+1 and
+    # US-weighted, which is exactly why they were skipped before the US was selectable; now
+    # the detail budget spent on them buys inventory a US subscriber actually wants.
+    ("jj", "wd5", "JJ"),                             # 1746 — Johnson & Johnson, US + IE/BE EEA
+    ("crowdstrike", "wd5", "crowdstrikecareers"),    #  425 — cybersecurity, US + remote
+    ("servicetitan", "wd1", "ServiceTitan"),         #   88 — US home-services software
 ]
 
 #: Role terms, matched by Workday's own full-text search. English-only for the same reason as

@@ -223,6 +223,16 @@ def gather(include_cz: bool) -> list[JobPosting]:
         # here sent you looking for an absent variable when the variable was present and
         # holding an unresolved 1Password reference.
         logger.info("Adzuna skipped: %s", exc)
+    # USAJOBS only if a key + registered email are present. The US federal register — the
+    # mpsv/platsbanken pattern in a third country — worth having only since the US became
+    # selectable (2026-08-05); before that it was all gated-out inventory.
+    try:
+        from ingestion.sources.usajobs import USAJobsSource
+        USAJobsSource()  # raises KeyError if USAJOBS_API_KEY / USAJOBS_EMAIL are missing/empty
+        sources.append(USAJobsSource)
+    except KeyError as exc:
+        name = exc.args[0] if exc.args else "USAJOBS_API_KEY / USAJOBS_EMAIL"
+        logger.info("USAJOBS skipped (no %s in env).", name)
     if include_cz:
         # Jobs.cz and Profesia are NOT here, and their adapters are kept only as code —
         # `ingestion/sources/jobscz.py` and `profesia.py` still work and are still tested.

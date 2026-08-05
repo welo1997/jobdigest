@@ -120,4 +120,52 @@ Veriff,greenhouse,veriff,identity
 RELEX Solutions,greenhouse,relex,supply-chain
 Smartly,greenhouse,smartlyio,adtech
 Collibra,greenhouse,collibra,data-governance
+# FR pass, 2026-08-05 via scripts/discover_ats.py, each identity-checked against the board's
+# own postings (Paris/EEA locations), not just a live 200. Rejected on identity:
+# greenhouse:air (a US firm, Pittsburgh/Arlington — the generic "air" slug, NOT Air Liquide,
+# whose real board is workday:airliquidehr) and greenhouse:jcdecaux (Australia/NZ only, zero
+# EEA). Mirakl/Algolia/Dataiku/Ivalua/Doctolib were re-found here but are already carried
+# (Doctolib on greenhouse, which is why its Ashby board was not added).
+Dashlane,greenhouse,dashlane,security
+# Wrike surfaced under Klaxoon (its careers walk followed a cross-domain link to wrike.com),
+# but the board is unmistakably Wrike's own — Prague HQ engineering plus IE/PL/PT/LT/DE
+# remote, strong EEA inventory including Czech. Added as Wrike, not Klaxoon.
+Wrike,greenhouse,wrike,saas
+# GB pass, 2026-08-05 via scripts/discover_ats.py. The UK is NOT in the selectable set
+# (EU-27 + EEA-EFTA + CH; post-Brexit GB is in COUNTRY_ALIASES only, so the gate EXCLUDES
+# UK-located rows exactly like US ones). So a UK board is worth adding only for its EEA-office
+# and remote-EU roles; the many pure-UK-onsite boards found (Starling, Lendable, Faculty,
+# Allica, Marshmallow, Skyscanner, Thought Machine, Zilch...) were skipped, as were all the
+# N+1 Workday GB boards (Barclays 1053, Lloyds, Diageo, Darktrace) whose UK-onsite bulk would
+# waste the detail budget on rows the gate drops. Only these two greenhouse boards carry a
+# real EEA slice. NOTE for a human: the pre-existing greenhouse:peak seed row samples as
+# all-Texas jobs (Peak.ai is Manchester) and recruitee:legal/standard look like generic-slug
+# impostors — worth a check, left untouched here.
+ComplyAdvantage,greenhouse,complyadvantage,regtech
+Modulr,greenhouse,modulrfinance,fintech
+# US pass, 2026-08-05. Same gating as GB: the US is not selectable, so a US board is worth
+# adding only for its EEA-office and fully-remote roles. Kept: those with a real European hub
+# (Okta/Toast in Dublin, verified against the boards) or genuinely worldwide-remote hiring
+# (Sourcegraph). Skipped every N+1 Workday US board found — Abbott (2000), J&J (1732), Amgen,
+# Stryker, Medtronic, Nike, Zendesk — because their US-dominant bulk would consume the shared
+# 6000-detail budget and starve the EEA-focused Workday sites. Also skipped: confluent (~1 EEA
+# role), fastly/coupa (no EEA), zapier (NAMER/APAC regions only), ashby:eli (generic slug, 1).
+Okta,greenhouse,okta,identity
+Toast,greenhouse,toast,food-tech
+Sourcegraph,greenhouse,sourcegraph91,devtools
+# US-HQ pass, 2026-08-05, after the US became selectable — US on-site roles now surface, so
+# US-headquartered employers are worth carrying, not only ones with EEA offices. Each checked
+# against its own postings. Rejected: ashby:eli (Montreal "User Acquisition Manager", a generic
+# "eli" slug, NOT Eli Lilly). Several also carry EEA inventory (webflow London, miro Amsterdam/
+# Copenhagen, togetherai Amsterdam), which is a bonus, not the reason.
+Oscar Health,greenhouse,oscar,health-tech
+Roblox,greenhouse,roblox,gaming
+Netskope,greenhouse,netskope,security
+Cresta,greenhouse,cresta,ai
+Abnormal Security,greenhouse,abnormalsecurity,security
+Carta,greenhouse,carta,fintech
+Together AI,greenhouse,togetherai,ai
+Bill.com,greenhouse,billcom,fintech
+Komodo Health,greenhouse,komodohealth,health-tech
+Webflow,greenhouse,webflow,saas
 Showpad,greenhouse,showpad,saas

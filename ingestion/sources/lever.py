@@ -43,9 +43,29 @@ ORGS = ["spotify", "qonto", "contentsquare", "aircall", "swile", "blablacar",
         "oxylabs",        # 49 — Vilnius / Warsaw. Lithuania had 24 active postings.
         "swordhealth",    # 19 — Porto. Also answers on Greenhouse with **one** posting;
         #                        taken here because it is the board carrying the inventory.
-        "deliverect"]     # 26 — Amersfoort + Ghent HQ. Belgian, but only 2 of 26 rows are
+        "deliverect",     # 26 — Amersfoort + Ghent HQ. Belgian, but only 2 of 26 rows are
         #                        BE (the rest Mexico City / Casablanca) — kept because it is
         #                        genuine and small, not because it fills Belgium.
+        # FR pass, 2026-08-05 via scripts/discover_ats.py, each identity-checked against its
+        # own postings' locations. `pigment` is Americas-heavy (NY/Toronto/SF) with a London
+        # and a Paris seat — kept because Lever is cheap and the geo gate simply never
+        # retrieves its US rows for an EEA subscriber. Rejected here: lever:playplay (1 job),
+        # and recruitee:memo which is a Belgian firm in Gent/Zele, NOT Memo Bank of Paris.
+        "veepee",         # 88 — Saint-Denis / Saint Vulbas, French e-commerce
+        "gojob",          # 85 — Aix-en-Provence / Paris, all France
+        "verkor",         # 38 — Grenoble / Bourbourg, French battery gigafactory
+        "doctrine",       # 27 — Paris + Düsseldorf/Milan sales
+        "brevo",          # 21 — Paris (ex-Sendinblue)
+        "younited",       # 7 — Paris + Barcelona/Rome
+        "pigment",        # 99 — mostly US/CA, London + Paris the only EEA seats
+        # GB pass, 2026-08-05. The UK is gated out (post-Brexit, not in the selectable set), so
+        # these are kept for their EEA/remote roles, not their UK ones. Identity-checked.
+        "octoenergy",     # 145 — Octopus Energy's EU arm: Valencia/Munich/Berlin/Verona +
+        #                         Worldwide-remote. The strongest EEA board in the GB run.
+        "sophos",         # 110 — cybersecurity, Germany seat + global remote among UK/US/ZA
+        # US-HQ pass, 2026-08-05 (US now selectable). Identity-checked against the postings.
+        "includedhealth", # 143 — US health navigation
+        "sysdig"]         #  12 — cloud security, US + global remote
 
 
 class LeverSource(BaseSource):

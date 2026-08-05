@@ -1,0 +1,111 @@
+company,domain,tier
+# UK employers likely to run a public ATS board, ordered roughly by prominence.
+# `tier` is a rough prominence band, used only to order the probe and the report.
+# Source: hand-assembled, like scripts/cz_companies.csv. Deliberately NOT derived from any
+# job board's employer roster — see the note in scripts/discover_ats.py.
+# Already-carried companies (deliveroo, wayve, applied, synthesia, moonpig, moonpay, zopa,
+# farfetch, ocado, astrazeneca, primer) are omitted to save probe budget.
+#
+# --- tier 1: large corporates + best-known scale-ups ---
+Monzo,monzo.com,1
+Starling Bank,starlingbank.com,1
+Revolut,revolut.com,1
+Wise,wise.com,1
+GoCardless,gocardless.com,1
+Checkout.com,checkout.com,1
+Darktrace,darktrace.com,1
+Octopus Energy,octopus.energy,1
+Skyscanner,skyscanner.net,1
+Trainline,thetrainline.com,1
+Depop,depop.com,1
+ASOS,asos.com,1
+Sage,sage.com,1
+ARM,arm.com,1
+Dyson,dyson.com,1
+Rolls-Royce,rolls-royce.com,1
+BAE Systems,baesystems.com,1
+GSK,gsk.com,1
+Unilever,unilever.com,1
+Diageo,diageo.com,1
+Tesco,tesco.com,1
+Sainsburys,sainsburys.co.uk,1
+Barclays,barclays.co.uk,1
+HSBC,hsbc.com,1
+Lloyds Banking Group,lloydsbankinggroup.com,1
+NatWest,natwest.com,1
+Aviva,aviva.com,1
+Legal and General,landg.com,1
+Standard Chartered,sc.com,1
+BT,bt.com,1
+Vodafone,vodafone.com,1
+Sky,sky.com,1
+Auto Trader,autotrader.co.uk,1
+Rightmove,rightmove.co.uk,1
+Zoopla,zoopla.co.uk,1
+#
+# --- tier 2: established scale-ups / mid-market tech ---
+Snyk,snyk.io,2
+Thought Machine,thoughtmachine.net,2
+OakNorth,oaknorth.com,2
+Tide,tide.co,2
+TrueLayer,truelayer.com,2
+Form3,form3.tech,2
+Modulr,modulrfinance.com,2
+PensionBee,pensionbee.com,2
+Moneybox,moneyboxapp.com,2
+Curve,curve.com,2
+Paddle,paddle.com,2
+Cleo,meetcleo.com,2
+Zilch,zilch.com,2
+Freetrade,freetrade.io,2
+Marshmallow,marshmallow.com,2
+Lendable,lendable.co.uk,2
+Zego,zego.com,2
+ManyPets,manypets.com,2
+Wagestream,wagestream.com,2
+Multiverse,multiverse.io,2
+Quantexa,quantexa.com,2
+Onfido,onfido.com,2
+ComplyAdvantage,complyadvantage.com,2
+Ravelin,ravelin.com,2
+Sophos,sophos.com,2
+Egress,egress.com,2
+Immersive Labs,immersivelabs.com,2
+Faculty,faculty.ai,2
+Peak,peak.ai,2
+Causaly,causaly.com,2
+Featurespace,featurespace.com,2
+Improbable,improbable.io,2
+Graphcore,graphcore.ai,2
+Tractable,tractable.ai,2
+Gousto,gousto.co.uk,2
+Bloom and Wild,bloomandwild.com,2
+Cazoo,cazoo.co.uk,2
+Genomics England,genomicsengland.co.uk,2
+BenevolentAI,benevolent.com,2
+#
+# --- tier 3: smaller / newer startups ---
+Griffin,griffin.com,3
+Yapily,yapily.com,3
+Anna Money,anna.money,3
+Plum,withplum.com,3
+Chip,getchip.uk,3
+Numan,numan.com,3
+Healx,healx.io,3
+Huma,huma.com,3
+Elvie,elvie.com,3
+Beauty Pie,beautypie.com,3
+Papier,papier.com,3
+Heroes,heroes.io,3
+Zava,zavamed.com,3
+Cera,ceracare.co.uk,3
+Hometree,hometree.co.uk,3
+PrimaryBid,primarybid.com,3
+Kroo,kroo.com,3
+Allica Bank,allica.bank,3
+Nutmeg,nutmeg.com,3
+Cur8 Capital,cur8.capital,3
+Pockit,pockit.com,3
+Fnality,fnality.org,3
+Lightyear,lightyear.com,3
+Nium,nium.com,3

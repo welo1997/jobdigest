@@ -153,9 +153,10 @@ subscriber is answering is where they may work without a permit, and for an EU c
 is the EEA plus Switzerland — so `CH`, `IS`, `LI` and `NO` are now offered. They were already
 in `COUNTRY_ALIASES` so the gate could *exclude* them, which is exactly what made the gap
 invisible: production held **28 active Swiss, 23 Norwegian and 2 Icelandic postings that no
-subscriber could ask for**. Two consequences. The `eu` remote scope resolves against
-`COUNTRIES`, so it now matches the wider set and its label was changed to "Anywhere in the EU
-or EEA" in all eight catalogues — a copy change is part of this, not an afterthought. And
+subscriber could ask for**. Two consequences. The `eu` remote scope resolves against the
+**EEA set** (`EEA_COUNTRIES`, see the 2026-08-05 note below — it was `COUNTRIES` until GB/US
+were added), and its label reads "Anywhere in the EU or EEA" in all eight catalogues — a copy
+change is part of this, not an afterthought. And
 **`island` must never be added to `COUNTRY_ALIASES`**, though it is Icelandic and German for
 Iceland: matching is per token n-gram, so it would resolve "Long Island, NY" and "Rhode
 Island" to IS and delete them from every US subscriber's digest. That is the `georgia` rule,
@@ -170,6 +171,26 @@ equal a resolved slug, and **`profiles.regions` is derived** from the new fields
 data tables for the browser; `service/tests/test_geo.py` fails on drift, and
 `test_geo_sql.py` pins the gate's behaviour against a real Postgres (needs
 `TEST_DATABASE_URL`, skipped otherwise).
+
+**The United Kingdom and the United States became selectable on 2026-08-05, and the product
+now serves UK and US citizens as well as EEA ones.** GB and US were "stored but not offered"
+for the project's whole EEA-only life (a London- or Austin-onsite role needed a visa and was
+correctly hidden); they are now first-class, because a US citizen wants on-site US roles, not
+only remote ones. Two things make this safe rather than a scope leak. **(1) `COUNTRIES` and
+`EEA_COUNTRIES` are now separate sets.** `COUNTRIES` (33) is what a subscriber may pick;
+`EEA_COUNTRIES` (31) is the EEA + CH and is what the **`eu` remote scope** means — so picking
+the US for on-site work never turns "Anywhere in the EU or EEA" into a channel for US
+*fully-remote* roles. Conflating them would silently widen that scope; `test_geo.py` and
+`test_geo_sql.py` both pin the split. **(2) US/GB curated cities were MOVED, not copied.** The
+selectable US metros and GB cities live in `CITIES` now; the same names had to be *removed*
+from `FOREIGN_CITIES`, or `check_no_shadowed_cities` raises at import — a name may not sit in
+both. Names that are also a US *and* a UK city (`cambridge`, `birmingham`) and the Bay Area
+suburbs stay in `FOREIGN_CITIES` as country-only (no slug), because a wrong guess between two
+now-selectable countries is newly visible. Adding these countries needs
+**`python -m service.backfill_geo`** on the box: existing US/GB postings already carry
+`country_code` (so country-level filtering works at once), but their `city` is null until the
+backfill re-resolves "San Francisco" → `us:san-francisco`. No privacy-policy change is
+triggered — no new data category, processor, or retention.
 
 **`COUNTRY_ALIASES` is wider than the EU-27 on purpose, and that is not a contradiction.**
 Only EU-27 is ever *offered* as a preference. But "unknown country is kept" means a country we
@@ -783,10 +804,23 @@ goes red. A test that cannot fail documents nothing.
   lists out of the adapters themselves rather than a copy, so a list that grows is covered
   without editing it. It separates *dead* (answered, zero jobs — remove the row) from
   *unreachable* (no answer — re-run before editing), because a transient failure and a retired
-  board look identical and only one is worth a commit. **Measured 2026-08-04: 239 of 239 boards
-  live, 49 834 jobs — greenhouse 97/11 721, workday 25/19 892, ashby 77/5 598,
-  smartrecruiters 8/7 501, oraclecloud 5/4 522, lever 18/541, recruitee 7/30, workable 2/29.**
+  board look identical and only one is worth a commit. **Measured 2026-08-05: 367 of 367 boards
+  live, 69 980 jobs — workday 51/32 628, greenhouse 129/13 905, smartrecruiters 9/7 686,
+  ashby 103/7 151, oraclecloud 10/6 866, lever 32/1 285, workable 15/355, recruitee 18/104.**
+  (Was 239/49 834 on 2026-08-04; the FR/GB/US pass on 2026-08-05 added 45 boards — see below.)
   That is the baseline to compare against; "a source looks small" is only meaningful with one.
+  **FR/GB/US pass, 2026-08-05.** Curated employers via `scripts/discover_ats.py`, the same
+  route as every country before. FR is genuine EEA inventory (Airbus, Air Liquide, Pennylane,
+  Veepee, Doctrine, Exotec…); **GB and US are gated out** — post-Brexit the UK is not in the
+  selectable set (EU-27 + EEA-EFTA + CH; it is in `COUNTRY_ALIASES` only, so the gate excludes
+  UK-located rows exactly like US ones), so those two were added only for their EEA-office and
+  fully-remote roles (Octopus Energy DE/ES/IT, Toast/Okta Dublin, Snowflake Warsaw, Sentry
+  Vienna…). Every N+1 Workday GB/US board (Barclays, Lloyds, Abbott, J&J, Amgen, Medtronic,
+  Nike) was **skipped** — their US/UK-onsite bulk would consume the shared detail budget on
+  rows the gate drops. The SK/PL/IT re-runs added 8 (DT IT Solutions Košice on SmartRecruiters
+  is the one that matters — Slovakia holds ~29 postings). `scripts/pending_boards.py` splits a
+  discovery CSV into new vs already-carried, and `scripts/inspect_hits.py` prints each board's
+  postings' cities for the identity check that a job count cannot do.
   **One blind spot, found by mutation-checking the prober rather than trusting it:**
   `oraclecloud` verifies the tenant and *not* the site — Vertiv's real tenant with the invented
   site `CX_999` returns 2 240 jobs, because Oracle ignores an unrecognised `siteNumber`. Same
