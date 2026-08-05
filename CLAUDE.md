@@ -804,10 +804,11 @@ goes red. A test that cannot fail documents nothing.
   lists out of the adapters themselves rather than a copy, so a list that grows is covered
   without editing it. It separates *dead* (answered, zero jobs — remove the row) from
   *unreachable* (no answer — re-run before editing), because a transient failure and a retired
-  board look identical and only one is worth a commit. **Measured 2026-08-05: 367 of 367 boards
-  live, 69 980 jobs — workday 51/32 628, greenhouse 129/13 905, smartrecruiters 9/7 686,
-  ashby 103/7 151, oraclecloud 10/6 866, lever 32/1 285, workable 15/355, recruitee 18/104.**
-  (Was 239/49 834 on 2026-08-04; the FR/GB/US pass on 2026-08-05 added 45 boards — see below.)
+  board look identical and only one is worth a commit. **Measured 2026-08-05 (end of day): 436
+  of 436 boards live, 76 996 jobs — workday 61/36 816, greenhouse 149/15 445,
+  smartrecruiters 9/7 692, ashby 132/8 071, oraclecloud 10/6 851, lever 36/1 488,
+  workable 20/500, recruitee 19/133.** (239/49 834 on 2026-08-04 → 367 mid-day → 436 after the
+  US-HQ, GB on-site and DE passes below once GB/US became selectable.)
   That is the baseline to compare against; "a source looks small" is only meaningful with one.
   **FR/GB/US pass, 2026-08-05.** Curated employers via `scripts/discover_ats.py`, the same
   route as every country before. FR is genuine EEA inventory (Airbus, Air Liquide, Pennylane,
