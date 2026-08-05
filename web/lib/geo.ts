@@ -10,9 +10,11 @@
  * a posting's location text lives only on the Python side — the browser never needs it.
  */
 
-// ISO-2 -> display name. The selectable set: EU-27 plus the rest of the EEA and Switzerland,
-// which is where an EU citizen may work without a permit — the question a subscriber is
-// actually answering. See the note in service/geo.py.
+// ISO-2 -> display name. The selectable set: EU-27 + the rest of the EEA + Switzerland, plus
+// the United Kingdom and the United States (2026-08-05), because the product now serves UK and
+// US citizens too. The EEA-only subset (what the `eu` remote scope means) lives in
+// service/geo.py as EEA_COUNTRIES — it is not mirrored here because the browser never needs it.
+// See the note in service/geo.py.
 //
 // Keep this object free of comments: test_geo.py parses it as JSON to compare against the
 // Python table, and a `//` line inside the literal makes that parse fail rather than drift.
@@ -47,7 +49,9 @@ export const COUNTRIES: Record<string, string> = {
   "CH": "Switzerland",
   "IS": "Iceland",
   "LI": "Liechtenstein",
-  "NO": "Norway"
+  "NO": "Norway",
+  "GB": "United Kingdom",
+  "US": "United States"
 };
 
 // Main cities per country, in the order the picker offers them: slug -> display name.
@@ -296,6 +300,36 @@ export const CITIES: Record<string, Record<string, string>> = {
   },
   "LI": {
     "vaduz": "Vaduz"
+  },
+  "US": {
+    "san-francisco": "San Francisco",
+    "new-york": "New York",
+    "los-angeles": "Los Angeles",
+    "seattle": "Seattle",
+    "austin": "Austin",
+    "boston": "Boston",
+    "chicago": "Chicago",
+    "washington-dc": "Washington, D.C.",
+    "atlanta": "Atlanta",
+    "dallas": "Dallas",
+    "denver": "Denver",
+    "san-diego": "San Diego",
+    "houston": "Houston",
+    "miami": "Miami",
+    "philadelphia": "Philadelphia",
+    "minneapolis": "Minneapolis"
+  },
+  "GB": {
+    "london": "London",
+    "manchester": "Manchester",
+    "edinburgh": "Edinburgh",
+    "glasgow": "Glasgow",
+    "bristol": "Bristol",
+    "leeds": "Leeds",
+    "cardiff": "Cardiff",
+    "belfast": "Belfast",
+    "oxford": "Oxford",
+    "liverpool": "Liverpool"
   }
 };
 

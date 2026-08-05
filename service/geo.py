@@ -34,24 +34,19 @@ import unicodedata
 from typing import Any, Iterable, Optional
 
 # --- countries -----------------------------------------------------------------
-# The selectable set: EU-27 **plus the rest of the EEA and Switzerland** (2026-08-04).
+# EEA_COUNTRIES: EU-27 **plus the rest of the EEA and Switzerland** — the area where an
+# EU/EEA citizen may work without a permit (Norway, Iceland and Liechtenstein by the EEA
+# Agreement, Switzerland by the free-movement accord). This set exists for ONE purpose: it is
+# what the `eu` remote scope means ("Anywhere in the EU or EEA"). It is deliberately SEPARATE
+# from the selectable `COUNTRIES` below — see the note there — so that adding a non-EEA country
+# to the picker cannot silently widen what "in the EU or EEA" matches.
 #
-# It was EU-27 for most of this project's life, and that was a quiet mistake rather than a
-# deliberate scope: the thing a subscriber actually needs to know is where they may work
-# without a permit, and for an EU citizen that area is the **EEA plus Switzerland** — Norway,
-# Iceland and Liechtenstein by the EEA Agreement, Switzerland by the free-movement accord.
-# A Czech subscriber can take a job in Oslo or Zurich as easily as one in Vienna, and could
-# not ask us for either.
-#
-# It was not hypothetical. On the day this changed, production held 28 active Swiss postings,
-# 23 Norwegian and 2 Icelandic that **no subscriber could select** — already ingested, already
-# stored, and reachable only by someone whose remote scope happened to be worldwide. The four
-# codes were already in `COUNTRY_ALIASES` so the gate could *exclude* them; that is what made
-# them invisible rather than merely unoffered.
-#
-# LI has no curated cities of its own beyond Vaduz, which is correct rather than lazy: the
-# whole country is smaller than most of the metropolitan areas in this table.
-COUNTRIES: dict[str, str] = {
+# It was EU-27 for most of this project's life until 2026-08-04, and that was a quiet mistake:
+# on the day it changed, production held 28 active Swiss postings, 23 Norwegian and 2 Icelandic
+# that no subscriber could select — already ingested, reachable only by a worldwide remote
+# scope. The four codes were already in `COUNTRY_ALIASES` so the gate could *exclude* them,
+# which is what made them invisible rather than merely unoffered.
+EEA_COUNTRIES: dict[str, str] = {
     "AT": "Austria", "BE": "Belgium", "BG": "Bulgaria", "HR": "Croatia", "CY": "Cyprus",
     "CZ": "Czechia", "DK": "Denmark", "EE": "Estonia", "FI": "Finland", "FR": "France",
     "DE": "Germany", "GR": "Greece", "HU": "Hungary", "IE": "Ireland", "IT": "Italy",
@@ -62,10 +57,24 @@ COUNTRIES: dict[str, str] = {
     "CH": "Switzerland", "IS": "Iceland", "LI": "Liechtenstein", "NO": "Norway",
 }
 
-# Accepted as *stored* values but not offered in the UI: `regions` could already hold `uk`
-# and `us`, and translating a legacy profile must not lose that (see
-# `countries_and_scope_from_regions`).
-LEGACY_COUNTRIES: dict[str, str] = {"GB": "United Kingdom", "US": "United States"}
+# The selectable set: the EEA + Switzerland, **plus the United Kingdom and the United States**
+# (2026-08-05). GB and US were "stored but not offered" for most of this project's life, on the
+# assumption that every subscriber was an EU/EEA citizen for whom a London- or Austin-onsite
+# role needed a visa and correctly should not appear. That assumption changed: the product now
+# serves UK and US citizens too, and for them an on-site role at home is exactly what they
+# want. Both codes were already in `COUNTRY_ALIASES` and `FOREIGN_CITIES` (so the gate could
+# resolve and formerly *exclude* them), which is what makes this a promotion rather than new
+# plumbing. Note the consequence made explicit in `location_predicate`: a US-located onsite
+# role now surfaces for a subscriber who picked the US, and a US fully-remote role still needs
+# a `worldwide` scope, never `eu` — that is the EEA_COUNTRIES decoupling doing its job.
+#
+# LI has no curated cities beyond Vaduz, which is correct rather than lazy: the whole country
+# is smaller than most of the metropolitan areas in this table.
+COUNTRIES: dict[str, str] = {**EEA_COUNTRIES, "GB": "United Kingdom", "US": "United States"}
+
+# Nothing is stored-but-unoffered any more (GB/US are now in COUNTRIES). Kept as an empty
+# mapping so any caller or test that still references the name resolves to "nothing extra".
+LEGACY_COUNTRIES: dict[str, str] = {}
 KNOWN_COUNTRIES: dict[str, str] = {**COUNTRIES, **LEGACY_COUNTRIES}
 
 # Country names as they appear in posting location text, normalised (see `normalise`).
@@ -228,6 +237,24 @@ CITIES: dict[str, dict[str, str]] = {
     # One city, and that is correct rather than unfinished: Liechtenstein is smaller than
     # most single entries elsewhere in this table.
     "LI": {"vaduz": "Vaduz"},
+    # United States and United Kingdom, curated 2026-08-05 with the countries themselves.
+    # These were resolver-only entries in FOREIGN_CITIES (country, no slug) for the whole of
+    # the project's EEA-only life; promoting a name to a selectable city means MOVING it out of
+    # FOREIGN_CITIES, or `check_no_shadowed_cities` raises at import. Only names that are
+    # unambiguously US/GB are promoted: the Bay Area suburbs, "San Jose" (also Costa Rica) and
+    # names that are also US *and* UK cities (Cambridge, Birmingham) are deliberately left in
+    # FOREIGN_CITIES as country-only, so they still resolve to the right country but carry no
+    # slug — a subscriber's null-city posting passes the gate anyway (see location_predicate).
+    "US": {"san-francisco": "San Francisco", "new-york": "New York",
+           "los-angeles": "Los Angeles", "seattle": "Seattle", "austin": "Austin",
+           "boston": "Boston", "chicago": "Chicago", "washington-dc": "Washington, D.C.",
+           "atlanta": "Atlanta", "dallas": "Dallas", "denver": "Denver",
+           "san-diego": "San Diego", "houston": "Houston", "miami": "Miami",
+           "philadelphia": "Philadelphia", "minneapolis": "Minneapolis"},
+    "GB": {"london": "London", "manchester": "Manchester", "edinburgh": "Edinburgh",
+           "glasgow": "Glasgow", "bristol": "Bristol", "leeds": "Leeds",
+           "cardiff": "Cardiff", "belfast": "Belfast", "oxford": "Oxford",
+           "liverpool": "Liverpool"},
 }
 
 # Alternative spellings a posting might use, per country: alias -> canonical slug. Only
@@ -269,6 +296,14 @@ CITY_ALIASES: dict[str, dict[str, str]] = {
     "ES": {"sevilla": "seville", "saragossa": "zaragoza",
            "palma de mallorca": "palma", "barna": "barcelona"},
     "SE": {"goteborg": "gothenburg", "gothenburg": "gothenburg", "malmoe": "malmo"},
+    # US: the Bay Area's common spellings collapse onto San Francisco, and the two New York
+    # boroughs onto New York — a subscriber picking "San Francisco" wants the metro. Resolver
+    # -only, so not mirrored in geo.ts (the drift test checks CITIES, not CITY_ALIASES).
+    "US": {"sf": "san-francisco", "south san francisco": "san-francisco",
+           "san francisco bay area": "san-francisco", "sf bay area": "san-francisco",
+           "bay area": "san-francisco", "silicon valley": "san-francisco",
+           "nyc": "new-york", "new york city": "new-york", "brooklyn": "new-york",
+           "washington dc": "washington-dc"},
 }
 
 # Single-token city names that are also ordinary words. Matched only when the country is
@@ -292,36 +327,38 @@ _AMBIGUOUS = {"nice", "split", "cork", "essen", "bari", "lund", "faro", "murcia"
 #
 # Three rules hold this table safe, and all three are the `georgia` rule in a new place:
 #
-#   1. **It resolves a country and never a city.** We do not offer cities outside the EEA,
-#      so there is no slug to return and nothing here can reach the picker. It is therefore
-#      deliberately NOT mirrored in `web/lib/geo.ts` — see `test_geo.py`.
-#   2. **It runs after the selectable-city lookup**, so it can never overrule an EEA
-#      resolution. "Berlin" is Germany before this table is ever consulted.
+#   1. **It resolves a country and never a city.** The selectable US/GB cities live in
+#      `CITIES` and resolve to a slug there; this table is the *uncurated remainder* plus
+#      every non-selectable country, and it returns a country with no slug. It is deliberately
+#      NOT mirrored in `web/lib/geo.ts` — see `test_geo.py`.
+#   2. **It runs after the selectable-city lookup**, so it can never overrule a `CITIES`
+#      resolution. "Berlin" is Germany, and "London" is London GB, before this table is ever
+#      consulted.
 #   3. **A name that is also a European city, a common word, or a country stays out.**
 #      Excluded on purpose: `georgia` (US state, already the rule), `cambridge`,
-#      `birmingham`, `manchester`, `paris`, `berlin`, `vienna`, `athens`, `naples`, `milan`,
-#      `dublin`, `odessa`, `moscow`, `victoria`, `phoenix`, `springfield`.
+#      `birmingham`, `paris`, `berlin`, `vienna`, `athens`, `naples`, `milan`,
+#      `dublin`, `odessa`, `moscow`, `victoria`, `phoenix`, `springfield`. (`manchester` was
+#      here until 2026-08-05; it is now a curated GB city.)
 #
-# One consequence is deliberate and worth stating: **US-versus-Canada is not worth being
-# careful about.** "London" here is the English one, so "London, ON" resolves to GB rather
-# than Canada. Neither country is selectable and the gate excludes both identically, so the
-# error is invisible to every subscriber — whereas mistaking a German town for Delaware is
-# not, which is what rules 2 and 3 exist for.
+# One consequence changed on 2026-08-05, when GB and US became selectable: US-versus-Canada now
+# matters where it did not. "London" resolves to GB (a curated city), so "London, ON" resolves
+# to GB rather than Canada — invisible while neither was selectable, a real (if rare) error now.
+# It is accepted: the English London dwarfs the Ontario one in this inventory, and the
+# alternative (dropping London GB) would cost every UK subscriber their capital.
 FOREIGN_CITIES: dict[str, str] = {
-    # United States — sampled from real unresolved locations, most frequent first.
-    "san francisco": "US", "south san francisco": "US", "sf": "US", "sf bay area": "US",
-    "san francisco bay area": "US", "bay area": "US", "silicon valley": "US",
-    "new york": "US", "new york city": "US", "nyc": "US", "brooklyn": "US",
-    "chicago": "US", "austin": "US", "seattle": "US", "bellevue": "US", "redmond": "US",
-    "boston": "US", "cambridge ma": "US", "denver": "US", "boulder": "US",
-    "los angeles": "US", "san diego": "US", "san jose": "US", "santa clara": "US",
-    "sunnyvale": "US", "mountain view": "US", "palo alto": "US", "menlo park": "US",
-    "san mateo": "US", "oakland": "US", "berkeley": "US", "cupertino": "US",
-    "atlanta": "US", "dallas": "US", "houston": "US", "miami": "US", "orlando": "US",
-    "philadelphia": "US", "pittsburgh": "US", "detroit": "US", "minneapolis": "US",
+    # United States — the metros with a curated selectable city (CITIES["US"]) and their common
+    # spellings (CITY_ALIASES["US"]) are deliberately NOT here: those resolve to (US, slug) via
+    # the city lookup, which runs first. What remains is the *uncurated* US remainder — Bay
+    # Area suburbs, smaller metros, and the state names — which resolves to the US with NO slug.
+    # A US-selecting subscriber still gets them, because a null city passes the gate; before
+    # 2026-08-05 the same rows let the EEA gate exclude them.
+    "bellevue": "US", "redmond": "US", "boulder": "US", "san jose": "US",
+    "santa clara": "US", "sunnyvale": "US", "mountain view": "US", "palo alto": "US",
+    "menlo park": "US", "san mateo": "US", "oakland": "US", "berkeley": "US",
+    "cupertino": "US", "orlando": "US", "pittsburgh": "US", "detroit": "US",
     "salt lake city": "US", "las vegas": "US", "portland": "US", "raleigh": "US",
     "charlotte": "US", "nashville": "US", "scottsdale": "US", "tempe": "US",
-    "washington dc": "US", "arlington va": "US", "bentonville": "US", "st louis": "US",
+    "arlington va": "US", "bentonville": "US", "st louis": "US",
     # US state and territory names. "Georgia" is absent for the reason it is absent from
     # COUNTRY_ALIASES; "Washington" is safe because the state and the capital are one country.
     "california": "US", "washington": "US", "washington state": "US",
@@ -329,10 +366,11 @@ FOREIGN_CITIES: dict[str, str] = {
     "massachusetts": "US", "new jersey": "US", "pennsylvania": "US", "colorado": "US",
     "arizona": "US", "florida": "US", "north carolina": "US", "virginia": "US",
     "ohio": "US", "michigan": "US", "oregon": "US", "utah": "US", "tennessee": "US",
-    # United Kingdom and Ireland. Neither is in the EEA table's `CITIES` (GB is not
-    # selectable and Irish cities are), so these carry no city slug either.
-    "london": "GB", "manchester": "GB", "edinburgh": "GB", "glasgow": "GB",
-    "bristol": "GB", "leeds": "GB", "cardiff": "GB", "belfast": "GB", "oxford": "GB",
+    # United Kingdom: the GB cities are now curated and selectable (CITIES["GB"]), so they
+    # resolve to (GB, slug) via the city lookup and are NOT here. `cambridge` and `birmingham`
+    # are the exception — each is also a real US city, and with both countries selectable a
+    # wrong guess is now visible either way, so they are left out of both tables and resolve to
+    # no country (kept for the matcher) rather than to the wrong one.
     # Canada. `ontario` is deliberately absent — it is also a city in California, and it
     # would shadow it in "Ontario, California". `toronto` and `ottawa` already reach the
     # province in every string that matters.
@@ -912,9 +950,12 @@ def location_predicate(profile: dict, alias: str = "p") -> tuple[str, list[Any]]
     if scope == "worldwide":
         remote_gate = "true"
     elif scope == "eu":
+        # EEA_COUNTRIES, not COUNTRIES: "Anywhere in the EU or EEA" must keep meaning the EEA
+        # even though GB and US are now selectable. A US fully-remote role reaches a subscriber
+        # only at `worldwide` scope; picking `eu` must never admit it.
         remote_gate = (f"({alias}.country_code = any(%s)"
                        f" or {alias}.region in ('cz','eu','worldwide'))")
-        params.append(list(COUNTRIES))
+        params.append(list(EEA_COUNTRIES))
     else:
         remote_gate = (f"({alias}.country_code = any(%s)"
                        f" or ({alias}.country_code is null and {alias}.region = any(%s)))")

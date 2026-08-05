@@ -482,6 +482,29 @@ def test_island_never_resolves_to_iceland(location):
     assert geo.resolve_location(location)[0] != "IS"
 
 
+def test_us_and_gb_are_selectable_but_not_in_the_eea_set():
+    """Since 2026-08-05 the product serves UK and US citizens, so GB and US are selectable —
+    but they are NOT in `EEA_COUNTRIES`, which is what the `eu` remote scope means. Conflating
+    the two would silently let 'Anywhere in the EU or EEA' match a US remote role."""
+    assert "US" in geo.COUNTRIES and "GB" in geo.COUNTRIES
+    assert "US" not in geo.EEA_COUNTRIES and "GB" not in geo.EEA_COUNTRIES
+    assert geo.clean_countries(["US", "GB", "DE"]) == ["US", "GB", "DE"]
+    assert geo.resolve_location("Austin, TX") == ("US", "austin")
+    assert geo.resolve_location("Manchester, UK") == ("GB", "manchester")
+
+
+def test_eu_remote_scope_excludes_us_even_when_the_subscriber_selected_us():
+    """A subscriber who picks the US for on-site work but leaves the remote scope at `eu` must
+    not be emailed a US *fully-remote* role: the on-site branch admits US, the remote branch
+    stays the EEA. This pins the EEA_COUNTRIES decoupling in `location_predicate`."""
+    _, params = geo.location_predicate({"countries": ["US"], "remote_scope": "eu"})
+    list_params = [p for p in params if isinstance(p, list)]
+    # The selected-country list (on-site branch) admits US.
+    assert any("US" in p for p in list_params)
+    # The `eu` remote branch uses EEA_COUNTRIES: it has Germany but never US or GB.
+    assert any("DE" in p and "US" not in p and "GB" not in p for p in list_params)
+
+
 @pytest.mark.parametrize("location,expected", [
     # Every string below is real production text, and every one of them resolved to *no
     # country* before 2026-08-04 — which meant `location_predicate` kept it and it spent a
@@ -525,11 +548,14 @@ def test_a_bare_foreign_city_names_its_country(location, expected):
     """The `COUNTRY_ALIASES` rule, applied to postings that write no country at all.
 
     A country we cannot name is a country we cannot exclude — and the largest group in
-    production named none, only a city. None of these countries becomes *selectable*; naming
-    them is purely what lets the gate act instead of handing 7 147 postings to the matcher.
+    production named none, only a city. Naming them is what lets the gate act instead of
+    handing 7 147 postings to the matcher. Since 2026-08-05 US and GB are *selectable* (the
+    product serves UK and US citizens), so the invariant here is not "unselectable" but
+    "non-EEA": none of these resolve to a country in `EEA_COUNTRIES`, which is what the `eu`
+    remote scope and EEA-eligibility gate act on.
     """
     assert geo.resolve_location(location, None)[0] == expected
-    assert expected not in geo.COUNTRIES
+    assert expected not in geo.EEA_COUNTRIES
 
 
 @pytest.mark.parametrize("location", [

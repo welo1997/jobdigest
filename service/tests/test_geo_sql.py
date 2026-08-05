@@ -48,6 +48,10 @@ FIXTURES = {
     "us-remote":        ("US", None, True, "us", "Remote (US)", "remote"),
     "worldwide-remote": (None, None, True, "worldwide", "Remote, worldwide", "remote"),
     "de-remote":        ("DE", None, True, "eu", "Remote (Germany)", "remote"),
+    # US and GB became selectable on 2026-08-05. An on-site US/GB role must now surface for a
+    # subscriber who picked that country, and stay hidden from an EEA-only one.
+    "us-onsite":        ("US", "san-francisco", False, "us", "San Francisco", None),
+    "gb-onsite":        ("GB", "london", False, "uk", "London", None),
 }
 
 
@@ -168,6 +172,27 @@ def test_no_cities_means_any_city_in_the_country():
     got = allowed({"countries": ["CZ"], "cities": [], "remote_scope": "eu"})
     assert {"prague-onsite", "brno-onsite", "brno-hybrid"} <= got
     assert "berlin-onsite" not in got
+
+
+# ------------------------------------------------------------------ US / GB selectable ---
+
+def test_a_us_onsite_role_surfaces_for_a_us_subscriber_but_not_an_eea_one():
+    """The point of making US selectable (2026-08-05): a US citizen wants on-site US roles,
+    not only remote ones. The same posting must stay hidden from an EEA-only subscriber."""
+    assert "us-onsite" in allowed({"countries": ["US"], "remote_scope": "eu"})
+    assert "gb-onsite" in allowed({"countries": ["GB"], "remote_scope": "eu"})
+    assert "us-onsite" not in allowed(PRAGUE_ONLY)
+    assert "gb-onsite" not in allowed(PRAGUE_ONLY)
+
+
+def test_eu_scope_excludes_a_us_remote_role_even_for_a_us_subscriber():
+    """The EEA_COUNTRIES decoupling: picking the US for on-site work must not turn `eu` scope
+    ("Anywhere in the EU or EEA") into a channel for US fully-remote roles. The on-site US
+    role is admitted; the remote US role needs `worldwide`."""
+    eu = allowed({"countries": ["US"], "remote_scope": "eu"})
+    assert "us-onsite" in eu and "us-remote" not in eu
+    wide = allowed({"countries": ["US"], "remote_scope": "worldwide"})
+    assert {"us-onsite", "us-remote"} <= wide
 
 
 def test_several_cities_in_one_country():

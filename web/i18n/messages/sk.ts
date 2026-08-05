@@ -75,6 +75,7 @@ const sk: Messages = {
       PL: "Poľsko", PT: "Portugalsko", RO: "Rumunsko", SK: "Slovensko", SI: "Slovinsko",
       ES: "Španielsko", SE: "Švédsko",
       CH: "Švajčiarsko", IS: "Island", LI: "Lichtenštajnsko", NO: "Nórsko",
+      GB: "Spojené kráľovstvo", US: "Spojené štáty",
     },
     remoteScope: {
       country: "Len v krajinách, ktoré som vybral(a)",
