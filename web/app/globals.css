@@ -349,6 +349,15 @@ a.hidden-link:hover{color:var(--brand);text-decoration:underline;}
      0,2,0) beats the `.hero`/`.section` shorthands for the left/right longhands while leaving
      their vertical padding intact, so text and card edges share one consistent left line. */
   .wrap.hero,.wrap.section{padding-left:24px;padding-right:24px;}
+  /* The same edge-hugging on the logged-in / manage pages: `.page-head` zeroes its horizontal
+     padding (`padding:40px 0 8px`), and `.panel`/`.matches`/`.note` are max-width boxes whose
+     `margin:auto` collapses to 0 below their width — so the header text, the form card and the
+     match cards all sat flush against the screen edge on phones. Padding for the wrappers,
+     margin for `.note` (a coloured box that carries its own padding). The in-`.card` note keeps
+     its inline `margin:0` and is unaffected. */
+  .wrap.page-head{padding-left:24px;padding-right:24px;}
+  .panel,.matches{padding-left:24px;padding-right:24px;}
+  .note{margin-left:24px;margin-right:24px;}
 }
 @media (max-width:560px){.hero{padding:32px 0 12px;}.row2{grid-template-columns:1fr;}.wizard{padding:20px;}
   .wz-q{font-size:1.3rem;}.brand{font-size:1.15rem;}
