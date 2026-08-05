@@ -71,6 +71,9 @@ COMPANIES = [
     "blooberteam",    #  3 — Bloober Team SA, Kraków + remote
     # IT re-run, 2026-08-05, identity-checked: company name Mia-Platform, Milano.
     "miaplatform",    #  5 — Mia-Platform, Milano (+ London), cloud-native platform
+    # DE pass, 2026-08-05, identity-checked: company name Adjust, Amstelveen/Berlin. Rejected
+    # recruitee:personio, whose board is company "FD Sandbox" (Recruitee demo content).
+    "adjust",         # 29 — Adjust (adtech), Amstelveen NL + Berlin
 ]
 
 #: Slugs that answer with a live board which is **not the company whose name they spell**.

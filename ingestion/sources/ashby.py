@@ -120,6 +120,33 @@ ORGS = [
     "anyscale",    #  19 — San Francisco / Bengaluru (Ray / LLM infra)
     "hims-and-hers",  # 102 — New Albany OH; a lot of facilities roles, real US employer
     "montecarlodata", # 6 — London / New York / San Francisco (data observability)
+    # GB on-site revisit, 2026-08-05. These UK-based boards were found in the GB pass but
+    # SKIPPED while GB was gated out (UK-onsite reached nobody). Now GB is selectable, so a UK
+    # subscriber wants exactly these. From the same gb_ats_discovery.csv, identity-checked.
+    # Still skipped: cleo/immersivelabs/tractable (US), nium (APAC), zego's 2-job Ashby board
+    # (its 33-job Workable board is taken instead), bloom/healx (ambiguous/tiny).
+    "lendable",       # 63 — London (consumer lending)
+    "faculty",        # 62 — London / UK-remote (applied AI)
+    "allica-bank",    # 39 — London / Milton Keynes / Manchester (SME bank)
+    "thought-machine",# 40 — London-majority (core banking)
+    "oaknorth",       # 28 — London (SME bank)
+    "paddle",         # 21 — UK (payments/SaaS)
+    "marshmallow",    # 17 — London (insurtech)
+    "genomics",       # 13 — London (Genomics England)
+    "zilch",          # 13 — UK (BNPL)
+    "improbable",     #  9 — London + international-remote
+    "freetrade",      #  8 — London (investing)
+    "griffin",        #  3 — London / remote-UK (banking-as-a-service)
+    "skyscanner",     # 13 — Edinburgh / Glasgow / London (travel)
+    # DE pass, 2026-08-05, identity-checked (see the note in target_companies.csv for the
+    # generic-slug impostors rejected here: eon, clark).
+    "deepl",          # 49 — Cologne / Berlin (translation AI)
+    "pliant",         # 43 — Berlin (corporate cards)
+    "camunda",        # 40 — Berlin (process orchestration)
+    "moss",           # 35 — Berlin / Amsterdam (spend management)
+    "tourlane",       #  9 — Berlin (travel)
+    "alephalpha",     #  2 — Heidelberg (sovereign AI); NOT lever:aleph, which is an ad agency
+    "babbel",         #  2 — Berlin (language learning)
 ]
 
 # Map Ashby address country names to ISO-3166 alpha-2.

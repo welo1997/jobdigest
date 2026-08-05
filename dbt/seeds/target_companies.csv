@@ -168,4 +168,21 @@ Together AI,greenhouse,togetherai,ai
 Bill.com,greenhouse,billcom,fintech
 Komodo Health,greenhouse,komodohealth,health-tech
 Webflow,greenhouse,webflow,saas
+# GB on-site revisit, 2026-08-05 (GB now selectable).
+Auto Trader,greenhouse,autotrader,automotive-marketplace
+# DE pass, 2026-08-05 (Germany had no dedicated list). Identity-checked. Many DE corporates run
+# SuccessFactors (unreadable) or Personio, so the yield is Workday big-corps + these startups.
+# Rejected impostors on generic slugs: lever:aleph (APAC ad agency, not Aleph Alpha — the real
+# one is ashby:alephalpha, Heidelberg), lever:zeiss (an SF company), ashby:eon (Culver City
+# aerospace, not E.ON), ashby:clark (NYC-only, not the German insurtech), recruitee:personio
+# ("FD Sandbox" demo). Black Forest Labs answers on both greenhouse and ashby — greenhouse taken.
+Flix,greenhouse,flix,mobility
+Helsing,greenhouse,helsing,defense-ai
+Isar Aerospace,greenhouse,isaraerospace,aerospace
+Parloa,greenhouse,parloa,ai
+Commercetools,greenhouse,commercetools,ecommerce
+Black Forest Labs,greenhouse,blackforestlabs,ai
+Vay,greenhouse,vay,mobility
+Grover,greenhouse,grover,consumer-tech
+Spryker,greenhouse,spryker,ecommerce
 Showpad,greenhouse,showpad,saas

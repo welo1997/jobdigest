@@ -62,6 +62,13 @@ ACCOUNTS = [
     "yapily",        # 11 — Vilnius (LT) + Málaga (ES) + London
     # IT re-run, 2026-08-05, identity-checked against the postings.
     "moneyfarm",     # 14 — Milan 10 / Cagliari 2 / London 2, wealth management
+    # GB on-site revisit, 2026-08-05 (GB now selectable). UK-based, from gb_ats_discovery.csv.
+    "starling-bank", # 87 — UK (digital bank)
+    "kroo",          # 21 — London / Manchester (bank)
+    "zego",          # 33 — London (insurtech); its Ashby board (2 jobs) is not taken
+    "zoopla",        #  5 — London (property)
+    # DE pass, 2026-08-05, identity-checked.
+    "scalable",      #  5 — Munich (Scalable Capital, digital investing)
 ]
 
 _TIMEOUT = 20

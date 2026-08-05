@@ -155,6 +155,19 @@ SITES: list[tuple[str, str, str]] = [
     ("jj", "wd5", "JJ"),                             # 1746 — Johnson & Johnson, US + IE/BE EEA
     ("crowdstrike", "wd5", "crowdstrikecareers"),    #  425 — cybersecurity, US + remote
     ("servicetitan", "wd1", "ServiceTitan"),         #   88 — US home-services software
+    # GB on-site revisit, 2026-08-05 (GB now selectable, so UK-onsite is wanted — these were
+    # skipped as N+1 UK boards while GB was gated). Triples read off gb_ats_discovery.csv.
+    ("barclays", "wd3", "External_Career_Site_Barclays"),  # 1053 — UK bank, some EU (Dublin)
+    ("diageo", "wd3", "Diageo_Careers"),             #  146 — UK drinks multinational
+    ("lbg", "wd3", "lbg_Careers"),                   #   98 — Lloyds Banking Group, UK
+    ("darktrace", "wd3", "DarktaceExternal"),        #   75 — Cambridge/London cyber. The site
+    #   slug really is misspelled "Darktace" on their own careers page.
+    # DE pass, 2026-08-05. Triples read off each careers page; EEA-checked. ThyssenKrupp answers
+    # on two: `steeleurope` (German, Hamborn/Andernach) is taken; `thyssenkruppmaterialsna` is
+    # US/Canada warehouse work and was not.
+    ("trumpf", "wd3", "TRUMPF_Graduates_and_Professionals"),  # 251 — Ditzingen machine tools
+    ("covestro", "wd3", "cov_external"),             #  130 — Leverkusen materials
+    ("steeleurope", "wd3", "Job_Board"),             #   71 — ThyssenKrupp Steel Europe, DE
 ]
 
 #: Role terms, matched by Workday's own full-text search. English-only for the same reason as

@@ -1,0 +1,115 @@
+company,domain,tier
+# German employers likely to run a public ATS board, ordered roughly by prominence.
+# `tier` is a rough prominence band, used only to order the probe and the report.
+# Source: hand-assembled, like scripts/cz_companies.csv. Germany is the largest EU economy and
+# had no dedicated list; Adzuna covers the DE market as an aggregator, so this adds employers
+# Adzuna misses (curated ATS boards). Many DE corporates run SuccessFactors (unreadable without
+# a browser) or Personio (terms unresolved), so the yield concentrates in Workday big-corps and
+# greenhouse/lever/ashby startups. Already-carried omitted (forto, choco, tacto, airbus, etc.).
+#
+# --- tier 1: large corporates (mostly Workday / SuccessFactors) ---
+SAP,sap.com,1
+Siemens,siemens.com,1
+Bosch,bosch.com,1
+BMW,bmwgroup.com,1
+Mercedes-Benz,mercedes-benz.com,1
+Volkswagen,volkswagen.de,1
+BASF,basf.com,1
+Bayer,bayer.com,1
+Allianz,allianz.com,1
+Deutsche Bank,db.com,1
+Deutsche Telekom,telekom.com,1
+Merck Group,merckgroup.com,1
+Continental,continental.com,1
+Adidas,adidas.com,1
+Puma,puma.com,1
+Infineon,infineon.com,1
+Henkel,henkel.com,1
+Fresenius,fresenius.com,1
+E.ON,eon.com,1
+RWE,rwe.com,1
+Deutsche Post DHL,dhl.com,1
+Lufthansa,lufthansagroup.com,1
+Munich Re,munichre.com,1
+ThyssenKrupp,thyssenkrupp.com,1
+Beiersdorf,beiersdorf.com,1
+Symrise,symrise.com,1
+Brenntag,brenntag.com,1
+Knorr-Bremse,knorr-bremse.com,1
+MTU Aero Engines,mtu.de,1
+Rheinmetall,rheinmetall.com,1
+Zeiss,zeiss.com,1
+Trumpf,trumpf.com,1
+Festo,festo.com,1
+SICK,sick.com,1
+Miele,miele.com,1
+Vaillant,vaillant.com,1
+Schaeffler,schaeffler.com,1
+ZF Friedrichshafen,zf.com,1
+Evonik,evonik.com,1
+Covestro,covestro.com,1
+#
+# --- tier 2: tech / scale-ups (greenhouse / lever / ashby / personio) ---
+N26,n26.com,2
+Trade Republic,traderepublic.com,2
+Celonis,celonis.com,2
+GetYourGuide,getyourguide.com,2
+HelloFresh,hellofresh.com,2
+Zalando,zalando.com,2
+About You,aboutyou.com,2
+Contentful,contentful.com,2
+Adjust,adjust.com,2
+Babbel,babbel.com,2
+Raisin,raisin.com,2
+Scalable Capital,scalable.capital,2
+Wefox,wefox.com,2
+Taxfix,taxfix.com,2
+Grover,grover.com,2
+Sennder,sennder.com,2
+Enpal,enpal.de,2
+Personio,personio.com,2
+Mambu,mambu.com,2
+Solaris,solarisgroup.com,2
+Flix,flix.com,2
+Volocopter,volocopter.com,2
+Lilium,lilium.com,2
+Agile Robots,agile-robots.com,2
+Isar Aerospace,isaraerospace.com,2
+1Komma5,1komma5.com,2
+Wooga,wooga.com,2
+Kontist,kontist.com,2
+Moss,getmoss.com,2
+Pliant,getpliant.com,2
+Finn,finn.com,2
+Clark,clark.de,2
+Coachhub,coachhub.com,2
+Staffbase,staffbase.com,2
+Doctolib DE,doctolib.de,2
+Commercetools,commercetools.com,2
+Spryker,spryker.com,2
+Camunda,camunda.com,2
+Neo4j,neo4j.com,2
+Aiven,aiven.io,2
+Instana,instana.com,2
+Sumup,sumup.com,2
+Bitpanda,bitpanda.com,2
+Deel DE,deel.com,2
+#
+# --- tier 3: mittelstand / smaller tech ---
+Personio,jobs.personio.de,3
+DeepL,deepl.com,3
+Ada Health,ada.com,3
+Merantix,merantix.com,3
+Parloa,parloa.com,3
+Helsing,helsing.ai,3
+Black Forest Labs,bfl.ai,3
+Aleph Alpha,aleph-alpha.com,3
+Langfuse,langfuse.com,3
+Jina AI,jina.ai,3
+Kraftblock,kraftblock.com,3
+Tourlane,tourlane.com,3
+Kry,kry.se,3
+Vay,vay.io,3
+Wingcopter,wingcopter.com,3
+Planet A,planet-a.com,3
+Circus,circus-group.com,3

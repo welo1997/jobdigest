@@ -65,7 +65,11 @@ ORGS = ["spotify", "qonto", "contentsquare", "aircall", "swile", "blablacar",
         "sophos",         # 110 — cybersecurity, Germany seat + global remote among UK/US/ZA
         # US-HQ pass, 2026-08-05 (US now selectable). Identity-checked against the postings.
         "includedhealth", # 143 — US health navigation
-        "sysdig"]         #  12 — cloud security, US + global remote
+        "sysdig",         #  12 — cloud security, US + global remote
+        # GB on-site revisit, 2026-08-05 (GB now selectable).
+        "moneyboxapp",    #  10 — London (saving/investing app)
+        # DE pass, 2026-08-05, identity-checked.
+        "finn"]           #  32 — Munich (car subscription); NOT lever:aleph/zeiss (impostors)
 
 
 class LeverSource(BaseSource):
