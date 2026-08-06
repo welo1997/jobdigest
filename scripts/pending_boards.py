@@ -14,7 +14,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 SUPPORTED = {"greenhouse", "lever", "ashby", "smartrecruiters", "workday",
-             "recruitee", "workable", "oraclecloud"}
+             "recruitee", "workable", "oraclecloud", "teamtailor"}
 
 
 def carried_tokens() -> set[str]:

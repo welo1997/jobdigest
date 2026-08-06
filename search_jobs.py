@@ -262,8 +262,15 @@ def gather(include_cz: bool) -> list[JobPosting]:
         from ingestion.sources.mpsv import MpsvSource
         from ingestion.sources.recruitee import RecruiteeSource
         from ingestion.sources.workable import WorkableSource
+        # Teamtailor is the same shape as Recruitee/Workable — a curated multi-country ATS
+        # read from a keyless public feed. It reaches the thinnest selectable countries
+        # (EE/LV/FI/DK) whose product companies run Teamtailor rather than a supported ATS,
+        # which the Greenhouse/Ashby/Lever passes could not. Permitted on its terms (no
+        # anti-scraping clause; robots + Content-Signal affirmatively allow it) — see the
+        # module docstring. Personio was evaluated alongside and skipped (unreadable terms).
+        from ingestion.sources.teamtailor import TeamtailorSource
         sources += [StartupJobsSource, CocumaSource, RecruiteeSource, WorkableSource,
-                    MpsvSource]
+                    TeamtailorSource, MpsvSource]
 
     postings: list[JobPosting] = []
     for cls in sources:

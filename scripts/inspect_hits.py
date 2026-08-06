@@ -21,7 +21,7 @@ import requests  # noqa: E402
 
 TIMEOUT = 20
 SUPPORTED = {"greenhouse", "lever", "ashby", "smartrecruiters", "workday",
-             "recruitee", "workable", "oraclecloud"}
+             "recruitee", "workable", "oraclecloud", "teamtailor"}
 
 
 def _get(url, method="GET", **kw):
@@ -75,6 +75,13 @@ def sample(ats, tok, extra):
             reqs = items[0].get("requisitionList", []) if items else []
             return (items[0].get("TotalJobsCount", 0) if items else 0), \
                    [(p.get("Title", ""), p.get("PrimaryLocation", "")) for p in reqs[:8]]
+        if ats == "teamtailor":
+            r = _get(f"https://{tok}.teamtailor.com/jobs.json")
+            j = r.json().get("items", []) if r else []
+            def loc(p):
+                a = (((p.get("_jobposting") or {}).get("jobLocation") or [{}])[0] or {}).get("address", {}) or {}
+                return f"{a.get('addressLocality','')}, {a.get('addressCountry','')}"
+            return len(j), [(p.get("title", ""), loc(p)) for p in j[:8]]
         if ats == "workday":
             shard, _, site = extra.partition("/")
             url = f"https://{tok}.{shard}.myworkdayjobs.com/wday/cxs/{tok}/{site}/jobs"

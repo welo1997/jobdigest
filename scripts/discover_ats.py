@@ -131,7 +131,7 @@ FINGERPRINTS: list[tuple[str, re.Pattern[str]]] = [
 #: them printed as `no`, which is the same thing as not finding them.
 #: `test_discovery_supported.py` fails if this drifts from the adapters again.
 SUPPORTED = {"greenhouse", "lever", "ashby", "smartrecruiters", "workday",
-             "recruitee", "workable", "oraclecloud"}
+             "recruitee", "workable", "oraclecloud", "teamtailor"}
 
 #: Alma Career's own ATS. A hit is recorded but must NOT be treated as a free win: the
 #: careers page is served from the infrastructure whose terms excluded jobs.cz and profesia.
@@ -303,6 +303,12 @@ def _verify(hit: Hit) -> None:
                                   json={"limit": 1, "offset": 0, "searchText": ""},
                                   timeout=TIMEOUT)
                 hit.jobs = int(r.json().get("total", 0)) if r.status_code == 200 else -1
+        elif ats == "teamtailor":
+            # Keyless public JSON Feed. A wrong slug 404s, so a 200 with items is a real
+            # board — but see inspect_hits.py before wiring: the feed carries the real
+            # hiringOrganization name and per-posting country, so identity is verifiable.
+            r = _get_api(f"https://{tok}.teamtailor.com/jobs.json")
+            hit.jobs = len(r.json().get("items", [])) if r else -1
         else:
             hit.note = "no public verify endpoint"
     except (ValueError, KeyError, TypeError, requests.RequestException):
@@ -353,7 +359,7 @@ def slug_candidates(company: str, domain: str) -> list[str]:
 #: `(tenant, shard, slug)` triple and the slug is unguessable — brute force found 2 sites in
 #: 2 568 attempts. Only the careers-page scan can find a Workday triple, by reading it.
 API_PROBEABLE = ["greenhouse", "lever", "ashby", "smartrecruiters", "recruitee",
-                 "workable", "personio", "bamboohr"]
+                 "workable", "teamtailor", "personio", "bamboohr"]
 
 
 def probe_api_slugs(company: str, domain: str, tier: str,

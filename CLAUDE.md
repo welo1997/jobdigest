@@ -765,12 +765,32 @@ goes red. A test that cannot fail documents nothing.
   pro uživatele"*, whose §4.11 forbids automated processing and whose object is *"databáze Alma
   Career"*, the company's databases generally rather than one portal's. `discover_ats.py`
   already marks it `RESTRICTED`; leave it that way and do not treat a Teamio hit as a free win.
-- **Personio is unresolved, not refused — and still not built.** 8 companies, 27 jobs. Its
-  marketing site returned **429 to every path tried** (`/legal-notice/`, `/imprint/`,
-  `/terms/`, and the `.de` equivalents), so its terms could not be read at all. Permission
-  unestablished is not permission, so it is skipped; but record it as *unresolved* so a future
-  session re-reads the document rather than re-deriving the whole question. At 27 jobs it is
-  not worth much effort either way.
+- **Personio is unresolved, not refused — and still not built** (re-checked 2026-08-06). Its
+  marketing site returned **429/403 to every path tried** (`/legal-notice/`, `/imprint/`,
+  `/terms/`, and the `.de` equivalents), *again*, so its governing terms still could not be
+  read. Two findings from the re-check that make it worse than merely unresolved: the public
+  `{tenant}.jobs.personio.de/xml` feed **answers with a job count for bogus slugs**
+  (`amazon`, `johnson`, `kbc` — none are Personio customers), so a live 200 is not evidence
+  the board is that company's, a recruitee-style impostor trap with no `hiringOrganization`
+  to check against; and the feed's *documented* consumers are the employer's own website and
+  Personio's multiposting **partners** (GoHiring/JOIN), not arbitrary third parties. Permission
+  unestablished is not permission → skipped. Do not build it on the strength of the feed
+  merely working. The genuine thin-country firms found on it (Intigriti BE, Kevin LT, IQM FI —
+  though IQM is also on Teamtailor and taken there) are the reason the temptation recurs.
+- **Teamtailor IS built and permitted** (`ingestion/sources/teamtailor.py`, added 2026-08-06).
+  Settled on its terms, not robots alone: Teamtailor publishes **no Terms of Service** governing
+  career-site visitors (footer is Privacy/Cookie/Security/Conduct/Modern-Slavery only), its
+  career-site `robots.txt` **allows** `/jobs/` and carries `Content-Signal: search=yes,
+  ai-input=yes` (only `ai-train=no` — and we do not train), and the keyless public JSON Feed at
+  `{tenant}.teamtailor.com/jobs.json` exists to be read. It is the same shape as
+  recruitee/workable — a curated multi-country ATS in the `include_cz` block — and reaches the
+  thinnest selectable countries (EE/LV/FI/DK) whose product companies run Teamtailor rather than
+  a supported ATS: 11 identity-checked tenants, ~103 postings (LV 28, FI 10, EE 6, DK 2). The
+  feed carries the real `hiringOrganization.name` (so identity is off the feed, never the slug),
+  a per-posting ISO country, `baseSalary` and `datePosted`. No source `remote_signal` (the feed
+  has no structured remote flag — left to the downstream text classifier), and talent-pool /
+  "submit your CV" rows are dropped by title. `discover_ats.py`/`inspect_hits.py`/
+  `pending_boards.py` now verify it, and `test_teamtailor.py` pins the guarantees.
 - **Never use LinkedIn beyond its public RSS** — account ban risk, and never Playwright. As
   of 2026-08-01 that RSS returns 0 entries, as does EuroJobs (Cloudflare interstitial), so
   both adapters are **not wired into `gather()`**; the README used to list them as coverage.

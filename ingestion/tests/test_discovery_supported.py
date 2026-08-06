@@ -47,7 +47,8 @@ def test_every_supported_name_has_an_adapter():
 
 
 @pytest.mark.parametrize("ats", ["greenhouse", "lever", "ashby", "smartrecruiters",
-                                 "workday", "recruitee", "workable", "oraclecloud"])
+                                 "workday", "recruitee", "workable", "oraclecloud",
+                                 "teamtailor"])
 def test_every_live_ats_adapter_is_marked_supported(ats):
     """The direction that actually lost findings: an adapter we run, reported as `no`.
 
