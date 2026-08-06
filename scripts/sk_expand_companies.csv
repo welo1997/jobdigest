@@ -1,0 +1,36 @@
+company,domain,tier
+# SK expansion batch (2026-08-06). Fresh Slovak product, SaaS, gaming, deeptech, software-house
+# and e-commerce employers NOT already in sk_companies.csv or cz_companies.csv. Slovakia has no
+# national register and profesia.sk/worki.sk are off-limits, so curated ATS boards are the ONLY
+# open route. Hand-assembled; domains best-effort (API-probe path needs only the name).
+# --- e-commerce / consumer scaleups ---
+Dedoles,dedoles.sk,1
+Nay,nay.sk,2
+Pelikan,pelikan.sk,3
+# --- fintech ---
+Finax,finax.eu,2
+# --- product / SaaS / startups ---
+Nicereply,nicereply.com,2
+Staffino,staffino.com,2
+CulturePulse,culturepulse.ai,3
+KInIT,kinit.sk,3
+# --- gaming studios ---
+Cauldron,cauldron.sk,2
+Nine Rocks Games,ninerocksgames.com,2
+# --- deeptech / hardware / space ---
+GA Drilling,gadrilling.com,2
+Spacemanic,spacemanic.com,3
+Aeromobil,aeromobil.com,3
+Klein Vision,klein-vision.com,3
+MicroStep,microstep.eu,3
+# --- software houses / IT services ---
+PosAm,posam.sk,2
+Ditec,ditec.sk,2
+Ipesoft,ipesoft.com,3
+Softip,softip.sk,3
+Excited,excited.agency,3
+Wezeo,wezeo.com,3
+Ardaco,ardaco.com,3
+Deverto,deverto.sk,3
+Interway,interway.sk,3
+Anodius,anodius.com,3
