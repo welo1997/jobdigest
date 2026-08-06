@@ -79,6 +79,12 @@ COMPANIES = [
     "lansweeper",     # 26 — Ghent (BE) HQ; US-weighted board but genuine, recruitee is cheap
     "pvcase",         # 15 — Vilnius (LT) solar-design; all remote-tagged
     "deepsea",        #  2 — Deepsea (GR) maritime AI, remote engineering roles
+    # CZ expansion pass, 2026-08-06. Genuine Czech product companies, each identity-checked
+    # against its own postings (company name + city), the exact segment lost with Jobs.cz.
+    "shoptet",        #  5 — Praha, e-commerce platform (all 5 Prague: PHP/Node, Shoptet Pay)
+    "confirmo",       #  7 — Prague crypto-payments; remote-heavy (DevOps, Java) + Dubai. The
+    #                       `roi` slug for Roi Hunter was rejected here — it is a Berlin company.
+    "safetica",       #  2 — Brno data-loss-prevention security; Prague + Bogotá on the board
 ]
 
 #: Slugs that answer with a live board which is **not the company whose name they spell**.

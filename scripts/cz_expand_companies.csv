@@ -1,0 +1,60 @@
+company,domain,tier
+# Expansion batch (2026-08-06). Fresh CZ/SK product, SaaS, gaming, fintech, security,
+# betting-tech and engineering employers NOT already in cz_companies.csv. Hand-assembled,
+# deliberately NOT derived from jobs.cz (Alma Career terms). tier = rough prominence, orders
+# the probe/report only. Domains are best-effort; the API-probe path only needs the name.
+# --- prominent / large ---
+onsemi,onsemi.com,1
+Shoptet,shoptet.cz,1
+Kontent.ai,kontent.ai,1
+Tipsport,tipsport.cz,1
+Sazka,sazka.cz,1
+Fortuna Entertainment,ifortuna.cz,1
+BTL Medical Technologies,btlnet.com,1
+Garrett Motion,garrettmotion.com,1
+Dame jidlo,damejidlo.cz,1
+Muziker,muziker.com,1
+# --- SaaS / product / AI ---
+General Bytes,generalbytes.com,2
+Confirmo,confirmo.net,2
+Born Digital,borndigital.ai,2
+Roi Hunter,roihunter.com,2
+Meiro,meiro.io,2
+Spaceflow,spaceflow.io,2
+Feedyou,feedyou.ai,2
+Superface,superface.ai,2
+Ecomail,ecomail.cz,2
+Tabidoo,tabidoo.cz,2
+Simplity,simplity.eu,2
+# --- fintech / crypto ---
+Investown,investown.cz,2
+Upvest,upvest.cz,2
+Roger,roger.cz,2
+Dateio,dateio.eu,2
+Fumbi,fumbi.network,2
+# --- security ---
+Safetica,safetica.com,2
+GreyCortex,greycortex.com,2
+# --- gaming studios ---
+Craneballs,craneballs.com,2
+DIVR Labs,divrlabs.com,2
+Fatbot Games,fatbotgames.com,3
+Perun Creative,peruncreative.com,3
+Superscale,superscale.com,3
+# --- e-commerce / consumer / mobility ---
+Rekola,rekola.cz,3
+HoppyGo,hoppygo.com,3
+Mironet,mironet.cz,3
+Lekarna.cz,lekarna.cz,3
+Upgates,upgates.cz,3
+Fapi,fapi.cz,3
+Boataround,boataround.com,3
+# --- SK/CZ software houses & consultancies ---
+GoodRequest,goodrequest.com,2
+Ableneo,ableneo.com,3
+Touch4IT,touch4it.com,3
+Pygmalios,pygmalios.com,3
+AITOM Digital,aitom.cz,3
+# --- engineering / hardware / instruments ---
+Delong Instruments,delong.cz,3
+Elmarco,elmarco.com,3

@@ -77,6 +77,10 @@ ACCOUNTS = [
     "aerones",       # 50 — Riga (LV) 20 + US wind-ops. Latvian wind-turbine robotics; the
     #                       biggest single LV board found (LV held ~11 active postings).
     "flowxai",       # 25 — Bucharest (RO) 10 + Budapest/Warsaw/Gdańsk. Romanian banking AI.
+    # CZ expansion pass, 2026-08-06, identity-checked from the VPS (local IP was 429'd):
+    # account name "ROI Hunter", all 4 postings Brno, Czechia (Backend Dev, Product Designer,
+    # Product/Campaign Manager, IT Technician). The recruitee `roi` slug is a Berlin impostor.
+    "roi-hunter",    #  4 — Brno (CZ) adtech; the bare `roi` recruitee slug is NOT this company.
 ]
 
 _TIMEOUT = 20

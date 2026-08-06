@@ -123,6 +123,21 @@ SITES: list[tuple[str, str, str, str]] = [
     #     ignores an unrecognised `siteNumber` — while `CX_1001` returns a strict subset of
     #     69. A live count proves the tenant; only the difference between the two proves the
     #     site.
+    # CZ expansion pass, 2026-08-06. Two industrials whose Czech engineering slice no other
+    # adapter reaches — the same rationale as Vertiv/Honeywell/Emerson above. Both site slugs
+    # were read off the employer's own careers page, and both are single-site tenants: the
+    # bogus `CX_99999` returns the identical count, so the slug is not a filter here and a full
+    # pull already yields every Czech row. The non-CZ bulk (US/Asia) resolves to non-selectable
+    # countries and is dropped by the location gate, so it never reaches a shortlist.
+    ("hctz", "us2", "CX_1001", "onsemi"),
+    #    657 — US/PH/IN/MY dominate, but **29 CZ**, and they are the prize: onsemi's Brno site
+    #    is a full analog/digital chip-design centre (ASIC/RTL, memory architects, design
+    #    directors, analog design engineers) plus engineering at Rožnov pod Radhoštěm. ~5 of
+    #    the 29 are fab operators/shift-leads; the rest are senior engineering nothing else here
+    #    carries. Identity-checked against the postings' own Czech locations.
+    ("ehth", "em2", "CX_2001", "Garrett Motion"),
+    #    107 — the best CZ/SK ratio of the industrials at 28%: **22 CZ + 8 SK**, Garrett's Brno
+    #    turbocharger R&D/engineering centre. CN/US/RO/IN/MX make up the rest and gate out.
 ]
 
 #: Oracle's own ceiling. Asking for more returns 200; `_page` strides by what it receives.
