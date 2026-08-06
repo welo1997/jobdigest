@@ -73,6 +73,10 @@ ACCOUNTS = [
     "adverity",      #  7 — Vienna (AT) 3 of 7, adtech/analytics
     "m-files",       # 16 — Tampere / Helsinki / Lappeenranta (FI) + Stockholm, doc mgmt
     "fenergocareers",#  8 — Dublin (IE) regtech; Dublin seats among London/NY
+    # Expansion pass 2, 2026-08-06 (PT/RO/LV/EE focus), identity-checked against the postings.
+    "aerones",       # 50 — Riga (LV) 20 + US wind-ops. Latvian wind-turbine robotics; the
+    #                       biggest single LV board found (LV held ~11 active postings).
+    "flowxai",       # 25 — Bucharest (RO) 10 + Budapest/Warsaw/Gdańsk. Romanian banking AI.
 ]
 
 _TIMEOUT = 20

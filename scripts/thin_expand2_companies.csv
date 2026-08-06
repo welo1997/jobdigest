@@ -1,0 +1,55 @@
+company,domain,tier
+# Expansion pass 2 — 2026-08-06. NEW names only, checked against thin_countries_companies.csv,
+# thin_expand_companies.csv and sk_companies.csv. Focused on the four countries still thin after
+# pass 1 got zero supported-ATS boards in them: PT, RO, LV, EE. Product/tech firms, because
+# those run public Greenhouse/Lever/Ashby/Workable/Recruitee/Teamtailor boards. Identity +
+# city MUST be checked with inspect_hits.py before wiring — a live 200 is not proof.
+# --- Portugal (PT) ---
+Infraspeak,infraspeak.com,1
+Jscrambler,jscrambler.com,2
+Aptoide,aptoide.com,2
+Casafari,casafari.com,2
+Rows,rows.com,2
+Xgeeks,xgeeks.io,3
+Kevel,kevel.com,2
+Uniplaces,uniplaces.com,3
+YData,ydata.ai,3
+Switch,switchpayments.com,3
+Loqr,loqr.io,3
+Utrust,utrust.com,3
+Prodsmart,prodsmart.com,3
+Muzzley,muzzley.com,3
+Zaask,zaask.com,3
+# --- Romania (RO) ---
+FlowX AI,flowx.ai,1
+Fortech,fortech.ro,2
+Roweb,roweb.ro,3
+Wolfpack Digital,wolfpack-digital.com,3
+Innoship,innoship.com,3
+Questo,questoapp.com,3
+Flip,flip.ro,2
+Frisbo,frisbo.ro,3
+Modex,modex.tech,3
+TotalSoft,totalsoft.ro,3
+Bitstone,bitstone.io,3
+Soleadify,soleadify.com,3
+Netopia Payments,netopia-payments.com,3
+Cegeka Romania,cegeka.com,2
+Druid AI,druidai.com,2
+# --- Latvia (LV) ---
+Aerones,aerones.com,1
+Printify,printify.com,1
+Creamfinance,creamfinance.com,2
+4finance,4finance.com,2
+Tilde,tilde.com,3
+Sun Finance,sunfinance.eu,3
+# --- Estonia (EE) ---
+Wallester,wallester.com,2
+Cobalt,cobalt.io,1
+Ampler Bikes,amplerbikes.com,3
+Messente,messente.com,3
+RangeForce,rangeforce.com,2
+Single Earth,single.earth,3
+Elcogen,elcogen.com,3
+Bercman Technologies,bercman.com,3
+Klaus,klausapp.com,2

@@ -73,6 +73,8 @@ TENANTS = [
     "memobank",     #  1 — Memo Bank, Paris (FR). NOT recruitee:memo, a Belgian impostor.
     "sweep",        #  7 — SWEEP, Paris (FR) 4 + London — carbon accounting
     "podimo",       #  7 — Podimo, Amsterdam (NL) 6 + Berlin — audio (Danish-HQ)
+    # Expansion pass 2, 2026-08-06, identity-checked against the postings.
+    "infraspeak",   #  9 — Infraspeak, Porto (PT) + Barcelona — maintenance-management SaaS
 ]
 
 
