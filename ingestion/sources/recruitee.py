@@ -74,6 +74,11 @@ COMPANIES = [
     # DE pass, 2026-08-05, identity-checked: company name Adjust, Amstelveen/Berlin. Rejected
     # recruitee:personio, whose board is company "FD Sandbox" (Recruitee demo content).
     "adjust",         # 29 — Adjust (adtech), Amstelveen NL + Berlin
+    # Thin-EEA expansion pass, 2026-08-06, each identity-checked against its own postings.
+    "aikidosecurity", # 61 — Ghent (BE) code-security; 4 of 8 sampled Ghent
+    "lansweeper",     # 26 — Ghent (BE) HQ; US-weighted board but genuine, recruitee is cheap
+    "pvcase",         # 15 — Vilnius (LT) solar-design; all remote-tagged
+    "deepsea",        #  2 — Deepsea (GR) maritime AI, remote engineering roles
 ]
 
 #: Slugs that answer with a live board which is **not the company whose name they spell**.

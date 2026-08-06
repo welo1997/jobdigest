@@ -69,7 +69,10 @@ ORGS = ["spotify", "qonto", "contentsquare", "aircall", "swile", "blablacar",
         # GB on-site revisit, 2026-08-05 (GB now selectable).
         "moneyboxapp",    #  10 — London (saving/investing app)
         # DE pass, 2026-08-05, identity-checked.
-        "finn"]           #  32 — Munich (car subscription); NOT lever:aleph/zeiss (impostors)
+        "finn",           #  32 — Munich (car subscription); NOT lever:aleph/zeiss (impostors)
+        # Thin-EEA expansion pass, 2026-08-06, identity-checked against each board's postings.
+        "nfq",            #  15 — Vilnius / Kaunas (LT) + Kraków; Lithuanian/Polish software
+        "siteground"]     #   2 — Sofia (BG); small but purely Bulgarian
 
 
 class LeverSource(BaseSource):

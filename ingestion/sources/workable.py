@@ -69,6 +69,10 @@ ACCOUNTS = [
     "zoopla",        #  5 — London (property)
     # DE pass, 2026-08-05, identity-checked.
     "scalable",      #  5 — Munich (Scalable Capital, digital investing)
+    # Thin-EEA expansion pass, 2026-08-06, identity-checked against each board's postings.
+    "adverity",      #  7 — Vienna (AT) 3 of 7, adtech/analytics
+    "m-files",       # 16 — Tampere / Helsinki / Lappeenranta (FI) + Stockholm, doc mgmt
+    "fenergocareers",#  8 — Dublin (IE) regtech; Dublin seats among London/NY
 ]
 
 _TIMEOUT = 20

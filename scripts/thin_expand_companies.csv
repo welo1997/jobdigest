@@ -1,0 +1,99 @@
+company,domain,tier
+# Expansion pass 2026-08-06. NEW employers only — every name here was checked against
+# thin_countries_companies.csv and sk_companies.csv and is NOT already listed. Focus is
+# product/tech firms in the thinnest selectable-EEA countries, because those are the
+# employers that actually run public Greenhouse/Lever/Ashby/Workable/Recruitee boards and
+# post high-fit knowledge-work roles — not job-mill aggregators. Hand-assembled, never
+# derived from any job board (see discover_ats.py note). Identity + city MUST be checked
+# with inspect_hits.py before any hit is wired — a live 200 is not proof.
+# --- Austria (AT) ---
+refurbed,refurbed.com,1
+PlanRadar,planradar.com,1
+Adverity,adverity.com,1
+Prewave,prewave.com,2
+Bitmovin,bitmovin.com,2
+Usersnap,usersnap.com,3
+MeisterLabs,meister.co,2
+byrd,getbyrd.com,3
+Kraken Technologies,krakentech.at,3
+# --- Belgium (BE) ---
+Intigriti,intigriti.com,1
+Aikido Security,aikido.dev,2
+Lansweeper,lansweeper.com,1
+Guardsquare,guardsquare.com,2
+In The Pocket,inthepocket.com,2
+DataCamp,datacamp.com,1
+Henchman,henchman.io,3
+Sentiance,sentiance.com,3
+# --- Portugal (PT) ---
+Coverflex,coverflex.com,1
+Probely,probely.com,2
+Sensei,sensei.tech,2
+Barkyn,barkyn.com,3
+Defined.ai,defined.ai,2
+Anchorage Digital,anchorage.com,2
+Remote,remote.com,1
+Kitch,trykitch.com,3
+# --- Romania (RO) ---
+MultiversX,multiversx.com,1
+Zitec,zitec.com,2
+Tremend,tremend.com,2
+Bunnyshell,bunnyshell.com,3
+SmartDreamers,smartdreamers.com,3
+Pentalog,pentalog.com,3
+Thinslices,thinslices.com,3
+# --- Estonia (EE) ---
+Testlio,testlio.com,1
+Fractory,fractory.com,2
+Montonio,montonio.com,2
+Tuum,tuum.com,2
+Comodule,comodule.com,3
+Certific,certific.co,3
+Sixfold,sixfold.com,3
+# --- Lithuania (LT) ---
+Kevin,kevin.eu,1
+Ondato,ondato.com,2
+PVcase,pvcase.com,1
+NFQ,nfq.com,2
+Tesonet,tesonet.com,2
+Baltic Amadeus,ba.lt,3
+CujoAI,cujo.com,3
+# --- Latvia (LV) ---
+TWINO,twino.eu,2
+Jeff App,jeff-app.com,3
+Nordigen,nordigen.com,3
+# --- Finland (FI) ---
+Oura,ouraring.com,1
+Swappie,swappie.com,1
+IQM,meetiqm.com,2
+Varjo,varjo.com,2
+Silo AI,silo.ai,2
+M-Files,m-files.com,2
+Iceye,iceye.com,2
+Yousician,yousician.com,3
+# --- Denmark (DK) ---
+Corti,corti.ai,2
+Monta,monta.com,1
+Planday,planday.com,2
+Ageras,ageras.com,3
+Trackunit,trackunit.com,2
+Queue-it,queue-it.com,3
+Universal Robots,universal-robots.com,2
+# --- Greece (GR) ---
+Causaly,causaly.com,1
+Augmenta,augmenta.ag,2
+Plum,withplum.com,2
+Deepsea,deepsea.ai,3
+Convert Group,convertgroup.com,3
+Flexcar,flexcar.gr,3
+# --- Slovenia / Croatia / Bulgaria (SI/HR/BG) ---
+Celtra,celtra.com,2
+Databox,databox.com,2
+Gideon,gideon.ai,2
+Nanobit,nanobit.com,3
+Bellabeat,bellabeat.com,3
+SiteGround,siteground.com,1
+Scalefocus,scalefocus.com,2
+Quantive,quantive.com,2
+Dronamics,dronamics.com,3
+Nexo,nexo.com,3

@@ -147,6 +147,13 @@ ORGS = [
     "tourlane",       #  9 — Berlin (travel)
     "alephalpha",     #  2 — Heidelberg (sovereign AI); NOT lever:aleph, which is an ad agency
     "babbel",         #  2 — Berlin (language learning)
+    # Thin-EEA expansion pass, 2026-08-06 (scripts/thin_expand_companies.csv — new employers
+    # in the under-300-posting selectable countries). Identity-checked against each board's
+    # own postings' cities, not a live 200. Rejected in the same pass: ashby:xero (Planday's
+    # board redirects to Xero corporate — all AU/NZ/CA, 0 EEA), ashby:krakentech (Octopus's
+    # Kraken arm, London/Tokyo/NY, not the Austrian firm the name guessed).
+    "iceye",          # 158 — Espoo (FI) satellite radar; strong Finnish engineering board
+    "corti",          #   7 — Copenhagen (DK) health-AI, 6 of 7 Danish
 ]
 
 # Map Ashby address country names to ISO-3166 alpha-2.
