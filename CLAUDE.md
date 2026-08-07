@@ -1028,6 +1028,31 @@ goes red. A test that cannot fail documents nothing.
   **Twenty-five Workday sites are now found-and-not-added across these six countries** (SE 1 227,
   DK/CH/FI/IE ~1 537, FI a further ~400), all pending the same untaken export timing. That
   measurement is now the single biggest blocked lever in this file.
+  **The 13-country pass, 2026-08-07** (`notes/2026-08-07-thirteen-country-pass.md`) — GR, HU,
+  BG, HR, SI, LU, MT, CY, PT, EE, LT, IS, LI, the last selectable countries with no dedicated
+  employer list. **297 employers probed → 106 live → 81 supported → 40 wired → 892 rows.**
+  **Malta 23 → +108 and Cyprus 52 → +55**; GR +120, PT +54, LT +45, HU +25, EE +18. Best boards:
+  `workable:payabl` (66, Limassol 30 — the best Cypriot board found), `ashby:leovegasgroup`
+  (73, MT 28), `greenhouse:betsson` (126: MT 69 / HU 18 / GR 16), `workable:greenvolt` (64,
+  Lisbon 24), `recruitee:intralot` (40, Athens 31), `ashby:surfshark` (22, Vilnius 21).
+  **Two zero-yield countries, and both are findings rather than gaps.** Iceland returned one row
+  because its ATS market is 50skills (unsupported), BambooHR (refused) and bespoke portals — what
+  it has sits in three Workday boards. **Liechtenstein returned zero, predicted before the run**:
+  its eight professional employers are the Hilti/Ivoclar/Presta/LGT tier, which runs
+  SuccessFactors or Workday. Do not re-derive either.
+  **The one-word-slug rule is now overwhelming.** Fourteen rejections in one session, every one
+  caught by the board's own postings: `ashby:span`, `titan`, `genesis` (and `lever:genesis`, a
+  *third* company), `catena`, `post`, `wizz`, `light`, `odyssey`; `greenhouse:link`, `ses`,
+  `agr`, `tempo`; `teamtailor:origo`, `otp`. **And `ashby:bite` answered twice in one day** —
+  probed for Bitė Latvija and for Bitė Lietuva, and it is a London founding-engineer board both
+  times. New tell worth keeping: `ashby:gr8-tech` was dropped for its Greenhouse twin because its
+  board carries literal **".NET Developer Test"** and **"test Job title"** rows — an ATS being
+  trialled, not run. And `ashby:tempo-io` is **findable only via the careers-page read path**,
+  because `slug_candidates("Tempo", "tempo.io")` returns just `tempo`, which is a different
+  company.
+  **Batch D was gated and deliberately not run**: GR and HU repaid their lists, but BG, HR and SI
+  produced **one board between them from 54 names**. That is the Romania shape, and N is a
+  ceiling rather than a quota.
 - **Parallelising discovery means more workers, never more processes.**
   `ingestion.politeness._last_request` is a module-level dict behind a `threading.Lock`, so the
   1 s-per-host guarantee holds **within one process only**. Company domains are all distinct
@@ -1423,6 +1448,25 @@ goes red. A test that cannot fail documents nothing.
   Hilti/Ivoclar/ThyssenKrupp-Presta/LGT tier, exactly the profile that runs SuccessFactors
   (closed — needs a browser) or Workday (found-and-not-added). A well-evidenced zero is the
   finding; do not re-derive it.
+- **`postings.eligibility` is a subscriber-specific judgement stored in a posting-level column,
+  and a constant allowlist over it is always wrong for somebody** (fixed 2026-08-07).
+  `search_jobs.eligibility`'s own docstring still reads *"Coarse EU-eligibility flag for a
+  **Czech-based candidate**"* — it dates from when this repo served one person. Both shortlist
+  queries filtered on a hardcoded `('eligible','verify UK right-to-work','unknown')`, and
+  `profiles.eligible_only` defaults **true** with **no UI control** (it exists only as a type in
+  `web/lib/api.ts`; no form writes it). Measured on production: **21 291 of 21 677 active US
+  postings (98%) carry `likely needs US work auth`**, which that list excludes — so the US half
+  of the 2026-08-05 "US is selectable" change **had never worked**, and a subscriber who ticked
+  the United States could not turn the filter off. Nothing failed and nothing logged; it bit
+  nobody only because all three subscribers were CZ-only. `store.eligibility_allowlist` now
+  derives from `profile["countries"]`, shared by both call sites so they cannot drift:
+  `likely needs US work auth` is admitted only when US is selected; `verify UK right-to-work`
+  stays **unconditional** (advisory, and 5 557 of 5 749 GB rows carry it — making it conditional
+  would *narrow* what existing subscribers see); `blocked (clearance/US-only)` is never admitted,
+  because a clearance is not something a country preference unlocks. **Canada passes only because
+  `work_region("Toronto","CA")` returns `"other"` → `unknown`** — luck, not design, which is why
+  `test_eligibility_sql.py` pins it: if a `CA` branch is ever added to `work_region`, that test
+  fails instead of 1 946 postings silently vanishing.
 - **`taxonomy.py` reads English, and three of the sources feeding it do not.** Measured
   2026-08-07 against `classify()`: `Systemutvikler`, `Dataingeniør`, `Produktsjef`, `IT-arkitekt`
   and `Testleder` all return `uncategorised`; `Backend utvikler` and `Fullstack-utvikler` classify
