@@ -24,13 +24,24 @@ Two failure shapes, both of which have happened in production and neither of whi
                 cannot see it, so a subscriber's whole digest becomes jobs they were already
                 sent, and only `digest.dedupe_key` stands between that and their inbox.
 
-**The churn measure is "how many of today's new rows are jobs we already had", and getting
-there took being wrong once.** The obvious measure — how much of the run was new — fires
-permanently on `arbeitnow` and `himalayas`, which are rolling "newest N" feeds whose older
-jobs stop being returned and are therefore ~100% new every day by design. Run against real
-data before it was trusted, the first version produced three alerts on day one and all three
-were legitimate sources. The measure that separates them is the failure stated directly:
-startupjobs 96.7%, workday 24.5%, arbeitnow 12.5%, himalayas 1.0%, a brand-new source 0%.
+**The churn measure took two wrong answers to reach, and both were found only by running it
+against production rather than reasoning about it.**
+
+1. *"How much of the run was new"* fires permanently on `arbeitnow` and `himalayas`, rolling
+   "newest N" feeds whose older jobs stop being served — ~100% new every day by design. Day
+   one produced three alerts, all healthy sources.
+2. *"How much of today is a job we already had"* is the right quantity but wrong as a level:
+   `adzuna` is an aggregator whose corpus genuinely carries one job under many ad ids (a
+   single role had 122) and sits at 69–86% **every day**.
+
+So the alert is on a **jump against the source's own prior days**. startupjobs went
+0.0 → 3.8 → 96.7 when its URLs changed; adzuna's biggest move was 4.4 points. Both
+thresholds sit in gaps measured from real data, not chosen to look reasonable.
+
+A related trap, also measured: the key must **not** include `city`. Adding it drops the real
+incident from 96.7% to 3.3%, because the old adapter hardcoded `country_code='CZ'` (leaving
+`city` null) while the new one resolves `prague` — so the fix being detected would itself
+hide the detection.
 
 **Expected sources are read from `search_jobs.source_classes`, never a list kept here.** A
 source that is absent from `gather()` is retired, not broken — jobscz and profesia are
@@ -74,8 +85,16 @@ STALE_DAYS = int(os.environ.get("SOURCE_WATCHDOG_STALE_DAYS", "2"))
 #: warned about; it was caught only by running it against real data before trusting it.
 CHURN_SHARE = float(os.environ.get("SOURCE_WATCHDOG_CHURN_SHARE", "0.7"))
 
+#: How far today must exceed the source's OWN prior days. The level alone is not enough:
+#: `adzuna` is an aggregator carrying the same job under many ad ids (one role had 122) and
+#: sits at 69–86% *every day*, which would alert for ever. A re-mint is a jump — startupjobs
+#: went 0.0 → 3.8 → 96.7 (a 93-point move) while adzuna's largest day-on-day move was 4.4.
+#: 0.3 sits in that gap with room on both sides.
+CHURN_JUMP = float(os.environ.get("SOURCE_WATCHDOG_CHURN_JUMP", "0.3"))
+
 #: Below this many new rows the share is noise — a handful of genuine re-posts at a small
-#: board would otherwise read as a re-mint.
+#: board would otherwise read as a re-mint. Also the minimum for a prior day to count
+#: towards the baseline, so one quiet day cannot drag it down and manufacture a jump.
 CHURN_FLOOR = int(os.environ.get("SOURCE_WATCHDOG_CHURN_FLOOR", "50"))
 
 
@@ -104,7 +123,8 @@ def findings(stale_days: int = STALE_DAYS) -> tuple[list[str], list[str]]:
             problems.append(
                 f"SILENT ZERO  {name}: no active postings at all - the adapter ran and "
                 f"stored nothing, or has never run on this box")
-            table.append(f"  {name:<16} {'-':>7} {'-':>7} {'-':>7} {'-':>7}  never")
+            table.append(f"  {name:<16} {'-':>7} {'-':>7} {'-':>7} {'-':>7} {'-':>8}"
+                         f"  never")
             continue
 
         # `active > 0` implies a row exists implies `max(last_seen_at)` is not null, so this
@@ -113,30 +133,34 @@ def findings(stale_days: int = STALE_DAYS) -> tuple[list[str], list[str]]:
         age = float(row["age_days"] if row["age_days"] is not None else 999.0)
         active = row["active"]
         seen_today, new_today = row["seen_today"], row["new_today"]
-        repeat_today = row["repeat_today"]
-        # Of the rows created today, how many are a job we already had? That is the failure
-        # stated directly. A share of *newness* cannot work here — see CHURN_SHARE.
-        share = repeat_today / new_today if new_today else 0.0
+        keyed_today, repeat_today = row["keyed_today"], row["repeat_today"]
+        baseline = float(row["baseline_share"] or 0.0)
+        # Of the postings created today, how many are a job already stored under another id?
+        # Compared against the source's own prior days, because the level alone is normal for
+        # an aggregator — see CHURN_SHARE / CHURN_JUMP.
+        share = repeat_today / keyed_today if keyed_today else 0.0
         table.append(f"  {name:<16} {active:>7} {seen_today:>7} {new_today:>7} "
-                     f"{repeat_today:>7}  {age:.1f}d old  {share:.0%} repeat")
+                     f"{share:>7.0%} {baseline:>8.0%}  {age:.1f}d old")
 
         if age > stale_days:
             problems.append(
                 f"SILENT ZERO  {name}: freshest row is {age:.1f} days old while the export "
                 f"runs daily - the source is answering with nothing, or not being called")
-        elif new_today >= CHURN_FLOOR and share >= CHURN_SHARE:
+        elif (keyed_today >= CHURN_FLOOR and share >= CHURN_SHARE
+                and share - baseline >= CHURN_JUMP):
             problems.append(
-                f"ID CHURN     {name}: {repeat_today} of the {new_today} postings created "
-                f"today ({share:.0%}) are jobs already stored under another id - the "
-                f"source's URLs changed and posting_id = md5(url), so the whole source is "
-                f"duplicated; check the stored `url` against the live site")
+                f"ID CHURN     {name}: {repeat_today} of the {keyed_today} postings created "
+                f"today ({share:.0%}) are jobs already stored under another id, against "
+                f"{baseline:.0%} on this source's own prior days - its URLs changed and "
+                f"posting_id = md5(url), so the whole source is duplicated; check the "
+                f"stored `url` against the live site")
 
     unexpected = sorted(set(rows) - expected)
     for name in unexpected:
         if rows[name]["active"]:
             table.append(f"  {name:<16} {rows[name]['active']:>7} "
-                         f"{rows[name]['seen_today']:>7} {rows[name]['new_today']:>7} "
-                         f"{rows[name]['repeat_today']:>7}  (retired, ageing out)")
+                         f"{rows[name]['seen_today']:>7} {rows[name]['new_today']:>7}"
+                         f"  (retired, ageing out)")
 
     return problems, table
 
@@ -156,7 +180,7 @@ def report(stale_days: int = STALE_DAYS) -> tuple[str, int]:
         lines.append(f"OK - every source in gather() has rows fresher than {stale_days} "
                      f"days and none re-minted its ids.\n")
     lines.append(f"  {'source':<16} {'active':>7} {'seen':>7} {'new':>7} "
-                 f"{'repeat':>7}  freshness")
+                 f"{'repeat':>7} {'base':>8}  freshness")
     lines.extend(table)
     return "\n".join(lines), len(problems)
 

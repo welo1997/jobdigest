@@ -131,7 +131,7 @@ def upsert_postings(rows: Iterable[dict]) -> int:
     return len(values)
 
 
-def source_freshness() -> list[dict]:
+def source_freshness(baseline_days: int = 7, min_rows: int = 50) -> list[dict]:
     """Per-source: active rows, how many first appeared today, and how stale the newest is.
 
     Read side for `service.source_watchdog`. `age_days` is measured from `max(last_seen_at)`,
@@ -140,43 +140,73 @@ def source_freshness() -> list[dict]:
     no active rows are included (with `age_days` null) so a source that vanished entirely is
     a row here rather than an absence the caller has to notice.
 
-    `repeat_today` is the one that detects an id re-mint, and it took two wrong answers to
-    get to. "How many rows are new" cannot work: `arbeitnow` and `himalayas` are rolling
-    "newest N" feeds whose older jobs simply stop being returned, so they are ~100% new
-    *every single day* and any threshold on newness alerts on them for ever. Measured
-    2026-08-07, the share of today's new rows whose (company, title) **already existed
-    before today** separates them cleanly: startupjobs 96.7%, workday 24.5%, arbeitnow
-    12.5%, himalayas 1.0%, a brand-new source 0%. That is the failure stated directly —
-    the same job arriving under a new id — rather than a proxy for it.
+    `repeat_today` / `keyed_today` / `baseline_share` are what detect an id re-mint, and each
+    of the two simpler measures was tried against production first and failed:
+
+    * **"how much of the run was new"** — `arbeitnow` and `himalayas` are rolling "newest N"
+      feeds whose older jobs stop being served, so they are ~100% new *every day, for ever*.
+    * **"how much of today is a job we already had"** — right shape, wrong on its own:
+      `adzuna` sits at 69–86% every single day, because it is an aggregator whose corpus
+      genuinely carries the same job under many ad ids (one role had 122). A permanent alert
+      is a muted alert.
+
+    So `baseline_share` is the same measure over the source's own prior days, and the caller
+    compares today against it. A re-mint is a **jump**: startupjobs went 0.0 → 3.8 → *96.7*,
+    while adzuna went 68.8 → 81.1 → 85.5 and is not a fault. Note the key deliberately omits
+    `city`: adding it drops the real incident from 96.7% to 3.3%, because the old adapter
+    hardcoded `country_code='CZ'` (leaving `city` null) and the new one resolves `prague`.
     """
     with cursor() as cur:
         cur.execute(
             """
             with keyed as (
-                select source, is_active, first_seen_at, last_seen_at,
+                select source, is_active, last_seen_at,
+                       first_seen_at::date as d,
                        case when company is not null and title is not null
                             then lower(company) || '|' || lower(title) end as k
                 from postings
             ),
-            prior as (
-                select distinct source, k from keyed
-                where first_seen_at::date < current_date and k is not null
+            -- The day each (source, job) was first seen. An aggregate, deliberately: the
+            -- first version asked "does an earlier row exist" as a correlated subquery per
+            -- row, which is O(n^2) and did not return on 100k rows. This runs in ~1.1 s.
+            firsts as (
+                select source, k, min(d) as first_d
+                from keyed where k is not null group by source, k
+            ),
+            daily as (
+                select k.source, k.d,
+                       count(*)                                    as new_rows,
+                       count(*) filter (where f.first_d < k.d)     as repeats
+                from keyed k
+                join firsts f on f.source = k.source and f.k = k.k
+                where k.d > current_date - %s
+                group by k.source, k.d
+            ),
+            baseline as (
+                select source, max(repeats::numeric / new_rows) as share
+                from daily where d < current_date and new_rows >= %s
+                group by source
+            ),
+            totals as (
+                select source,
+                       count(*) filter (where is_active)                     as active,
+                       count(*) filter (where last_seen_at::date =
+                                              current_date)                  as seen_today,
+                       count(*) filter (where d = current_date)              as new_today,
+                       extract(epoch from (now() - max(last_seen_at)))
+                         / 86400.0                                           as age_days
+                from keyed group by source
             )
-            select k.source,
-                   count(*) filter (where k.is_active)                        as active,
-                   count(*) filter (where k.last_seen_at::date = current_date) as seen_today,
-                   count(*) filter (where k.first_seen_at::date = current_date) as new_today,
-                   count(*) filter (where k.first_seen_at::date = current_date
-                                      and p.k is not null)                     as repeat_today,
-                   extract(epoch from (now() - max(k.last_seen_at))) / 86400.0 as age_days
-            from keyed k
-            -- `prior` is DISTINCT on (source, k), so this cannot multiply rows and inflate
-            -- the counts above. Without the distinct, one job seen on five earlier days
-            -- would count five times and every source would look like churn.
-            left join prior p on p.source = k.source and p.k = k.k
-            group by k.source
-            order by k.source
-            """
+            select t.source, t.active, t.seen_today, t.new_today, t.age_days,
+                   coalesce(dd.new_rows, 0) as keyed_today,
+                   coalesce(dd.repeats, 0)  as repeat_today,
+                   coalesce(b.share, 0)::float8 as baseline_share
+            from totals t
+            left join daily dd on dd.source = t.source and dd.d = current_date
+            left join baseline b on b.source = t.source
+            order by t.source
+            """,
+            (baseline_days, min_rows),
         )
         return [dict(r) for r in cur.fetchall()]
 

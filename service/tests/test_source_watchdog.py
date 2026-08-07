@@ -16,9 +16,13 @@ import pytest
 from service import source_watchdog as sw
 
 
-def row(source, active, seen_today, new_today, repeat_today, age_days=0.2):
+def row(source, active, seen_today, new_today, repeat_today, age_days=0.2,
+        baseline=0.0, keyed_today=None):
     return {"source": source, "active": active, "seen_today": seen_today,
-            "new_today": new_today, "repeat_today": repeat_today, "age_days": age_days}
+            "new_today": new_today,
+            "keyed_today": new_today if keyed_today is None else keyed_today,
+            "repeat_today": repeat_today, "age_days": age_days,
+            "baseline_share": baseline}
 
 
 #: Real per-source figures from production (`store.source_freshness`, 2026-08-07). The
@@ -30,10 +34,14 @@ HEALTHY = [
     row("himalayas", 1526, 300, 300, 3),           # 1.0%  — rolling feed, 100% new daily
     row("teamtailor", 110, 110, 110, 0),           # 0%    — first run ever
     row("cocuma", 313, 303, 3, 0),
+    # The aggregator: the same job under many ad ids, ~69-86% repeat EVERY day. A level
+    # threshold alerts on it for ever; the baseline is what keeps it silent.
+    row("adzuna", 8887, 3242, 1796, 1535, baseline=0.811),
 ]
 
-#: The 2026-08-07 re-mint, as it actually was.
-CHURNED = row("startupjobs", 945, 450, 450, 435)   # 96.7%
+#: The 2026-08-07 re-mint, as it actually was: 96.7% today against ~0-3.8% on its own
+#: prior days. The jump is the signal, not the level.
+CHURNED = row("startupjobs", 945, 450, 450, 435, baseline=0.038)
 
 
 @pytest.fixture
@@ -79,15 +87,43 @@ def test_the_startupjobs_id_churn_is_caught(patched):
     assert "435 of the 450" in found[0]
 
 
-def test_the_threshold_separates_the_incident_from_the_busiest_honest_source(patched):
-    """A margin, not a coincidence. Workday genuinely re-posts a quarter of its new rows
-    (multi-site requisitions); the re-mint was 97%. If a future source lands between these,
-    the threshold needs re-measuring rather than nudging."""
-    worst_honest = max(r["repeat_today"] / r["new_today"]
-                       for r in HEALTHY if r["new_today"])
-    churn = CHURNED["repeat_today"] / CHURNED["new_today"]
-    assert worst_honest < sw.CHURN_SHARE < churn
-    assert churn - worst_honest > 0.5
+def test_the_aggregator_is_silent_despite_a_repeat_share_above_the_level(patched):
+    """The second false-positive class, and the reason the level alone is not the test.
+
+    adzuna carries the same job under many ad ids — one role had 122 — so it sits at 69-86%
+    repeat every single day. It clears CHURN_SHARE and must still never alert, because
+    nothing about it changed. Only the jump against its own history distinguishes a source
+    that is *always* like this from one that just became like this.
+    """
+    adzuna = next(r for r in patched["rows"] if r["source"] == "adzuna")
+    share = adzuna["repeat_today"] / adzuna["keyed_today"]
+    assert share > sw.CHURN_SHARE            # would fire on the level alone
+    assert problems(patched) == []           # does not fire on the jump
+
+
+def test_the_thresholds_sit_in_measured_gaps(patched):
+    """A margin, not a coincidence — and if a future source lands inside one of these gaps,
+    re-measure rather than nudge the constant."""
+    # Level: the busiest honest non-aggregator (workday, multi-site reqs) vs the re-mint.
+    honest = max(r["repeat_today"] / r["keyed_today"]
+                 for r in HEALTHY if r["keyed_today"] and r["source"] != "adzuna")
+    churn = CHURNED["repeat_today"] / CHURNED["keyed_today"]
+    assert honest < sw.CHURN_SHARE < churn
+
+    # Jump: adzuna's largest day-on-day move was 4.4 points; the re-mint's was ~93.
+    adzuna = next(r for r in patched["rows"] if r["source"] == "adzuna")
+    adzuna_jump = adzuna["repeat_today"] / adzuna["keyed_today"] - adzuna["baseline_share"]
+    churn_jump = churn - CHURNED["baseline_share"]
+    assert adzuna_jump < sw.CHURN_JUMP < churn_jump
+
+
+def test_a_source_that_becomes_an_aggregator_overnight_still_alerts(patched):
+    """The baseline must not be a blanket exemption: adzuna is silent because it did not
+    change, not because it is adzuna."""
+    adzuna = next(r for r in patched["rows"] if r["source"] == "adzuna")
+    adzuna["baseline_share"] = 0.05          # yesterday it was clean
+    found = problems(patched)
+    assert len(found) == 1 and "adzuna" in found[0]
 
 
 def test_the_startupjobs_silent_zero_is_caught(patched):
