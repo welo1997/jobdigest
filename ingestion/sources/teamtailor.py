@@ -183,6 +183,66 @@ TENANTS = [
     # *passes*. See `_DEMO_CONTENT`. `vismaenterpriseab` (Växjö) and `vismacc` were skipped
     # rather than rejected: SE is already flooded by platsbanken, and 2 of vismacc's 3 rows are
     # talent pools that `_TALENT_POOL` drops.
+    # SE pass, 2026-08-07. Sweden is the best-covered EEA country (16 588 active, 16 296 of
+    # them platsbanken) — but the register does not reach the tech employers: measured today,
+    # platsbanken holds **0 rows for Spotify, Northvolt, Truecaller and Epidemic Sound**, 2 for
+    # Klarna and 7 for Ericsson. Reporting is voluntary in practice, and that gap is this list.
+    # Swedish IT consultancies lead it because their whole inventory is ISCO 1-2 by construction.
+    # **Seven Swedish boards found in this pass were dropped again after measuring the overlap,
+    # and the reason is not tidiness.** Platsbanken and an ATS name the same employer
+    # differently — "NEXER GROUP AB" against "Nexer" — and `digest.dedupe_key` folds only a
+    # *trailing legal form*, so it collapses "Tobii AB" ≡ "Tobii" and does **not** collapse
+    # "NEXER GROUP AB" ≡ "Nexer", "IVER ACCELERATE AB" ≡ "Iver" or "SECURITAS SVERIGE AB" ≡
+    # "Securitas". So a duplicated Swedish employer is not merely two shortlist slots, it is a
+    # second *email* for a job already sent — the exact failure dedupe_key exists to prevent,
+    # arriving by a route it cannot see (two sources spelling one employer differently, rather
+    # than one source relisting). Measured platsbanken rows vs board rows: nexergroup 62/100,
+    # iver 21/6, softhouse 9/10, kognity 4/5, mathem 1/1, tobii 4/6, anyfin 4/8 — all dropped
+    # on a >=50% rule. Sweden holds 16 588 active postings, so redundant inventory there buys
+    # nothing and the duplicate-email risk is the whole cost. The boards kept below are the
+    # ones the register genuinely misses (0 platsbanken rows unless noted).
+    "hiq",          #  78 — HiQ: Göteborg 4 of 8 + Linköping 3 + Malmö.
+    "prevas",       #  45 — Prevas: Västerås 2, Uppsala 2, Stockholm, Linköping.
+    "instabee",     #  32 — Instabee (Budbee/Instabox): Stockholm 4 + Amsterdam (NL) 3.
+    "polestar",     #  30 — Polestar: Göteborg 3 + Oslo, Brussels, Bicester, Shanghai, Seoul.
+    "securitas",    #  29 — Securitas, and taken *because* the board is not guards: Data Domain
+    #                     Owner, Financial Controller, HR BP, Junior Business & Data Analyst,
+    #                     across Stockholm 2, Dublin 2, Warszawa, Glostrup (DK).
+    "paradox-interactive",
+    #                  19 — Paradox Interactive: Stockholm 4 + Tampere (FI) 3 + Sitges (ES).
+    #                     **Not `ashby:paradox`**, which is Dubai/Paris and a different company.
+    "lindex",       #   7 — Lindex, and a genuinely close call kept on its titles: Infrastructure
+    #                     Specialist, System Developer (.NET) in Kiruna, Data Scientist, PR
+    #                     Project Executive — only 2 of 7 are store roles. Contrast
+    #                     `fenixoutdoor` below, which is the same industry and was rejected.
+    "storytel",     #   6 — Storytel: Stockholm 5 + København.
+    "hemnet",       #   5 — Hemnet: Stockholm 5 of 5.
+    "detectify",    #   4 — Detectify: Stockholm 4 of 4.
+    "clavister",    #   4 — Clavister: Örnsköldsvik 2, Gothenburg, Stockholm. Network security.
+    "starstable",   #   2 — Star Stable: Stockholm 2.
+    # **Rejected in the SE pass**, and the two inventory rejections are the instructive ones:
+    # `fenixoutdoor` (78) is genuinely Fenix Outdoor but the board is shop floor — Butikssäljare,
+    # "Verkäufer (w/m/d) in Teilzeit", Timemedarbejder brand store, Kasse und Kundenservice; and
+    # `doktor` (50) is genuinely Doktor.se but the board is clinicians — Sjuksköterska five times
+    # over, Distriktssköterska, Specialistläkare. Those are the `workday:jlp` and `ashby:serenis`
+    # calls. `axis` (2) is an identity rejection: both rows are in Oslo, so it is not Axis
+    # Communications of Lund.
+    # DK/CH/FI/IE pass, 2026-08-07 — four countries in one discovery run.
+    "lunar",        #  14 — **Lunar (the Danish neobank): Aarhus 3 + København 5.** The slug
+    #                     answers live on two ATSes and only this one is the bank —
+    #                     `ashby:lunar` is San Francisco/Newcastle/London. Same shape as
+    #                     `sunday`, and the reason a live 200 is never an identity.
+    "planmecaoy",   #   7 — Planmeca Group (FI): Compliance & Corporate Responsibility Manager,
+    #                     Solution Owner Digital CX, technical product specialist. The slug
+    #                     carries the `oy`, which no name-derived guess would produce.
+    "siili",        #   4 — Siili Solutions (FI): AI Architect + AI Engineer; the other two rows
+    #                     are open applications that `_TALENT_POOL` drops.
+    # `maersk` (10) was **caught by `_DEMO_CONTENT`**, not by hand: feed titled "Maersk", 5 of 10
+    # items carrying Teamtailor's product pitch, and one row literally titled "Copy of iOS
+    # developer". A second abandoned demo tenant, in a different country, found by the guard
+    # written earlier the same day for `akerbp`/`jotun`/`salmar`. `holcim` (72) is genuinely
+    # Holcim and rejected on inventory — Tipper Driver, Mixer Driver, Factory Operative, Plant
+    # Operative across GB depots.
 ]
 
 

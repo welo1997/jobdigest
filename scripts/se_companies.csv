@@ -1,0 +1,133 @@
+company,domain,tier
+# Sweden pass — 2026-08-07.
+#
+# Sweden is already the best-covered EEA country: 16 588 active postings, of which
+# **16 296 are platsbanken** (98.2%) and only ~292 come from every ATS combined. So the
+# question this list has to answer is not "is Sweden thin" — it is "does the national register
+# already hold what an ATS sweep would find". Measured before writing the list:
+#
+#   platsbanken rows for Spotify        0
+#   platsbanken rows for Northvolt      0
+#   platsbanken rows for Truecaller     0
+#   platsbanken rows for Epidemic Sound 0
+#   platsbanken rows for Ericsson       7      (against hundreds of real SE openings)
+#   platsbanken rows for Klarna         2
+#   platsbanken rows for Volvo         29
+#
+# So Platsbanken is voluntary in practice and the tech employers are largely absent from it.
+# That is the case for this list, and it also sets the bar: prefer employers whose ads are
+# plausibly NOT on Platsbanken (product/tech/scale-up, English-language hiring) over large
+# public-adjacent employers that certainly are — a company on both creates cross-source
+# duplicates that `digest.dedupe_key` collapses in the email but which still consume two
+# shortlist slots.
+#
+# Already carried, deliberately excluded from this list: spotify (lever), netlight (lever, added
+# in the NO pass today), and the Visma Teamtailor tenants.
+#
+# tier 1 = product/tech, likely absent from Platsbanken
+# tier 2 = plausible
+# tier 3 = large employer, probably on Platsbanken too — probed to be measured, not assumed
+Klarna,klarna.com,1
+Truecaller,truecaller.com,1
+Epidemic Sound,epidemicsound.com,1
+Northvolt,northvolt.com,1
+Voi Technology,voiscooters.com,1
+Einride,einride.tech,1
+Kry,kry.se,1
+Trustly,trustly.com,1
+Tink,tink.com,1
+Mentimeter,mentimeter.com,1
+Storytel,storytel.com,1
+Sinch,sinch.com,1
+Fortnox,fortnox.se,1
+Bokio,bokio.se,1
+Anyfin,anyfin.com,1
+Juni,juni.co,1
+Instabee,instabee.com,1
+Mathem,mathem.se,1
+Hemnet,hemnet.se,1
+Tradera,tradera.com,1
+Avanza,avanza.se,1
+Detectify,detectify.com,1
+Yubico,yubico.com,1
+Tobii,tobii.com,1
+Paradox Interactive,paradoxinteractive.com,1
+Embracer Group,embracer.com,1
+Avalanche Studios,avalanchestudios.com,1
+Sharkmob,sharkmob.com,1
+Star Stable,starstable.com,1
+Resolution Games,resolutiongames.com,1
+Kognity,kognity.com,1
+Doktor.se,doktor.se,2
+Budbee,budbee.com,2
+Lendo,lendo.se,2
+Zettle,zettle.com,2
+Recorded Future,recordedfuture.com,2
+Clavister,clavister.com,2
+Debricked,debricked.com,2
+tretton37,tretton37.com,1
+Cygni,cygni.se,2
+Nexer,nexergroup.com,2
+Consid,consid.se,2
+HiQ,hiq.se,2
+Softhouse,softhouse.se,2
+Iver,iver.se,2
+Atea,atea.se,2
+Dustin,dustinhome.se,2
+Knowit,knowit.se,2
+AFRY,afry.com,1
+Semcon,semcon.com,2
+Prevas,prevas.se,2
+Alten Sverige,alten.se,2
+Sweco Group,swecogroup.com,2
+WSP Sverige,wsp.com,2
+Ericsson,ericsson.com,1
+Axis Communications,axis.com,1
+Hexagon,hexagon.com,1
+Sandvik,sandvik.com,1
+Atlas Copco,atlascopco.com,1
+SKF,skf.com,2
+Alfa Laval,alfalaval.com,2
+Trelleborg,trelleborg.com,2
+Autoliv,autoliv.com,2
+Dometic,dometic.com,2
+Munters,munters.com,2
+Nibe,nibe.eu,3
+Husqvarna,husqvarnagroup.com,2
+Assa Abloy,assaabloy.com,2
+Electrolux,electroluxgroup.com,2
+Tetra Pak,tetrapak.com,2
+Essity,essity.com,2
+Saab,saab.com,2
+Scania,scania.com,2
+Volvo Group,volvogroup.com,2
+Volvo Cars,volvocars.com,2
+Polestar,polestar.com,1
+Vattenfall,vattenfall.com,2
+Telia Company,teliacompany.com,2
+Tele2,tele2.com,2
+SEB,seb.se,2
+Swedbank,swedbank.com,2
+Handelsbanken,handelsbanken.se,3
+Nordnet,nordnet.se,2
+H&M,hm.com,2
+Ingka IKEA,ingka.com,2
+Inter IKEA,inter.ikea.com,2
+ICA Gruppen,icagruppen.se,3
+Axfood,axfood.se,3
+Lindex,lindex.com,3
+Fenix Outdoor,fenixoutdoor.se,3
+Securitas,securitas.com,3
+AstraZeneca,astrazeneca.com,2
+Sobi,sobi.com,2
+BioArctic,bioarctic.se,3
+Camurus,camurus.com,3
+Calliditas,calliditas.com,3
+Orexo,orexo.com,3
+Elekta,elekta.com,2
+Getinge,getinge.com,2
+Molnlycke,molnlycke.com,2
+Peab,peab.se,3
+Skanska,skanska.com,2
+NCC,ncc.se,3
+JM,jm.se,3

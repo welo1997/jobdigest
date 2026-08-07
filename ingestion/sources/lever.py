@@ -96,13 +96,21 @@ ORGS = ["spotify", "qonto", "contentsquare", "aircall", "swile", "blablacar",
         #                        and the only one that is 100% Norwegian: "Erfaren utvikler",
         #                        "Erfaren data engineer", "Digital forretningsutvikler" — a
         #                        consultancy, so the whole board is ISCO 1-2 by construction.
-        "netlight"]       #  35 — Netlight: Stockholm 3 of 8 + Amsterdam, Munich 2, Copenhagen,
+        "netlight",       #  35 — Netlight: Stockholm 3 of 8 + Amsterdam, Munich 2, Copenhagen,
         #                        Cologne. Nordic/DACH consultancy, entirely EEA, all consulting
         #                        and in-house engineering. `lever:dnb` from the same pass was
         #                        **rejected — it is Dun & Bradstreet**, not Norway's largest
         #                        bank: 133 rows of "R-19586"-style requisitions in Dublin,
         #                        Warsaw and Jacksonville. A three-letter slug is an initialism
         #                        before it is a company.
+        # SE pass, 2026-08-07.
+        "avalanchestudios",
+        #                 16 — Avalanche Studios, Stockholm 8 of 8. Art direction, DevOps/AI,
+        #                      network programming, QA — game development, all in Sweden.
+        # DK/CH/FI/IE pass, 2026-08-07.
+        "cartrawler"]     # 11 — CarTrawler, Dublin 7 of 8 + London. One of very few genuinely
+        #                      Irish boards found, and Ireland has neither a register we may
+        #                      read (DSP requires written permission) nor an Adzuna index.
 
 
 class LeverSource(BaseSource):

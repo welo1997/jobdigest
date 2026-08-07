@@ -1,0 +1,148 @@
+company,domain,tier
+# Second multi-country batch — 2026-08-07. GR + HU + BG + HR + SI + LU/MT/CY tail.
+# One file for the shared-ATS-host reason documented in dk_ch_fi_ie_companies.csv.
+#
+# Inventory today: HU 269, GR 121, BG 117, HR 76, CY 52, SI 49, LU 43, MT 23. Every one of
+# these countries is ATS-only by elimination and every register is settled as closed:
+#   GR — DYPA runs no vacancy search; kariera.gr forbids making material available to third
+#        parties; open data is statistics
+#   HU — NFSZ/VMP has two job links and no sitemap; opendata.hu has no vacancy set
+#   BG — az.government.bg cannot complete a TLS handshake (DH_KEY_TOO_SMALL); jobs.bg 403s
+#   HR — HZZ's burzarada is a session-cookie ASP.NET app; MojPosao is Alma Career
+#   SI — ESS/poiscidelo.si is login-gated; MojeDelo is a 1 777-char SPA
+#   LU — jobboard.adem.lu redirects to /login
+#   MT — jobsplus.gov.mt 403s the honest agent
+# Expect a low hit rate: the Romanian pass measured 64 employers -> 6 live boards -> 4
+# supported -> 2 impostors, because delivery-centre economies hire through parent-company
+# systems. That measurement is the reason to keep these lists short rather than to skip them.
+#
+# --- Greece ----------------------------------------------------------------------------
+Viva Wallet,vivawallet.com,1
+Blueground,theblueground.com,1
+Skroutz,skroutz.gr,1
+Persado,persado.com,1
+Netdata,netdata.cloud,1
+Hellas Direct,hellasdirect.gr,1
+Kaizen Gaming,kaizengaming.com,1
+Orfium,orfium.com,1
+Epignosis,epignosishq.com,1
+Upstream,upstreamsystems.com,2
+Pollfish,pollfish.com,2
+Intralot,intralot.com,2
+Intracom Telecom,intracom-telecom.com,2
+Cosmote OTE,ote.gr,2
+Alpha Bank,alpha.gr,2
+Eurobank,eurobank.gr,2
+Piraeus Bank,piraeusbank.gr,2
+Metlen,metlengroup.com,2
+Coca-Cola HBC,coca-colahellenic.com,2
+Aegean Airlines,aegeanair.com,3
+Motor Oil,moh.gr,3
+Helleniq Energy,helleniqenergy.gr,3
+Titan Cement,titancement.com,3
+Lamda Development,lamdadev.com,3
+Genesis Pharma,genesispharma.com,3
+# --- Hungary ---------------------------------------------------------------------------
+Prezi,prezi.com,1
+Bitrise,bitrise.io,1
+Tresorit,tresorit.com,1
+Shapr3D,shapr3d.com,1
+Starschema,starschema.com,1
+AImotive,aimotive.com,1
+Commsignia,commsignia.com,1
+SEON,seon.io,1
+Barion,barion.com,2
+Turbine AI,turbine.ai,2
+Graphisoft,graphisoft.com,1
+NNG,nng.com,2
+GoTo Hungary,goto.com,2
+Emarsys,emarsys.com,1
+Supercharge,supercharge.io,2
+Cheppers,cheppers.com,3
+OTP Bank,otpbank.hu,2
+MOL Group,molgroup.info,2
+Richter Gedeon,gedeonrichter.com,2
+Magyar Telekom,telekom.hu,2
+4iG,4ig.hu,3
+Wizz Air,wizzair.com,2
+Waberers,waberers.com,3
+Zwack,zwack.hu,3
+Masterplast,masterplastgroup.com,3
+# --- Bulgaria --------------------------------------------------------------------------
+Payhawk,payhawk.com,1
+Docler Holding,doclerholding.com,2
+Chaos Group,chaos.com,1
+Ontotext,ontotext.com,1
+Telerik Progress,progress.com,1
+Sirma,sirma.com,2
+Melon,melontech.com,2
+Scalefocus,scalefocus.com,1
+Dreamix,dreamix.eu,2
+Nemetschek Bulgaria,nemetschek.bg,2
+SiteGround,siteground.com,1
+Paysafe Bulgaria,paysafe.com,2
+Bianor,bianor.com,3
+Sensata Bulgaria,sensata.com,2
+A1 Bulgaria,a1.bg,2
+Yettel,yettel.bg,2
+UniCredit Bulbank,unicreditbulbank.bg,2
+DSK Bank,dskbank.bg,3
+Sopharma,sopharma.bg,3
+Kaufland Bulgaria,kaufland.bg,3
+# --- Croatia ---------------------------------------------------------------------------
+Infobip,infobip.com,1
+Rimac Technology,rimac-technology.com,1
+Photomath,photomath.com,1
+Verne Group,verne.hr,2
+Span,span.eu,1
+Infinum,infinum.com,1
+Undabot,undabot.com,2
+Croz,croz.net,2
+Ericsson Nikola Tesla,ericsson.hr,2
+Include,include.eu,3
+Gideon Brothers,gideonbros.ai,1
+Orqa,orqafpv.com,2
+Nanobit,nanobit.com,1
+Zagrebacka Banka,zaba.hr,3
+Atlantic Grupa,atlanticgrupa.com,3
+Podravka,podravka.hr,3
+Hrvatski Telekom,t.ht.hr,2
+# --- Slovenia --------------------------------------------------------------------------
+Outfit7,outfit7.com,1
+Bitstamp,bitstamp.net,1
+Sportradar Slovenia,sportradar.com,2
+Zemanta Outbrain,outbrain.com,2
+Celtra,celtra.com,1
+GoOpti,goopti.com,2
+Cosylab,cosylab.com,1
+Dewesoft,dewesoft.com,2
+Bia Separations,biaseparations.com,3
+Krka,krka.biz,2
+Lek Sandoz,lek.si,2
+Gorenje,gorenje.com,3
+Petrol,petrol.si,3
+NLB,nlb.si,3
+Telekom Slovenije,telekom.si,3
+Iskratel,iskratel.com,3
+Studio Moderna,studio-moderna.com,3
+# --- Luxembourg / Malta / Cyprus -------------------------------------------------------
+Talkwalker,talkwalker.com,1
+LuxTrust,luxtrust.com,2
+Foyer,foyer.lu,3
+POST Luxembourg,post.lu,3
+SES,ses.com,2
+ArcelorMittal,arcelormittal.com,2
+Amazon Luxembourg,amazon.jobs,3
+Betsson Malta,betssongroup.com,1
+Gaming Innovation Group,gig.com,2
+Catena Media,catenamedia.com,2
+Tipico Malta,tipico.com,2
+BMIT Technologies,bmit.com.mt,3
+Wolt Malta,wolt.com,3
+Nium Malta,nium.com,3
+Wargaming Cyprus,wargaming.com,1
+Nexters,nexters.com,2
+XM Cyprus,xm.com,2
+eToro Cyprus,etoro.com,2
+Exness,exness.com,1
+Amdocs Cyprus,amdocs.com,2

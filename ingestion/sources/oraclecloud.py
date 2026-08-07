@@ -203,6 +203,29 @@ SITES: list[tuple[str, str, str, str]] = [
     # terminalarbeider and postbud. Delivery driving is a category the taxonomy does not model,
     # so it would land in the widened retrieval path that drops the recall predicate entirely.
     # Same call as `workday:jlp`, and the same reason.
+    # DK/CH/FI/IE pass, 2026-08-07 — four countries in one discovery run.
+    ("iaaras", "ocs", "CX_1", "ELCA"),
+    #     69 — ELCA (Lausanne), and **the best Swiss board this repo has found**: Zurich 3,
+    #     Bern, Basel, Pully, plus Bolzano (IT). Senior software engineers, cloud data
+    #     engineers, cybersecurity consultants — ISCO 1-2 throughout. Switzerland held 160
+    #     active postings in the whole corpus, so this is a material share of it, and CH has no
+    #     readable register (job-room.ch is an inbound publishing channel; jobs.ch robots
+    #     disallows /api/).
+    #     **This tenant refines the Vertiv rule rather than repeating it.** `CX_1` returns 69
+    #     and the invented `CX_99999` returns **85** — so Oracle does *not* blindly ignore the
+    #     site: an unrecognised siteNumber falls back to the whole tenant, and a recognised one
+    #     returns its subset. DNV read as "ignored" only because that tenant is single-site.
+    #     Take `CX_1`: it is the careers site ELCA actually publishes.
+    ("fa-ewto-saasfaprod1", "ocs", "CX_1001", "Milestone Systems"),
+    #     44 — Milestone Systems (Brøndby, DK): DK 15, BG 7, ES 6, US 4, AU 3. Video-management
+    #     software. Denmark held 146 active postings, and Jobnet is arranged by email to
+    #     spoc@star.dk, so ATS boards are the whole Danish route. Site verified against
+    #     `CX_99999`: identical 44, i.e. a single-site tenant.
+    ("fa-ewnd-saasfaprod1", "ocs", "CX_2001", "An Post"),
+    #      6 — An Post (Dublin): all six Irish. Small, and taken because Oracle is not N+1 so it
+    #     costs one request, and Ireland has neither a register we may read nor an Adzuna index.
+    #     Mixed inventory — Finance Manager and Senior Business Insights Analyst alongside two
+    #     seasonal mail-centre rows. Site verified against `CX_99999`: identical 6.
 ]
 
 #: Oracle's own ceiling. Asking for more returns 200; `_page` strides by what it receives.

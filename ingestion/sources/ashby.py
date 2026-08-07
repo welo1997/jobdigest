@@ -192,6 +192,23 @@ ORGS = [
     "sanity",         #  25 — Sanity.io (Oslo-founded): "Remote in the United States" 5 of 8 +
     #                        London. Headless CMS; engineering and go-to-market.
     "gelato",         #   8 — Gelato (Oslo-HQ): London 5 of 8 + Stockholm, Atlanta, Denver.
+    # SE pass, 2026-08-07.
+    "epidemic-sound", #  18 — Epidemic Sound: "Stockholm HQ" 5 of 8 + London, NYC, Berlin.
+    "trustly",        #  23 — Trustly (Stockholm-HQ) and the board is not: San Francisco 4,
+    #                        London 2, New York, Lisbon. Taken over `lever:trustly` (22, the
+    #                        same jobs) — one company, one board.
+    # Rejected: `atlas` is San Francisco/New York, not Atlas Copco; `paradox` is Dubai/Paris,
+    # not Paradox Interactive of Stockholm; `resolution` is Berkeley, California, not Resolution
+    # Games. Three generic one-word slugs, three different companies — the `norr` lesson.
+    # DK/CH/FI/IE pass, 2026-08-07.
+    "toogoodtogo",    #  70 — Too Good To Go: Copenhagen, Stockholm 2, Berlin, Warsaw 2,
+    #                        Amsterdam, Tokyo. Taken over `greenhouse:toogoodtogo` (69).
+    "frontify",       #  15 — Frontify: "Sankt Gallen Metropolitan Area" 4 + London 4 — one of
+    #                        the few genuinely Swiss boards found. Taken over `lever:frontify`.
+    # Rejected: `icon` is New York/Remote, not ICON plc of Dublin; `lunar` is San Francisco and
+    # Newcastle, not Lunar the Danish bank (`teamtailor:lunar` is); `julius` is four San
+    # Francisco software-engineer roles, not Julius Baer; `stora` is three GB product roles, not
+    # Stora Enso.
 ]
 
 # Map Ashby address country names to ISO-3166 alpha-2.

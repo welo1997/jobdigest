@@ -1,0 +1,188 @@
+company,domain,tier
+# Four-country batch — 2026-08-07. DK + CH + FI + IE in ONE discovery run, deliberately.
+#
+# Why one file rather than four parallel processes: `ingestion.politeness._last_request` is a
+# module-level dict behind a threading.Lock, so the 1 s-per-host guarantee holds **within one
+# process only**. Company domains are all distinct hosts, so raising --workers is nearly free
+# for the careers-page half; but the ATS probe half all lands on a handful of *shared* hosts
+# (api.greenhouse.io, api.lever.co, api.ashbyhq.com, jobs.workable.com, *.recruitee.com,
+# api.smartrecruiters.com). Four processes would hit each of those at 4 req/s and break our own
+# stated politeness rule. Concatenating the lists keeps one shared throttle and still overlaps
+# the countries.
+#
+# Why these four: they are the wealthy tech markets with almost no inventory, measured today —
+# DK 146 active, CH 160, FI 210, IE 836. DK and CH are the starkest: Copenhagen and
+# Zurich/Geneva are major employers' hubs and neither has any register we may read.
+#   DK — Jobnet is arranged by email to spoc@star.dk (skip rule)
+#   CH — job-room.ch is an inbound publishing channel; jobs.ch robots disallows /api/
+#   FI — Tyomarkkinatori is gated AND robots-disallows /api/; Jobly.fi is Alma Career
+#   IE — JobsIreland (DSP) requires written permission to re-publish; no Adzuna IE index
+# So all four are ATS-only by elimination, which is what this list is for.
+#
+# Already carried and excluded: templafy, queueit, podimo (DK, teamtailor); corti (DK, ashby);
+# iqm, m-files, oura, iceye (FI); fenergocareers (IE, workable).
+#
+# --- Denmark ---------------------------------------------------------------------------
+Pleo,pleo.io,1
+Trustpilot,trustpilot.com,1
+Unity Denmark,unity.com,2
+Zendesk Denmark,zendesk.com,2
+Dixa,dixa.com,1
+Siteimprove,siteimprove.com,1
+Monta,monta.com,1
+Tradeshift,tradeshift.com,1
+Vivino,vivino.com,1
+Too Good To Go,toogoodtogo.com,1
+Lunar,lunar.app,1
+Airtame,airtame.com,2
+Trackunit,trackunit.com,2
+Umbraco,umbraco.com,2
+SimCorp,simcorp.com,1
+cBrain,cbrain.com,2
+Netcompany,netcompany.com,1
+Milestone Systems,milestonesys.com,2
+GomSpace,gomspace.com,3
+Novo Nordisk,novonordisk.com,1
+Novonesis,novonesis.com,2
+Lundbeck,lundbeck.com,2
+LEO Pharma,leo-pharma.com,2
+Coloplast,coloplast.com,2
+Ambu,ambu.com,2
+Demant,demant.com,2
+GN Store Nord,gn.com,2
+Danfoss,danfoss.com,1
+Grundfos,grundfos.com,2
+Vestas,vestas.com,1
+Orsted,orsted.com,1
+Rockwool,rockwool.com,2
+Velux,velux.com,2
+LEGO,lego.com,1
+Pandora,pandoragroup.com,2
+Maersk,maersk.com,1
+DSV,dsv.com,2
+Carlsberg,carlsberggroup.com,2
+Arla,arla.com,2
+Danske Bank,danskebank.com,2
+Saxo Bank,home.saxo,2
+Nykredit,nykredit.dk,3
+Topsoe,topsoe.com,2
+Chr Hansen,chr-hansen.com,2
+FLSmidth,flsmidth.com,3
+Terma,terma.com,3
+# --- Switzerland -----------------------------------------------------------------------
+Nestle,nestle.com,1
+Roche,roche.com,1
+Novartis,novartis.com,1
+ABB,abb.com,1
+Zurich Insurance,zurich.com,1
+Swiss Re,swissre.com,1
+UBS,ubs.com,1
+Julius Baer,juliusbaer.com,2
+Sika,sika.com,2
+Givaudan,givaudan.com,2
+Lonza,lonza.com,2
+Straumann,straumann.com,2
+Sonova,sonova.com,2
+Logitech,logitech.com,1
+Geberit,geberit.com,3
+Schindler,schindler.com,2
+Holcim,holcim.com,2
+SGS,sgs.com,2
+Kuehne Nagel,kuehne-nagel.com,2
+Swisscom,swisscom.ch,1
+Barry Callebaut,barry-callebaut.com,2
+Buhler,buhlergroup.com,2
+Stadler Rail,stadlerrail.com,3
+u-blox,u-blox.com,1
+Sensirion,sensirion.com,2
+Temenos,temenos.com,1
+Avaloq,avaloq.com,1
+SIX Group,six-group.com,2
+Scandit,scandit.com,1
+Nexthink,nexthink.com,1
+Beekeeper,beekeeper.io,1
+Frontify,frontify.com,1
+Yokoy,yokoy.io,1
+Proton,proton.me,1
+Kudelski,kudelski.com,2
+On Running,on.com,1
+Galderma,galderma.com,2
+Ypsomed,ypsomed.com,3
+Tecan,tecan.com,2
+Zuhlke,zuehlke.com,1
+ELCA,elca.ch,2
+Netcetera,netcetera.com,2
+Sportradar,sportradar.com,1
+# --- Finland ---------------------------------------------------------------------------
+Nokia,nokia.com,1
+Wartsila,wartsila.com,1
+KONE,kone.com,1
+Neste,neste.com,2
+Fortum,fortum.com,2
+UPM,upm.com,2
+Stora Enso,storaenso.com,2
+Metso,metso.com,2
+Valmet,valmet.com,2
+Konecranes,konecranes.com,2
+Cargotec,cargotec.com,2
+Huhtamaki,huhtamaki.com,3
+Kesko,kesko.fi,3
+Elisa,elisa.fi,2
+OP Financial,op.fi,2
+Supercell,supercell.com,1
+Rovio,rovio.com,1
+Small Giant Games,smallgiantgames.com,2
+Wolt,wolt.com,1
+Smartly,smartly.io,1
+Aiven,aiven.io,1
+Relex Solutions,relexsolutions.com,1
+Vaisala,vaisala.com,2
+Framery,frameryacoustics.com,2
+Swappie,swappie.com,1
+Enfuce,enfuce.com,2
+Reaktor,reaktor.com,1
+Futurice,futurice.com,1
+Siili Solutions,siili.com,2
+Gofore,gofore.com,2
+Solita,solita.fi,2
+Tietoevry,tietoevry.com,1
+Bittium,bittium.com,3
+Varjo,varjo.com,1
+Ponsse,ponsse.com,3
+Kemira,kemira.com,3
+Orion Pharma,orion.fi,2
+Planmeca,planmeca.com,3
+# --- Ireland ---------------------------------------------------------------------------
+Intercom,intercom.com,1
+Workhuman,workhuman.com,1
+Flipdish,flipdish.com,1
+Wayflyer,wayflyer.com,1
+LetsGetChecked,letsgetchecked.com,1
+CarTrawler,cartrawler.com,1
+Datalex,datalex.com,2
+Version 1,version1.com,1
+Ergo,ergo.ie,2
+Storm Technology,storm.ie,3
+First Derivative,firstderivative.com,2
+Fexco,fexco.com,2
+Fineos,fineos.com,1
+Corlytics,corlytics.com,2
+TransferMate,transfermate.com,2
+AIB,aib.ie,2
+Bank of Ireland,bankofireland.com,2
+Irish Life,irishlife.ie,2
+ESB,esb.ie,2
+EirGrid,eirgridgroup.com,3
+Ryanair,ryanair.com,2
+Aer Lingus,aerlingus.com,3
+Kerry Group,kerry.com,2
+Glanbia,glanbia.com,2
+CRH,crh.com,2
+Kingspan,kingspan.com,2
+Greencore,greencore.com,3
+ICON plc,iconplc.com,1
+Uniphar,uniphar.ie,3
+An Post,anpost.com,3
+Musgrave,musgravegroup.com,3
+Applegreen,applegreenstores.com,3
+Flutter Entertainment,flutter.com,1
