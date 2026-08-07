@@ -89,7 +89,20 @@ ORGS = ["spotify", "qonto", "contentsquare", "aircall", "swile", "blablacar",
         # Lever costs one request, and the US rows are wanted since GB and US are both
         # selectable. Identity-checked against the postings.
         "bumbleinc",      #  22 — Bumble: New York 5 of 8 / Austin 2 / London 1
-        "matillion"]      #  22 — Matillion (Manchester HQ): US territories + Manchester
+        "matillion",      #  22 — Matillion (Manchester HQ): US territories + Manchester
+        # NO pass, 2026-08-07. Norway held 23 active postings in the whole corpus, 22 of them
+        # from one board found by accident, so this was the first deliberate Norwegian sweep.
+        "bekk",           #  22 — Bekk, Oslo 6 of 8 + Trondheim 2. **The best board of the run**
+        #                        and the only one that is 100% Norwegian: "Erfaren utvikler",
+        #                        "Erfaren data engineer", "Digital forretningsutvikler" — a
+        #                        consultancy, so the whole board is ISCO 1-2 by construction.
+        "netlight"]       #  35 — Netlight: Stockholm 3 of 8 + Amsterdam, Munich 2, Copenhagen,
+        #                        Cologne. Nordic/DACH consultancy, entirely EEA, all consulting
+        #                        and in-house engineering. `lever:dnb` from the same pass was
+        #                        **rejected — it is Dun & Bradstreet**, not Norway's largest
+        #                        bank: 133 rows of "R-19586"-style requisitions in Dublin,
+        #                        Warsaw and Jacksonville. A three-letter slug is an initialism
+        #                        before it is a company.
 
 
 class LeverSource(BaseSource):

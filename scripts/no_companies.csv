@@ -1,0 +1,128 @@
+company,domain,tier
+# Norway pass — 2026-08-07. NO held 23 active postings in the whole corpus, 22 of them from a
+# single board (teamtailor:thales) found by accident in the French pass. Adzuna has no NO index
+# and NAV (the permitted national register) is not built yet, so curated employers on a
+# supported ATS is the only route to Norwegian inventory today.
+#
+# Composition is deliberate. Teamtailor and Recruitee/Workable are heavily used in the Nordics,
+# so product/tech firms lead. Then the large Norwegian employers that actually run Workday or
+# SmartRecruiters (energy, maritime, industrials), because Norway's professional inventory is
+# concentrated in them. Consultancies are included because their whole inventory is ISCO 1-3.
+# Seafood/retail/construction names are here to be *measured*, not assumed — most will be
+# rejected on inventory fit, the workday:jlp lesson.
+#
+# tier 1 = strong candidate (known tech/product employer, likely modern ATS)
+# tier 2 = plausible
+# tier 3 = large employer, ATS unknown, included for coverage
+Cognite,cognite.com,1
+Kahoot,kahoot.com,1
+reMarkable,remarkable.com,1
+Oda,oda.com,1
+Ardoq,ardoq.com,1
+Xeneta,xeneta.com,1
+Huddly,huddly.com,1
+Gelato,gelato.com,1
+Sanity,sanity.io,1
+Vipps MobilePay,vippsmobilepay.com,1
+Firi,firi.com,1
+Vev,vev.design,1
+Strise,strise.ai,1
+Aize,aize.io,1
+Whereby,whereby.com,1
+Attensi,attensi.com,1
+Boost.ai,boost.ai,1
+Volue,volue.com,1
+Signicat,signicat.com,1
+Zaptec,zaptec.com,1
+Easee,easee.com,1
+Otovo,otovo.no,1
+Airthings,airthings.com,1
+Disruptive Technologies,disruptive-technologies.com,1
+Mnemonic,mnemonic.io,1
+Simployer,simployer.com,1
+Puzzel,puzzel.com,1
+Dune,dune.com,1
+Unacast,unacast.com,2
+Tise,tise.com,2
+Zedge,zedge.net,2
+No Isolation,noisolation.com,2
+Techstep,techstep.io,2
+eSmart Systems,esmartsystems.com,2
+Kongsberg Digital,kongsbergdigital.com,2
+Visma,visma.com,1
+Schibsted,schibsted.com,1
+FINN,finn.no,2
+Crayon,crayon.com,1
+Bouvet,bouvet.no,1
+Bekk,bekk.no,1
+Iterate,iterate.no,2
+Miles,miles.no,2
+Webstep,webstep.no,2
+Knowit,knowit.eu,2
+Itera,itera.com,2
+Sopra Steria Norge,soprasteria.no,2
+Netlight,netlight.com,2
+Nordic Semiconductor,nordicsemi.com,1
+AutoStore,autostoresystem.com,1
+Tomra,tomra.com,1
+Kongsberg Gruppen,kongsberg.com,1
+DNV,dnv.com,1
+Equinor,equinor.com,1
+Aker Solutions,akersolutions.com,1
+Aker BP,akerbp.com,2
+Subsea 7,subsea7.com,2
+Aibel,aibel.com,2
+Vår Energi,varenergi.no,2
+Statkraft,statkraft.com,1
+Statnett,statnett.no,2
+Scatec,scatec.com,2
+Nel Hydrogen,nelhydrogen.com,2
+Morrow Batteries,morrowbatteries.com,2
+Freyr,freyrbattery.com,2
+Corvus Energy,corvusenergy.com,3
+Hystar,hystar.com,3
+Yara,yara.com,1
+Norsk Hydro,hydro.com,1
+Elkem,elkem.com,2
+Orkla,orkla.com,2
+Jotun,jotun.com,2
+Telenor,telenor.com,1
+Telia Norge,telia.no,2
+DNB,dnb.no,1
+Storebrand,storebrand.no,2
+Gjensidige,gjensidige.no,2
+SpareBank 1,sparebank1.no,2
+Nordnet,nordnet.no,2
+Norsk Tipping,norsk-tipping.no,3
+Posten Bring,postenbring.no,2
+Vy,vy.no,3
+Ruter,ruter.no,3
+Avinor,avinor.no,3
+NRK,nrk.no,3
+Mowi,mowi.com,2
+SalMar,salmar.no,3
+Lerøy Seafood,leroyseafood.com,3
+Grieg Seafood,griegseafood.com,3
+Cermaq,cermaq.com,3
+Nykode Therapeutics,nykode.com,2
+Ultimovacs,ultimovacs.com,3
+Photocure,photocure.com,3
+Norwegian Air Shuttle,norwegian.com,2
+Hurtigruten,hurtigruten.com,3
+Komplett,komplett.no,3
+Elkjøp,elkjop.no,3
+XXL,xxlsports.com,3
+Helly Hansen,hellyhansen.com,3
+Norrøna,norrona.com,3
+Veidekke,veidekke.no,3
+AF Gruppen,afgruppen.no,3
+Multiconsult,multiconsult.no,2
+Norconsult,norconsult.com,2
+Sweco Norge,sweco.no,2
+Asplan Viak,asplanviak.no,3
+Wilhelmsen,wilhelmsen.com,2
+Odfjell,odfjell.com,3
+Höegh Autoliners,hoeghautoliners.com,3
+BW Group,bwgroup.com,3
+PGS,pgs.com,3
+TGS,tgs.com,3

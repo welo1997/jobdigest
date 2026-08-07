@@ -186,6 +186,12 @@ ORGS = [
     "eye-security",   #  23 — Eye Security, The Hague (NL) 3 + Germany 3 + Berlin + Austria.
     #                        Cyber-insurance/SOC; one of the better EEA spreads on this list.
     "datasnipper",    #  29 — DataSnipper, Amsterdam (NL) 3 of 8 + New York 3
+    # NO pass, 2026-08-07. Both are Oslo-founded and both boards are hired *away* from Oslo —
+    # recorded because it is the honest shape of Norwegian scale-up inventory, not a reason to
+    # skip them: GB/US rows are wanted now that both countries are selectable.
+    "sanity",         #  25 — Sanity.io (Oslo-founded): "Remote in the United States" 5 of 8 +
+    #                        London. Headless CMS; engineering and go-to-market.
+    "gelato",         #   8 — Gelato (Oslo-HQ): London 5 of 8 + Stockholm, Atlanta, Denver.
 ]
 
 # Map Ashby address country names to ISO-3166 alpha-2.

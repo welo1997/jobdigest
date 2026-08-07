@@ -185,6 +185,24 @@ SITES: list[tuple[str, str, str, str]] = [
     #    manager) with one Euroclear Nederland row. Probed as a Belgian employer and kept for
     #    the Polish engineering, which is the pattern this whole session kept turning up.
     #    The tenant is the opaque three-letter `don`, derivable from nothing.
+    # NO pass, 2026-08-07.
+    ("ecyq", "em2", "CX_1", "DNV"),
+    #    205 — DNV (Høvik, NO), and the board is European rather than Norwegian: Amsterdam,
+    #    Bristol, Milano 2, Hamburg, London, plus Austin and Mexico City. Certification and
+    #    advisory work — OT security consultant, data-science innovator, wind-blade
+    #    certification engineer — so it is ISCO 1-2 throughout, and Oracle is not N+1, so 205
+    #    postings cost about two requests.
+    #    **The site number is unverifiable on this tenant, per the Vertiv lesson**: `CX_1`,
+    #    `CX` and the invented `CX_999` all return the identical 205 rows, so Oracle is ignoring
+    #    the parameter and 205 is the whole tenant. Recorded rather than presented as a checked
+    #    site — the number in this comment is the tenant total, which is the only thing that
+    #    can be compared against on a re-probe.
+    # `fa-evem-saasfaprod1/ocs/CX_1` (Posten Bring, 18) was **rejected on inventory, not
+    # identity**: it is genuinely Posten Bring and 17 of 18 rows are Norwegian, which makes it
+    # the most tempting rejection of the run — but the roles are yrkessjåfør, varebilsjåfør,
+    # terminalarbeider and postbud. Delivery driving is a category the taxonomy does not model,
+    # so it would land in the widened retrieval path that drops the recall predicate entirely.
+    # Same call as `workday:jlp`, and the same reason.
 ]
 
 #: Oracle's own ceiling. Asking for more returns 200; `_page` strides by what it receives.

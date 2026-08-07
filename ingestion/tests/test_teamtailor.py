@@ -102,3 +102,50 @@ def test_tenants_are_clean():
     assert TENANTS, "tenant list must not be empty"
     assert all(t == t.lower().strip() for t in TENANTS), "slugs must be lowercased/trimmed"
     assert len(TENANTS) == len(set(TENANTS)), "no duplicate tenants"
+
+
+# --- Teamtailor's own demo ads, on tenants that pass the identity check -------------------
+#
+# Found 2026-08-07 in the Norwegian pass. `akerbp`, `jotun` and `salmar` each answered with 11
+# postings sharing 10 identical titles, and 5-6 of each board's descriptions were Teamtailor's
+# product pitch. The reason this needs its own guard rather than an entry in `_TALENT_POOL` or a
+# title rule is that **the feed self-identifies as the real company** — the `akerbp` feed is
+# titled "Aker BP" — so the "identity comes off the feed, never the slug" rule cannot see it.
+
+_DEMO_BODY = (
+    "<h2><strong>Mechanical Engineer</strong></h2><p>Teamtailor is an Employer Branding &amp; "
+    "ATS&nbsp;SaaS platform used by over 5.000 companies, 250.000 users in 90 countries.</p>"
+)
+
+
+def test_teamtailor_demo_ads_are_dropped_even_when_the_feed_names_the_real_company():
+    """The exact production shape: an honest-looking employer, a body that sells the ATS."""
+    rows = TeamtailorSource().normalize([
+        _item(title="Mechanical Engineer", content_html=_DEMO_BODY,
+              jp={"description": _DEMO_BODY,
+                  "hiringOrganization": {"@type": "Organization", "name": "Aker BP"}}),
+    ])
+    assert rows == []
+
+
+def test_demo_guard_reads_the_body_and_not_the_title():
+    """`volue` genuinely advertises "Software Engineer" — a title rule would delete real jobs."""
+    rows = TeamtailorSource().normalize([
+        _item(title="Software Engineer",
+              jp={"hiringOrganization": {"@type": "Organization", "name": "Volue"}}),
+    ])
+    assert [r.title for r in rows] == ["Software Engineer"]
+    assert rows[0].company == "Volue"
+
+
+def test_demo_guard_fires_on_the_content_html_fallback_too():
+    """A demo item with no schema.org description must still be dropped."""
+    rows = TeamtailorSource().normalize([_item(content_html=_DEMO_BODY, jp={"description": None})])
+    assert rows == []
+
+
+def test_demo_guard_does_not_fire_on_an_ad_that_merely_mentions_the_word():
+    """Narrow on purpose: an employer naming its ATS in a benefits list is not demo content."""
+    body = "<p>We hire through Teamtailor and Slack. You will own the backend.</p>"
+    rows = TeamtailorSource().normalize([_item(jp={"description": body})])
+    assert len(rows) == 1

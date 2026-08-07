@@ -133,6 +133,56 @@ TENANTS = [
     #                     board, not an impostor — French aviation-support inventory. Third
     #                     time this session a subsidiary board served a country nobody searched
     #                     (after Thales Norway and Playtech's Baltics).
+    # NO pass, 2026-08-07 — the first deliberate Norwegian sweep, and it confirmed that
+    # Teamtailor is where the Nordic mid-market is: 32 of the run's 52 supported boards were
+    # Teamtailor, against 5 Lever and 4 Workable. Every one below is identity-checked against
+    # its own postings' cities *and* screened for the demo content described at `_DEMO_CONTENT`.
+    "schibsted",    # 21 — Schibsted: Oslo 6 of 8 + Stockholm 2. Media/product; Aftenposten and
+    #                     Podme roles. The strongest Norwegian board of the run after bekk.
+    "vipps",        #  7 — Vipps MobilePay: Oslo 6 of 7. Fintech; analyst, frontend, dev manager.
+    "veidekke",     # 10 — Veidekke: 8 of 8 Norwegian, Oslo 5. Construction, and taken on the
+    #                     professional half — Prosjektleder Jernbane, Prosjektingeniør
+    #                     Jernbaneteknikk, Ytre miljørådgiver. It does also carry trades
+    #                     (Montør, Asfalt, Reisemekaniker), so it is the closest call here;
+    #                     kept because project engineering and environmental advisory are
+    #                     squarely ISCO 1-2, unlike `workday:jlp`'s shop floors.
+    "kongsbergdigital",
+    #                18 — **self-identifies as "Falkor"**, not Kongsberg Digital, and is kept on
+    #                     that name: the postings are Kognitwin (KDI's own product) roles in
+    #                     Fornebu (NO) 3 + Bengaluru (IN) 4. Identity comes off the feed, so the
+    #                     stored employer is right even though the slug is the old name.
+    "volue",        # 13 — Volue: Porsgrunn + Oslo (NO) + München (DE), Gdańsk (PL), Kadıköy (TR).
+    "itera",        # 13 — Itera: Fredrikstad (NO) 3 + Oslo + Brno (CZ) + Kyiv/L'viv (UA).
+    "nordicsemiconductor",
+    #                14 — Nordic Semiconductor: Oslo (NO) 3 + Taiwan 2, Philippines, US 2.
+    "vismasoftwareinternationalas",
+    #                 5 — Visma Software International: Oslo (NO) 5 of 5.
+    "vismaamilias",  #  1 — Visma Amilias: Oslo (NO).
+    "vismafinland",  #  3 — Visma Finland: Helsinki (FI) 3 of 3 — FI is one of the thinnest
+    #                      selectable countries, which is why a 3-row board is worth a request.
+    "attensi",      # 10 — Attensi: Oslo (NO) 3 + London 4 + Boston. Simulation training.
+    "ardoq",        #  8 — Ardoq: Oslo (NO) 2 + London 3 + København 2 + New York.
+    "noisolation",  # 10 — No Isolation: Oslo (NO) 2 + London 2 + DE 2 + PL.
+    "signicat",     #  7 — Signicat (Trondheim-HQ) and **0 Norwegian rows** — Madrid (ES),
+    #                     Estoril (PT) 2, București (RO), Vilnius (LT) 2, Enschede (NL). Taken
+    #                     for exactly that: four of the five countries are thin ones.
+    "easee",        #  4 — Easee: Oslo (NO) + London, Glasgow, Amsterdam.
+    "puzzel",       #  3 — Puzzel: London + København + Amsterdam.
+    "nelhydrogen",  #  7 — Nel Hydrogen: Wallingford (US) 6 + Oslo (NO) 1. Mostly American, kept
+    #                     because US is selectable and the board costs one request.
+    "hystar",       #  1 — Hystar: Høvik (NO).
+    "techstep",     #  1 — Techstep: Gdańsk (PL).
+    "esmart",       #  1 — eSmart Systems (Halden, NO): the one row is in the Netherlands.
+    # **Five Norwegian slugs answered live and were rejected**, and they split into two kinds.
+    # Two are ordinary slug collisions, caught by the feed's own name: `norr` is
+    # "Svensk Markservice AB", eight grounds-maintenance and snow-clearing jobs around Umeå
+    # (SE), not Norrøna; `remarkable` is "REMARKABLE RETAIL", Swedish mystery-shopper gigs in
+    # Uppsala, Gävle, Mora and Borlänge, not reMarkable of Oslo. **Three are abandoned demo
+    # tenants — `akerbp`, `jotun` and `salmar`** — and those are the ones that matter, because
+    # the feed titles read "Aker BP", "Jotun" and "SalMar" and the identity check therefore
+    # *passes*. See `_DEMO_CONTENT`. `vismaenterpriseab` (Växjö) and `vismacc` were skipped
+    # rather than rejected: SE is already flooded by platsbanken, and 2 of vismacc's 3 rows are
+    # talent pools that `_TALENT_POOL` drops.
 ]
 
 
@@ -191,6 +241,32 @@ _TALENT_POOL = re.compile(
     r"talent (pool|community|network)|connect with us|future opportunit|"
     r"otevřená pozice|iniciativní", re.I)
 
+#: Teamtailor's own demo job ads, which sit on abandoned trial tenants — and this guard has to
+#: exist separately from `_DEMO_TITLE` in the recruitee adapter, for two reasons found the hard
+#: way on 2026-08-07.
+#:
+#: **The titles carry no marker.** Recruitee stamps its seed content "(Sample)"/"(Muster)"/
+#: "(voorbeeld)"/"(example)"; Teamtailor's are called "Backend developer", "UX Designer",
+#: "Key Account Manager". `akerbp`, `jotun` and `salmar` each returned 11 postings of which
+#: **10 titles were identical across all three** — and a title-based rule is not available,
+#: because `volue` genuinely advertises "Software Engineer". So the tell must be the body.
+#:
+#: **And identity-from-feed does not save us here.** The module docstring's guarantee — take
+#: the company from `hiringOrganization.name`, never the slug — holds for a slug *collision*
+#: (`norr` self-identifies as "Svensk Markservice AB", `remarkable` as "REMARKABLE RETAIL", and
+#: both were correctly rejected on that basis). It fails for an abandoned trial registered under
+#: the real company's own name: `akerbp.teamtailor.com/jobs.json` is titled **"Aker BP"** and its
+#: `content_html` is Teamtailor's sales pitch, dated 2023. A board can be honestly named and
+#: still hold nothing but demo content.
+#:
+#: Measured when written: 5–6 of 11 items on each of the three tenants match, and **0 of 12
+#: known-good tenants** match a single item (comodule, mintos, iqm, templafy, podimo, thales,
+#: schibsted, vipps, volue, itera, nordicsemiconductor, kongsbergdigital). Deliberately anchored
+#: on Teamtailor marketing its own product inside a job ad, which a real employer never does.
+_DEMO_CONTENT = re.compile(
+    r"Teamtailor is an Employer Branding|"
+    r"careers\.eloomi\.com|jobb\.sosalarm\.se|careerseurope\.danielwellington\.com", re.I)
+
 
 class TeamtailorSource(BaseSource):
     """Teamtailor public career-site JSON feeds across a curated list of tenants."""
@@ -235,6 +311,9 @@ class TeamtailorSource(BaseSource):
             if not url or not title or _TALENT_POOL.search(title):
                 continue
             jp = it.get("_jobposting") or {}
+            body = jp.get("description") or it.get("content_html") or ""
+            if _DEMO_CONTENT.search(body):
+                continue
             addr = _first_address(jp)
             org = (jp.get("hiringOrganization") or {}).get("name")
             salary_raw, currency = _salary(jp)

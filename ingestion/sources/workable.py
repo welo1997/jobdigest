@@ -83,6 +83,14 @@ ACCOUNTS = [
     "roi-hunter",    #  4 — Brno (CZ) adtech; the bare `roi` recruitee slug is NOT this company.
     # GB expansion pass, 2026-08-07.
     "lyst",          #  5 — Lyst, London (GB), all five. Fashion search/marketplace.
+    # NO pass, 2026-08-07.
+    "kahoot",        # 11 — Kahoot!, Oslo 4 of 8 + Copenhagen 3 + Barcelona. Best Workable
+    #                     board of the run; product, programme and sales roles.
+    # Two Workable slugs were **rejected on their own postings**, and both are the same trap:
+    # a real company exists at the name, in the wrong country. `boost` is in Wellington, New
+    # Zealand — not Boost.ai of Stavanger. `crayon` is three Boston roles — Crayon.co, the US
+    # competitive-intelligence firm, not Crayon AS of Oslo. `strise` is genuinely Strise (Oslo)
+    # but its only row is an open application, which `_TALENT_POOL` drops anyway.
 ]
 
 _TIMEOUT = 20
