@@ -103,6 +103,12 @@ ACCOUNTS = [
     # associates in Colombo (Sri Lanka) — "Cue sheet processing", "Audio Recognition Services"
     # — for exactly ONE Greek engineering role. `persado` is genuinely Persado but its board is
     # New York and Washington with no Greek row at all.
+    # PT/LT/EE pass (batch B), 2026-08-07.
+    "greenvolt",     # 64 — Greenvolt, Lisbon (PT) 24 of 64 + ES 12, FR 9, PL 7, IT 6.
+    #                     Renewables; finance, accounting and engineering across southern EU.
+    #                     The largest Portuguese board found in three passes.
+    "critical-manufacturing",
+    #                  22 — Critical Manufacturing, Maia (PT) + Mexico. Semiconductor MES.
 ]
 
 _TIMEOUT = 20

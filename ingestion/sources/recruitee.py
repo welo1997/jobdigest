@@ -134,6 +134,10 @@ COMPANIES = [
     # `alpha` (probed for Alpha Bank) returns "Recruiter (Sample)" and "Senior Marketer
     # (Sample)", and `nemetschekbulgaria` returns a single "Senior Marketer (Sample)" — the
     # Recruitee seed rows `_DEMO_TITLE` drops, on unclaimed vanity slugs.
+    # PT/LT/EE pass (batch B), 2026-08-07.
+    "mailerlite",     #  4 — MailerLite, Vilnius (LT) — but every row is posted as "Remote job",
+    #                      so the country resolves to null and the matcher decides. Kept because
+    #                      the roles are PHP/ML engineering and the board costs one request.
 ]
 
 #: Slugs that answer with a live board which is **not the company whose name they spell**.

@@ -204,6 +204,14 @@ ORGS = [
     # in Bengaluru. `catena` is US-remote, not Catena Media of Malta. `post` is four remote
     # engineering roles, not POST Luxembourg. `wizz` is Paris creative/video work, not Wizz Air
     # of Budapest.
+    # PT/LT/EE pass (batch B), 2026-08-07.
+    "surfshark",      #  22 — Surfshark, Vilnius (LT) 21 of 22 + Warsaw. VPN/Incogni. Kept
+    #                        alongside `nord-security` (the two merged in 2022 but run separate
+    #                        boards, and these 22 rows are Incogni-branded, not Nord's).
+    # `light`, probed for Light Conversion of Vilnius, is eight Austin, Texas roles — another
+    # one-word slug that is a different company. And **`bite` answered again**: it is the same
+    # London founding-engineer board rejected in the Latvian pass hours earlier, and it is not
+    # Bitė Lietuva any more than it was Bitė Latvija.
     # SE pass, 2026-08-07.
     "epidemic-sound", #  18 — Epidemic Sound: "Stockholm HQ" 5 of 8 + London, NYC, Berlin.
     "trustly",        #  23 — Trustly (Stockholm-HQ) and the board is not: San Francisco 4,

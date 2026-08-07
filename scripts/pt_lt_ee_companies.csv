@@ -1,0 +1,119 @@
+company,domain,tier
+# Batch B of the 13-country pass — 2026-08-07. PT + LT + EE merged into ONE discovery run.
+#
+# One file, not three, for the reason documented in dk_ch_fi_ie_companies.csv:
+# `politeness._last_request` is a module-level dict behind a threading.Lock, so the 1 s/host
+# guarantee holds within one PROCESS only — and `discover_ats.py` probes every company against
+# five SHARED hosts (boards-api.greenhouse.io, api.lever.co, api.ashbyhq.com,
+# api.smartrecruiters.com, apply.workable.com). Three concurrent runs would put 3 req/s on each.
+#
+# The three lists were built in parallel by country agents that never touched an ATS host, and
+# merged here rather than by them: cross-agent duplicates are systematic — every "largest
+# employers in X" search returns the same multinationals — and no agent can see another's
+# in-flight list. Read 98, kept 98, 0 cross-agent duplicate(s) removed.
+#
+# Per-country settled source position (NOT re-derived here; see each source list's own header):
+#   PT — IEFP publishes only monthly aggregate movements on dados.gov.pt. ATS-only.
+#   LT — CVonline.lt/Dirbam.lt are Alma Career; uzt.lt 403s the honest agent. ATS-only.
+#   EE — Töötukassa renders 10 characters (SPA); CV.ee is Alma Career. ATS-only.
+# --- PT ---
+Mindera,mindera.com,1
+Critical TechWorks,criticaltechworks.com,1
+Critical Manufacturing,criticalmanufacturing.com,1
+Tekever,tekever.com,1
+Blip,blip.pt,1
+Novabase,novabase.com,1
+Celfocus,celfocus.com,1
+SIBS,sibs.com,1
+Xpand IT,xpand-it.com,1
+Noesis,noesis.pt,1
+ITSector,itsector.com,1
+WIT Software,wit-software.com,1
+Nutrium,nutrium.com,1
+Hovione,hovione.com,1
+Vortal,vortal.biz,1
+Quidgest,quidgest.com,2
+Promptly Health,promptlyhealth.com,2
+Ubiwhere,ubiwhere.com,2
+CEiiA,ceiia.com,2
+Priberam,priberam.com,2
+E-goi,e-goi.com,2
+Millennium bcp,millenniumbcp.pt,2
+Caixa Geral de Depositos,cgd.pt,2
+novobanco,novobanco.pt,2
+Fidelidade,fidelidade.pt,2
+REN,ren.pt,2
+Bial,bial.com,2
+Greenvolt,greenvolt.com,2
+Subvisual,subvisual.com,3
+Whitesmith,whitesmith.co,3
+Imaginary Cloud,imaginarycloud.com,3
+DevScope,devscope.net,3
+Link Consulting,linkconsulting.com,3
+Active Space Technologies,activespacetech.com,3
+Fabamaq,fabamaq.com,3
+# --- LT ---
+Teltonika,teltonika.lt,1
+Light Conversion,lightcon.com,1
+Neurotechnology,neurotechnology.com,1
+NanoAvionics,nanoavionics.com,1
+Nordcurrent,nordcurrent.com,1
+Omnisend,omnisend.com,1
+MailerLite,mailerlite.com,1
+CAST AI,cast.ai,1
+Surfshark,surfshark.com,1
+Paysera,paysera.com,1
+Adform,adform.com,1
+Ekspla,ekspla.com,2
+Altechna,altechna.com,2
+ConnectPay,connectpay.com,2
+iDenfy,idenfy.com,2
+Bankera,bankera.com,2
+Ruptela,ruptela.com,2
+IPXO,ipxo.com,2
+Northway Biotech,northwaybiotech.com,2
+Bored Panda,boredpanda.com,2
+Novian,novian.lt,2
+Ignitis Group,ignitis.lt,2
+Bite Lietuva,bite.lt,2
+Litgrid,litgrid.eu,2
+Artea,artea.lt,2
+Avia Solutions Group,aviasg.com,2
+Standa,standa.com,3
+Femtika,femtika.com,3
+Brolis Defence,brolis-defence.com,3
+Biomatter,biomatter.ai,3
+Caszyme,caszyme.com,3
+Oxipit,oxipit.ai,3
+Ligence,ligence.io,3
+Estoty,estoty.com,3
+AMLYZE,amlyze.com,3
+Metasite,metasite.net,3
+Zenitech,zenitech.co.uk,3
+NRD Companies,nrdcompanies.com,3
+Sorainen,sorainen.com,3
+Ellex,ellex.legal,3
+# --- EE ---
+Scoro,scoro.com,1
+Pactum,pactum.com,1
+Cybernetica,cyber.ee,1
+Milrem Robotics,milremrobotics.com,1
+Bondora,bondora.group,1
+Inbank,inbank.ee,1
+Yolo Group,yolo.com,1
+Modash,modash.io,2
+Toggl,toggl.com,2
+Admirals,admirals.group,2
+Proekspert,proekspert.com,2
+Mooncascade,mooncascade.com,2
+Net Group,netgroup.com,2
+Adcash,adcash.com,2
+Cleveron,cleveron.com,2
+Bigbank,bigbank.eu,2
+Coop Pank,cooppank.ee,2
+Eesti Energia,enefit.com,2
+Ridango,ridango.com,3
+Elering,elering.ee,3
+Threod Systems,threod.com,3
+Jobbatical,jobbatical.com,3
+Port of Tallinn,ts.ee,3

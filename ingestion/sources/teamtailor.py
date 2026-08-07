@@ -284,6 +284,23 @@ TENANTS = [
     # `otp` (6), probed for OTP Bank of Budapest, is a **Spanish occupational-health company**:
     # every row is a "Técnico/a PRL" (prevención de riesgos laborales) in Amposta, Alicante,
     # Almería or Sant Cugat. A three-letter slug is an initialism before it is a company.
+    # PT/LT/EE pass (batch B), 2026-08-07. Teamtailor again carried the pass — 10 of the 18
+    # boards wired. Portugal, Lithuania and Estonia had never had a country-specific list.
+    "xpandit",      #  11 — Xpand IT: Lisboa + Braga (PT). Data engineering and analytics.
+    "imaginarycloud",
+    #                  10 — Imaginary Cloud: Lisboa (PT) 4 of 4 sampled. .NET/AI.
+    "celfocus",     #   6 — Celfocus: Lisboa (PT). Telecom software; AI and PL/SQL.
+    "nutrium",      #   6 — Nutrium: Braga (PT) + US/BR. Nutrition software. A partial keep —
+    #                      two of six rows are "Nutricionista"/dietitian, i.e. clinical, but the
+    #                      rest are product and go-to-market, so it is nowhere near the
+    #                      `ashby:serenis` line.
+    "adform",       #  12 — Adform: Oslo, Warsaw, Mumbai. Danish-HQ adtech with Baltic
+    #                      engineering; kept for the Nordic and Polish rows.
+    "adcash",       #   7 — Adcash: Tallinn (EE) 4 of 4 sampled.
+    "milrem",       #   4 — Milrem Robotics: Tallinn (EE) 3 + Tartu. Defence robotics.
+    "zenitech",     #   6 — Zenitech: Vilnius (LT) + Budapest (HU), evenly split. DevOps.
+    "northway",     #   4 — Northway Biotech: Vilnius (LT) 4 of 4.
+    "nrd",          #   3 — NRD Companies: Vilnius (LT) + Belmopan. Govtech.
     # LV pass, 2026-08-07. Latvia held **68 active postings**; cv.lv is Alma Career, and the
     # NVA register is unresolved on permission (see the note in CLAUDE.md), so curated employers
     # is the whole route. The Latvian telcos turned out to be where the professional hiring is.

@@ -108,9 +108,12 @@ ORGS = ["spotify", "qonto", "contentsquare", "aircall", "swile", "blablacar",
         #                 16 — Avalanche Studios, Stockholm 8 of 8. Art direction, DevOps/AI,
         #                      network programming, QA — game development, all in Sweden.
         # DK/CH/FI/IE pass, 2026-08-07.
-        "cartrawler"]     # 11 — CarTrawler, Dublin 7 of 8 + London. One of very few genuinely
+        "cartrawler",     # 11 — CarTrawler, Dublin 7 of 8 + London. One of very few genuinely
         #                      Irish boards found, and Ireland has neither a register we may
         #                      read (DSP requires written permission) nor an Adzuna index.
+        # PT/LT/EE pass (batch B), 2026-08-07.
+        "omnisend",       # 11 — Omnisend, Vilnius (LT). E-commerce marketing automation.
+        "metasite"]       #  3 — Metasite, Vilnius (LT). .NET/Java engineering.
 
 
 class LeverSource(BaseSource):
