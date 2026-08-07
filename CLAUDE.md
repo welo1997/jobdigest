@@ -84,6 +84,18 @@ and bracketed trailers. Four properties are load-bearing:
   is unknown, fall back to (company, title). Of the two real repeats, one was
   prague/prague and the other null/prague, so neither half is optional.
 - **An empty key — missing company or title — is always unique, never a match.**
+- **It folds a *trailing* legal form and nothing more, so two sources that spell one employer
+  differently defeat it** (measured 2026-08-07). `dedupe_key("Tobii AB")` ≡ `dedupe_key("Tobii")`,
+  but **`"NEXER GROUP AB"` does not collapse to `"Nexer"`**, nor `"IVER ACCELERATE AB"` to
+  `"Iver"`, nor `"SECURITAS SVERIGE AB"` to `"Securitas"`. National registers write the full
+  legal name and ATS feeds write the brand, so **carrying the same employer on both a register
+  and an ATS board risks a second email for a job already sent** — the failure this key exists to
+  prevent, arriving by a route it cannot see: two sources naming one employer differently, rather
+  than one source relisting. This is why seven Swedish boards found on 2026-08-07 were dropped
+  again after measuring their platsbanken overlap, and it is a **standing check whenever a
+  country has both** — the exposure in Czechia (mpsv + ATS) was measured the same day at 19
+  overlapping employers, small but real. Widening the fold to match on a company *prefix* is not
+  the fix: it would collapse genuinely different employers sharing a first word.
 - **`/matches` is deliberately NOT deduplicated** and stays the complete record. That is
   what makes suppression safe: nothing vanishes, it just isn't emailed twice. The one thing
   that leaves the page is a job the subscriber hid — and it moves to `/hidden` rather than
@@ -916,6 +928,52 @@ goes red. A test that cannot fail documents nothing.
   **Four Workday sites (Jotun, AutoStore, Storebrand, Equinor) were found and deliberately not
   added** — the 2026-08-07 note says to time the 05:00 export before adding anything else to the
   slowest N+1 source, and that measurement still has not been taken.
+  **SE + DK/CH/FI/IE pass, 2026-08-07 — 264 employers in two runs, 31 boards wired, 770 rows
+  measured through `build_row`.** The countries that needed it most moved most: **CH 79 rows
+  against 160 active in the whole corpus, DK 45 against 146, FI 33 against 210**; SE 286, IE 19.
+  Best finds: `oraclecloud:iaaras` (ELCA Lausanne, 69, Zurich/Bern/Basel — the best Swiss board
+  found), `greenhouse:solita` (47, FI 19 + SE 15 + DE/BE/DK/NO, entirely EEA),
+  `greenhouse:proton` (74), `teamtailor:lunar` (the Danish bank), `oraclecloud` Milestone Systems
+  (44, DK 15).
+  **Sweden had to justify itself before it could be swept, and the measurement cuts both ways.**
+  Platsbanken is 16 296 of Sweden's 16 588 active postings, so the question was whether the
+  register already holds what an ATS sweep would find. It does not reach the tech employers —
+  **0 platsbanken rows for Spotify, Northvolt, Truecaller and Epidemic Sound**, 2 for Klarna, 7
+  for Ericsson — because reporting is voluntary in practice. But it *does* hold the consultancies
+  and large employers, and that killed seven of the boards it justified: see the `dedupe_key`
+  note above. **Varbi, Sweden's academic/public-sector ATS and the analogue of Norway's Jobbnorge,
+  is redundant for the same reason** — platsbanken already carries 2 257 rows from 323 Swedish
+  universities, municipalities and regions. Jobbnorge stays worth trying precisely because no
+  Norwegian register covers those employers.
+  **Blocket.se refuses in `robots.txt` as prose, word-for-word like FINN.no — and both are
+  Schibsted.** *"Crawling blocket.se is prohibited unless you have written permission. Användning
+  av automatiserade tjänster såsom robotar, spindlar, indexering eller liknande … är inte tillåtet
+  utan föregående skriftligt tillstånd."* The group rule: Schibsted's **classified marketplaces**
+  refuse automated use in both countries, while their **own recruiting boards** are ordinary ATS
+  boards (`teamtailor:schibsted` is their internal hiring and is carried) — do not conflate them.
+  **Nineteen more Workday sites were found across these five countries** (SE 1 227 postings,
+  DK/CH/FI/IE ~1 537) and all deliberately not added, for the same untaken measurement.
+- **Parallelising discovery means more workers, never more processes.**
+  `ingestion.politeness._last_request` is a module-level dict behind a `threading.Lock`, so the
+  1 s-per-host guarantee holds **within one process only**. Company domains are all distinct
+  hosts, so `--workers` scales nearly free; but the ATS-probe half of `discover_ats.py` lands on
+  a handful of *shared* hosts (`api.greenhouse.io`, `api.lever.co`, `api.ashbyhq.com`,
+  `jobs.workable.com`, `api.smartrecruiters.com`), and N concurrent processes would hit each at
+  N req/s. **Run several countries by concatenating their CSVs into one run**, which is what
+  `scripts/dk_ch_fi_ie_companies.csv` is. The same rule blocks running `inspect_hits.py`
+  alongside a discovery run.
+- **`scripts/pending_boards.py` reads the adapters' list structures, and must never go back to
+  grepping their text** (fixed 2026-08-07). The old version searched one lowercased blob of every
+  file under `ingestion/sources/` for the token, which was wrong twice: **a slug named in a
+  comment counted as carried** — and these adapters document the boards they *rejected*, so an
+  impostor's slug read as already wired — and **the ATS was ignored**, so a token carried on
+  Teamtailor counted as carried on Workday. Both directions produce a *false* "already carried",
+  which silently drops a genuine board from the report; four sessions running hit it
+  (`ashby:post`, `recruitee:max`, `workday:thales`, then `ashby:novo`/`ashby:julius`/
+  `workday:zendesk`). `--self-test` pins 11 cases so a renamed list attribute fails loudly rather
+  than reporting everything as new. It also reports **same-company-on-two-ATSes**, which the NEW
+  list structurally cannot show because both rows are new — that caught Frontify, Lunar, ICON,
+  ELCA and Too Good To Go in one run.
   **FR/GB/US pass, 2026-08-05.** Curated employers via `scripts/discover_ats.py`, the same
   route as every country before. FR is genuine EEA inventory (Airbus, Air Liquide, Pennylane,
   Veepee, Doctrine, Exotec…); **GB and US are gated out** — post-Brexit the UK is not in the
@@ -935,6 +993,11 @@ goes red. A test that cannot fail documents nothing.
   rejects a bad token outright (verified: bogus greenhouse/lever tokens and a bogus Workday site
   all read unreachable, and `nubank` still reads *dead* rather than live). To check an Oracle
   site, compare its count against the number in the `SITES` comment.
+  **Refined 2026-08-07: an unrecognised `siteNumber` falls back to the *whole tenant*, and a
+  recognised one returns its subset.** ELCA's `CX_1` returns 69 while the invented `CX_99999`
+  returns 85. Vertiv and DNV read as "the parameter is ignored" only because those tenants are
+  single-site, where both answers coincide. So the mutation check is still the right move — it
+  just tells you whether the tenant has more than one site, not whether the site is real.
   **A live board is not evidence that it belongs to the company whose name it spells.**
   `discover_ats.py` guesses slugs from company names, and 12 of the 37 boards it found in the
   Polish pass on 2026-08-04 were somebody else: `greenhouse:ideo` is the American design firm,
