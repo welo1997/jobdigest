@@ -953,6 +953,34 @@ goes red. A test that cannot fail documents nothing.
   boards (`teamtailor:schibsted` is their internal hiring and is carried) — do not conflate them.
   **Nineteen more Workday sites were found across these five countries** (SE 1 227 postings,
   DK/CH/FI/IE ~1 537) and all deliberately not added, for the same untaken measurement.
+  **FI deep pass, 2026-08-07 — the thinnest country relative to its economy, and now closed on
+  every door.** Finland held **210 active postings from 26 employers**, the most concentrated
+  inventory of any selectable country. A second list of 81 fresh names (after the 38 in the
+  four-country run) gave 30 live boards → 27 supported → **12 wired → 82 FI rows, +39%**, and
+  professional throughout: `granlund` 33 (building-services engineering), `patria` 18 (defence),
+  `insta` 14, `eficode` 8, `ensto` 8.
+  **Its three rejections are the best slug lessons in this file.** `teamtailor:ssh`
+  self-identifies as **"French Express"**, a Stockholm restaurant group whose rows are *Kock* and
+  *Sommar Bartender Extra* — not SSH Communications Security of Helsinki. `teamtailor:career`,
+  probed for Innofactor, self-identifies as **"Teamtailor"**: a maximally generic slug resolves
+  to the ATS vendor's own careers page. And `teamtailor:wihuri` **is** genuinely Wihuri and was
+  rejected anyway — on inventory, not identity (district service mechanics, an open application).
+  **Finland's non-ATS routes, all closed.** Already on record: Työmarkkinatori is gated *and*
+  robots-disallows `/api/`; Jobly.fi is Alma Career; Duunitori 403s. Added 2026-08-07:
+  **Oikotie Työpaikat** forbids *"säännöllinen, järjestelmällinen tai jatkuva tietojen
+  kerääminen, tallentaminen, indeksointi, jakelu tai muu tietojen kokoaminen … ilman Oikotien
+  antamaa kirjallista lupaa"* while its `robots.txt` is allow-all — **the tenth** such case — and
+  it is part of **Vend**, making it the *third* ex-Schibsted marketplace refusing in the same
+  terms after FINN.no and Blocket.se; **Kuntarekry** renders 1 752 visible characters and is
+  municipal healthcare anyway; **valtiolle.fi** renders 1 932 of 228 KB; **Aarresaari** moved its
+  board to JobTeaser and its sitemap holds 94 informational pages and no vacancies. And
+  **`avoindata.fi` — which the twelve-portal open-data sweep above missed** — holds statistics
+  plus exactly one genuine vacancy dataset, the City of Vantaa's **CC BY 4.0** REST API, whose
+  documented endpoint now serves an unrelated HTML page. Perfect licence, dead endpoint: the
+  Sicily case in a third form.
+  **Twenty-five Workday sites are now found-and-not-added across these six countries** (SE 1 227,
+  DK/CH/FI/IE ~1 537, FI a further ~400), all pending the same untaken export timing. That
+  measurement is now the single biggest blocked lever in this file.
 - **Parallelising discovery means more workers, never more processes.**
   `ingestion.politeness._last_request` is a module-level dict behind a `threading.Lock`, so the
   1 s-per-host guarantee holds **within one process only**. Company domains are all distinct
