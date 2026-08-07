@@ -139,24 +139,43 @@ def source_freshness() -> list[dict]:
     empty list leaves every other column looking exactly as it did yesterday. Sources with
     no active rows are included (with `age_days` null) so a source that vanished entirely is
     a row here rather than an absence the caller has to notice.
+
+    `repeat_today` is the one that detects an id re-mint, and it took two wrong answers to
+    get to. "How many rows are new" cannot work: `arbeitnow` and `himalayas` are rolling
+    "newest N" feeds whose older jobs simply stop being returned, so they are ~100% new
+    *every single day* and any threshold on newness alerts on them for ever. Measured
+    2026-08-07, the share of today's new rows whose (company, title) **already existed
+    before today** separates them cleanly: startupjobs 96.7%, workday 24.5%, arbeitnow
+    12.5%, himalayas 1.0%, a brand-new source 0%. That is the failure stated directly —
+    the same job arriving under a new id — rather than a proxy for it.
     """
     with cursor() as cur:
         cur.execute(
             """
-            select source,
-                   count(*) filter (where is_active)                    as active,
-                   -- `seen_today`, not `active`, is the denominator the churn check needs.
-                   -- The superseded rows of a re-minted source are still active for a whole
-                   -- staleness window, and counting them halves the ratio: startupjobs on
-                   -- 2026-08-07 was 450 new of 945 active (48%, invisible) but 450 of 450
-                   -- *seen* (100%, unmistakable). Rows the run did not touch are exactly the
-                   -- ones that must not dilute a measure of what the run returned.
-                   count(*) filter (where last_seen_at::date = current_date) as seen_today,
-                   count(*) filter (where first_seen_at::date = current_date) as new_today,
-                   extract(epoch from (now() - max(last_seen_at))) / 86400.0  as age_days
-            from postings
-            group by source
-            order by source
+            with keyed as (
+                select source, is_active, first_seen_at, last_seen_at,
+                       case when company is not null and title is not null
+                            then lower(company) || '|' || lower(title) end as k
+                from postings
+            ),
+            prior as (
+                select distinct source, k from keyed
+                where first_seen_at::date < current_date and k is not null
+            )
+            select k.source,
+                   count(*) filter (where k.is_active)                        as active,
+                   count(*) filter (where k.last_seen_at::date = current_date) as seen_today,
+                   count(*) filter (where k.first_seen_at::date = current_date) as new_today,
+                   count(*) filter (where k.first_seen_at::date = current_date
+                                      and p.k is not null)                     as repeat_today,
+                   extract(epoch from (now() - max(k.last_seen_at))) / 86400.0 as age_days
+            from keyed k
+            -- `prior` is DISTINCT on (source, k), so this cannot multiply rows and inflate
+            -- the counts above. Without the distinct, one job seen on five earlier days
+            -- would count five times and every source would look like churn.
+            left join prior p on p.source = k.source and p.k = k.k
+            group by k.source
+            order by k.source
             """
         )
         return [dict(r) for r in cur.fetchall()]
