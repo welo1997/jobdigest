@@ -842,6 +842,21 @@ goes red. A test that cannot fail documents nothing.
   has no structured remote flag — left to the downstream text classifier), and talent-pool /
   "submit your CV" rows are dropped by title. `discover_ats.py`/`inspect_hits.py`/
   `pending_boards.py` now verify it, and `test_teamtailor.py` pins the guarantees.
+  **But "identity is off the feed, never the slug" is not sufficient, and 2026-08-07 is when that
+  became clear.** It catches a slug *collision* — probing Norwegian names, `norr` self-identified
+  as "Svensk Markservice AB" (grounds maintenance around Umeå) and `remarkable` as "REMARKABLE
+  RETAIL" (Swedish mystery-shopper gigs), and both were rejected on that basis. It does **not**
+  catch an **abandoned trial tenant registered under the real company's own name**: `akerbp`,
+  `jotun` and `salmar` each returned 11 postings **sharing 10 identical titles**, 5–6 of each
+  board's descriptions were *Teamtailor's own product pitch* ("Teamtailor is an Employer Branding
+  & ATS SaaS platform…", dated 2023) — and `akerbp.teamtailor.com/jobs.json` is titled
+  **"Aker BP"**, so the identity check *passes*. A board can be honestly named and hold nothing
+  but demo content. `_DEMO_CONTENT` therefore keys on the **body, never the title**: a title rule
+  was available and would have been wrong, because `volue` genuinely advertises "Software
+  Engineer". Measured when written: **0 of 12 known-good tenants** match a single item. This is
+  Recruitee's `(Sample)` problem in a form the existing guard cannot see, and the general rule is
+  **a marker-free demo posting is caught by what the description sells, not by what the job is
+  called.**
 - **Never use LinkedIn beyond its public RSS** — account ban risk, and never Playwright. As
   of 2026-08-01 that RSS returns 0 entries, as does EuroJobs (Cloudflare interstitial), so
   both adapters are **not wired into `gather()`**; the README used to list them as coverage.
@@ -881,6 +896,25 @@ goes red. A test that cannot fail documents nothing.
   workable 20/500, recruitee 19/133.** (239/49 834 on 2026-08-04 → 367 mid-day → 436 after the
   US-HQ, GB on-site and DE passes below once GB/US became selectable.)
   That is the baseline to compare against; "a source looks small" is only meaningful with one.
+  **NO pass, 2026-08-07 — the first deliberate Norwegian sweep, and the yield concentrates in one
+  ATS.** 112 employers probed → 57 live boards → 52 supported → **26 wired**, of which **20 are
+  Teamtailor** (against 5 Lever and 4 Workable): Teamtailor is where the Nordic mid-market sits,
+  so probe it first for any Nordic country. Measured live, the 20 tenants return **157 rows, 66 of
+  them Norwegian** — against **23 active NO postings in the entire corpus** beforehand — plus
+  FI 3, DK 3, PT 2, LT 2, RO 1 in the thinnest countries. `lever:bekk` is the single best board of
+  the run and the only 100%-Norwegian one (Oslo/Trondheim consultancy, ISCO 1–2 by construction).
+  **Eleven live boards were rejected and the three-way split is the reusable part:** *wrong
+  company* — `lever:dnb` is **Dun & Bradstreet**, not Norway's largest bank (a three-letter slug is
+  an initialism before it is a company), `recruitee:tgs` is a gaming/BPO outsourcer and at **614
+  jobs** was the run's biggest trap, `workable:boost` is in Wellington NZ, `workable:crayon` is
+  Boston, `greenhouse:bw` is a São Paulo asset manager; *wrong country* — `recruitee:sweco` is
+  genuinely Sweco, entirely Dutch; *wrong inventory* — **the Oracle Posten Bring board is
+  genuinely Posten Bring and 17 of 18 rows are Norwegian, and is still refused**, because the roles
+  are yrkessjåfør, terminalarbeider and postbud. That is the most tempting rejection in the file:
+  perfect country match, wrong work. Same call as `workday:jlp`.
+  **Four Workday sites (Jotun, AutoStore, Storebrand, Equinor) were found and deliberately not
+  added** — the 2026-08-07 note says to time the 05:00 export before adding anything else to the
+  slowest N+1 source, and that measurement still has not been taken.
   **FR/GB/US pass, 2026-08-05.** Curated employers via `scripts/discover_ats.py`, the same
   route as every country before. FR is genuine EEA inventory (Airbus, Air Liquide, Pennylane,
   Veepee, Doctrine, Exotec…); **GB and US are gated out** — post-Brexit the UK is not in the
@@ -1023,6 +1057,27 @@ goes red. A test that cannot fail documents nothing.
   `arbeidsplassen.nav.no/stillinger/api/search` is a live keyless Elasticsearch endpoint that
   would make the cursor question vanish; it is the site's internal search, outside the document
   that grants us anything, and taking it is the Bundesagentur pattern. **Measurement only.**
+- **Norway's other sources are all closed, and one of them corroborates the NAV gap** (checked
+  2026-08-07). **FINN.no refuses in its own `robots.txt`**, which is the only source here to put
+  the refusal in that file as prose: *"Crawling FINN.no is prohibited unless you have written
+  permission … Bruk av automatiserte tjenester (roboter, spidere, indeksering m.m.) samt andre
+  fremgangsmåter for systematisk eller regelmessig bruk er ikke tillatt uten eksplisitt samtykke
+  fra FINN.no."* That is **independent confirmation of why 29% of NAV's ads are not in its API** —
+  they are finn.no-sourced, NAV may display them and may not redistribute them, and finn.no
+  forbids reading them directly. Two doors, same answer. (Note `lever:finn`, already carried, is
+  **FINN GmbH of Munich** — the German car-subscription company — not FINN.no; genuine German
+  inventory, but never count it as Norwegian coverage.) **Webcruiter**, Norway's largest ATS and
+  the apply target on NAV ads, is `User-agent: * / Disallow: /` — its `Allow:` rules for
+  `/home/alladverts/` are **Googlebot-only**, so it is closed on robots alone like AMS eJob-Room,
+  and `www.webcruiter.no` is `Disallow: /` too. **Jobbnorge** (the ATS behind Norwegian
+  universities, municipalities and health trusts, so ISCO 1–2 by construction) has an effectively
+  allow-all robots but its listing page renders 2 534 characters and says it *needs JavaScript*;
+  its bundle (`/search/site.min.js`) contains no XHR path, only client-side handlebars templating
+  of `schema.org/JobPosting` — so the Actiris method found nothing to call. Unresolved, not
+  refused; the ad pages themselves were not checked for server-rendered JSON-LD and that is the
+  one thing left to try. **karrierestart.no** carries the same Content-Signal template as
+  kariera.gr — `search=yes, ai-train=no`, `ai-input` unset, `Disallow: /` for ClaudeBot/GPTBot —
+  so nothing is granted to a product whose matcher reads postings into a model.
 - **Germany's Bundesagentur für Arbeit is the largest source in Europe (820 599 vacancies)
   and is excluded on terms — do not add it.** Its Jobbörse answers an undocumented public API
   at `rest.arbeitsagentur.de/jobboerse/jobsuche-service/pc/v6/jobs` with the well-known
