@@ -1,0 +1,86 @@
+company,domain,tier
+# Romania pass, 2026-08-07. NEW employers only — checked against the Romanian blocks of
+# thin_countries_companies.csv (eMAG, Banca Transilvania, BRD, Orange RO, Vodafone RO, Telekom
+# RO, NTT DATA RO) and thin_expand2_companies.csv (Fortech, Roweb, Flip, Frisbo, TotalSoft,
+# Cegeka RO), and against the adapter lists — UiPath is carried on Ashby and FlowX.ai on
+# Workable, so neither is repeated.
+#
+# Romania holds ~105 active postings. Two things shape this list. First, Romania's own product
+# companies are few but real (Bitdefender, MultiversX, FintechOS, Druid) and are the segment
+# most likely to run a public ATS board. Second — and this is where Romanian inventory actually
+# lives — the country is a delivery-centre economy: Endava, Luxoft, Accesa, Yonder, Betfair
+# Romania Development and the bank tech centres employ engineers in Bucharest, Cluj, Iași and
+# Timișoara at a scale no Romanian-headquartered firm matches. Both halves are probed here.
+#
+# Identity + city MUST be checked with inspect_hits.py before anything is wired: `flip`
+# already resolved to three different companies in the 2026-08-06 pass, none of them Flip.ro.
+
+# --- Tier 1: Romanian product / tech companies ---
+Bitdefender,bitdefender.com,1
+MultiversX,multiversx.com,1
+FintechOS,fintechos.com,1
+Druid AI,druidai.com,1
+TypingDNA,typingdna.com,1
+Zitec,zitec.com,1
+Tremend,tremend.com,1
+Qualitance,qualitance.com,1
+Sparktech,sparktech.ro,1
+Thinslices,thinslices.com,1
+Bunnyshell,bunnyshell.com,1
+Innoship,innoship.com,1
+Sameday,sameday.ro,1
+Deepstash,deepstash.com,1
+SmartDreamers,smartdreamers.com,1
+Softelligence,softelligence.net,1
+Arobs,arobs.com,1
+Bittnet Systems,bittnet.ro,1
+Amber Studio,amberstudio.com,1
+Vola,vola.ro,1
+
+# --- Tier 2: delivery centres and IT services with Romanian engineering at scale ---
+Endava,endava.com,2
+Luxoft,luxoft.com,2
+Accesa,accesa.eu,2
+Yonder,tss-yonder.com,2
+Stefanini,stefanini.com,2
+Sii Romania,sii.ro,2
+Pentalog,pentalog.com,2
+Cognizant Softvision,cognizant.com,2
+Nagarro,nagarro.com,2
+Genpact,genpact.com,2
+Betfair Romania Development,betfairromania.ro,2
+Playtech,playtech.com,2
+Gameloft,gameloft.com,2
+Ubisoft,ubisoft.com,2
+Electronic Arts,ea.com,2
+Deutsche Bank,db.com,2
+Societe Generale GSC,societegenerale.com,2
+Wipro,wipro.com,2
+
+# --- Tier 3: large Romanian employers and multinationals' Romanian arms ---
+Digi Communications,digi-communications.ro,3
+OMV Petrom,omvpetrom.com,3
+Hidroelectrica,hidroelectrica.ro,3
+Transgaz,transgaz.ro,3
+Nuclearelectrica,nuclearelectrica.ro,3
+BCR,bcr.ro,3
+Raiffeisen Bank Romania,raiffeisen.ro,3
+ING Bank Romania,ing.ro,3
+Garanti BBVA,garantibbva.ro,3
+Allianz Tiriac,allianztiriac.ro,3
+NN Romania,nn.ro,3
+MedLife,medlife.ro,3
+Regina Maria,reginamaria.ro,3
+Dedeman,dedeman.ro,3
+Altex,altex.ro,3
+Profi,profi.ro,3
+Autonom,autonom.ro,3
+Fan Courier,fancourier.ro,3
+Cargus,cargus.ro,3
+Answear,answear.ro,3
+Continental,continental.com,3
+Bosch,bosch.com,3
+Michelin,michelin.com,3
+Dacia,dacia.ro,3
+Star Assembly,starassembly.ro,3
+Alro,alro.ro,3

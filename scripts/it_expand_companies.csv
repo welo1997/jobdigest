@@ -1,0 +1,94 @@
+company,domain,tier
+# Italy expansion pass, 2026-08-07. NEW employers only — every name was checked against
+# scripts/it_companies.csv (the 109-row 2026-08-04 list + its 2026-08-05 additions) and the
+# adapter lists, and is not already probed or carried. Brembo is on Oracle, Satispay on Ashby,
+# Mia-Platform on Recruitee, Moneyfarm carried — none are repeated here.
+#
+# Why a second Italian pass: every non-ATS route in Italy is closed (checked 2026-08-07).
+# Cliclavoro's vacancy search has moved into SIISL, a SPID-gated SPA; the Ministry's open data
+# is statistics, not vacancy records; the regional portals are Liferay portlets that render
+# client-side; **InfoJobs.it has shut down entirely**; subito.it and monster.it return 403 to
+# the honest agent; jobrapido and talent.com disallow their own posting pages and are
+# aggregators besides; trovolavoro is Disallow-all-but-homepage; and both Italian ATSes are
+# closed on robots (inRecruiting disallows /*LAC*, the career-page parameter; altamira.it
+# disallows exactly its annunci browse and detail pages). Curated employers are the whole route.
+#
+# Identity + city MUST be checked with inspect_hits.py before anything is wired.
+
+# --- Tier 1: Italian product / tech companies most likely to run a public ATS board ---
+Docebo,docebo.com,1
+Arduino,arduino.cc,1
+WeRoad,weroad.it,1
+Unobravo,unobravo.com,1
+Serenis,serenis.it,1
+Musement,musement.com,1
+Freeda Media,freedamedia.com,1
+Fabrick,fabrick.com,1
+Expert.ai,expert.ai,1
+Indigo.ai,indigo.ai,1
+Vedrai,vedrai.com,1
+Ammagamma,ammagamma.com,1
+Aindo,aindo.com,1
+Zerynth,zerynth.com,1
+MainStreaming,mainstreaming.tv,1
+Neosperience,neosperience.com,1
+Newcleo,newcleo.com,1
+Qomodo,qomodo.me,1
+Aidexa,aidexa.it,1
+Switcho,switcho.it,1
+Tot,tot.eu,1
+Velasca,velasca.com,1
+Tannico,tannico.it,1
+Sysdig,sysdig.com,1
+Nozomi Networks,nozominetworks.com,1
+Kong,konghq.com,1
+
+# --- Tier 2: Italian IT services, industrials and listed tech not in the first list ---
+Exprivia,exprivia.it,2
+Sesa Group,sesa.it,2
+TXT e-solutions,txtgroup.com,2
+Eurotech,eurotech.com,2
+Tinexta,tinexta.com,2
+Italtel,italtel.com,2
+Sirti,sirti.it,2
+Beta 80 Group,beta80group.it,2
+Bip,bip-group.com,2
+Alten Italia,alten.it,2
+NTT Data Italia,nttdata.com,2
+Comau,comau.com,2
+Marelli,marelli.com,2
+CNH Industrial,cnh.com,2
+Piaggio,piaggiogroup.com,2
+Technogym,technogym.com,2
+Dainese,dainese.com,2
+Avio,avio.com,2
+Telespazio,telespazio.com,2
+Saipem,saipem.com,2
+Webuild,webuildgroup.com,2
+Maire,mairetecnimont.com,2
+
+# --- Tier 3: utilities, transport, finance and retail groups not in the first list ---
+A2A,a2a.eu,3
+Hera,gruppohera.it,3
+Acea,acea.it,3
+Iren,gruppoiren.it,3
+Italgas,italgas.it,3
+Ferrovie dello Stato,fsitaliane.it,3
+ITA Airways,ita-airways.com,3
+Aeroporti di Roma,adr.it,3
+Mediobanca,mediobanca.com,3
+FinecoBank,finecobank.com,3
+Banca Mediolanum,bancamediolanum.it,3
+Banco BPM,gruppo.bancobpm.it,3
+BPER Banca,bper.it,3
+Credem,credem.it,3
+Unipol,unipol.it,3
+Golden Goose,goldengoose.com,3
+Geox,geox.com,3
+Tods,todsgroup.com,3
+Salvatore Ferragamo,ferragamo.com,3
+Max Mara,maxmara.com,3
+Eataly,eataly.net,3
+Unieuro,unieuro.it,3
+Mondadori,mondadorigroup.com,3
+Feltrinelli,lafeltrinelli.it,3

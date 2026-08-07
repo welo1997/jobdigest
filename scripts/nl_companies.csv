@@ -1,0 +1,85 @@
+company,domain,tier
+# Netherlands pass, 2026-08-07. NEW employers only — checked against the Dutch block of
+# thin_countries_companies.csv (ASML, ING, Rabobank, ABN AMRO, Adyen, Booking.com, NXP, TomTom,
+# Heineken, KPN, Coolblue, bol, Mollie, Backbase, Picnic, Just Eat Takeaway, Exact, AFAS,
+# Sendcloud, Bird) and against the adapter lists — nxp is carried on Workday, adjust and
+# podimo/miro/deliverect elsewhere, so none is repeated.
+#
+# The Netherlands holds ~596 active postings, more than any other thin-ish country, and its
+# shape is distinctive: a very deep second tier of product companies (the first list took only
+# the household names), plus semiconductor and high-tech manufacturing around Eindhoven that no
+# pass has touched, plus the Randstad-area corporates and the research institutes.
+#
+# Identity + city MUST be checked with inspect_hits.py before anything is wired.
+
+# --- Tier 1: Dutch product / software companies beyond the household names ---
+Framer,framer.com,1
+Miro Amsterdam,miro.com,1
+Messagebird,messagebird.com,1
+Bynder,bynder.com,1
+Channable,channable.com,1
+Nmbrs,nmbrs.com,1
+Silverflow,silverflow.com,1
+Dashmote,dashmote.com,1
+Castor,castoredc.com,1
+Nedap,nedap.com,1
+Ohpen,ohpen.com,1
+Bunq,bunq.com,1
+Tikkie,abnamro.com,1
+Homerun,homerun.co,1
+Recharge,rechargepayments.com,1
+Zivver,zivver.com,1
+Eye Security,eye.security,1
+Cybersprint,cybersprint.nl,1
+Aiven Amsterdam,aiven.io,1
+Datasnipper,datasnipper.com,1
+Leapfunder,leapfunder.com,1
+StuDocu,studocu.com,1
+
+# --- Tier 2: Eindhoven-region high tech, semiconductors and engineering ---
+ASM International,asm.com,2
+BESI,besi.com,2
+VDL Groep,vdlgroep.com,2
+Signify,signify.com,2
+Philips,philips.com,2
+Thermo Fisher Eindhoven,thermofisher.com,2
+Prodrive Technologies,prodrive-technologies.com,2
+Sioux Technologies,sioux.eu,2
+Demcon,demcon.com,2
+Additive Industries,additiveindustries.com,2
+Lightyear,lightyear.one,2
+Nearfield Instruments,nearfieldinstruments.com,2
+Salland Engineering,salland.com,2
+Photonfirst,photonfirst.com,2
+TNO,tno.nl,2
+Fontys,fontys.nl,2
+
+# --- Tier 3: Randstad corporates, logistics, energy and public sector ---
+Ahold Delhaize,aholddelhaize.com,3
+Jumbo,jumbo.com,3
+Albert Heijn,ah.nl,3
+HEMA,hema.nl,3
+Action,action.com,3
+Zeeman,zeeman.com,3
+Randstad,randstad.com,3
+Aegon,aegon.com,3
+NN Group,nn-group.com,3
+Achmea,achmea.nl,3
+a.s.r.,asr.nl,3
+Van Lanschot,vanlanschotkempen.com,3
+Schiphol,schiphol.nl,3
+KLM,klm.com,3
+NS Nederlandse Spoorwegen,ns.nl,3
+ProRail,prorail.nl,3
+PostNL,postnl.nl,3
+Vattenfall Netherlands,vattenfall.nl,3
+Eneco,eneco.com,3
+Alliander,alliander.com,3
+Stedin,stedin.net,3
+TenneT,tennet.eu,3
+Shell Netherlands,shell.com,3
+Boskalis,boskalis.com,3
+Damen Shipyards,damen.com,3
+Fugro,fugro.com,3
+Arcadis,arcadis.com,3
+Royal HaskoningDHV,royalhaskoningdhv.com,3

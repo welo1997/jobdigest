@@ -1,0 +1,91 @@
+company,domain,tier
+# Austria pass, 2026-08-07. NEW employers only — every name here was checked against
+# thin_countries_companies.csv (the 2026-08-04 AT block), thin_expand_companies.csv (the
+# 2026-08-06 AT block) and the adapter lists, and is NOT already probed or carried.
+#
+# Why a dedicated AT pass: Austria holds ~257 active postings and the national-register route
+# is closed (AMS publishes statistics, not vacancies; its eJob-Room is robots Disallow: / and
+# karriere.at's Nutzungsbedingungen forbid "sämtliche Formen der automatisierten Auswertung").
+# Curated employers on a supported ATS is therefore the entire remaining route, as it was for
+# Slovakia after Alma Career.
+#
+# Identity + city MUST be checked with inspect_hits.py before any hit is wired — a live 200
+# is not proof the board belongs to the company whose name it spells.
+
+# --- Tier 1: Austrian product/tech companies most likely to run a public ATS board ---
+Tractive,tractive.com,1
+Nuki,nuki.io,1
+Blockpit,blockpit.io,1
+wikifolio,wikifolio.com,1
+Netconomy,netconomy.net,1
+Fabasoft,fabasoft.com,1
+eversports,eversports.com,1
+Cloudflight,cloudflight.io,1
+Contextflow,contextflow.com,1
+Finmatics,finmatics.com,1
+ToolSense,toolsense.io,1
+Symptoma,symptoma.com,1
+Cropster,cropster.com,1
+mySugr,mysugr.com,1
+Parkside,parkside-interactive.com,1
+craftworks,craftworks.ai,1
+Medicus AI,medicus.ai,1
+Journi,journi.com,1
+waterdrop,waterdrop.com,1
+Playbrush,playbrush.com,1
+
+# --- Tier 2: larger Austrian corporates and industrials (Workday/SmartRecruiters shape) ---
+ams-OSRAM,ams-osram.com,2
+Fronius,fronius.com,2
+Zumtobel,zumtobelgroup.com,2
+Lenzing,lenzing.com,2
+Borealis,borealisgroup.com,2
+RHI Magnesita,rhimagnesita.com,2
+Miba,miba.com,2
+Pierer Mobility,pierermobility.com,2
+KTM,ktm.com,2
+Doka,doka.com,2
+Egger,egger.com,2
+Strabag,strabag.com,2
+PORR,porr-group.com,2
+Agrana,agrana.com,2
+Mayr-Melnhof,mayr-melnhof.com,2
+AMAG Austria Metall,amag-al4u.com,2
+Semperit,semperitgroup.com,2
+Greiner,greiner.com,2
+Engel Austria,engelglobal.com,2
+Kontron,kontron.com,2
+Swarovski,swarovskigroup.com,2
+Mondi,mondigroup.com,2
+Wiener Stadtwerke,wienerstadtwerke.at,2
+OeBB,oebb.at,2
+Oesterreichische Post,post.at,2
+UNIQA,uniqa.at,2
+Vienna Insurance Group,vig.com,2
+BAWAG,bawaggroup.com,2
+Bank Austria,bankaustria.at,2
+Spar Oesterreich,spar.at,2
+XXXLutz,xxxlutz.at,2
+Julius Meinl,meinlcoffee.com,2
+
+# --- Tier 3: smaller/newer Austrian tech, research and services ---
+Ubimet,ubimet.com,3
+cyan Security,cyansecurity.com,3
+Robart,robart.ai,3
+Blue Danube Robotics,bluedanuberobotics.com,3
+Tributech,tributech.io,3
+sproof,sproof.io,3
+Presono,presono.com,3
+Emporia Telecom,emporia.eu,3
+Durst Group,durst-group.com,3
+MIC Customs Solutions,mic-cust.com,3
+Willhaben,willhaben.at,3
+Shpock,shpock.com,3
+Speedinvest,speedinvest.com,3
+IST Austria,ista.ac.at,3
+AIT Austrian Institute of Technology,ait.ac.at,3
+Complexity Science Hub,csh.ac.at,3
+Raiffeisen Software,r-software.at,3
+Erste Digital,erstedigital.com,3
+bsurance,bsurance.tech,3
+Deepdrive,deepdrive.io,3

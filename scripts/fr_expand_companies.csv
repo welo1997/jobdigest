@@ -1,0 +1,94 @@
+company,domain,tier
+# France expansion pass, 2026-08-07. NEW employers only — every name checked against the
+# 126-row scripts/fr_companies.csv (2026-08-05 pass) and the adapter lists. Qonto, Alan, Swan,
+# Back Market, PhotoRoom, Pennylane, Voodoo, Dust, Nabla, Owkin, Ankorstore, Sorare, Airbus,
+# Air Liquide, Pernod Ricard, Kyriba, Veepee, Gojob, Verkor, Doctrine, Brevo, Exotec, Hugging
+# Face, Dashlane, Wrike, Sweep, CybelAngel, Memo Bank are already carried — none repeated.
+#
+# Why a second French pass: France's non-ATS routes are settled and closed. France Travail's
+# API is permitted but declined on Art. 5.3 (every offer must display the API's whole content)
+# and Art. 7 (an expired offer must be stripped of company, description, URL *and commune*,
+# which empties digest.dedupe_key) — see notes/2026-08-04-france-travail.md. APEC, the cadre
+# body whose corpus would be exactly this product's segment, forbids "capter tout ou partie du
+# contenu … et des bases de données qui lui sont liées (offres d'emploi …)" and navigating with
+# "un logiciel robot ou tout autre procédé ou outil automatisé". The open-data route is
+# statistics or tiny municipal sets. Curated employers is the whole route.
+#
+# Identity + city MUST be checked with inspect_hits.py before anything is wired.
+
+# --- Tier 1: French product / tech companies most likely to run a public ATS board ---
+Contentsquare,contentsquare.com,1
+Aircall,aircall.io,1
+Malt,malt.com,1
+Ledger,ledger.com,1
+BlaBlaCar,blablacar.com,1
+Swile,swile.co,1
+Agicap,agicap.com,1
+Lucca,lucca.fr,1
+360Learning,360learning.com,1
+OpenClassrooms,openclassrooms.com,1
+Livestorm,livestorm.co,1
+Botify,botify.com,1
+Dailymotion,dailymotion.com,1
+Talend,talend.com,1
+Scaleway,scaleway.com,1
+Teads,teads.com,1
+Sunday,sundayapp.com,1
+Iktos,iktos.ai,1
+Aqemia,aqemia.com,1
+DNA Script,dnascript.com,1
+Wandercraft,wandercraft.eu,1
+Forsee Power,forseepower.com,1
+Balyo,balyo.com,1
+VusionGroup,vusion.com,1
+Sarbacane,sarbacane.com,1
+Qover,qover.com,1
+
+# --- Tier 2: French IT services and engineering consultancies (Workday/SR shape) ---
+Sopra Steria,soprasteria.com,2
+Alten,alten.com,2
+Assystem,assystem.com,2
+Devoteam,devoteam.com,2
+Wavestone,wavestone.com,2
+Onepoint,groupeonepoint.com,2
+Talan,talan.com,2
+Sia Partners,sia-partners.com,2
+Inetum,inetum.com,2
+Docaposte,docaposte.com,2
+Berger-Levrault,berger-levrault.com,2
+Umanis,umanis.com,2
+Econocom,econocom.com,2
+
+# --- Tier 3: large French employers and research bodies not in the first list ---
+Sanofi,sanofi.com,3
+Servier,servier.com,3
+Ipsen,ipsen.com,3
+Pierre Fabre,pierre-fabre.com,3
+bioMerieux,biomerieux.com,3
+Air France KLM,airfranceklm.com,3
+SNCF,sncf.com,3
+RATP,ratp.fr,3
+La Poste,legroupe.laposte.fr,3
+Naval Group,naval-group.com,3
+ArianeGroup,ariane.group,3
+Thales Alenia Space,thalesaleniaspace.com,3
+CNES,cnes.fr,3
+CEA,cea.fr,3
+Inria,inria.fr,3
+Veolia,veolia.com,3
+Suez,suez.com,3
+Alstom,alstom.com,3
+Forvia,forvia.com,3
+Valeo,valeo.com,3
+Plastic Omnium,plasticomnium.com,3
+Nexans,nexans.com,3
+Rexel,rexel.com,3
+Sonepar,sonepar.com,3
+LVMH,lvmh.com,3
+Kering,kering.com,3
+Adeo,adeo.com,3
+Fnac Darty,fnacdarty.com,3
+Cdiscount,cdiscount.com,3
+Showroomprive,showroomprive.com,3
+Maisons du Monde,maisonsdumonde.com,3
+Auchan,auchan.com,3

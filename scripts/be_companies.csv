@@ -1,0 +1,83 @@
+company,domain,tier
+# Belgium pass, 2026-08-07. NEW employers only — checked against the Belgian blocks of
+# thin_countries_companies.csv (KBC, Proximus, Colruyt, Solvay, Umicore, UCB, AB InBev, Barco,
+# Materialise, Odoo, Collibra, Showpad, Teamleader, Deliverect) and thin_expand_companies.csv
+# (Intigriti, Aikido, Lansweeper, Guardsquare, In The Pocket, DataCamp, Henchman, Sentiance),
+# and against the adapter lists.
+#
+# Belgium holds ~269 active postings. Its shape is unusual and the list reflects it: a small,
+# genuinely strong product-software cluster around Ghent and Leuven, an outsized set of
+# **EU-institutional and international employers** in Brussels that no other country has, and
+# the chemicals/pharma/logistics corporates. The Brussels institutional tier is the part the
+# earlier thin-country passes never touched.
+#
+# Identity + city MUST be checked with inspect_hits.py. Belgian slugs are especially collision-
+# prone: `memo` already resolved to a Belgian firm when probing for Memo Bank of Paris, and the
+# reverse will happen here.
+
+# --- Tier 1: Belgian product / software companies not yet probed ---
+Silverfin,silverfin.com,1
+Unifiedpost,unifiedpost.com,1
+Isabel Group,isabelgroup.eu,1
+Digiteal,digiteal.eu,1
+Ometria,ometria.com,1
+Cegeka,cegeka.com,1
+iText,itextpdf.com,1
+Sofico,sofico.global,1
+Nallian,nallian.com,1
+Robovision,robovision.ai,1
+Oqton,oqton.com,1
+Ontoforce,ontoforce.com,1
+Datastories,datastories.com,1
+Bothrs,bothrs.com,1
+Delaware,delaware.pro,1
+ML6,ml6.eu,1
+Craftzing,craftzing.com,1
+Raccoons,raccoons.be,1
+Skyhaus,skyhaus.be,1
+Tinkerlist,tinkerlist.tv,1
+
+# --- Tier 2: Brussels institutional and international employers ---
+NATO,nato.int,2
+SWIFT,swift.com,2
+Euroclear,euroclear.com,2
+Eurocontrol,eurocontrol.int,2
+Bpost,bpost.be,2
+Brussels Airlines,brusselsairlines.com,2
+Brussels Airport,brusselsairport.be,2
+Infrabel,infrabel.be,2
+SNCB NMBS,belgiantrain.be,2
+STIB MIVB,stib-mivb.be,2
+Elia Group,eliagroup.eu,2
+Fluvius,fluvius.be,2
+Engie Belgium,engie.be,2
+Luminus,luminus.be,2
+Belfius,belfius.be,2
+ING Belgium,ing.be,2
+BNP Paribas Fortis,bnpparibasfortis.be,2
+AG Insurance,aginsurance.be,2
+Ethias,ethias.be,2
+
+# --- Tier 3: chemicals, pharma, logistics, industry and retail ---
+Janssen Pharmaceutica,janssen.com,3
+Galapagos,glpg.com,3
+Argenx,argenx.com,3
+Ablynx,ablynx.com,3
+Nyxoah,nyxoah.com,3
+Biocartis,biocartis.com,3
+Agfa,agfa.com,3
+Bekaert,bekaert.com,3
+Sioen,sioen.com,3
+Deceuninck,deceuninck.com,3
+Etex,etex.com,3
+Aliaxis,aliaxis.com,3
+Ontex,ontexglobal.com,3
+Lotus Bakeries,lotusbakeries.com,3
+Puratos,puratos.com,3
+Vandemoortele,vandemoortele.com,3
+Katoen Natie,katoennatie.com,3
+Sea-Invest,sea-invest.com,3
+Delhaize,delhaize.be,3
+Torfs,torfs.be,3
+Decathlon Belgium,decathlon.be,3
+Kinepolis,kinepolis.com,3

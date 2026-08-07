@@ -1,0 +1,90 @@
+company,domain,tier
+# GB expansion pass, 2026-08-07. NEW employers only — checked against the 110-row
+# scripts/gb_companies.csv (2026-08-05, which produced the 10 EEA-slice boards and then the 23
+# UK-on-site boards once GB became selectable) and against the adapter lists.
+#
+# The first GB list was fintech- and consumer-startup-heavy, because it was assembled while the
+# UK was still gated out and only EEA seats and remote roles could reach anyone. GB has been
+# selectable since 2026-08-05, so this list deliberately goes where UK employment actually is
+# and the first list did not: the large engineering and industrial employers, the public and
+# quasi-public sector, the universities and research institutes, media, retail and the
+# professional-services firms — plus the second tier of UK software companies.
+#
+# Identity + city MUST be checked with inspect_hits.py. Generic UK slugs are the worst offenders
+# in this repo's history (`air`, `post`, `blue`, `max`, `sunday`), and English-language company
+# names collide with US firms far more often than Czech or Romanian ones do.
+
+# --- Tier 1: UK software / data companies not in the first list ---
+Monzo Flex,monzo.com,1
+Deliveroo,deliveroo.co.uk,1
+Bumble,bumble.com,1
+Wayve,wayve.ai,1
+Synthesia,synthesia.io,1
+ElevenLabs,elevenlabs.io,1
+Stability AI,stability.ai,1
+PolyAI,poly.ai,1
+Tessian,tessian.com,1
+Snowplow,snowplow.io,1
+Matillion,matillion.com,1
+Mimecast,mimecast.com,1
+Darktrace Federal,darktrace.com,1
+Beamery,beamery.com,1
+Attest,askattest.com,1
+Hopin,hopin.com,1
+Lyst,lyst.com,1
+Farfetch,farfetch.com,1
+Ocado Technology,ocadogroup.com,1
+Babylon,babylonhealth.com,1
+Zopa,zopa.com,1
+Starling Engineering,starlingbank.com,1
+
+# --- Tier 2: UK engineering, industrials, pharma and energy ---
+AstraZeneca,astrazeneca.com,2
+Reckitt,reckitt.com,2
+Smith and Nephew,smith-nephew.com,2
+Croda,croda.com,2
+Johnson Matthey,matthey.com,2
+Spirax,spiraxgroup.com,2
+Renishaw,renishaw.com,2
+Halma,halma.com,2
+Melrose GKN,melroseplc.net,2
+Babcock International,babcockinternational.com,2
+QinetiQ,qinetiq.com,2
+Leonardo UK,uk.leonardo.com,2
+Airbus UK,airbus.com,2
+National Grid,nationalgrid.com,2
+SSE,sse.com,2
+Centrica,centrica.com,2
+Severn Trent,severntrent.co.uk,2
+United Utilities,unitedutilities.com,2
+Network Rail,networkrail.co.uk,2
+Jaguar Land Rover,jaguarlandrover.com,2
+Nissan UK,nissan.co.uk,2
+Bentley Motors,bentleymotors.com,2
+
+# --- Tier 3: public sector, research, media, retail, professional services ---
+NHS England,england.nhs.uk,3
+Wellcome Trust,wellcome.org,3
+Francis Crick Institute,crick.ac.uk,3
+Alan Turing Institute,turing.ac.uk,3
+University of Oxford,ox.ac.uk,3
+University of Cambridge,cam.ac.uk,3
+Imperial College London,imperial.ac.uk,3
+UCL,ucl.ac.uk,3
+BBC,bbc.co.uk,3
+ITV,itv.com,3
+Channel 4,channel4.com,3
+Financial Times,ft.com,3
+Guardian Media Group,theguardian.com,3
+Economist Group,economistgroup.com,3
+Marks and Spencer,marksandspencer.com,3
+John Lewis Partnership,johnlewispartnership.co.uk,3
+Ocado Group,ocadogroup.com,3
+Boots,boots-uk.com,3
+Currys,currysplc.com,3
+Deloitte UK,deloitte.co.uk,3
+PwC UK,pwc.co.uk,3
+KPMG UK,kpmg.co.uk,3
+EY UK,ey.com,3
+Accenture UK,accenture.com,3
+Capgemini UK,capgemini.com,3

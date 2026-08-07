@@ -1041,6 +1041,38 @@ goes red. A test that cannot fail documents nothing.
   per-posting detail page exists for some other reason** — then Art. 5.3 is free and only the
   Art. 7 scrub remains. Not because France looks thin: `sanofi`, `valeo` and `salesforce` are
   already French inventory on Workday. Full workings in `notes/2026-08-04-france-travail.md`.
+- **The rest of France was swept on 2026-08-07 and closes the question around France Travail:
+  there is no second national-scale route.** Three boards, three refusals, and the *cadre* one
+  is the one that stings:
+  - **APEC** is the association that exists for exactly this product's segment — French
+    *cadres*, ISCO 1–3 by construction — and its robots.txt says *"All robots will spider the
+    domain"* with no `Disallow`. Its CGU forbid two things separately: *"**Capter tout ou
+    partie du contenu du site Apec.fr et des bases de données qui lui sont liées (offres
+    d'emploi, candidApec, …)** sous peine de s'exposer à des sanctions de nature civile et/ou
+    pénale"*, and *"**Utiliser, pour naviguer sur le site Apec.fr, un logiciel robot ou tout
+    autre procédé ou outil automatisé équivalent**"*. Its search webservice
+    (`/cms/webservices/rechercheOffre`, POST, unauthenticated) works; that is not the question.
+  - **HelloWork Group** (hellowork.com, ex-RegionsJob) carries the most explicit refusal in
+    this repo: automated extraction *"à quelques fins que ce soit, **commerciales ou non**, est
+    strictement interdite"*, followed by a full recitation of the **sui generis database
+    right** — extraction of a substantial part, and repeated extraction of insubstantial parts.
+  - **Welcome to the Jungle** forbids any *"extraction automatisée de données (« scraping »)"*,
+    while its robots.txt permits `/jobs/`. **Cadremploi** returns a Cloudflare 403 to the honest
+    agent, so it is a dead source before its terms matter.
+
+  That is now **seven times robots.txt has permitted what the terms refuse** — Alma Career,
+  EURES, BambooHR, karriere.at, hokify, APEC, WTTJ. Treat a permissive robots.txt as evidence
+  of nothing.
+  **The French open-data route is statistics or municipal scraps**, and it is worth knowing why
+  it *looks* promising: `data.gouv.fr` returns a France-Travail-published *"Offres d'emploi
+  diffusées à France Travail"* under Licence Ouverte, which is a **quarterly XLS of seasonally
+  adjusted series**. Two collectivités redistribute genuine live records under LO 2.0 — and
+  Seine-Saint-Denis's holds **150 rows**, unfiltered and last touched in December 2025 (the
+  sampled one is a delivery driver 700 km away in Castelnaudary), while Île-de-France's 193 are
+  **the Région's own civil-service posts**, not France Travail's corpus. **The French ATSes are
+  closed too**: Taleez's robots is `Disallow: /api/`, and DigitalRecruiters/Flatchr/Beetween/
+  Softy host each customer on the customer's own domain with no keyless multi-tenant board API
+  — the eRecruiter problem, per-employer permission with no scalable answer.
 - **The national-register route is now closed in every remaining EEA country, and the reasons
   differ** (checked 2026-08-04). Denmark's Jobnet webservice is free but arranged by email to
   `spoc@star.dk`; Belgium's VDAB Vacature API needs an approved partnership, an intake call and
@@ -1051,6 +1083,160 @@ goes red. A test that cannot fail documents nothing.
   aggregate movements on dados.gov.pt. So `mpsv` (CZ) and `platsbanken` (SE) remain the only
   two, France Travail is the only other permitted one, and **curated employers on an ATS is the
   entire remaining route** for the countries that are empty.
+- **Austria was swept end to end on 2026-08-07 and every non-ATS route is closed. Do not
+  re-open one because AT looks thin.** Seven doors, and the useful thing is that no two shut
+  for the same reason:
+  - **AMS eJob-Room** — `jobroom.ams.or.at/robots.txt` is **`Disallow: /`**. The one source
+    here refused by robots *alone*, and the inverse of the recurring lesson: usually robots
+    permits what the terms refuse. Its data.gv.at open data is statistics, as recorded above.
+  - **karriere.at** (Austria's largest board) — robots.txt is `Disallow:` (allow-all) but the
+    Nutzungsbedingungen §2.8 read *"Du darfst die Informationen auf unserer Website bloß für
+    deine persönliche Jobsuche und den privaten Gebrauch verwenden. **Sämtliche Formen der
+    automatisierten Auswertung unserer Plattform sind verboten.**"* Same bar as Alma Career.
+  - **hokify** — its robots.txt literally opens `# crawler friendly, as long as you link to
+    hokify.at`, and its AGB then forbid *"das Benutzen … automatischer Software … Script-Robots
+    … (insbesondere Browser, Spider, Robots …)"* and *"das Sammeln, Kopieren oder
+    Vervielfältigen von Informationen … ohne vorherige schriftliche Genehmigung"*. **The
+    friendliest robots.txt in the repo sits on top of a flat refusal** — settle a source on the
+    narrowest applicable clause, never on robots.
+  - **derStandard Jobs** — AGB §VI reserves commercial **text and data mining** under
+    § 42h Abs 6 UrhG / Art. 4(3) RL (EU) 2019/790 and points at `legal@derstandard.at` for a
+    licence. A machine-readable TDM reservation is a refusal, and buying past it is
+    correspondence → skipped either way.
+  - **willhaben** — robots.txt opens *"It is expressively forbidden to use spiders, search
+    robots or other automatic methods to access willhaben.at."* **StepStone.at** returns 403 to
+    the honest `JobDigest/1.0` agent, and **devjobs.at** answers a Vercel security checkpoint
+    (429) — both dead sources by this repo's own rule. **metajob.at** is a meta-aggregator whose
+    legal pages are an unreadable SPA shell, and it indexes karriere.at and StepStone, so taking
+    it would launder their refusals — the EURES rule.
+  - **jobboerse.gv.at** (the Republic's own civil-service board) looked like the MPSV shape and
+    is not: its REST API is `/wf-rest-api/` and answers **401**, and the one bulk page that
+    exists, `/statische-jobsuche`, is robots-disallowed.
+  - **eRecruiter** is the near-miss worth recording. Austria's market-leading ATS, its portals
+    are server-rendered with a sitemap, `Allow: /`, and **schema.org/JobPosting JSON-LD** — one
+    parser could in principle reach many Austrian employers, which is exactly what a company's
+    own careers page cannot offer. Two things stop it: **karriere.at owns 51% of eRecruiter**,
+    so the group whose terms forbid automated evaluation is the operator; and customer portals
+    run on the *employer's* own host under no single ATS document, so permission is a
+    per-employer question with no scalable answer. Its public API path is 404 to anonymous
+    callers anyway.
+- **Italy has no open route either, and one of the closures is a market fact rather than a
+  legal one** (checked 2026-08-07). **InfoJobs.it — Adevinta's Italian board — has shut down**:
+  every path on the host returns one page reading *"Questa piattaforma è ufficialmente chiusa e
+  non più disponibile."* The rest: **Cliclavoro** no longer runs a vacancy search at all, having
+  moved it into **SIISL**, a SPID-gated 10 KB SPA; the Ministry's open data is statistics
+  (Barometro del lavoro, avviamenti/rapporti di lavoro), the AMS shape; the **regional** portals
+  are the devolved route and the sampled one (cliclavoroveneto.it) is a Liferay portlet whose
+  job search renders client-side — 1 985 characters of visible text, no JSON-LD, and it is one
+  region of twenty. **subito.it** and **monster.it** return **403** to the honest agent,
+  **trovolavoro.it** is `Allow: /$` + `Disallow: /`, and **jobrapido**/**talent.com** disallow
+  their own posting paths *and* are aggregators over boards that refuse us. Both **Italian
+  ATSes** are closed on robots, and precisely on the pages that matter: inRecruiting (Zucchetti)
+  disallows `/*LAC*`, the career-page parameter, and altamira.it disallows exactly
+  `/html/people/people_sfoglia_annunci.asp` and `/Annunci/Dettaglio.htm`.
+  **The one open-licensed Italian vacancy dataset is real and empty.** Regione Siciliana
+  publishes *"Offerte di Lavoro"* on dati.gov.it under **CC BY 4.0** with CSV/JSON/TTL — the
+  licence MPSV and CBOP set the bar with — and it holds **18 records, none newer than March
+  2022**, mostly bakers, shop assistants and holiday-village entertainers. A perfect licence
+  over no data; the inverse of France Travail, which is perfectly licensed data we cannot
+  display. The Trento *"Offerte di lavoro Eures"* set is a 2019 hackathon sample. Do not
+  re-derive this: a CKAN sweep of dati.gov.it for vacancy datasets returns statistics and
+  nothing else.
+- **Romania is closed on every route too, and the useful number is how thin its ATS surface
+  is** (checked 2026-08-07). **ANOFM**, the national agency, runs its register as an app at
+  `mediere.anofm.ro` that renders **no vacancies server-side** and exposes no public list
+  endpoint; `data.gov.ro` disallows `/api/` in robots (`Crawl-Delay: 10`) and, searched for
+  *anofm* / *vacante* / *ocupare* through the permitted HTML pages, carries only training-
+  programme and employment-programme **statistics**. So the register exists and is published
+  nowhere machine-readable — a third distinct way for a national register to be unavailable,
+  after Austria's `Disallow: /` and Italy's SPID-gated SPA. **eJobs.ro**, the largest board,
+  forbids *"reproducerea, în orice fel, integrală sau parțială, a informațiilor cuprinse …
+  **în anunțurile de recrutare ale Companiilor**, fără acordul scris"* and adds that its
+  content may not be reproduced or exploited *"indiferent de scopul comercial sau
+  necomercial"*. **BestJobs.eu** lists *"colectarea neautorizată de date (**scraping**)"* among
+  prohibited conduct — while its robots.txt is a bare `Disallow:`, i.e. allow-all, making it
+  the **eighth** source where robots permits what the terms refuse. **undelucram.ro** returns a
+  Cloudflare 403 to the honest agent. **hipo.ro** is the one genuinely unresolved case: robots
+  permits its job pages, but its terms grant access to store or reproduce material only *"în
+  scopuri personale"* and never to a third party — permission unestablished is not permission.
+  And the measurement worth keeping: **64 Romanian employers probed produced 6 live boards, 4
+  on a supported ATS, of which 2 were impostors.** Romania's inventory is a delivery-centre
+  economy whose employers hire through parent-company systems, not public boards.
+- **The UK's national vacancy service no longer exists, and that is the one closure here with a
+  real reopen trigger** (checked 2026-08-07). **DWP's "Find a Job" shut down on 30 June 2026** —
+  `findajob.dwp.gov.uk` answers 503 with *"This site is now closed"* — and DWP is building an
+  in-house replacement. The closed site's own footer reads *"All content is available under the
+  **Open Government Licence v3.0**"*, which is the licence MPSV and CBOP set the bar with. **So
+  when the replacement launches, re-check it**: an OGL-licensed national vacancy service with a
+  machine-readable route would be the UK's `mpsv`, and it is the only pending source in this
+  file that is pending on someone else's build rather than on correspondence. Everything else is
+  shut: **Civil Service Jobs** has `Allow: /` in robots and then a *"we just need to confirm
+  you're a real person"* JS wall; **Reed.co.uk** (403), **CV-Library** (403 despite `Allow: /`)
+  and **Totaljobs** (timeout) all refuse the honest `JobDigest/1.0` agent outright;
+  **jobs.ac.uk** — the academic board, and tempting because its inventory is entirely ISCO 1–2 —
+  refuses on terms: *"You can download, print and copy material … **for your own personal
+  use**. You **must not reproduce any part of the Company's Website or its material unless the
+  Company have granted you permission**"*; and **NHS Jobs** serves no robots.txt and its terms
+  page is a 954-character shell, so permission is unestablished — and its bulk is clinical
+  anyway, which is the `ashby:serenis` problem at national scale. **Adzuna already covers GB**
+  through its GB index, which is the existing route and remains the only one.
+- **Belgium's public route is three regional services, shut three different ways — and one of
+  them, Actiris, is the strongest unbuilt lead in this file** (checked 2026-08-07). **VDAB**
+  (Flanders) still needs an approved partnership and a signed cooperation agreement, so it stays
+  skipped. **Le Forem** (Wallonia) disallows `/recherche-offres/` in robots — the job-search
+  path itself — and blocks `ClaudeBot` and `GPTBot` by name. **Actiris** (Brussels) is the
+  exception, and everything about it points the right way:
+  - `robots.txt` disallows **only `/media/`**, and publishes **`sitemapoffers-fr.xml`** — a
+    sitemap enumerating **9 943 live offers**, with the Dutch equivalent alongside it.
+  - Offer pages are **server-rendered** (~9 000 characters of visible text), so no browser is
+    needed — the constraint that closed SuccessFactors and the Italian regional portals.
+  - The *mentions légales* grant, in terms: *"**L'utilisation des informations présentes sur les
+    sites est autorisée à condition d'en citer la source**"* and *"**Actiris autorise les
+    utilisateurs de ce site à copier les informations qui y sont présentes, de les imprimer et
+    de les communiquer à des fins d'informations**"*. The one restriction — that the data not be
+    used *"à d'autres fins que celles pour lesquelles elles sont mises en ligne, à savoir l'offre
+    et la recherche d'un emploi"* — is satisfied on its face by a product that delivers job
+    offers to jobseekers. There is no anti-robot clause at all.
+
+  **What stops it is arithmetic, not permission.** No bulk or search endpoint was found: the
+  site's own front end is a `<search-offers-widget>` whose XHR path is not in either shipped
+  bundle, so today the only route is page-by-page, and **9 943 fetches at `politeness`'s
+  1 s/host is ~2.8 hours against a ~60-minute export window** — the EURES `Crawl-delay` problem
+  in a different guise. **Reopen the moment that endpoint is identified**; the widget calls
+  *something*. Three things to settle first if it is built: whether offers name a contact person
+  (MPSV and Platsbanken both had to scrub them), an occupation filter, since like MPSV this is a
+  whole labour market and the sampled offer was a youth-work coordinator, and where the required
+  source citation goes — the Remote OK precedent, so Terms §3 and the `MatchCard`.
+- **`werkenvoornederland.nl` is the best-licensed and best-structured public source this repo has
+  ever found, and unlike Actiris nothing stops it being built** (checked 2026-08-07). The Dutch
+  central government's own vacancy site:
+  - **Licence: CC0.** *"Tenzij anders vermeld is op de inhoud van deze website de **Creative
+    Commons zero verklaring (CC0)** van toepassing … hergebruik van de inhoud van deze site is
+    toegestaan … Bij hergebruik van de inhoud van deze website is **naamsvermelding niet
+    verplicht**."* A public-domain dedication with attribution *not even required* — stronger
+    than MPSV (which merely disclaims the database right) and stronger than CBOP's CC BY. Only
+    photographs are carved out, and we use none.
+  - **robots.txt disallows only `/login`**, and carries `Request-rate: 10/1` — an explicit
+    invitation to go ten times faster than `politeness`'s 1 s/host.
+  - **`sitemap-vacatures.xml` enumerates 1 296 vacancies**, and every page carries
+    **schema.org/JobPosting JSON-LD**: title, full description, `datePosted`, `validThrough`,
+    `employmentType`, `hiringOrganization` (the real ministry name), `jobLocation` with city,
+    postcode and `addressCountry: NL`, and **`baseSalary` with min/max EUR per month**. Better
+    structured data than most adapters here parse by hand.
+  - **The roles fit the product**: senior business analysts, legal advisers, policy advisers,
+    PostgreSQL platform engineers. Central-government professional work, so unlike `mpsv` and
+    Actiris it needs no ISCO filter.
+  - **Personal data looks clean but was not exhaustively checked**: 0 email addresses across 6
+    sampled pages, a phone number on 3 of 6. Before building, apply the `mpsv`/`platsbanken`
+    discipline — never read a contact field, scrub contacts out of description text, and verify
+    across the whole corpus, not a sample.
+
+  At 1 296 pages it costs ~22 minutes at the current throttle, which fits the export window but
+  is not free; the `Request-rate` header is the argument for a per-host exception if it matters.
+  **This is a build, not a lead** — it is recorded here rather than built because discovering it
+  was the task. By contrast **`werk.nl` (UWV), the much larger national board, is closed**: its
+  vacancy route renders 110 characters of visible text (a SPA) and its sitemap holds 155
+  informational pages and no vacancies — the SIISL shape.
 - **Poland's CBOP is the best-licensed source this repo has ever found and is still skipped —
   the licence and the access are two different gates.** The Ministry of Family and Social
   Policy publishes the Centralna Baza Ofert Pracy on `dane.gov.pl` under **CC BY 4.0**, updated
