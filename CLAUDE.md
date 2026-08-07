@@ -52,6 +52,7 @@ notes/            session logs, security review; notes/INFRA.local.md is gitigno
 05:00 UTC  export   ingest sources → Postgres → write shortlists.json → Google Drive
 ~06:00     routine  claude.ai reads shortlists.json → writes picks.json      (no DB, no key)
 07:00 UTC  import   pull picks.json → validate → matches → build + send digests
+08:00 UTC  sources  per-source freshness + churn → alert if a source silently died
 09:00 UTC  watchdog digest_runs → alert if any subscriber has had nothing for 3 days
 03:30 UTC  backup   pg_dump → encrypt → off-box
 ```
@@ -113,6 +114,30 @@ both copies active until the old ones aged out ~7 days later. `digest_sends` key
 already-seen jobs. Expect this whenever an adapter's URL changes: duplicate rows competing
 for shortlist and candidate slots for one staleness window, and a spike in `first_seen_at`
 that is not new inventory.
+
+**And the new link was a 404 — for a whole day, on every startupjobs posting.**
+`/job/{id}` without the slug is a clean 404 on both domains and to a browser agent as well
+as ours; so are the id-only URLs in the site's *own* `sitemap/offers.xml`. Nothing catches
+this: the API answered, the count was right, the country split was right, and **a stored URL
+is never fetched again**, so a dead link is invisible until a subscriber clicks one. One was
+emailed. Two rules came out of it. **A link must carry whatever the site needs to resolve
+it** — `JOB_URL` includes `slug`, and the adapter is smoke-tested against live URLs, not
+just live JSON. And **`posting_id` must hash something the employer cannot edit**: the slug
+changes on a retitle (offer 106499 went `social-media-content-creator` →
+`social-media-specialist` in two days, with a 302), so hashing it would mint a new posting
+on every rename. startupjobs hashes `ID_URL` (the immutable `displayId`), which is also why
+repairing the links churned **no** ids — and why `upsert_postings` now refreshes `url`,
+without which a link stored wrong stays wrong for the life of the row.
+
+**`service/source_watchdog.py` (08:00 UTC) is what makes both of these loud.** It reads the
+expected source list from `search_jobs.source_classes` — never a copy, so a retired source
+(jobscz, profesia) is silent rather than alerting daily until the mailbox is ignored — and
+flags two shapes: `SILENT ZERO` (freshest row older than `--stale-days`, the 2026-08-06
+case, which was previously caught only by luck) and `ID CHURN` (nearly everything a run
+returned was first seen today, the 2026-08-07 case). **The churn ratio's denominator is
+`seen_today`, not `active`**, and that is the whole design: the superseded rows stay active
+for a staleness window, so against `active` the real incident reads 48% and no threshold
+fires, while against rows-returned it reads 100%. Genuine sources sit at 1–16%.
 
 ### Hiding a job is a move, never a delete
 

@@ -185,7 +185,33 @@ def dedup_key(p: JobPosting) -> str:
     return re.sub(r"\s+", " ", title).strip() + "::" + (p.company or "").lower().strip()
 
 
+def source_classes(include_cz: bool) -> list[type]:
+    """The adapters `gather` will run, without running them.
+
+    Split out of `gather` so `service.source_watchdog` can ask *which sources are expected
+    to produce rows today* and read the answer from the list itself rather than a second
+    copy that drifts — the same reason `scripts/probe_boards.py` reads its board lists out
+    of the adapters. A source missing from here is not stale, it is retired (jobscz,
+    profesia), and alerting on those forever is how a monitor gets muted."""
+    return _source_classes(include_cz)
+
+
 def gather(include_cz: bool) -> list[JobPosting]:
+    sources = _source_classes(include_cz)
+
+    postings: list[JobPosting] = []
+    for cls in sources:
+        try:
+            src = cls()
+            got = src.run()
+            postings.extend(got)
+            logger.info("%s: %d", src.source_name, len(got))
+        except Exception:
+            logger.exception("Source %s failed, skipping.", cls.__name__)
+    return postings
+
+
+def _source_classes(include_cz: bool) -> list[type]:
     sources = [RemotiveSource, WeWorkRemotelySource, RemoteOKSource, HimalayasSource,
                JobicySource, ArbeitnowSource, WorkingNomadsSource,
                GreenhouseSource, AshbySource, LeverSource,
@@ -271,17 +297,7 @@ def gather(include_cz: bool) -> list[JobPosting]:
         from ingestion.sources.teamtailor import TeamtailorSource
         sources += [StartupJobsSource, CocumaSource, RecruiteeSource, WorkableSource,
                     TeamtailorSource, MpsvSource]
-
-    postings: list[JobPosting] = []
-    for cls in sources:
-        try:
-            src = cls()
-            got = src.run()
-            postings.extend(got)
-            logger.info("%s: %d", src.source_name, len(got))
-        except Exception:
-            logger.exception("Source %s failed, skipping.", cls.__name__)
-    return postings
+    return sources
 
 
 def main() -> None:

@@ -1,0 +1,14 @@
+# Runs at 08:00 UTC — after the 05:00 export has finished writing postings and before the
+# 09:00 subscriber watchdog, so if a source died the cause is in the mailbox ahead of the
+# symptom. Deliberately not during the export: `last_seen_at` is being written throughout it,
+# and a source measured mid-run reads stale for reasons that are not a fault.
+[Unit]
+Description=JobDigest source watchdog daily at 08:00
+
+[Timer]
+OnCalendar=*-*-* 08:00:00
+Persistent=true
+Unit=jobdigest-source-watchdog.service
+
+[Install]
+WantedBy=timers.target

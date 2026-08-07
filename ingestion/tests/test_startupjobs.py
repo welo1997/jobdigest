@@ -13,6 +13,7 @@ Two guarantees this source got wrong for its whole life and now must not regress
 
 from __future__ import annotations
 
+from ingestion.base import make_posting_id
 from ingestion.sources import startupjobs as sj
 from ingestion.sources.startupjobs import StartupJobsSource, _localised, _text
 from service import geo
@@ -21,6 +22,7 @@ from service import geo
 def _offer(**over) -> dict:
     base = {
         "displayId": 104109,
+        "slug": "backend-vyvojar",
         "title": {"cs": "Backend vývojář", "en": None},
         "description": {"cs": "<p>Hledáme <b>Python</b> vývojáře.</p>"},
         "company": {"name": "Shoptet"},
@@ -33,8 +35,40 @@ def _offer(**over) -> dict:
     return base
 
 
-def test_url_is_built_from_display_id():
+def test_url_carries_the_slug_because_the_id_alone_is_a_404():
+    """`/job/{id}` without the slug is a clean 404 — verified live on 2026-08-07 against
+    every offer tried, both domains, and the ids in the site's own sitemap. The 2026-08-06
+    rewrite shipped the id-only form, so an entire day's ingest carried dead links and one
+    reached a subscriber's inbox. Nothing catches this downstream: a URL is never fetched
+    after it is stored."""
     p = StartupJobsSource().normalize([_offer()])[0]
+    assert p.url == "https://www.startupjobs.com/job/104109/backend-vyvojar"
+
+
+def test_posting_id_survives_a_retitle_so_a_rename_is_not_a_new_job():
+    """The slug is the employer's to change — offer 106499's moved from
+    `social-media-content-creator` to `social-media-specialist` in two days. Hashing it
+    would mint a fresh posting on every retitle: a duplicate in the shortlist, and a job the
+    subscriber has already seen arriving as new."""
+    before = StartupJobsSource().normalize([_offer()])[0]
+    after = StartupJobsSource().normalize([_offer(slug="senior-backend-vyvojar")])[0]
+
+    assert before.posting_id == after.posting_id
+    assert before.url != after.url          # the link still follows the rename
+
+
+def test_posting_id_still_hashes_the_id_only_url_so_the_link_fix_churns_nothing():
+    """Byte-identical to what the 2026-08-06 rewrite stored. That is what lets the broken
+    links be repaired in place (`upsert_postings` refreshes `url`) instead of re-creating
+    all 450 postings under new ids for the second time in two days."""
+    p = StartupJobsSource().normalize([_offer()])[0]
+    assert p.posting_id == make_posting_id("https://www.startupjobs.com/job/104109")
+
+
+def test_a_slugless_offer_falls_back_to_the_id_only_url():
+    """Still a 404, but the site's own — better than `/job/104109/`, which reads as a broken
+    page. Every live offer measured carries a slug; this is for the day one does not."""
+    p = StartupJobsSource().normalize([_offer(slug=None)])[0]
     assert p.url == "https://www.startupjobs.com/job/104109"
 
 

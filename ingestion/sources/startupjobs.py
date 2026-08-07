@@ -43,7 +43,28 @@ logger = logging.getLogger(__name__)
 
 API_BASE = "https://core.startupjobs.cz"
 API_URL = f"{API_BASE}/api/search/offers"
-JOB_URL = "https://www.startupjobs.com/job/{display_id}"
+
+#: The link a subscriber clicks. **The slug is required** — `/job/{id}` without it is a
+#: clean 404, on both domains and to a browser agent as well as ours (checked 2026-08-07 on
+#: every live offer tried, and on the ids in the site's own `sitemap/offers.xml`, which are
+#: listed there id-only and 404 too). The 2026-08-06 rewrite emitted the id-only form, so
+#: from that day's export **every startupjobs posting carried a dead link** — 450 rows, one
+#: of them emailed to a real subscriber. Nothing detected it: the API answered, the count was
+#: right, the country split was right, and a URL is never fetched after it is stored.
+JOB_URL = "https://www.startupjobs.com/job/{display_id}/{slug}"
+
+#: What `posting_id` hashes — **deliberately not `JOB_URL`, and deliberately unfetchable.**
+#: `posting_id = md5(url)` makes the identity of a job whatever string the adapter puts in
+#: `url`, so hashing a slug that the employer can edit would mint a *new posting* every time
+#: someone retitles an ad. That is not hypothetical: offer 106499's slug moved from
+#: `social-media-content-creator` to `social-media-specialist` within two days, and the site
+#: 302s the old one to the new. Hashing the immutable `displayId` keeps one job to one row
+#: across renames — and, because it is byte-identical to what the 2026-08-06 rewrite already
+#: stored, correcting the link above churns **no** ids: the existing rows keep their identity
+#: and have their `url` repaired in place on the next ingest (`upsert_postings` refreshes
+#: `url` for exactly this case).
+ID_URL = "https://www.startupjobs.com/job/{display_id}"
+
 HEADERS = {**politeness.HEADERS, "Accept": "application/ld+json"}
 
 #: Runaway guard. The board is ~450 offers at 20/page today (~23 pages); 80 is far above that
@@ -111,11 +132,18 @@ class StartupJobsSource(BaseSource):
             title = _localised(item.get("title"))
             if not display_id or not title:
                 continue
-            url = JOB_URL.format(display_id=display_id)
+            id_url = ID_URL.format(display_id=display_id)
+            slug = (item.get("slug") or "").strip("/")
+            # No slug means no working link, so fall back to the id-only form rather than
+            # emitting `/job/123/` — a trailing-slash 404 reads as a broken page, while the
+            # id-only form at least lands on the site's own 404. Every live offer measured
+            # carries a slug; this is for the day one does not.
+            url = JOB_URL.format(display_id=display_id, slug=slug) if slug else id_url
             salary_raw, currency = self._salary(item)
             postings.append(
                 JobPosting(
-                    posting_id=make_posting_id(url),
+                    # Hashes the id, not the slug — see ID_URL.
+                    posting_id=make_posting_id(id_url),
                     source=self.source_name,
                     title=title,
                     company=self._company(item),

@@ -67,6 +67,14 @@ insert into postings (
     last_seen_at, is_active
 ) values %s
 on conflict (posting_id) do update set
+    -- `url` is refreshed, which matters only where an adapter decouples `posting_id` from
+    -- the link (startupjobs hashes the immutable offer id so an employer's retitle cannot
+    -- mint a duplicate row). Everywhere else `posting_id = md5(url)`, so `excluded.url` is
+    -- byte-identical to what is stored and this is a no-op. Without it a link stored wrong
+    -- stays wrong for the life of the row: the 2026-08-06 startupjobs rewrite emitted a
+    -- 404-ing URL and there was no path to repair it in place short of changing the id and
+    -- duplicating all 450 postings.
+    url = excluded.url,
     title = excluded.title,
     company = excluded.company,
     description = excluded.description,
@@ -121,6 +129,37 @@ def upsert_postings(rows: Iterable[dict]) -> int:
         psycopg2.extras.execute_values(cur, _UPSERT_SQL, values, template=template,
                                        page_size=500)
     return len(values)
+
+
+def source_freshness() -> list[dict]:
+    """Per-source: active rows, how many first appeared today, and how stale the newest is.
+
+    Read side for `service.source_watchdog`. `age_days` is measured from `max(last_seen_at)`,
+    which is what a silent zero moves and nothing else does — a source that answers with an
+    empty list leaves every other column looking exactly as it did yesterday. Sources with
+    no active rows are included (with `age_days` null) so a source that vanished entirely is
+    a row here rather than an absence the caller has to notice.
+    """
+    with cursor() as cur:
+        cur.execute(
+            """
+            select source,
+                   count(*) filter (where is_active)                    as active,
+                   -- `seen_today`, not `active`, is the denominator the churn check needs.
+                   -- The superseded rows of a re-minted source are still active for a whole
+                   -- staleness window, and counting them halves the ratio: startupjobs on
+                   -- 2026-08-07 was 450 new of 945 active (48%, invisible) but 450 of 450
+                   -- *seen* (100%, unmistakable). Rows the run did not touch are exactly the
+                   -- ones that must not dilute a measure of what the run returned.
+                   count(*) filter (where last_seen_at::date = current_date) as seen_today,
+                   count(*) filter (where first_seen_at::date = current_date) as new_today,
+                   extract(epoch from (now() - max(last_seen_at))) / 86400.0  as age_days
+            from postings
+            group by source
+            order by source
+            """
+        )
+        return [dict(r) for r in cur.fetchall()]
 
 
 def deactivate_stale(days: int = 7) -> int:

@@ -1,0 +1,28 @@
+# JobDigest ingestion watchdog — alerts when a SOURCE quietly stops or churns.
+#
+# jobdigest-watchdog checks the far end of the pipe (did a subscriber get a digest).
+# This one checks the near end: is each source in gather() still delivering. Both failure
+# shapes it looks for happened in production and neither raised an error —
+#   * StartupJobs' API moved on 2026-08-06 and `fetch` swallowed the 404 into `[]`; found
+#     by luck, days later, because someone happened to read `last_seen_at`.
+#   * Its URL scheme changed on 2026-08-07 and re-minted every posting_id, duplicating the
+#     whole source for a staleness window behind a completely ordinary-looking count.
+# See service/source_watchdog.py.
+#
+# Install:
+#   sudo cp deploy/jobdigest-source-watchdog.* /etc/systemd/system/
+#   sudo systemctl daemon-reload && sudo systemctl enable --now jobdigest-source-watchdog.timer
+[Unit]
+Description=JobDigest source watchdog (no source silently stops or churns)
+After=docker.service
+Requires=docker.service
+# The alert IS the non-zero exit: jobdigest-alert.py mails the last journal lines, which are
+# the report this prints. Same single notification path as the subscriber watchdog.
+OnFailure=jobdigest-alert@%n.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/jobdigest/deploy
+# --quiet so a healthy day writes nothing at all; the table is only worth journal space when
+# something is wrong, and a daily "everything fine" mail is how an alert address gets muted.
+ExecStart=/usr/bin/docker compose run --rm pipeline python -m service.source_watchdog --quiet
