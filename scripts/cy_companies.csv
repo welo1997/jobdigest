@@ -1,0 +1,58 @@
+company,domain,tier
+# Cyprus pass — 2026-08-07. CY holds 52 active postings, one of the two thinnest selectable
+# countries. This is the first list assembled specifically for Cyprus.
+#
+# Non-ATS routes: all closed, settled in this same pass. The Department of Labour's PES
+# platform (pescps.dl.mlsi.gov.cy) answers the honest agent and reports 3 431 vacancies, but
+# since 2 June 2025 access is "μόνο μέσω του CY-Login" — the national eID — and the platform
+# states the published vacancies are for people "που διαμένουν στην Κύπρο", so it is gated by
+# a verification step and closed on this repo's skip rule. Its only terms page is a 1 434-char
+# disclaimer that establishes no permission either way. ergodotisi.com refuses automated use
+# outright ("Use bots or automated systems to scrape or misuse Platform data"), carierista.com
+# likewise ("use any data mining, robots or similar data gathering or extraction methods"),
+# and both sit on permissive robots.txt — two more of the many times that has happened here.
+# kariera.com.cy returns a Cloudflare 403 to JobDigest/1.0 and careerfinder.com.cy does not
+# answer, so both are dead sources. cyprusjobs.com and goldencareers.com.cy publish a privacy
+# notice and no terms of use at all — permission unestablished, which is not permission.
+# data.gov.cy is allow-all for our agent and holds 222 datasets; the employment ones are
+# "Κενές Θέσεις και Ποσοστό Κενών Θέσεων κατά Οικονομική Δραστηριότητα NACE" and
+# "Εγγεγραμμένοι Άνεργοι" — quarterly and monthly statistics, not vacancy records, the same
+# answer as AMS, IEFP and the Barometro. So curated employers on an ATS is the whole route.
+#
+# Prior lists checked so nothing here repeats: the LU/MT/CY tail of gr_hu_bg_hr_si_companies.csv
+# already queues Wargaming Cyprus, Nexters, XM, eToro, Exness and Amdocs; thin_countries_,
+# thin_expand_ and thin_expand2_companies.csv carry no CY block at all. Checked against the
+# live adapter lists too — smartrecruiters:Playtech is already carried and contributes Cypriot
+# rows, so Playtech is deliberately absent.
+#
+# Weighted to the Limassol cluster, which is where Cypriot ISCO 1-2 hiring actually is:
+# forex/CFD brokers and fintech, iGaming/product studios, and ship management. Cyprus's other
+# large sector is hospitality and tourism, which is almost entirely the wrong inventory for a
+# country whose subscribers all land in the widened retrieval path — omitted on purpose, along
+# with retail, agency staffing and port operations. Local subsidiaries of global firms are
+# mostly avoided; the brokers below hire into Limassol rather than through a parent.
+FxPro,fxpro.com,1
+Capital.com,capital.com,1
+Exinity,exinity.com,1
+Tickmill,tickmill.com,1
+Libertex Group,libertex.com,2
+Deriv,deriv.com,2
+Windsor Brokers,windsorbrokers.com,3
+payabl,payabl.com,1
+ECOMMBX,ecommbanx.com,2
+Freedom24,freedom24.com,2
+Bank of Cyprus,bankofcyprus.com,2
+JCC Payment Systems,jcc.com.cy,2
+BrainRocket,brainrocket.com,1
+Belka Games,belka-games.com,1
+GR8 Tech,gr8.tech,1
+Columbia Group,columbia-group.com,2
+Bernhard Schulte Shipmanagement,bs-shipmanagement.com,2
+Tototheo Maritime,tototheo.com,2
+3CX,3cx.com,1
+Odyssey Cybersecurity,odysseycs.com,2
+Logicom,logicom.net,2
+Remedica,remedica.eu,2
+Medochemie,medochemie.com,2
+CYENS Centre of Excellence,cyens.org.cy,1
+The Cyprus Institute,cyi.ac.cy,3

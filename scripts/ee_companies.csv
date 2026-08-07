@@ -1,0 +1,48 @@
+company,domain,tier
+# Estonia pass — 2026-08-07. EE holds 97 active postings, so it is among the thinnest
+# selectable countries and a subscriber in Tallinn cannot fill a 120-posting shortlist.
+#
+# Non-ATS routes are settled and must not be re-derived: Töötukassa's vacancy page renders 10
+# characters of visible text — a pure SPA — and its robots.txt carries Crawl-delay: 10, which
+# would have made bulk fetching impossible anyway. CV.ee is Alma Career, closed by the
+# 2026-08-03 exclusion. Estonia is ATS-only by elimination.
+#
+# Prior EE coverage came from the three generic thin-country lists — thin_countries_companies.csv
+# (Bolt, Pipedrive, Veriff, Nortal, Helmes, LHV, Starship, Skeleton, Glia, Katana, Salv, Xolo),
+# thin_expand_companies.csv (Testlio, Fractory, Montonio, Tuum, Comodule, Certific, Sixfold) and
+# thin_expand2_companies.csv (Wallester, Cobalt, Ampler, Messente, RangeForce, Single Earth,
+# Elcogen, Bercman, Klaus) — 28 names, of which four are now carried: greenhouse:veriff,
+# ashby:glia, lever:pipedrive, teamtailor:comodule and teamtailor:lightyear. This is the first
+# list assembled specifically for Estonia; every name below is new to all three.
+#
+# Weighted to ISCO 1-2 hiring, because under SHORTLIST_FLOOR the retrieval path drops the recall
+# predicate entirely and a thin country's non-knowledge-work inventory is what subscribers then
+# get: product/SaaS, fintech and banking, defence and deep-tech engineering, IT services, and the
+# two state energy operators. Deliberately omitted — Tallink and Tallinna Kaubamaja (hospitality,
+# ship crew, retail floor), Omniva (postal/driving), Magnetic MRO (technicians) — and every local
+# arm of a global parent (Telia Eesti, Swedbank/SEB Estonia, Ericsson Eesti, Playtech Estonia),
+# whose hiring runs on the parent's board. Icefire (Checkout.com), Fortumo (Boku) and Ready
+# Player Me (Netflix) were dropped for the same reason once the acquisition was confirmed.
+Scoro,scoro.com,1
+Pactum,pactum.com,1
+Cybernetica,cyber.ee,1
+Milrem Robotics,milremrobotics.com,1
+Bondora,bondora.group,1
+Inbank,inbank.ee,1
+Yolo Group,yolo.com,1
+Modash,modash.io,2
+Toggl,toggl.com,2
+Admirals,admirals.group,2
+Proekspert,proekspert.com,2
+Mooncascade,mooncascade.com,2
+Net Group,netgroup.com,2
+Adcash,adcash.com,2
+Cleveron,cleveron.com,2
+Bigbank,bigbank.eu,2
+Coop Pank,cooppank.ee,2
+Eesti Energia,enefit.com,2
+Ridango,ridango.com,3
+Elering,elering.ee,3
+Threod Systems,threod.com,3
+Jobbatical,jobbatical.com,3
+Port of Tallinn,ts.ee,3

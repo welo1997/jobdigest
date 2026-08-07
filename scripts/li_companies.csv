@@ -1,0 +1,60 @@
+company,domain,tier
+# Liechtenstein pass — 2026-08-07. LI holds 2 active postings, the thinnest selectable
+# country in the product. This is the first LI-specific list and it is intended to be
+# EXHAUSTIVE: 8 rows is the whole plausible set, not a quota that was filled. LI has ~40 000
+# residents; the LIHK member roll (lcci.li/mitgliedsunternehmen, read today) is 37 companies
+# and everything on it that this list omits is named below with the reason.
+#
+# Non-ATS routes: ALL CLOSED, settled today. The AMS FL Stellenboerse is amsfl.li, whose
+# robots.txt at the host root is a flat "Disallow: /"; llv.li (the Landesverwaltung, incl. its
+# own careers pages) answers 403 Cloudflare to the honest JobDigest/1.0 agent; liechtensteinjobs.li
+# (Vaduzer Medienhaus / Somedia) reserves all IP and forbids "weitergehende Veroeffentlichung,
+# Nutzung, Weitergabe oder Vervielfaeltigung ... ohne ausdrueckliche Zustimmung"; joblie.li
+# bans "automatisiertes Auslesen von Daten / Data Mining / Scraping" outright *while its
+# robots.txt explicitly allows ClaudeBot* — the ninth time in this repo robots has permitted
+# what the terms refuse. jobs.li is a parked redirect to a German junk domain, stellen.li is a
+# 301 to jobs.ch, jobs-liechtenstein.com robots-disallows /stellen/, and opendata.li carries
+# 3 publishers (Statistik, Geoinformation, FMA) and no vacancy records. So LI is ATS-only by
+# elimination, which is what this list is for.
+#
+# Duplicate check, both directions. No Liechtenstein employer appears in any existing list:
+# checked at_companies.csv (has Swarovski, whose LIHK member entity is the Triesen site — the
+# group row is already carried there, so it is NOT repeated here), de_companies.csv +
+# de_ats_discovery.csv (ThyssenKrupp group, on thyssenkrupp.com; the two workday sites found
+# there are steeleurope and thyssenkruppmaterialsna, neither of them Presta), the CH block of
+# dk_ch_fi_ie_companies.csv (Swiss majors only), and the three thin-country lists. Nor does any
+# LI name appear in lever.ORGS, ashby.ORGS, recruitee.COMPANIES, workable.ACCOUNTS,
+# teamtailor.TENANTS, smartrecruiters.TENANTS, workday.SITES, oraclecloud.SITES or
+# dbt/seeds/target_companies.csv — read as list structures, not as file text.
+#
+# Weighted to ISCO 1-2, because LI's 2 postings put every LI subscriber under SHORTLIST_FLOOR
+# and therefore into the widened retrieval path that drops the recall predicate entirely:
+# engineering R&D, private banking, dental/medical devices. Retail, hospitality, construction,
+# public sector and staffing agencies are omitted deliberately.
+#
+# EXPECT NEAR-ZERO WIREABLE BOARDS. Every name here is the SAP SuccessFactors / Workday /
+# in-house profile — SuccessFactors is closed in this repo (needs a browser) and Workday sites
+# are found-and-not-added pending the export-timing measurement. A well-evidenced zero is the
+# result; do not re-derive this list expecting otherwise.
+#
+# Considered and rejected, so the next session does not re-add them:
+#   food manufacturing, ISCO 5-8 bulk — Hilcona (900 in LI, Bell Food Group), Herbert Ospelt (785)
+#   foreign-parent sites, hiring runs on the parent's ATS and the parent belongs in a CH/DE/BE/FI
+#     list — Oerlikon Balzers, Optics Balzers (Materion), Umicore Thin Film, Bodycote, Teknos,
+#     Intamin, INFICON (HQ Bad Ragaz, CH), thyssenkrupp Dynamic Components (same domain as Presta)
+#   under ~300 staff and mostly mechanical/production — Kaiser AG, Liconic, Pantec, NTi Audio,
+#     Ludwig Elkuch, ELGO Batscale, FMA Mechatronic, Listemann, Dorbena, Bemer, Kubatec,
+#     Keramik Schaedler, NeuElektrik, RMS, Liechtenstein Waerme, Dr. Risch
+#   public sector, and their vacancies sit on the 403-ing llv.li — Landesverwaltung, Liechten-
+#     steinische Kraftwerke, Telecom Liechtenstein (FL1), Liechtensteinische Post, Landesspital,
+#     Universitaet Liechtenstein
+#   small private banks / trust houses, <200 staff — Bank Frick, Kaiser Partner, First Advisory
+#   staffing agencies — Domenig Personalmanagement (joblie.li's operator), per the brief
+Hilti,hilti.group,1
+thyssenkrupp Presta,thyssenkrupp-automotive-technology.com,1
+Ivoclar,ivoclar.com,1
+LGT,lgt.com,1
+Liechtensteinische Landesbank,llb.li,1
+VP Bank,vpbank.com,1
+Hoval,hoval.com,2
+Neutrik,neutrikgroup.com,2

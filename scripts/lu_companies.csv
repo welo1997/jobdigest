@@ -1,0 +1,50 @@
+company,domain,tier
+# Luxembourg pass - 2026-08-07. First list assembled specifically for LU. LU holds 43 active
+# postings, so it sits with the very thinnest selectable countries: essentially every LU
+# subscriber is in the widened retrieval path, where the recall predicate is dropped and
+# whatever inventory exists is what they get.
+#
+# Source position, settled elsewhere and deliberately not re-derived or re-checked here:
+#   ADEM's jobboard.adem.lu redirects to /login. Gated. Luxembourg is ATS-only by elimination.
+#
+# Checked against every scripts/*_companies.csv and against the adapter list structures
+# themselves (lever.ORGS, ashby.ORGS, recruitee.COMPANIES, workable.ACCOUNTS,
+# teamtailor.TENANTS, smartrecruiters.TENANTS, workday.SITES, oraclecloud.SITES, and the
+# greenhouse rows of dbt/seeds/target_companies.csv) rather than against file text, since a
+# name in a comment is as often a rejection as a carry. Already queued in the LU/MT/CY tail of
+# gr_hu_bg_hr_si_companies.csv and NOT repeated below: Talkwalker, LuxTrust, Foyer, POST
+# Luxembourg, SES, ArcelorMittal, Amazon Luxembourg. Docler Holding is LU-headquartered and is
+# already queued too, filed under that file's Bulgaria block. Already carried by an adapter:
+# PayPal and Accenture on workday - Accenture completed its acquisition of Arhs Group,
+# Luxembourg's largest independent IT services firm (2 330 staff, EU-institution work), in
+# July 2024, so that inventory already reaches us - and Euroclear on oraclecloud.
+#
+# Weighted to the clusters where LU's ISCO 1-2 hiring actually is: fund administration and
+# corporate services, banking, space, industrial engineering, and public research. Weighted
+# away from the country's largest employers by headcount, which are facility management, rail,
+# retail and air cargo (Dussmann, CFL, Cactus, Cargolux). BGL BNP Paribas and Goodyear are the
+# two biggest ISCO 1-2 employers left out on purpose: both hire through a parent's system, and
+# in Luxembourg that is the common case rather than the exception, so a hit would be a global
+# board with a handful of LU seats.
+#
+# Every domain below was loaded and confirmed to belong to the named company. Four names were
+# dropped rather than guessed because their site would not load to a plain agent (Ceratizit,
+# Salonkee, Lombard International, University of Luxembourg); Deloitte Luxembourg was dropped
+# because deloitte.lu redirects to the global deloitte.com careers, which is evidence against
+# a local board; Banque Raiffeisen was dropped because its only slug candidate collides with
+# Raiffeisen Bank International, already queued for AT, and the hit would read as an impostor.
+Alter Domus,alterdomus.com,1
+Mangopay,mangopay.com,1
+IQ-EQ,iqeq.com,1
+Arendt,arendt.com,2
+Quintet Private Bank,quintet.com,2
+Payconiq International,payconiq.com,2
+Spuerkeess,spuerkeess.lu,2
+Banque Internationale a Luxembourg,bil.com,2
+Encevo,encevo.eu,2
+IEE,iee-sensing.com,2
+Paul Wurth,paulwurth.lu,2
+LIST,list.lu,2
+Luxembourg Stock Exchange,luxse.com,3
+OQ Technology,oqtec.com,3
+Banque de Luxembourg,banquedeluxembourg.com,3

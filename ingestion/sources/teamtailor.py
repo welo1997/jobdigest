@@ -278,6 +278,12 @@ TENANTS = [
     # `ashby:atria` is Singapore/UK/China, not Atria the Finnish food group; `ashby:polar`
     # carries no Finnish row at all. `oraclecloud:ecyq` was correctly reported as already
     # carried — Nixu was acquired by DNV, whose tenant was added earlier the same day.
+    # GR/HU/BG/HR/SI/LU/MT/CY pass, 2026-08-07.
+    "nanobit",      #   1 — Nanobit, Zagreb (HR). One growth-marketing role, and Croatia held
+    #                     76 postings, so a single genuine Zagreb row is worth one request.
+    # `otp` (6), probed for OTP Bank of Budapest, is a **Spanish occupational-health company**:
+    # every row is a "Técnico/a PRL" (prevención de riesgos laborales) in Amposta, Alicante,
+    # Almería or Sant Cugat. A three-letter slug is an initialism before it is a company.
     # LV pass, 2026-08-07. Latvia held **68 active postings**; cv.lv is Alma Career, and the
     # NVA register is unresolved on permission (see the note in CLAUDE.md), so curated employers
     # is the whole route. The Latvian telcos turned out to be where the professional hiring is.

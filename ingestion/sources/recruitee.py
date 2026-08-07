@@ -126,6 +126,14 @@ COMPANIES = [
     "sallandengineering",
     #                    6 — Salland Engineering, Zwolle (NL), all six. Semiconductor test.
     "nmbrs",          #  3 — Nmbrs, Amsterdam (NL), all three.
+    # GR/HU/BG/HR/SI/LU/MT/CY pass, 2026-08-07.
+    "intralot",       # 40 — Intralot, Athens (GR) 31 of 40 + US/CA. Lottery and gaming
+    #                      systems: backend engineers, QC engineers, business analysts.
+    #                      **The densest Greek board found**, and Greece held 121 postings.
+    # Rejected here on demo content, both caught by their own postings rather than by name:
+    # `alpha` (probed for Alpha Bank) returns "Recruiter (Sample)" and "Senior Marketer
+    # (Sample)", and `nemetschekbulgaria` returns a single "Senior Marketer (Sample)" — the
+    # Recruitee seed rows `_DEMO_TITLE` drops, on unclaimed vanity slugs.
 ]
 
 #: Slugs that answer with a live board which is **not the company whose name they spell**.

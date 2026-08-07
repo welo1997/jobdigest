@@ -1,0 +1,64 @@
+company,domain,tier
+# Lithuania pass — 2026-08-07. LT holds 237 active postings, so it is thin but not the
+# thinnest; the Vilnius/Kaunas cluster is a genuine one and this is the first list
+# assembled specifically for Lithuania.
+#
+# Non-ATS routes are settled and are NOT to be re-derived or re-checked: CVonline.lt and
+# Dirbam.lt are Alma Career brands, closed by the 2026-08-03 exclusion (the same §4.11 that
+# excluded jobs.cz and profesia). uzt.lt, the public employment service, returns 403 to the
+# honest agent, so it is a dead source before its terms matter. Lithuania is ATS-only by
+# elimination.
+#
+# Prior LT coverage came only from the generic thin-country lists — 18 names across
+# thin_countries_companies.csv (Vinted, Nord Security, Hostinger, Oxylabs, Kilo Health,
+# TransferGo, Eneba, Whatagraph, Trafi, Interactio, CityBee) and thin_expand_companies.csv
+# (kevin., Ondato, PVcase, NFQ, Tesonet, Baltic Amadeus, CujoAI); thin_expand2_companies.csv
+# carries no LT section. Already wired and therefore excluded here: ashby nord-security /
+# hostinger / eneba, lever oxylabs / nfq, recruitee pvcase, greenhouse TransferGo. Every name
+# below is new to all of those and to the adapter lists themselves.
+#
+# Weighted to where Lithuanian ISCO 1-2 hiring actually is — the laser/photonics cluster,
+# IoT and space hardware, fintech/EMI, product SaaS and gaming — and away from the Vilnius
+# shared-service centres (Danske, Western Union, Nasdaq, Revolut, Moody's, EPAM, Thermo
+# Fisher), whose hiring runs through a parent board that would return mostly wrong-country
+# rows. Retail, logistics and clinical employers are omitted outright.
+Teltonika,teltonika.lt,1
+Light Conversion,lightcon.com,1
+Neurotechnology,neurotechnology.com,1
+NanoAvionics,nanoavionics.com,1
+Nordcurrent,nordcurrent.com,1
+Omnisend,omnisend.com,1
+MailerLite,mailerlite.com,1
+CAST AI,cast.ai,1
+Surfshark,surfshark.com,1
+Paysera,paysera.com,1
+Adform,adform.com,1
+Ekspla,ekspla.com,2
+Altechna,altechna.com,2
+ConnectPay,connectpay.com,2
+iDenfy,idenfy.com,2
+Bankera,bankera.com,2
+Ruptela,ruptela.com,2
+IPXO,ipxo.com,2
+Northway Biotech,northwaybiotech.com,2
+Bored Panda,boredpanda.com,2
+Novian,novian.lt,2
+Ignitis Group,ignitis.lt,2
+Bite Lietuva,bite.lt,2
+Litgrid,litgrid.eu,2
+Artea,artea.lt,2
+Avia Solutions Group,aviasg.com,2
+Standa,standa.com,3
+Femtika,femtika.com,3
+Brolis Defence,brolis-defence.com,3
+Biomatter,biomatter.ai,3
+Caszyme,caszyme.com,3
+Oxipit,oxipit.ai,3
+Ligence,ligence.io,3
+Estoty,estoty.com,3
+AMLYZE,amlyze.com,3
+Metasite,metasite.net,3
+Zenitech,zenitech.co.uk,3
+NRD Companies,nrdcompanies.com,3
+Sorainen,sorainen.com,3
+Ellex,ellex.legal,3

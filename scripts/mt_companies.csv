@@ -1,0 +1,37 @@
+company,domain,tier
+# Malta pass — 2026-08-07. First list assembled specifically for MT. Malta holds 23 active
+# postings, the thinnest inventory of any selectable country except Iceland, so every MT
+# subscriber sits in the widened retrieval path (`query_shortlist_meta` drops the recall
+# predicate under SHORTLIST_FLOOR) and gets whatever MT inventory exists, unfiltered by role.
+#
+# Source position, settled and not re-derived here:
+#   jobsplus.gov.mt, the Maltese public employment service, returns 403 to the honest
+#   JobDigest/1.0 agent — a dead source before its terms matter. Malta is ATS-only by
+#   elimination.
+#
+# Checked against gr_hu_bg_hr_si_companies.csv (its LU/MT/CY tail already queues Betsson,
+# Gaming Innovation Group, Catena Media, Tipico, BMIT Technologies, Wolt Malta and Nium —
+# none repeated here), thin_countries_companies.csv, thin_expand_companies.csv,
+# thin_expand2_companies.csv and every other scripts/*_companies.csv, plus the adapter list
+# structures themselves (lever ORGS, ashby ORGS, recruitee COMPANIES, workable ACCOUNTS,
+# teamtailor TENANTS, smartrecruiters TENANTS, workday SITES, oraclecloud SITES and the
+# greenhouse rows of dbt/seeds/target_companies.csv). Nothing below is carried anywhere today.
+#
+# Weighted to the four segments that hold Malta's ISCO 1-2 hiring — iGaming suppliers and
+# operators headquartered on the island, licensed payment institutions and banks, the two
+# domestic telecoms (the Baltic precedent: tet, lmt and bitelatvija all run Teamtailor), and
+# the one globally-hiring aviation group actually incorporated in Malta. Retail, hospitality
+# and tourism are omitted on purpose: they are a large share of the Maltese economy and
+# entirely the wrong inventory for a country where nothing filters the shortlist.
+Relax Gaming,relax-gaming.com,1
+Yggdrasil Gaming,yggdrasilgaming.com,1
+RS2,rs2.com,1
+LeoVegas Group,leovegasgroup.com,2
+Raketech,raketech.com,2
+Truevo,truevo.com,2
+MeDirect,medirect.com.mt,2
+VistaJet,vistajet.com,2
+GO,go.com.mt,2
+Melita,melita.com,2
+FIMBank,fimbank.com,3
+Harvest Technology,harvest.tech,3

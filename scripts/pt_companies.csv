@@ -1,0 +1,63 @@
+company,domain,tier
+# Portugal pass — 2026-08-07. PT holds 454 active postings, so it is not among the very
+# thinnest selectable countries, but almost all of that inventory arrives through global
+# boards rather than Portuguese employers.
+#
+# Non-ATS routes are settled and are NOT re-derived here: IEFP publishes only monthly
+# aggregate movements on dados.gov.pt — statistics, not vacancy records. Portugal is
+# ATS-only by elimination.
+#
+# Prior PT coverage came from the three generic thin-country lists — thin_countries_companies.csv
+# (17 PT names), thin_expand_companies.csv (8) and thin_expand2_companies.csv (15). Those ~40
+# probes yielded exactly one wired board, teamtailor:infraspeak. Already carried from earlier
+# passes: lever:farfetch, lever:swordhealth, greenhouse:feedzai, greenhouse:talkdesk2,
+# greenhouse:remotecom, teamtailor:infraspeak. Every name below was checked against all three
+# lists (name AND domain) and against the adapter list structures themselves — lever.ORGS,
+# ashby.ORGS, recruitee.COMPANIES, workable.ACCOUNTS, teamtailor.TENANTS,
+# smartrecruiters.TENANTS, workday.SITES, oraclecloud.SITES and the greenhouse rows of
+# dbt/seeds/target_companies.csv — not against file text, since a name in a comment there is
+# usually a rejection. No collisions in either direction. Every domain was loaded once with the
+# honest agent and confirmed to belong to the company; names whose domain could not be
+# confirmed were dropped rather than guessed.
+#
+# Weighted to where Portuguese ISCO 1-2 hiring actually sits: domestic software houses and
+# engineering-services firms (Porto/Lisbon/Coimbra/Aveiro), the product companies the three
+# prior skims missed, and the large domestic banks, insurers and utilities. Retail, hospitality,
+# contact-centre (Teleperformance, Webhelp), clinical care and construction site work are
+# deliberately absent — under SHORTLIST_FLOOR the widened retrieval path drops the recall
+# predicate, so that inventory is what a thin-country subscriber actually receives.
+Mindera,mindera.com,1
+Critical TechWorks,criticaltechworks.com,1
+Critical Manufacturing,criticalmanufacturing.com,1
+Tekever,tekever.com,1
+Blip,blip.pt,1
+Novabase,novabase.com,1
+Celfocus,celfocus.com,1
+SIBS,sibs.com,1
+Xpand IT,xpand-it.com,1
+Noesis,noesis.pt,1
+ITSector,itsector.com,1
+WIT Software,wit-software.com,1
+Nutrium,nutrium.com,1
+Hovione,hovione.com,1
+Vortal,vortal.biz,1
+Quidgest,quidgest.com,2
+Promptly Health,promptlyhealth.com,2
+Ubiwhere,ubiwhere.com,2
+CEiiA,ceiia.com,2
+Priberam,priberam.com,2
+E-goi,e-goi.com,2
+Millennium bcp,millenniumbcp.pt,2
+Caixa Geral de Depositos,cgd.pt,2
+novobanco,novobanco.pt,2
+Fidelidade,fidelidade.pt,2
+REN,ren.pt,2
+Bial,bial.com,2
+Greenvolt,greenvolt.com,2
+Subvisual,subvisual.com,3
+Whitesmith,whitesmith.co,3
+Imaginary Cloud,imaginarycloud.com,3
+DevScope,devscope.net,3
+Link Consulting,linkconsulting.com,3
+Active Space Technologies,activespacetech.com,3
+Fabamaq,fabamaq.com,3

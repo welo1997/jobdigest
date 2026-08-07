@@ -91,6 +91,18 @@ ACCOUNTS = [
     # Zealand — not Boost.ai of Stavanger. `crayon` is three Boston roles — Crayon.co, the US
     # competitive-intelligence firm, not Crayon AS of Oslo. `strise` is genuinely Strise (Oslo)
     # but its only row is an open application, which `_TALENT_POOL` drops anyway.
+    # GR/HU/BG/HR/SI/LU/MT/CY pass, 2026-08-07.
+    "upstream",      # 17 — Upstream, Athens (GR) 11 of 17 + ZA/BR/NG. Mobile commerce.
+    "epignosis",     #  4 — Epignosis (TalentLMS), Athens (GR) 2 + Atlanta/Florida.
+    "piraeus-bank",  #  4 — Piraeus Bank, all four Athens (GR).
+    "eurobank",      #  1 — **Eurobank's Luxembourg entity**, not its Greek one: the single row
+    #                      is a syndicated-loans officer in Neudorf-Weimershof (LU). Kept
+    #                      because Luxembourg held 43 postings and the role is ISCO 2.
+    # `orfium` (21) was **rejected on inventory** and is the clearest case in this pass: it is
+    # genuinely Orfium of Athens, but 20 of its 21 rows are entry-level data-processing
+    # associates in Colombo (Sri Lanka) — "Cue sheet processing", "Audio Recognition Services"
+    # — for exactly ONE Greek engineering role. `persado` is genuinely Persado but its board is
+    # New York and Washington with no Greek row at all.
 ]
 
 _TIMEOUT = 20

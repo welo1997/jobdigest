@@ -192,6 +192,18 @@ ORGS = [
     "sanity",         #  25 — Sanity.io (Oslo-founded): "Remote in the United States" 5 of 8 +
     #                        London. Headless CMS; engineering and go-to-market.
     "gelato",         #   8 — Gelato (Oslo-HQ): London 5 of 8 + Stockholm, Atlanta, Denver.
+    # GR/HU/BG/HR/SI/LU/MT/CY pass, 2026-08-07. Hungary had never had a dedicated pass.
+    "seon",           #   6 — SEON, Budapest (HU) 3 of 6 + London, US-remote. Fraud prevention.
+    "shapr3d",        #   4 — Shapr3D, Budapest (HU) 4 of 4. CAD; C++ engineers.
+    # **Six one-word Ashby slugs in this pass were somebody else** — the densest run of
+    # collisions yet, and every one was caught by the board's own postings rather than by its
+    # name. `span` is Span.io of San Francisco, not Span d.d. of Zagreb (already on record from
+    # 2026-08-04 and it answered again). `titan` is a New York wealth-management/fintech, not
+    # Titan Cement of Athens. `genesis` is a Bay Area robotics lab ("Foundation Models",
+    # "Robot Learning"), not Genesis Pharma — and `lever:genesis` is a *third* company again,
+    # in Bengaluru. `catena` is US-remote, not Catena Media of Malta. `post` is four remote
+    # engineering roles, not POST Luxembourg. `wizz` is Paris creative/video work, not Wizz Air
+    # of Budapest.
     # SE pass, 2026-08-07.
     "epidemic-sound", #  18 — Epidemic Sound: "Stockholm HQ" 5 of 8 + London, NYC, Berlin.
     "trustly",        #  23 — Trustly (Stockholm-HQ) and the board is not: San Francisco 4,
