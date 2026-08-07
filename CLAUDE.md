@@ -977,7 +977,8 @@ goes red. A test that cannot fail documents nothing.
   Measured 2026-08-04 with the raised ceilings: SmartRecruiters 7 min, Workday 29 min at 8
   detail workers and ~19 min at 16, which is why `workday.DETAIL_WORKERS` exists.
 - **A national employment service publishing open data is the best source shape available,
-  and there are two: `mpsv` (CZ) and `platsbanken` (SE).** Sweden's is Arbetsförmedlingen's
+  and there are three: `mpsv` (CZ), `platsbanken` (SE) and — permitted but not yet built —
+  **NAV (NO)**.** Sweden's is Arbetsförmedlingen's
   JobSearch API — no key, robots 404, open data the agency calls "free for anyone to use".
   15 201 ads, 100% with company/date/description, **median description 3 775 characters**
   (Oracle 401, jobs.cz 35). Four things that bite: **`limit` caps at 100 and `offset` at
@@ -992,6 +993,36 @@ goes red. A test that cannot fail documents nothing.
   Personal data is handled as in MPSV: `application_contacts` (29% of ads), `employer.email`
   and `employer.phone_number` are **never read**, and free text is scrubbed — verified at
   0 leaks across 15 201 live descriptions.
+- **Norway's NAV is permitted in writing, self-service, and the best unbuilt source left**
+  (checked 2026-08-07, full workings in `notes/2026-08-07-norway.md`). `arbeidsplassen.nav.no`'s
+  feed API is governed by `/vilkar-api`, which says *"Alle kan bruke tenesta. Tenesta er
+  kostnadsfri"* and grants consumers *"rett til å **republisere og vise** mottekne jobbannonsar
+  på sine tenester"* — a positive grant naming the act this product performs, stronger than
+  MPSV's disclaimer. `GET /api/publicToken` hands out a signed JWT with no account and no email,
+  so the skip rule does not apply; **do not mail NAV for the stable token** — that is
+  correspondence, and the public one works (fetch it every run, it rotates, and the response is a
+  text blurb with the JWT inside, not a bare token). Measured on a live 120-ad sample: **14 548
+  active ads**, **median description 3 102 characters**, 100% `expires`, 100% `employer.orgnr`,
+  93% city, **STYRK08 major groups 1–3 = 59%** (the MPSV ISCO 1–3 call — major group 5 alone is
+  28% and would otherwise reach the widened retrieval path), 120 details in 2.8 s at 8 workers.
+  Four things that decide the build. **Use the documented feed, never the sitemap**: the sitemap
+  enumerates the exact active set and its ad pages are server-rendered, but only **71% of sitemap
+  uuids resolve on `/api/v1/feedentry/{uuid}`** and all six 404s checked carry a `finn.no`
+  attribution — the API withholds ads NAV may display but not redistribute, so **the feed is the
+  permission boundary, not a transport**, and scraping the 29% gap would look like a coverage win
+  while republishing what is not ours. **It is the first source needing persisted state** (the
+  feed is append-only from 2023-06-14, 1 000 summaries per page, `next_url` forward-only, no
+  snapshot call) — but no backfill is needed, because every ad carries `expires` and a cold start
+  reaches a full corpus in about a month. **Two obligations change behaviour**: an entry arriving
+  `status: "INACTIVE"` must deactivate the posting *and* `expires` must be enforced (*"skal straks
+  fjernast frå resultatlista"*), and the apply link must deep-link to `applicationUrl` — but
+  **`posting_id` must hash the immutable `uuid`**, never that third-party URL. And personal data
+  is heavy — **81 of 86 ads name a contact, 70 with an email, 80 with a phone, and 35% of
+  descriptions carry a phone-shaped string** — so `contactList` is never read and text is
+  scrubbed, verified across the corpus not a sample, exactly as for MPSV. Finally,
+  `arbeidsplassen.nav.no/stillinger/api/search` is a live keyless Elasticsearch endpoint that
+  would make the cursor question vanish; it is the site's internal search, outside the document
+  that grants us anything, and taking it is the Bundesagentur pattern. **Measurement only.**
 - **Germany's Bundesagentur für Arbeit is the largest source in Europe (820 599 vacancies)
   and is excluded on terms — do not add it.** Its Jobbörse answers an undocumented public API
   at `rest.arbeitsagentur.de/jobboerse/jobsuche-service/pc/v6/jobs` with the well-known
@@ -1082,7 +1113,73 @@ goes red. A test that cannot fail documents nothing.
   for the Stellenmeldepflicht with credentials on request; Portugal's IEFP puts only monthly
   aggregate movements on dados.gov.pt. So `mpsv` (CZ) and `platsbanken` (SE) remain the only
   two, France Travail is the only other permitted one, and **curated employers on an ATS is the
-  entire remaining route** for the countries that are empty.
+  entire remaining route** for the countries that are empty. (**Corrected 2026-08-07: NAV (NO)
+  is a third permitted register** — see above. "Every remaining country" was true of the ones
+  then checked, and Norway had not been.)
+- **The last sixteen countries were swept on 2026-08-07 and the map is now complete**
+  (`notes/2026-08-07-remaining-eea-sweep.md`): NO, IS, LI, IE, ES, GR, HU, BG, HR, SI, LT, LV,
+  EE, LU, MT, CY, plus re-checks of FI/DK/CH. Norway is the one build. Four things worth keeping:
+  - **Check ownership before checking terms — Alma Career's own brand list closed five more
+    countries' largest board.** `almacareer.com` names **CVonline.lt, CV.lv, CV.ee** (Baltics),
+    **MojPosao** (HR) and **Jobly.fi** (FI) alongside jobs.cz/profesia/Teamio. The 2026-08-03
+    exclusion therefore already governs EE, LV, LT, HR and FI; do not re-read those terms, and do
+    not treat a Baltic or Adriatic board as open because it has a local name. The reverse error is
+    just as costly: **MojeDelo.com (SI) and Profession.hu (HU) are *not* Alma Career** and had to
+    be settled separately (MojeDelo is a 1 777-character SPA; Profession.hu's sitemap carries
+    articles and salary pages but **no job listings**).
+  - **Ireland's public employment service refuses, and it is the closure that costs most** —
+    Adzuna has no IE index. JobsIreland.ie asserts *"copyright, **database right, sui generis
+    right**"*, limits the site to *"use by jobseekers searching"*, and requires
+    **"contact DSP for permission by emailing info@welfare.ie"** to re-publish or reproduce.
+    Correspondence → skipped. Its `/en-US/browse-jobs` loads by XHR anyway (4 976 vacancies, no
+    JSON-LD, no vacancy links in the HTML). Ireland is ATS-only.
+  - **Greece's kariera.gr is the ninth source whose robots permits what its terms refuse.** It
+    publishes three job sitemaps of 5 000 `<loc>` each and serves `Content-Signal: search=yes,
+    ai-train=no` — the Teamtailor shape — but its user licence allows saving **"ένα μόνο
+    αντίγραφο"** and forbids **"να κάνετε διαθέσιμο αυτό το υλικό σε τρίτους"**, which is what a
+    digest does. It also `Disallow: /` for **ClaudeBot**/GPTBot/CCBot and never sets `ai-input`,
+    so nothing is granted to a product whose matcher reads postings into a model.
+  - **Latvia is the inverse of Sicily: a perfect licence over real but wrong inventory.** NVA
+    publishes **"Vakances"** on `data.gov.lv` under **CC0-1.0**, refreshed daily (today's resource
+    is literally `vakances-2026-08-07.csv`), 1 633 rows, **100% with min+max EUR salary**, 685
+    Rīga; a second CC0 set (State Chancellery **TVP `vacancy.csv`**, 973 rows across 81
+    institution sites) joins on an NVA id and supplies the description. What kills it is the
+    corpus: education 614 + healthcare 380 + public administration 210 = **74%**, and
+    **IT/telecoms is 21 rows**; the TVP descriptions are **truncated at 255 characters**, the NVA
+    file has **no description at all** (only a link into a hash-route SPA) and names the employer
+    only by registration number. So: permitted, buildable, low value, category-filtered — reopen
+    if LV subscribers appear, not before. NVA's own `cvvp.nva.gov.lv` holds the private-sector
+    register behind a 945-byte shell with no discoverable API (the Actiris problem without
+    Actiris's permission).
+
+  **Closed for the usual reasons, recorded so nobody re-probes them:** ES Empléate answers every
+  path with a session-gated error notice and its UI is a hash-route SPA (**and Adzuna covers ES
+  anyway**) · EE Töötukassa renders **10 characters** of visible text · SI's ESS portal
+  `poiscidelo.si` and LU's `jobboard.adem.lu` are login-gated · HU's VMP has two job links and no
+  sitemap · HR's `burzarada.hzz.hr` is a session-cookie ASP.NET app · IS folded
+  Vinnumálastofnun into island.is (`alfred.is` is the only route with any promise, and IS holds
+  2 postings). **Dead to the honest agent:** duunitori.fi, jobs.bg, Lithuania's uzt.lt and
+  Malta's jobsplus.gov.mt all 403; job.is 429s. **And two new non-availability modes:**
+  Bulgaria's Agency for Employment (`az.government.bg`) **cannot complete a TLS handshake**
+  (`SSL: DH_KEY_TOO_SMALL`) — unreachable by accident rather than by policy; and a sweep of
+  twelve national open-data portals for vacancy datasets returned **statistics only**, for the
+  fourth time after AMS/IEFP/Barometro. Do not re-derive that.
+  **Robots is now refusing API paths specifically** — Työmarkkinatori (`Disallow: /api/`,
+  `/*/api/`), jobs.ch (`/api/`, `/api_proxy/`), alfred.is and kariera.gr all disallow their data
+  endpoint while allowing their HTML. Where that is the shape, the pages are the invitation and
+  the endpoint is not.
+- **`taxonomy.py` reads English, and three of the sources feeding it do not.** Measured
+  2026-08-07 against `classify()`: `Systemutvikler`, `Dataingeniør`, `Produktsjef`, `IT-arkitekt`
+  and `Testleder` all return `uncategorised`; `Backend utvikler` and `Fullstack-utvikler` classify
+  only because *Backend* and *Fullstack* are English; and `Sikkerhetsanalytiker` classifies as
+  **`data_analysis`, which is wrong** — it is a security analyst matched on "analytiker". So a
+  Norwegian source would arrive mostly `uncategorised` and reach a subscriber only through the
+  keyword half of the `category OR keyword` recall predicate. **This is already the condition of
+  `platsbanken` (Swedish) and `mpsv` (Czech)**, our two largest non-English sources, so it is
+  accepted rather than broken — but it means **the marginal value of a fourth national source may
+  be lower than teaching the taxonomy Norwegian, Swedish and Czech role words.** Settle it with
+  `select source, role_category, count(*)` over the non-English sources on the box before choosing
+  which to do; that measurement has **not** been taken.
 - **Austria was swept end to end on 2026-08-07 and every non-ATS route is closed. Do not
   re-open one because AT looks thin.** Seven doors, and the useful thing is that no two shut
   for the same reason:
