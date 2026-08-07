@@ -52,6 +52,11 @@ FIXTURES = {
     # subscriber who picked that country, and stay hidden from an EEA-only one.
     "us-onsite":        ("US", "san-francisco", False, "us", "San Francisco", None),
     "gb-onsite":        ("GB", "london", False, "uk", "London", None),
+    # Canada became selectable on 2026-08-07. `region` is "other", which is what
+    # `search_jobs.work_region("Toronto", "CA")` genuinely returns — using "eu" here would make
+    # the eu-scope test below pass for the wrong reason.
+    "ca-onsite":        ("CA", "toronto", False, "other", "Toronto, ON", None),
+    "ca-remote":        ("CA", None, True, "other", "Remote (Canada)", "remote"),
 }
 
 
@@ -193,6 +198,34 @@ def test_eu_scope_excludes_a_us_remote_role_even_for_a_us_subscriber():
     assert "us-onsite" in eu and "us-remote" not in eu
     wide = allowed({"countries": ["US"], "remote_scope": "worldwide"})
     assert {"us-onsite", "us-remote"} <= wide
+
+
+def test_a_canadian_role_surfaces_only_for_a_subscriber_who_picked_canada():
+    """Canada was `stored but not offered` for the project's whole life — 1 946 active postings
+    the gate excluded from everyone. Selecting CA must now admit them, and must not leak them
+    to a subscriber who did not ask."""
+    ca = allowed({"countries": ["CA"], "remote_scope": "country"})
+    assert "ca-onsite" in ca
+    assert allowed(PRAGUE_ONLY).isdisjoint({"ca-onsite", "ca-remote"})
+
+
+def test_eu_scope_excludes_a_canadian_remote_role_even_for_a_canadian_subscriber():
+    """Same decoupling as US/GB, and the reason `EEA_COUNTRIES` stays 31: picking Canada for
+    on-site work must not turn "Anywhere in the EU or EEA" into a channel for Canadian
+    fully-remote roles for every existing subscriber."""
+    eu = allowed({"countries": ["CA"], "remote_scope": "eu"})
+    assert "ca-onsite" in eu and "ca-remote" not in eu
+    wide = allowed({"countries": ["CA"], "remote_scope": "worldwide"})
+    assert {"ca-onsite", "ca-remote"} <= wide
+
+
+def test_a_canadian_city_narrows_within_canada():
+    """The reason `python -m service.backfill_geo` is not optional: `postings.city` is null for
+    every Canadian row until it runs, because FOREIGN_CITIES only ever returned a country. A
+    null city passes the gate, so "Canada, Toronto only" would silently mean "Canada, anywhere"
+    — a precision loss with no error anywhere."""
+    got = allowed({"countries": ["CA"], "cities": ["ca:toronto"], "remote_scope": "country"})
+    assert "ca-onsite" in got
 
 
 def test_several_cities_in_one_country():

@@ -64,7 +64,6 @@ def test_resolve_location(location, country_code, expected):
     ("Israel, Yokneam", "IL"),
     ("Singapore, Remote", "SG"),
     ("Sydney, Australia", "AU"),
-    ("Toronto, Canada", "CA"),
     ("Blumenau, Brazil", "BR"),
     ("Seoul, South Korea", "KR"),
 ])
@@ -491,6 +490,48 @@ def test_us_and_gb_are_selectable_but_not_in_the_eea_set():
     assert geo.clean_countries(["US", "GB", "DE"]) == ["US", "GB", "DE"]
     assert geo.resolve_location("Austin, TX") == ("US", "austin")
     assert geo.resolve_location("Manchester, UK") == ("GB", "manchester")
+
+
+def test_canada_is_selectable_but_not_in_the_eea_set():
+    """Canada became selectable on 2026-08-07, which surfaced 1 946 postings already in the
+    corpus that the gate had been excluding. Same split as GB/US: in `COUNTRIES`, never in
+    `EEA_COUNTRIES`, because that set is what the `eu` remote scope means."""
+    assert "CA" in geo.COUNTRIES
+    assert "CA" not in geo.EEA_COUNTRIES
+    assert geo.clean_countries(["CA", "US", "DE"]) == ["CA", "US", "DE"]
+    assert geo.resolve_location("Toronto, ON") == ("CA", "toronto")
+    assert geo.resolve_location("Toronto, Canada")[0] == "CA"
+    assert geo.resolve_location("Montréal, Québec") == ("CA", "montreal")
+
+
+def test_a_trailing_ca_no_longer_means_california():
+    """`SUBDIVISION_CODES["ca"] = "US"` was safe only while Canada was unselectable. With both
+    countries offered it became the Delaware failure: "Kelowna, BC, CA" resolved to the United
+    States — deleted from the Canadian who wants it, delivered to the American who cannot take
+    it. The code was removed rather than the guard weakened, so the province string now falls
+    through to unknown, which the gate keeps."""
+    assert "ca" not in geo.SUBDIVISION_CODES
+    assert geo.resolve_location("Kelowna, BC, CA")[0] is None
+    assert geo.resolve_location("Toronto, ON, CA") == ("CA", "toronto")
+    # The common California strings never needed the code — they resolve from the city.
+    assert geo.resolve_location("San Francisco, CA") == ("US", "san-francisco")
+    assert geo.resolve_location("Los Angeles, CA") == ("US", "los-angeles")
+    # And the four recurring towns that DID need it are now country-only in FOREIGN_CITIES.
+    assert geo.resolve_location("El Segundo, CA") == ("US", None)
+    assert geo.resolve_location("Poway, CA") == ("US", None)
+
+
+def test_canadian_names_that_must_never_become_selectable_cities():
+    """Each of these is a real Canadian place and each would delete postings from somebody
+    else's digest if promoted — the `georgia` rule in six new places. `ontario` is also a
+    Californian city; `waterloo` is Belgian and a London station; `victoria`, `hamilton`,
+    `windsor` and `halifax` are all also British or Australian."""
+    assert geo.resolve_location("Ontario, California")[0] == "US"
+    assert geo.resolve_location("Waterloo, London") == ("GB", "london")
+    for name in ("victoria", "hamilton", "windsor", "halifax", "regina", "ontario"):
+        assert name not in geo.CITIES.get("CA", {}), f"{name} must not be a selectable CA city"
+    # Mississauga stays country-only: a Toronto suburb, the Bay Area precedent.
+    assert geo.resolve_location("Mississauga, Ontario") == ("CA", None)
 
 
 def test_eu_remote_scope_excludes_us_even_when_the_subscriber_selected_us():

@@ -77,6 +77,7 @@ const de: Messages = {
       ES: "Spanien", SE: "Schweden",
       CH: "Schweiz", IS: "Island", LI: "Liechtenstein", NO: "Norwegen",
       GB: "Vereinigtes Königreich", US: "Vereinigte Staaten",
+      CA: "Kanada",
     },
     remoteScope: {
       country: "Nur in den Ländern, die ich gewählt habe",

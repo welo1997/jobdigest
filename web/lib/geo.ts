@@ -51,7 +51,8 @@ export const COUNTRIES: Record<string, string> = {
   "LI": "Liechtenstein",
   "NO": "Norway",
   "GB": "United Kingdom",
-  "US": "United States"
+  "US": "United States",
+  "CA": "Canada"
 };
 
 // Main cities per country, in the order the picker offers them: slug -> display name.
@@ -330,6 +331,14 @@ export const CITIES: Record<string, Record<string, string>> = {
     "belfast": "Belfast",
     "oxford": "Oxford",
     "liverpool": "Liverpool"
+  },
+  "CA": {
+    "toronto": "Toronto",
+    "vancouver": "Vancouver",
+    "montreal": "Montréal",
+    "calgary": "Calgary",
+    "ottawa": "Ottawa",
+    "winnipeg": "Winnipeg"
   }
 };
 

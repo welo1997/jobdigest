@@ -70,7 +70,8 @@ EEA_COUNTRIES: dict[str, str] = {
 #
 # LI has no curated cities beyond Vaduz, which is correct rather than lazy: the whole country
 # is smaller than most of the metropolitan areas in this table.
-COUNTRIES: dict[str, str] = {**EEA_COUNTRIES, "GB": "United Kingdom", "US": "United States"}
+COUNTRIES: dict[str, str] = {**EEA_COUNTRIES, "GB": "United Kingdom",
+                             "US": "United States", "CA": "Canada"}
 
 # Nothing is stored-but-unoffered any more (GB/US are now in COUNTRIES). Kept as an empty
 # mapping so any caller or test that still references the name resolves to "nothing extra".
@@ -255,6 +256,25 @@ CITIES: dict[str, dict[str, str]] = {
            "glasgow": "Glasgow", "bristol": "Bristol", "leeds": "Leeds",
            "cardiff": "Cardiff", "belfast": "Belfast", "oxford": "Oxford",
            "liverpool": "Liverpool"},
+    # Canada, selectable since 2026-08-07. Chosen from what production actually carries, not
+    # from a list of big cities: Toronto ~461 rows, Vancouver ~100, Montréal ~31. Calgary,
+    # Ottawa and Winnipeg carry almost nothing today and are offered because a subscriber
+    # would expect to pick them.
+    #
+    # Two promotions were flagged as collisions and cleared by measurement rather than by
+    # argument. **`vancouver`** is also Vancouver, Washington — and all 128 Vancouver rows in
+    # production are Canadian, none American. **`edmonton`** is also a north-London district,
+    # and `_ngrams` scans by start index, so a promoted CA name in token 0 beats a GB city in
+    # token 1 — but all 20 Edmonton rows are Alberta. Both are recorded here so a future change
+    # knows the collision is real even though the corpus does not contain it.
+    #
+    # Deliberately NOT promoted, and each for a different reason: `mississauga` (58 rows) is a
+    # Toronto suburb — the Bay Area precedent, country-only; `quebec` is the province as well
+    # as the city, so a `quebec` slug would repeat the `ontario` bug; `waterloo` is named by
+    # test_geo.py as the canonical shadowing hazard (Belgium, and a London station);
+    # `british columbia` and `alberta` are provinces — the US-state precedent.
+    "CA": {"toronto": "Toronto", "vancouver": "Vancouver", "montreal": "Montréal",
+           "calgary": "Calgary", "ottawa": "Ottawa", "winnipeg": "Winnipeg"},
 }
 
 # Alternative spellings a posting might use, per country: alias -> canonical slug. Only
@@ -371,12 +391,24 @@ FOREIGN_CITIES: dict[str, str] = {
     # are the exception — each is also a real US city, and with both countries selectable a
     # wrong guess is now visible either way, so they are left out of both tables and resolve to
     # no country (kept for the matcher) rather than to the wrong one.
-    # Canada. `ontario` is deliberately absent — it is also a city in California, and it
-    # would shadow it in "Ontario, California". `toronto` and `ottawa` already reach the
-    # province in every string that matters.
-    "toronto": "CA", "vancouver": "CA", "montreal": "CA", "ottawa": "CA", "calgary": "CA",
-    "edmonton": "CA", "waterloo": "CA", "mississauga": "CA", "quebec": "CA",
+    # Canada. Toronto, Vancouver, Montréal, Calgary, Ottawa and Winnipeg **moved into CITIES**
+    # on 2026-08-07 when CA became selectable — moved, not copied, or
+    # `check_no_shadowed_cities` raises at import. What stays here is country-only on purpose:
+    # `mississauga` is a Toronto suburb (the Bay Area precedent), `quebec` is a province as
+    # well as a city, `waterloo` is the shadowing hazard test_geo.py names (Belgium, London),
+    # and the two provinces follow the US-state precedent. `ontario` remains absent from both
+    # tables — it is also a city in California, and it would shadow it in "Ontario, California".
+    "waterloo": "CA", "mississauga": "CA", "quebec": "CA",
     "british columbia": "CA", "alberta": "CA",
+    # California towns that used to reach a country only through the `ca` subdivision code,
+    # which was removed in the same change (see SUBDIVISION_CODES). Measured on production:
+    # dropping the code left 22 locations / 77 active rows with no country, of which these four
+    # are every one appearing more than once. The 18 single-row towns are deliberately not
+    # listed — unknown is *kept* by the gate, so the cost is precision, not deletion, and a
+    # table of one-offs would rot. `irvine` is deliberately excluded despite appearing: Irvine
+    # is also a town in Scotland, and with GB and US both selectable that is the
+    # `cambridge`/`birmingham` rule.
+    "el segundo": "US", "poway": "US", "lompoc": "US", "fresno": "US",
     # Rest of world, from the same measurement. Country names themselves are already in
     # COUNTRY_ALIASES; these are the cities that arrive without one.
     "bengaluru": "IN", "bangalore": "IN", "gurugram": "IN", "gurgaon": "IN",
@@ -405,16 +437,25 @@ FOREIGN_CITIES: dict[str, str] = {
 #
 # `DE` (Delaware) and `MT` (Montana) are excluded because they are Germany and Malta, and
 # `NL` (Newfoundland) and `SK` (Saskatchewan) because they are the Netherlands and Slovakia.
-# Those four are the entire intersection between US/Canadian subdivision codes and the EEA,
-# and each one would delete a real European posting from the digest of a subscriber who
-# selected that country. Every other collision is with a country nobody can select
-# (`IL` Israel, `IN` India, `MA` Morocco, `CO` Colombia, `CA` Canada …) and is therefore
-# invisible — measured on 2026-08-04, all 470 "…, CA" postings were California except the
-# 17 reading "Toronto, ON, CA", which rule 2 above resolves from the city first.
+# **`CA` (California) joined them on 2026-08-07, when Canada became selectable.** It is the
+# sharpest of the five: `SUBDIVISION_CODES["ca"] = "US"` meant "Kelowna, BC, CA" resolved to
+# the United States — a British Columbia posting filed as American, deleted from the Canadian
+# who wants it and delivered to the American who cannot take it. That is the Delaware failure
+# exactly, and `test_no_subdivision_code_can_shadow_a_country_anyone_may_select` fires on it.
+# The test was not weakened; the code was removed.
+#
+# The cost was measured rather than estimated: dropping it left **22 locations / 77 active
+# rows** with no country. Most California strings never needed it — "San Francisco, CA",
+# "Los Angeles, CA" and "Palo Alto, CA" all resolve from the city — and the four recurring
+# towns that did are now in FOREIGN_CITIES. Unknown is *kept* by the gate, so what remains is
+# a precision cost on ~30 rows, never a deletion.
+#
+# Every other collision is with a country nobody can select (`IL` Israel, `IN` India,
+# `MA` Morocco, `CO` Colombia …) and is therefore invisible.
 SUBDIVISION_CODES: dict[str, str] = {
     # US states, less DE and MT.
     **{c: "US" for c in (
-        "al", "ak", "az", "ar", "ca", "co", "ct", "dc", "fl", "ga", "hi", "ia", "id", "il",
+        "al", "ak", "az", "ar", "co", "ct", "dc", "fl", "ga", "hi", "ia", "id", "il",
         "in", "ks", "ky", "la", "ma", "md", "me", "mi", "mn", "mo", "ms", "nc", "nd", "ne",
         "nh", "nj", "nm", "nv", "ny", "oh", "ok", "or", "pa", "ri", "sc", "sd", "tn", "tx",
         "ut", "va", "vt", "wa", "wi", "wv", "wy")},
