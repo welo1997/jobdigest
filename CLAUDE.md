@@ -897,8 +897,9 @@ goes red. A test that cannot fail documents nothing.
   US-HQ, GB on-site and DE passes below once GB/US became selectable.)
   That is the baseline to compare against; "a source looks small" is only meaningful with one.
   **NO pass, 2026-08-07 — the first deliberate Norwegian sweep, and the yield concentrates in one
-  ATS.** 112 employers probed → 57 live boards → 52 supported → **26 wired**, of which **20 are
-  Teamtailor** (against 5 Lever and 4 Workable): Teamtailor is where the Nordic mid-market sits,
+  ATS.** 112 employers probed → 57 live boards → 52 supported → **27 wired** (20 teamtailor,
+  2 lever, 2 ashby, 1 workable, 1 greenhouse, 1 oraclecloud), of which **20 are
+  Teamtailor** (against 5 Lever and 4 Workable found): Teamtailor is where the Nordic mid-market sits,
   so probe it first for any Nordic country. Measured live, the 20 tenants return **157 rows, 66 of
   them Norwegian** — against **23 active NO postings in the entire corpus** beforehand — plus
   FI 3, DK 3, PT 2, LT 2, RO 1 in the thinnest countries. `lever:bekk` is the single best board of
