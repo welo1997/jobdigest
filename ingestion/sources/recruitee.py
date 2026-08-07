@@ -138,6 +138,11 @@ COMPANIES = [
     "mailerlite",     #  4 — MailerLite, Vilnius (LT) — but every row is posted as "Remote job",
     #                      so the country resolves to null and the matcher decides. Kept because
     #                      the roles are PHP/ML engineering and the board costs one request.
+    # CY/LU/MT/IS/LI pass (batch C), 2026-08-07.
+    "payconiq",       #  3 — Payconiq International: Amsterdam (NL), all three. Luxembourg-HQ
+    #                      payments, but the engineering sits in the Netherlands.
+    # `raketech` was skipped rather than rejected: five rows, every one "Remote job" so no
+    # country resolves, and three of the five are freelance casino content writers.
 ]
 
 #: Slugs that answer with a live board which is **not the company whose name they spell**.

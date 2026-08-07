@@ -113,7 +113,12 @@ ORGS = ["spotify", "qonto", "contentsquare", "aircall", "swile", "blablacar",
         #                      read (DSP requires written permission) nor an Adzuna index.
         # PT/LT/EE pass (batch B), 2026-08-07.
         "omnisend",       # 11 — Omnisend, Vilnius (LT). E-commerce marketing automation.
-        "metasite"]       #  3 — Metasite, Vilnius (LT). .NET/Java engineering.
+        "metasite",       #  3 — Metasite, Vilnius (LT). .NET/Java engineering.
+        # CY/LU/MT/IS/LI pass (batch C), 2026-08-07.
+        "capital"]        # 43 — Capital.com: Warsaw (PL) 20, Limassol (CY) 5, Sofia (BG) 4.
+        #                      A one-word slug that IS the company, which is worth recording
+        #                      next to all the ones that are not.
+
 
 
 class LeverSource(BaseSource):

@@ -1,0 +1,100 @@
+company,domain,tier
+# Batch C of the 13-country pass — 2026-08-07. CY + LU + MT + IS + LI, the five smallest
+# selectable countries, merged into ONE discovery run for the shared-ATS-host reason
+# documented in dk_ch_fi_ie_companies.csv (politeness._last_request is per-process).
+#
+# Combined inventory before this pass: CY 52, LU 43, MT 23, IS 7, LI 2 — 127 postings across
+# five countries. The IS and LI lists were built to be **exhaustive rather than sampled**,
+# because both economies are small enough to enumerate and padding a list past its real pool
+# produces fabricated names, which arrive as ordinary "no ATS found" rows and corrupt the
+# yield measurement.
+#
+# Settled source positions (NOT re-derived here; CY and LI were settled by this pass's agents):
+#   CY — PES is CY-Login/eID gated and residency-limited; ergodotisi and carierista both forbid
+#        automated collection on top of a permissive robots; data.gov.cy is statistics only.
+#   LU — jobboard.adem.lu redirects to /login.
+#   MT — jobsplus.gov.mt 403s the honest agent.
+#   IS — Vinnumálastofnun folded into island.is; alfred.is disallows /api/*; job.is 429s.
+#   LI — amsfl.li is Disallow: / (robots alone, like Austria's eJob-Room); llv.li 403s;
+#        liechtensteinjobs.li and joblie.li both forbid automated extraction in their AGB.
+# Read 75, kept 75, 0 cross-agent duplicate(s) removed.
+# --- CY ---
+FxPro,fxpro.com,1
+Capital.com,capital.com,1
+Exinity,exinity.com,1
+Tickmill,tickmill.com,1
+Libertex Group,libertex.com,2
+Deriv,deriv.com,2
+Windsor Brokers,windsorbrokers.com,3
+payabl,payabl.com,1
+ECOMMBX,ecommbanx.com,2
+Freedom24,freedom24.com,2
+Bank of Cyprus,bankofcyprus.com,2
+JCC Payment Systems,jcc.com.cy,2
+BrainRocket,brainrocket.com,1
+Belka Games,belka-games.com,1
+GR8 Tech,gr8.tech,1
+Columbia Group,columbia-group.com,2
+Bernhard Schulte Shipmanagement,bs-shipmanagement.com,2
+Tototheo Maritime,tototheo.com,2
+3CX,3cx.com,1
+Odyssey Cybersecurity,odysseycs.com,2
+Logicom,logicom.net,2
+Remedica,remedica.eu,2
+Medochemie,medochemie.com,2
+CYENS Centre of Excellence,cyens.org.cy,1
+The Cyprus Institute,cyi.ac.cy,3
+# --- LU ---
+Alter Domus,alterdomus.com,1
+Mangopay,mangopay.com,1
+IQ-EQ,iqeq.com,1
+Arendt,arendt.com,2
+Quintet Private Bank,quintet.com,2
+Payconiq International,payconiq.com,2
+Spuerkeess,spuerkeess.lu,2
+Banque Internationale a Luxembourg,bil.com,2
+Encevo,encevo.eu,2
+IEE,iee-sensing.com,2
+Paul Wurth,paulwurth.lu,2
+LIST,list.lu,2
+Luxembourg Stock Exchange,luxse.com,3
+OQ Technology,oqtec.com,3
+Banque de Luxembourg,banquedeluxembourg.com,3
+# --- MT ---
+Relax Gaming,relax-gaming.com,1
+Yggdrasil Gaming,yggdrasilgaming.com,1
+RS2,rs2.com,1
+LeoVegas Group,leovegasgroup.com,2
+Raketech,raketech.com,2
+Truevo,truevo.com,2
+MeDirect,medirect.com.mt,2
+VistaJet,vistajet.com,2
+GO,go.com.mt,2
+Melita,melita.com,2
+FIMBank,fimbank.com,3
+Harvest Technology,harvest.tech,3
+# --- IS ---
+Alvotech,alvotech.com,1
+Embla Medical (Ossur),emblamedical.com,1
+JBT Marel (Marel),jbtmarel.com,1
+Controlant,controlant.com,1
+Tempo,tempo.io,1
+Fenris Creations (CCP Games),fenris.com,1
+Origo,origo.is,2
+Annata,annata.net,2
+atNorth,atnorth.com,2
+Trackwell,trackwell.com,2
+Carbfix,carbfix.com,2
+Kaptio,kaptio.com,3
+AGR Dynamics,agrinventory.com,3
+Oculis,oculis.com,3
+Solid Clouds,solidclouds.com,3
+# --- LI ---
+Hilti,hilti.group,1
+thyssenkrupp Presta,thyssenkrupp-automotive-technology.com,1
+Ivoclar,ivoclar.com,1
+LGT,lgt.com,1
+Liechtensteinische Landesbank,llb.li,1
+VP Bank,vpbank.com,1
+Hoval,hoval.com,2
+Neutrik,neutrikgroup.com,2

@@ -1,0 +1,75 @@
+company,domain,tier
+# Iceland pass - 2026-08-07. IS holds 7 active postings, the thinnest of the 33 selectable
+# countries. Every Icelandic subscriber therefore sits permanently in the widened retrieval
+# path, where query_shortlist_meta drops the recall predicate and hands over whatever IS
+# inventory exists - so shop-floor rows are not noise here, they are the whole digest.
+#
+# This is the first IS-specific list and it is meant to be EXHAUSTIVE, not a sample. Iceland
+# has ~370 000 people; the set of employers that could plausibly run a public ATS board is
+# enumerable in full. The list stops at 15 because that is where the genuine candidates ran
+# out, not because a cap was reached. Every name considered and dropped is recorded below so
+# a later pass does not re-propose it.
+#
+# Iceland appears in no earlier list. Checked: thin_countries_companies.csv,
+# thin_expand_companies.csv, thin_expand2_companies.csv and the rest of scripts/*_companies.csv
+# (the only near-misses were Barion, Hungarian, and Marelli, Italian); and the adapter list
+# structures themselves - lever.ORGS, ashby.ORGS, recruitee.COMPANIES, workable.ACCOUNTS,
+# teamtailor.TENANTS, smartrecruiters.TENANTS, workday.SITES, oraclecloud.SITES and the
+# greenhouse rows of dbt/seeds/target_companies.csv. No Icelandic employer is carried anywhere.
+#
+# Non-ATS route, settled - do not re-derive or re-check: Vinnumalastofnun folded into
+# island.is; Iceland's own board is alfred.is, whose robots.txt is Allow: /* with
+# Disallow: /api/* - the data endpoint disallowed while the HTML is allowed, so the pages are
+# the invitation and the endpoint is not. job.is returns 429 to the honest agent. Unresolved
+# on terms and not pursued. Iceland is ATS-only by elimination.
+#
+# Weighted hard toward ISCO 1-2 and toward employers that hire internationally in English,
+# because that is the only segment in Iceland running an ATS this repo supports: biotech and
+# medtech, industrial and energy engineering, product software, and data-centre/infrastructure
+# engineering. Tourism, retail, fishing and processing are omitted entirely - they are a very
+# large share of the Icelandic economy and would land as rimilatvia-shaped inventory.
+#
+# THE ICELANDIC ATS MARKET IS THE FINDING. Read off each employer's own careers page (not from
+# any ATS API - verification is a later, serialized stage): 50skills, a Reykjavik ATS we do not
+# support, serves deCODE genetics, Advania Island and Icelandair, and jobs.50skills.com also
+# carries Icelandia, Iceland Drilling, Newrest, Samkaup and Securitas. BambooHR (RESTRICTED
+# here on terms) serves Lucinity, Dohop and Treble Technologies; Sidekick Health runs BambooHR
+# and Personio; Nox Medical is on Rippling; Coripharma on umsokn.is; Landsvirkjun on its own
+# Icelandic-only portal. That is why the Icelandic-language corporate segment - the banks
+# (Arion, Islandsbanki, Landsbankinn, Kvika), the telecoms (Siminn, Syn, Nova), the utilities
+# (Landsvirkjun, Landsnet, Isavia) and the engineering consultancies (EFLA, Mannvit, Verkis) -
+# is deliberately absent rather than padded in: large, ISCO 1-2 dense, and on systems we cannot
+# read. Re-open that segment only if 50skills is ever settled on terms.
+#
+# Also dropped, with cause: PLAY / flyplay ceased operations and went bankrupt on 2025-09-29,
+# so it is not a company; Kerecis applications go to careers.coloplast.com, its parent's system
+# (the "local subsidiary is a bad row" case, measured); Rio Tinto ISAL, Alcoa Fjardaal and
+# Norduraal hire through parent systems and are shop-floor bulk; Eimskip and Hampidjan are
+# logistics and fishing gear. Two real employers were dropped for want of a confirmed domain
+# rather than guessed at - meniga.com and efla.is both returned 403 to the fetcher - and
+# ternsystems.com turned out to be a parked GoDaddy for-sale page, which is exactly the row
+# that would have arrived as an ordinary "no ATS found" and corrupted the yield measurement.
+#
+# ATS links read off the employers' own careers pages during this pass, for the verification
+# stage to confirm - NOT verified against any ATS API here, and not to be copied into an
+# adapter list unchecked: Alvotech -> workday (alvotech, wd103, Alvotech_Careers);
+# Embla Medical -> workday (ossur, wd3, EmblaMedicalCareersGlobal); JBT Marel -> workday
+# (jbtm, wd108, JBT_Marel_Career_Site); Controlant -> workable "controlant"; Tempo -> ashby
+# "tempo-io" (note slug_candidates cannot guess that one - only the careers-page read finds
+# it). Fenris Creations publishes careers.fenriscreations.com, whose ATS is unidentified;
+# fenriscreations.com itself 403s, while fenris.com (the ccpgames.com redirect target) does not.
+Alvotech,alvotech.com,1
+Embla Medical (Ossur),emblamedical.com,1
+JBT Marel (Marel),jbtmarel.com,1
+Controlant,controlant.com,1
+Tempo,tempo.io,1
+Fenris Creations (CCP Games),fenris.com,1
+Origo,origo.is,2
+Annata,annata.net,2
+atNorth,atnorth.com,2
+Trackwell,trackwell.com,2
+Carbfix,carbfix.com,2
+Kaptio,kaptio.com,3
+AGR Dynamics,agrinventory.com,3
+Oculis,oculis.com,3
+Solid Clouds,solidclouds.com,3

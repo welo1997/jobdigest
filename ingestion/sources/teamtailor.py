@@ -301,6 +301,18 @@ TENANTS = [
     "zenitech",     #   6 — Zenitech: Vilnius (LT) + Budapest (HU), evenly split. DevOps.
     "northway",     #   4 — Northway Biotech: Vilnius (LT) 4 of 4.
     "nrd",          #   3 — NRD Companies: Vilnius (LT) + Belmopan. Govtech.
+    # CY/LU/MT/IS/LI pass (batch C), 2026-08-07.
+    "atnorth",      #  24 — atNorth (Reykjavík-HQ data centres) and the board is Nordic rather
+    #                     than Icelandic: DK 9, FI 6, NO 4, SE 4, IS 1. Taken for the spread.
+    "mangopay",     #   7 — Mangopay (Luxembourg-HQ): Warsaw (PL) 4 + Berlin. Payments.
+    "bsm",          #  44 — Bernhard Schulte Shipmanagement: US 10, IN 8, DE 8, CY 5, GR 4.
+    #                     Shore-side corporate roles (fleet personnel, cost control, supply
+    #                     chain), NOT seafarer crewing — which is why this one is taken and the
+    #                     Maltese ship-management segment was left out of the list entirely.
+    #                     Its two sibling tenants `bernhardschulte` (4) and `bsm-bsm-cruise` (5)
+    #                     are the same company again and are not taken: one company, one board.
+    # `origo`, probed for Origo of Reykjavík, is a Swedish market-research firm hiring
+    # "Telefonintervjuare" and "Enkät intervjuare" in Linköping and Göteborg.
     # LV pass, 2026-08-07. Latvia held **68 active postings**; cv.lv is Alma Career, and the
     # NVA register is unresolved on permission (see the note in CLAUDE.md), so curated employers
     # is the whole route. The Latvian telcos turned out to be where the professional hiring is.

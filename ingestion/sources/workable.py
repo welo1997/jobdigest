@@ -109,6 +109,12 @@ ACCOUNTS = [
     #                     The largest Portuguese board found in three passes.
     "critical-manufacturing",
     #                  22 — Critical Manufacturing, Maia (PT) + Mexico. Semiconductor MES.
+    # CY/LU/MT/IS/LI pass (batch C), 2026-08-07 — the five smallest selectable countries.
+    "payabl",        # 66 — payabl., Limassol (CY) + Lisbon, Kraków, Vilnius, Bucharest.
+    #                     Payments; AML, analytics engineering, compliance. **The single best
+    #                     Cypriot board found**, and Cyprus held 52 postings.
+    "libertex-europe",
+    #                  10 — Libertex, Limassol + Nicosia (CY), all ten Cypriot.
 ]
 
 _TIMEOUT = 20

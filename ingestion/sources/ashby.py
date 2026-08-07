@@ -212,6 +212,18 @@ ORGS = [
     # one-word slug that is a different company. And **`bite` answered again**: it is the same
     # London founding-engineer board rejected in the Latvian pass hours earlier, and it is not
     # Bitė Lietuva any more than it was Bitė Latvija.
+    # CY/LU/MT/IS/LI pass (batch C), 2026-08-07.
+    "leovegasgroup",  #  73 — LeoVegas Group: Malta 28 + Leeds, Málaga, Stockholm, Warsaw.
+    #                        Malta held 23 postings before this pass; this board alone doubles
+    #                        it, and it also carries the first Canadian rows CA can now receive.
+    "tempo-io",       #  21 — Tempo (Reykjavík-founded): Spain, Canada, US. **Findable only via
+    #                        the careers-page read path** — `slug_candidates("Tempo","tempo.io")`
+    #                        returns just `tempo`, and `greenhouse:tempo` is a San Diego
+    #                        receptionist at a different company.
+    # `odyssey` is New York and US-remote, not Odyssey Cybersecurity of Nicosia. And
+    # `ashby:gr8-tech` was rejected in favour of its Greenhouse twin for a reason worth keeping:
+    # its board carries literal ".NET Developer Test" and "test Job title" rows — an ATS being
+    # trialled, not a board being run.
     # SE pass, 2026-08-07.
     "epidemic-sound", #  18 — Epidemic Sound: "Stockholm HQ" 5 of 8 + London, NYC, Berlin.
     "trustly",        #  23 — Trustly (Stockholm-HQ) and the board is not: San Francisco 4,
