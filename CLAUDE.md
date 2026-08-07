@@ -255,6 +255,30 @@ now-selectable countries is newly visible. Adding these countries needs
 backfill re-resolves "San Francisco" → `us:san-francisco`. No privacy-policy change is
 triggered — no new data category, processor, or retention.
 
+**Canada became selectable on 2026-08-07, and it was a geo change rather than a source one.**
+CA had sat in `COUNTRY_ALIASES` only, so the gate could resolve and *exclude* it — which meant
+**1 946 active Canadian postings already in the corpus reached nobody**. Adding it surfaced them
+with no new adapter, no new request and no new data category, so no privacy-policy change was
+triggered (security rule 4: a new *value* in `profiles.countries`, not a new field, processor or
+retention). It follows the GB/US precedent exactly, including the part that is easy to get wrong:
+**`COUNTRIES` gains CA and `EEA_COUNTRIES` does not.** That set is what the `eu` remote scope
+means and `eu` is the *default* scope, so merging them would have started sending Canadian
+fully-remote roles to every existing EEA subscriber, silently. Curated cities were chosen from
+what production actually carries — Toronto ~461 rows, Vancouver ~100, Montréal ~31 — plus
+Calgary, Ottawa and Winnipeg because a subscriber expects to pick them, and all of them were
+**moved** out of `FOREIGN_CITIES` rather than copied, or `check_no_shadowed_cities` raises at
+import. Two flagged collisions were settled by measurement rather than argument: `vancouver` is
+also Vancouver, Washington and `edmonton` is also a north-London district, and **all 128
+Vancouver rows and all 20 Edmonton rows in production are Canadian**. Left country-only on
+purpose: `mississauga` (a Toronto suburb — the Bay Area precedent), `quebec` (a province as well
+as a city, so a slug would repeat the `ontario` bug), `waterloo` (which `test_geo.py` names as
+the canonical shadowing hazard — Belgium, and a London station), and the two provinces.
+`ontario` stays absent from both tables. The `"ca"` subdivision code had to go in the same
+change; see the `SUBDIVISION_CODES` note above. **`python -m service.backfill_geo` is not
+optional**: every CA row already carries `country_code`, so country filtering works on deploy,
+but `city` is null for all 1 946 by construction — `FOREIGN_CITIES` only ever returned a
+country — so until it runs, "Canada → Toronto only" silently means "Canada, anywhere".
+
 **`COUNTRY_ALIASES` is wider than the EU-27 on purpose, and that is not a contradiction.**
 Only EU-27 is ever *offered* as a preference. But "unknown country is kept" means a country we
 cannot name is a country we cannot exclude — so naming one is the only way the gate can act on
@@ -287,13 +311,23 @@ Four rules, and every one is the `georgia` rule in a new place:
 - **A name in both tables is refused at import.** `geo.check_no_shadowed_cities` raises rather
   than choosing, because a European city resolving to another continent would delete it from
   the digest of everyone who chose that country with nothing failing.
-- **A trailing subdivision code fires only on the final token**, and `DE`, `MT`, `NL` and `SK`
-  are excluded from it — Delaware, Montana, Newfoundland and Saskatchewan are also Germany,
-  Malta, the Netherlands and Slovakia, and those four are the entire intersection with the
-  EEA. Every other collision (`IL` Israel, `IN` India, `MA` Morocco, `CA` Canada) is with a
-  country nobody can select, so being wrong is invisible: the gate excludes US and Canada
-  identically. Measured 2026-08-04, all 470 "…, CA" postings were California except the 17
-  reading "Toronto, ON, CA", which the city resolves first.
+- **A trailing subdivision code fires only on the final token**, and **`DE`, `MT`, `NL`, `SK`
+  and — since 2026-08-07 — `CA` are excluded from it.** Delaware, Montana, Newfoundland and
+  Saskatchewan are also Germany, Malta, the Netherlands and Slovakia. **`CA` (California) joined
+  them the moment Canada became selectable, and it is the sharpest of the five**: with
+  `SUBDIVISION_CODES["ca"] = "US"`, `"Kelowna, BC, CA"` resolved to the **United States** — a
+  British Columbia posting filed as American, deleted from the Canadian who wants it and
+  delivered to the American who cannot take it. That is the Delaware failure exactly.
+  `test_no_subdivision_code_can_shadow_a_country_anyone_may_select` fires on it, and **the test
+  was not weakened — the code was removed.** The cost was measured, not estimated: dropping it
+  left **22 locations / 77 active rows** with no country. Most California strings never needed
+  it ("San Francisco, CA", "Los Angeles, CA", "Palo Alto, CA" all resolve from the city), and
+  the four recurring towns that did — `el segundo` (44), `poway` (10), `lompoc` (3), `fresno`
+  (2) — are now country-only in `FOREIGN_CITIES`. **`irvine` is deliberately not among them**:
+  Irvine is also a town in Scotland, and with GB and US both selectable that is the
+  `cambridge`/`birmingham` rule. Unknown is *kept*, so the residue is a precision cost on ~30
+  rows, never a deletion. Every remaining collision (`IL` Israel, `IN` India, `MA` Morocco,
+  `CO` Colombia) is with a country nobody can select, so being wrong there is invisible.
 
 Note what this does *not* do: it adds no country to the selectable set, and it removes nothing
 from anyone's digest that they asked for. It only lets the gate act where it previously could
@@ -1360,6 +1394,35 @@ goes red. A test that cannot fail documents nothing.
   `/*/api/`), jobs.ch (`/api/`, `/api_proxy/`), alfred.is and kariera.gr all disallow their data
   endpoint while allowing their HTML. Where that is the shape, the pages are the invitation and
   the endpoint is not.
+- **Cyprus and Liechtenstein were the last two selectable countries with no settled verdict,
+  and both are now closed** (checked 2026-08-07). **Cyprus is the rare case gated by an eID
+  rather than by terms.** The Department of Labour's PES at `pescps.dl.mlsi.gov.cy/CPSWeb/`
+  answers the honest agent with a *server-rendered* page reporting **3 431 vacancies** and
+  serves no robots.txt — and is still shut, because since 2 June 2025 access *"θα γίνεται
+  **μόνο μέσω του CY-Login**"*, the national eID, and the published vacancies are for
+  *"Κύπριοι και Κοινοτικοί **που διαμένουν στην Κύπρο**"*. A verification step plus a residency
+  gate is the skip rule, not a pending state. Both domestic boards then refuse on top of a
+  permissive robots.txt: **ergodotisi.com** forbids *"Use bots or automated systems to scrape
+  or misuse Platform data"*, and **carierista.com** — whose robots is a bare `Disallow:` —
+  forbids *"any data mining, robots or similar data gathering or extraction methods"* and
+  *"aggregate, copy or duplicate in any manner"*. `kariera.com.cy` 403s, `careerfinder.com.cy`
+  does not answer, and `cyprusjobs.com`/`goldencareers.com.cy` publish **no terms at all** —
+  permission unestablished, the Personio shape. `data.gov.cy` is 222 datasets of employment
+  **statistics**. **Liechtenstein is the second source in this repo refused by robots alone**,
+  after Austria's AMS eJob-Room: the **AMS FL Stellenbörse** at `www.amsfl.li` is a flat
+  **`Disallow: /`** at the host root, and `www.llv.li` 403s the honest agent. **joblie.li** is
+  the sharpest case anywhere in this file — its robots.txt carves out `Allow: /api/feeds/`
+  *and explicitly allows `ClaudeBot` and `anthropic-ai` by name*, while its Nutzungsbedingungen
+  §6 prohibit *"**automatisiertes Auslesen von Daten**, Data Mining, Scraping"* and §15 reserves
+  the **Datenbanken**; a friendlier robots.txt does not exist, and it still loses to the terms.
+  **liechtensteinjobs.li** disallows `x28-job-bot`/`JobRoboter` by name and requires *"ausdrückliche
+  Zustimmung von Somedia Press AG"*; `jobs.li` is a parked domain, `stellen.li` 301s to jobs.ch,
+  and `opendata.li` carries three organisations and no vacancy records. Both countries are
+  ATS-only, and `scripts/cy_companies.csv` / `scripts/li_companies.csv` are the whole buildable
+  surface. **Expect LI to yield zero**: its eight professional employers are the
+  Hilti/Ivoclar/ThyssenKrupp-Presta/LGT tier, exactly the profile that runs SuccessFactors
+  (closed — needs a browser) or Workday (found-and-not-added). A well-evidenced zero is the
+  finding; do not re-derive it.
 - **`taxonomy.py` reads English, and three of the sources feeding it do not.** Measured
   2026-08-07 against `classify()`: `Systemutvikler`, `Dataingeniør`, `Produktsjef`, `IT-arkitekt`
   and `Testleder` all return `uncategorised`; `Backend utvikler` and `Fullstack-utvikler` classify
