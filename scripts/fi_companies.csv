@@ -1,0 +1,98 @@
+company,domain,tier
+# Finland deep pass — 2026-08-07. Second Finnish list; the first (38 names inside
+# dk_ch_fi_ie_companies.csv) produced greenhouse:solita, teamtailor:planmecaoy and
+# teamtailor:siili, and re-confirmed ashby:reaktor / ashby:supercell / greenhouse:relex /
+# greenhouse:smartlyio as already carried. FI holds 210 active postings, so it stays thin.
+#
+# Every name below is NEW — none appears in dk_ch_fi_ie_companies.csv, thin_expand*.csv or
+# sk/thin_countries lists. Weighted to games, deep tech, engineering consultancies and health
+# tech, which is where Finnish ISCO 1-2 hiring concentrates, plus the industrials that plausibly
+# run Workday/SmartRecruiters/Oracle.
+#
+# Finland's non-ATS routes are settled and stay settled: Tyomarkkinatori is gated behind an
+# application AND robots-disallows /api/ and /*/api/; Jobly.fi is Alma Career (same terms that
+# excluded jobs.cz and profesia); Duunitori 403s the honest agent. So curated employers is the
+# whole route unless avoindata.fi turns up a licensed register.
+#
+# tier 1 = product/tech/deep tech · 2 = plausible · 3 = large employer, ATS unknown
+Remedy Entertainment,remedygames.com,1
+Housemarque,housemarque.com,1
+Metacore,metacoregames.com,1
+Fingersoft,fingersoft.com,1
+Frozenbyte,frozenbyte.com,2
+Nitro Games,nitrogames.com,2
+Colossal Order,colossalorder.fi,3
+Critical Force,criticalforce.fi,3
+Yousician,yousician.com,1
+Silo AI,silo.ai,1
+Speechly,speechly.com,2
+Unikie,unikie.com,1
+WithSecure,withsecure.com,1
+F-Secure,f-secure.com,1
+SSH Communications Security,ssh.com,1
+Nixu,nixu.com,1
+Basware,basware.com,1
+Efecte,efecte.com,1
+Digia,digia.fi,1
+Innofactor,innofactor.com,2
+Netum,netum.fi,2
+Loihde,loihde.com,2
+Eficode,eficode.com,1
+Sofigate,sofigate.com,2
+Bilot,bilot.fi,3
+Vincit,vincit.com,1
+Fondia,fondia.com,2
+Nortal,nortal.com,1
+Sympa,sympa.com,1
+Etteplan,etteplan.com,1
+Sitowise,sitowise.com,2
+Granlund,granlund.fi,2
+Destia,destia.fi,3
+YIT,yitgroup.com,2
+SRV,srv.fi,3
+Meyer Turku,meyerturku.fi,3
+Patria,patria.fi,2
+Insta Group,insta.fi,1
+Beamex,beamex.com,2
+Okmetic,okmetic.com,3
+Teleste,teleste.com,2
+Genelec,genelec.com,3
+Polar Electro,polar.com,2
+Suunto,suunto.com,2
+Amer Sports,amersports.com,2
+Nokian Tyres,nokiantyres.com,2
+Marimekko,marimekko.com,3
+Fiskars,fiskarsgroup.com,2
+Uponor,uponor.com,2
+Kemppi,kemppi.com,3
+Ensto,ensto.com,2
+Peikko,peikko.com,3
+Valmet Automotive,valmet-automotive.com,3
+Outokumpu,outokumpu.com,2
+Metsa Group,metsagroup.com,2
+Ahlstrom,ahlstrom.com,2
+Fazer,fazergroup.com,2
+Valio,valio.fi,3
+Paulig,pauliggroup.com,2
+Atria,atria.fi,3
+Lindstrom,lindstromgroup.com,3
+Posti,posti.fi,3
+VR Group,vrgroup.fi,3
+Finnair,finnair.com,2
+Sanoma,sanoma.com,2
+Yle,yle.fi,3
+Verkkokauppa,verkkokauppa.com,3
+Tokmanni,tokmanni.fi,3
+Helen,helen.fi,3
+Caruna,caruna.fi,3
+Terveystalo,terveystalo.com,3
+Mehilainen,mehilainen.fi,3
+Nightingale Health,nightingalehealth.com,1
+Aiforia,aiforia.com,1
+Nanoform,nanoform.com,2
+Faron Pharmaceuticals,faron.com,3
+Revvity Finland,revvity.com,2
+Kalmar,kalmarglobal.com,2
+Hiab,hiab.com,2
+Raute,raute.com,3
+Wihuri,wihuri.fi,3

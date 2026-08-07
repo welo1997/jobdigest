@@ -243,6 +243,41 @@ TENANTS = [
     # written earlier the same day for `akerbp`/`jotun`/`salmar`. `holcim` (72) is genuinely
     # Holcim and rejected on inventory — Tipper Driver, Mixer Driver, Factory Operative, Plant
     # Operative across GB depots.
+    # FI deep pass, 2026-08-07 — a second Finnish list (81 fresh names) after the four-country
+    # run. Finland held **210 active postings from 26 employers**, the most concentrated
+    # inventory of any selectable country, and every non-ATS route is closed: Työmarkkinatori is
+    # gated *and* robots-disallows `/api/`; Jobly.fi is Alma Career; Duunitori 403s the honest
+    # agent; Oikotie Työpaikat forbids "säännöllinen, järjestelmällinen tai jatkuva tietojen
+    # kerääminen … indeksointi"; Kuntarekry, valtiolle.fi and Aarresaari are client-rendered or
+    # moved; and avoindata.fi holds statistics plus one dead CC-BY endpoint.
+    "granlund",     #  33 — Granlund: Helsinki 3, Tampere 2, Rovaniemi + Umeå (SE). Building
+    #                     services engineering — project managers, sprinkler designers.
+    "patria",       #  18 — Patria: Hämeenlinna 5, Jämsä 2, Linnavuori. Defence; LCS and R&D
+    #                     managers, weapon systems.
+    "insta",        #  14 — Insta Group: Tampere 7, Kuopio. QA lead, embedded software lead.
+    "eficode",      #   8 — Eficode: Helsinki + Stockholm 2, København, Malmö, Düsseldorf,
+    #                     Zürich. DevOps consultancy, and the widest Nordic spread here.
+    "ensto",        #   8 — Ensto: Porvoo (FI) + Villefranche-sur-Saône 3 / Bagnères-de-Bigorre
+    #                     (FR) + India, US. Finnish electrification, French operations.
+    "vincitoyj",    #   7 — Vincit: Helsinki 4, Hervanta 2, Jyväskylä. The slug carries `oyj`.
+    "teleste",      #   6 — Teleste: Tampere 3, Kaarina + Wrocław (PL).
+    "sitowise",     #   5 — Sitowise: Espoo 3, Tampere.
+    "netum",        #   3 — Netum: Helsinki, Tampere.
+    "sympa",        #   1 — Sympa: Espoo. Finnish HR software.
+    "nightingalehealth",
+    #                   1 — Nightingale Health: Helsinki. Blood-analysis diagnostics.
+    # **Three rejections here are the best slug lessons in this file.** `ssh` self-identifies as
+    # **"French Express"** — a Stockholm restaurant group whose three rows are *Kock* and
+    # *Sommar Bartender Extra*, not SSH Communications Security of Helsinki. `career` (probed for
+    # Innofactor) self-identifies as **"Teamtailor"**: it is the ATS vendor's own careers page,
+    # which is what a maximally generic slug resolves to. And `wihuri` IS genuinely
+    # "Wihuri Oy Tekninen kauppa" and was still rejected — its rows are Piirihuoltomekaanikko
+    # (district service mechanic) and an open application, so it fails on inventory, not
+    # identity. Elsewhere in the same pass: `greenhouse:remedy` is Missouri City TX, not Remedy
+    # Entertainment of Espoo; `greenhouse:nortal` is 8 of 8 "Latin America - Remote";
+    # `ashby:atria` is Singapore/UK/China, not Atria the Finnish food group; `ashby:polar`
+    # carries no Finnish row at all. `oraclecloud:ecyq` was correctly reported as already
+    # carried — Nixu was acquired by DNV, whose tenant was added earlier the same day.
 ]
 
 
