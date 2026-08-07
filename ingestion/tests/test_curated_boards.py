@@ -25,6 +25,7 @@ from ingestion.sources.oraclecloud import SITES as ORACLECLOUD
 from ingestion.sources.recruitee import COMPANIES as RECRUITEE
 from ingestion.sources.workable import ACCOUNTS as WORKABLE
 from ingestion.sources.smartrecruiters import TENANTS as SMARTRECRUITERS
+from ingestion.sources.teamtailor import TENANTS as TEAMTAILOR
 from ingestion.sources.workday import SITES as WORKDAY
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -60,12 +61,33 @@ def _lists() -> dict[str, list[str]]:
         # as `jci`, so adding it here would pass. Check by hand when the name and the slug
         # could differ.
         "oraclecloud": [name.lower() for *_, name in ORACLECLOUD],
+        # Added 2026-08-07. Teamtailor became a source on 2026-08-06 and was never wired in
+        # here, which is the hole the comment above predicted: three Teamtailor slugs added
+        # since then went unchecked against every other list.
+        "teamtailor": [t.lower() for t in TEAMTAILOR],
     }
+
+
+#: (list_a, list_b, token) triples where the same token is deliberately on two ATSes because
+#: the boards are **disjoint in fact**, not merely different in name. Each needs a measurement
+#: recorded here, not an assertion — the default answer is still one company, one board.
+#:
+#: `thales`: `workday:thales/wd3/Careers` is the group's global board and `teamtailor:thales`
+#: is **Thales Norway AS**, a separate legal entity running its own hiring. Measured
+#: 2026-08-07: searching the Workday board for "Oslo", "Trondheim" and "Norway" returns **0
+#: rows each**, so the 22 Norwegian engineering postings exist on exactly one of the two.
+#: Norway held 23 active postings in the whole corpus, so dropping either would cost real
+#: inventory. Re-measure before assuming this still holds — if Thales ever consolidates onto
+#: Workday, this exception starts silently double-storing.
+ALLOWED_OVERLAPS = {
+    frozenset({"workday", "teamtailor"}): {"thales"},
+}
 
 
 def test_no_company_is_listed_on_two_ats_boards():
     for (name_a, a), (name_b, b) in itertools.combinations(_lists().items(), 2):
-        overlap = set(a) & set(b)
+        allowed = ALLOWED_OVERLAPS.get(frozenset({name_a, name_b}), set())
+        overlap = (set(a) & set(b)) - allowed
         assert not overlap, (
             f"{sorted(overlap)} is listed on both {name_a} and {name_b}; the same postings "
             "would be stored twice and consume two shortlist slots each"
