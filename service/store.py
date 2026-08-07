@@ -313,6 +313,51 @@ def prune_matches(days: int = 180) -> int:
         return cur.rowcount
 
 
+#: Eligibility values a subscriber may be shown, given which countries they picked.
+#:
+#: `postings.eligibility` is written by `search_jobs.eligibility`, whose own docstring still
+#: reads *"Coarse EU-eligibility flag for a Czech-based candidate"* — it was written when this
+#: repo served one person. It encodes a **subscriber-specific judgement in a posting-level
+#: column**, so the allowlist that reads it cannot be a constant.
+#:
+#: Measured 2026-08-07, and this is why it matters: `profiles.eligible_only` defaults **true**
+#: (`schema.sql`) and has **no UI control** — it exists only as a type in `web/lib/api.ts`, and
+#: no form writes it. So the constant allowlist that used to sit here silently withheld
+#: **21 291 of 21 677 active US postings (98%)** from every subscriber, including one who had
+#: explicitly picked the United States, with no way to turn it off. The US half of the
+#: 2026-08-05 "US is now selectable" change had therefore never worked. It bit nobody only
+#: because all three subscribers were CZ-only — the invisibility this repo keeps rediscovering.
+#:
+#: Three rules encoded below:
+#:   - **`likely needs US work auth` is admitted only if the subscriber picked `US`.** For an
+#:     EEA-only subscriber it is a true statement about a job they cannot take; for a US
+#:     subscriber it describes ordinary US employment.
+#:   - **`verify UK right-to-work` stays unconditional.** It is advisory ("verify"), it is
+#:     already what 5 557 of 5 749 GB rows carry, and making it conditional would *narrow*
+#:     what existing subscribers see — a regression dressed as a fix.
+#:   - **`blocked (clearance/US-only)` is never admitted.** A security clearance or a
+#:     citizenship requirement is not something a country preference can unlock.
+#:
+#: Canada needs no branch: `work_region("Toronto", "CA")` returns `"other"`, so CA rows carry
+#: `unknown` (1 808 of 1 946) and always passed. That is luck rather than design — if
+#: `work_region` ever grows a `CA` branch those rows vanish from every shortlist with no error,
+#: which is what `test_geo_sql.py` now pins.
+_ELIGIBILITY_ALWAYS = ("eligible", "unknown", "verify UK right-to-work")
+
+
+def eligibility_allowlist(profile: dict) -> list[str]:
+    """The `postings.eligibility` values this subscriber may be shown.
+
+    Shared by `query_candidates` and `query_shortlist_meta` deliberately: they are two queries
+    behind one product promise, and a filter changed in one and not the other is the
+    `hidden`/`match_count` failure in a new place.
+    """
+    allowed = list(_ELIGIBILITY_ALWAYS)
+    if "US" in (profile.get("countries") or []):
+        allowed.append("likely needs US work auth")
+    return allowed
+
+
 def query_candidates(profile: dict, limit: int = 100) -> list[dict]:
     """Cheap SQL prefilter for a profile — returns active postings before LLM scoring.
 
@@ -341,7 +386,8 @@ def query_candidates(profile: dict, limit: int = 100) -> list[dict]:
     if profile.get("part_time_only"):
         where.append("p.is_part_time")
     if profile.get("eligible_only", True):
-        where.append("p.eligibility in ('eligible','verify UK right-to-work','unknown')")
+        where.append("p.eligibility = any(%s)")
+        params.append(eligibility_allowlist(profile))
 
     params.append(limit)
     sql = f"""
@@ -516,7 +562,8 @@ def query_shortlist_meta(profile: dict, limit: int = 120) -> tuple[list[dict], d
             where.append(edu_sql)
             where_params.extend(edu_params)
         if profile.get("eligible_only", True):
-            where.append("p.eligibility in ('eligible','verify UK right-to-work','unknown')")
+            where.append("p.eligibility = any(%s)")
+            where_params.append(eligibility_allowlist(profile))
 
         # Recall predicate: role_category match OR keyword match.
         if recall_on:

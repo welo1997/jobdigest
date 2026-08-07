@@ -196,8 +196,48 @@ def test_location_and_eligibility_survive_the_widening(query):
     """Widening must not become "email them anything". A CZ-only subscriber still gets CZ
     jobs — dropping the location gate would flood them with roles they cannot take."""
     wide = query(PROFILE, rows=[[]])["calls"][1]
-    assert "eligibility in" in wide["sql"]
+    assert "p.eligibility = any(%s)" in wide["sql"]
     assert wide["params"][1] == PROFILE["regions"]   # the location predicate's parameter
+
+
+def test_the_eligibility_allowlist_follows_the_subscriber_countries(query):
+    """`postings.eligibility` encodes a judgement about *a Czech candidate* — that is what its
+    classifier docstring still says — so the allowlist reading it cannot be a constant.
+
+    Measured 2026-08-07: the constant that used to sit here withheld 21 291 of 21 677 active US
+    postings from every subscriber, including one who had explicitly selected the United States,
+    and `eligible_only` defaults true with no UI control to turn it off. Both queries behind the
+    product share `store.eligibility_allowlist` so they cannot drift.
+    """
+    def allowlist(call):
+        """Find it by content, never by index.
+
+        Selecting countries adds location parameters ahead of this one, so a hardcoded
+        position silently reads a different value — the shift this module's own
+        `test_placeholder_and_parameter_counts_match` exists to catch.
+        """
+        found = [p for p in call["params"]
+                 if isinstance(p, list) and "eligible" in p]
+        assert len(found) == 1, f"expected exactly one eligibility allowlist, got {found}"
+        return found[0]
+
+    # The fixture's sink accumulates: `run()` resets `rows` but not `calls`, so a second
+    # query appends rather than replacing. Take the offset, or you re-read the first query
+    # and the test passes for the wrong reason.
+    first = query(PROFILE, rows=[[]])["calls"]
+    eu_only = allowlist(first[0])
+    assert "likely needs US work auth" not in eu_only
+
+    offset = len(first)
+    us = allowlist(query({**PROFILE, "countries": ["US", "DE"]}, rows=[[]])["calls"][offset])
+    assert "likely needs US work auth" in us
+
+    # Never unlockable by a country preference: a clearance or citizenship requirement is not
+    # something picking the US can satisfy.
+    assert "blocked (clearance/US-only)" not in us
+    # And 'verify UK right-to-work' stays unconditional — it is advisory, and making it
+    # conditional would narrow what existing subscribers already see.
+    assert "verify UK right-to-work" in eu_only
 
 
 def test_a_healthy_shortlist_is_not_widened(query):
