@@ -85,6 +85,47 @@ COMPANIES = [
     "confirmo",       #  7 — Prague crypto-payments; remote-heavy (DevOps, Java) + Dubai. The
     #                       `roi` slug for Roi Hunter was rejected here — it is a Berlin company.
     "safetica",       #  2 — Brno data-loss-prevention security; Prague + Bogotá on the board
+    # AT pass, 2026-08-07. Austria's national-register route is closed (AMS publishes
+    # statistics not vacancies, its eJob-Room is robots `Disallow: /`, and karriere.at's
+    # Nutzungsbedingungen forbid "sämtliche Formen der automatisierten Auswertung"), so
+    # curated employers are the whole route — as they were for Slovakia after Alma Career.
+    # Each identity-checked against its own postings: company name AND city.
+    "netconomy",      # 22 — NETCONOMY, Graz + Vienna (AT) 5 of 8 sampled, Berlin/Dortmund DE
+    "erstedigital",   # 26 — Erste Digital, Vienna (AT) 6 of 8 + **Bratislava (SK) 2** — the
+    #                       thinnest selectable country in the corpus (~29 active postings).
+    "ubimet",         #  5 — UBIMET, Wien (AT), all five. Weather-data / energy analytics.
+    # IT expansion pass, 2026-08-07. `max` (probed for Max Mara) is demo content and is in
+    # KNOWN_IMPOSTORS below — two Berlin rows titled "Marketer (Muster)".
+    "switchojob",     #  4 — Switcho, Milano (IT), all four. Utility-switching fintech; the
+    #                       slug carries a `job` suffix and is not derivable from the name.
+    # FR expansion pass, 2026-08-07. `lvmh` was found live with 49 postings, **is genuinely
+    # LVMH**, and was skipped: all 49 are German beauty-consultant and shop-floor retail roles
+    # for Dior/Givenchy, with no knowledge work on the board at all.
+    "livestorm",      #  2 — Livestorm, Paris (FR), both remote-tagged. Small, but Recruitee
+    #                       costs one request and the company is genuinely French.
+    # BE pass, 2026-08-07. Recruitee is where the Belgian product/consultancy mid-market is —
+    # 5 of the 8 boards this pass wired. Belgium's public route is regional and all three parts
+    # are shut differently: VDAB (Flanders) needs a signed cooperation agreement, Le Forem
+    # (Wallonia) disallows `/recherche-offres/` in robots, and Actiris (Brussels) is genuinely
+    # permitted but has no bulk endpoint — see the note in CLAUDE.md before reopening it.
+    "craftzing",      # 16 — Craftzing, Antwerp + Ghent (BE), 8 of 8 Belgian. Digital product
+    #                       consultancy; the board also carries its Wieni brand.
+    "isabelgroup",    #  6 — Isabel Group, Brussels (BE), all six. Fintech/payments.
+    "luminus",        # 23 — Luminus (BE energy), Gent/Brussels/Luik, all Belgian. Honest
+    #                       about the mix: roughly half are field-sales roles, the rest are
+    #                       DevSecOps and portfolio-optimisation work.
+    "robovision",     #  3 — Robovision, Gent (BE) 2 + Zurich. Computer-vision platform.
+    "ontoforce",      #  2 — Ontoforce, Gent (BE). Tiny, and Recruitee costs one request.
+    # NL pass, 2026-08-07. Rejected in the same pass: `sioux` is genuinely Sioux Technologies of
+    # Eindhoven but its board is the Vietnam/Singapore/India offshore arm (0 Dutch rows sampled);
+    # `asm` is ASM's Hong Kong board; `dashmote` is 3 of 4 Shanghai; and `nearfieldinstruments`
+    # is a single "Product Designer (example)" — Recruitee seed content, now caught by
+    # `_DEMO_TITLE`.
+    "channable",      # 13 — Channable, Utrecht (NL), 8 of 8. Haskell and Python engineering.
+    "bunq",           # 18 — bunq, Amsterdam (NL) 5 of 8 + Sofia (BG) 2 + Brussels.
+    "sallandengineering",
+    #                    6 — Salland Engineering, Zwolle (NL), all six. Semiconductor test.
+    "nmbrs",          #  3 — Nmbrs, Amsterdam (NL), all three.
 ]
 
 #: Slugs that answer with a live board which is **not the company whose name they spell**.
@@ -110,9 +151,14 @@ COMPANIES = [
 #: (Sample)". `redbull` is one posting, "Senior Marketer (Sample)", filed under the company
 #: name **"Fiture Marketing"** — the board itself says it is not Red Bull, which is exactly
 #: the field a job count does not show you.
+#: The Italian pass, 2026-08-07, added a ninth of the demo kind and it is the clearest yet:
+#: `max` (probing for Max Mara) is exactly two Berlin postings, "Marketer (Muster)" and
+#: "Senior Marketer (Muster)" — the German spelling of the same Recruitee sample content that
+#: put `redbull` and `alpha` here. A four-year-old fashion house rendered as two fake German
+#: marketing jobs is precisely the harm this list exists to prevent.
 KNOWN_IMPOSTORS = frozenset({
     "accenture", "ccc", "samsung", "wp", "ey", "talent", "clarity",
-    "alpha", "redbull",
+    "alpha", "redbull", "max",
 })
 
 _TIMEOUT = 20
@@ -134,7 +180,11 @@ _WS = re.compile(r"\s+")
 #: posted deliberately by the employer, a subscriber may genuinely want to answer one, and
 #: guessing at their phrasing across eight languages is how a filter starts deleting real
 #: jobs. The rule for this repo's classifiers holds here too — the only safe error is a miss.
-_DEMO_TITLE = re.compile(r"\((?:sample|muster|voorbeeld)\)|\btemplate\b", re.I)
+#: `(example)` was added 2026-08-07: probing `nearfieldinstruments` returned a board of exactly
+#: one posting, "Product Designer (example)" in Amsterdam. A fourth spelling of the same
+#: Recruitee seed content, found the same way as the first three — by reading a board's postings
+#: rather than its count. Expect a fifth.
+_DEMO_TITLE = re.compile(r"\((?:sample|muster|voorbeeld|example)\)|\btemplate\b", re.I)
 
 
 def _text(html: Optional[str]) -> Optional[str]:

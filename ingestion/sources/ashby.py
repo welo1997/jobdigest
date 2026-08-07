@@ -154,6 +154,38 @@ ORGS = [
     # Kraken arm, London/Tokyo/NY, not the Austrian firm the name guessed).
     "iceye",          # 158 — Espoo (FI) satellite radar; strong Finnish engineering board
     "corti",          #   7 — Copenhagen (DK) health-AI, 6 of 7 Danish
+    # AT pass, 2026-08-07 — bycatch, and worth saying so. Speedinvest's careers page links its
+    # **portfolio's** boards, so probing the Vienna VC surfaced companies that are not Austrian
+    # at all. Kept only where the postings are in selectable countries; `greenhouse:dialpad`
+    # (90, Austin/Tempe/Tokyo/Bengaluru/Manila) was skipped as N+1-style non-EEA bulk, and
+    # `ashby:julius` — probed for Julius Meinl — is a San Francisco startup, rejected.
+    "trawa",          #  12 — trawa, Berlin (DE) 7 of 8 + Amsterdam (NL) — energy procurement
+    "primer.io",      #  38 — Primer, London/UK 4 of 8 + remote-Europe 2, Singapore tail.
+    #                       NOT `primer`, already carried and a *different* company — a US
+    #                       microschool operator posting Florida and Alabama teacher roles.
+    # IT expansion pass, 2026-08-07, identity-checked against each board's own postings.
+    # Rejected here: `greenhouse:indigo` — probed for Indigo.ai of Milan, it is a US insurer
+    # (AVP Facilities Underwriting, Underwriter, all Remote). And `ashby:serenis` was **live,
+    # genuinely Serenis, genuinely Italian — and skipped anyway**: all five postings are
+    # clinical practitioners (psychotherapists, a psychiatrist, a sexologist), which no
+    # taxonomy category models, so they would land in the widened retrieval path that drops
+    # the recall predicate. Real inventory for a product this is not.
+    "docebo",         #  53 — Docebo, Toronto 5 of 8 but Biassono + Milan (IT) 2. Canadian-
+    #                       weighted; taken for the Italian rows, which Ashby costs nothing for.
+    "kong",           #  91 — Kong Inc, Milan (IT) + US/Canada/India/Australia. US is
+    #                       selectable now, so the US bulk is wanted rather than waste.
+    # GB expansion pass, 2026-08-07, identity-checked. Rejected in the same pass:
+    # `greenhouse:turing` (24) is **Turing.com**, the US AI-talent marketplace (New York,
+    # Palo Alto, Bengaluru, São Paulo), not the Alan Turing Institute — and `ashby:alan` is
+    # already carried and is the French health insurer, so the Institute has no board here.
+    "beamery",        #   8 — Beamery, London (GB) 7 of 8 + Austin. Talent-CRM software.
+    # NL pass, 2026-08-07, identity-checked. Skipped: `recharge` (3) is a US/Canada company, my
+    # own list error, and `greenhouse:asm` (429) is ASM's China/Singapore/Taiwan board with 0
+    # EEA rows in 8 sampled — Greenhouse is cheap, but not free of shortlist slots.
+    "bynder",         #  24 — Bynder, Amsterdam 3 + Rotterdam (NL) + Düsseldorf, London, Boston
+    "eye-security",   #  23 — Eye Security, The Hague (NL) 3 + Germany 3 + Berlin + Austria.
+    #                        Cyber-insurance/SOC; one of the better EEA spreads on this list.
+    "datasnipper",    #  29 — DataSnipper, Amsterdam (NL) 3 of 8 + New York 3
 ]
 
 # Map Ashby address country names to ISO-3166 alpha-2.

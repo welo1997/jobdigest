@@ -168,6 +168,70 @@ SITES: list[tuple[str, str, str]] = [
     ("trumpf", "wd3", "TRUMPF_Graduates_and_Professionals"),  # 251 — Ditzingen machine tools
     ("covestro", "wd3", "cov_external"),             #  130 — Leverkusen materials
     ("steeleurope", "wd3", "Job_Board"),             #   71 — ThyssenKrupp Steel Europe, DE
+    # AT pass, 2026-08-07. Both triples read off the employer's own careers page and checked
+    # against the postings' cities — Austria has no open register, so curated employers are
+    # the entire route (AMS publishes statistics not vacancies, its eJob-Room is robots
+    # `Disallow: /`, karriere.at's terms forbid automated evaluation, hokify's AGB forbid
+    # spiders, derStandard reserves TDM under § 42h UrhG).
+    ("fronius", "wd3", "Job_Board"),                 #  120 — Fronius International, Wels AT.
+    #   Sampled: Wels/Steinhaus/Sattledt (AT), Neuhof/Landsberg/Goslar/Stuttgart (DE),
+    #   Český Krumlov (CZ), Gliwice (PL), Milton Keynes (GB) + a Pune/Monterrey/São Paulo
+    #   tail the gate drops. Note what it is: an industrial board, so a real share of it is
+    #   service-technician and production work rather than the knowledge roles this product
+    #   matches — the SmartRecruiters `TECH_TITLE` problem, which Workday has no filter for.
+    #   Taken anyway for the CZ and PL rows, which are the scarcest inventory in the corpus.
+    ("roche", "wd3", "mysugr-ext"),                  #    2 — mySugr, Vienna (AT). Roche's
+    #   tenant, but a dedicated mySugr site slug; only the Vienna product org posts on it.
+    # FR expansion pass, 2026-08-07. Four triples read off each employer's own careers page and
+    # sampled 60 rows deep for locations, because these are N+1 and the EEA share is what
+    # decides whether the detail budget is well spent. Unlike the GB/US N+1 boards skipped in
+    # August, the bulk here is EEA-onsite, which is inventory subscribers can actually take.
+    ("thales", "wd3", "Careers"),                    # ~2000 (Workday's saturated `total`) —
+    #   Vélizy-Villacoublay 6, Gennevilliers 3, Meudon, Massy (FR) + Cheadle/Belfast/Reading
+    #   (GB), Paço de Arcos (PT), Tczew (PL), with a Montreal/Singapore/Melbourne tail. The
+    #   largest French board found in either French pass, and distinct from `teamtailor:thales`,
+    #   which is the Norwegian subsidiary.
+    ("ipsen", "wd103", "Ipsen_Careers"),             #  271 — Cambridge US 11, Paris 6, Wrexham
+    #   6 (GB), Dublin 3, Munich 2, Stockholm. Genuinely multi-EEA pharma, not a French board.
+    ("pierrefabre", "wd3", "External_Career_Site"),  #  184 — the most French board here: Tarn
+    #   (81) 13, Haute-Garonne (31) 10, Loiret (45) 4, plus Freiburg and Bruxelles. **Note it
+    #   writes locations as French department numbers**, which resolve to no city and probably
+    #   no country, so most of it reaches the AI matcher as unknown-location rather than
+    #   filtered — the gate keeps it, which is the intended behaviour, not a bug.
+    ("arianegroup", "wd3", "EXTERNALALL"),           #   99 — Vernon 15, Les Mureaux 11,
+    #   Saint-Médard-en-Jalles 8, Le Haillan 5, Kourou 4 (FR) + Lampoldshausen, Bremen,
+    #   Taufkirchen (DE). Space-launch engineering, and almost entirely FR/DE.
+    # GB expansion pass, 2026-08-07. The first GB list (2026-08-05) was fintech and consumer
+    # startups, assembled while the UK was still gated out; this one goes at the industrial and
+    # engineering employers, which is where UK employment actually is. Each sampled 60 rows deep.
+    # **`workday:jlp` (94) was found and rejected**: John Lewis and Waitrose, and the board is
+    # Salisbury/Petersfield/Chichester shop floors and distribution centres — the `recruitee:lvmh`
+    # call. `workday:proofpoint` (154), reached by probing for Tessian (acquired), is US-weighted
+    # with ~5% GB and was skipped as N+1 that buys little.
+    ("renishaw", "wd3", "Renishaw"),                 #   79 — **Wotton-under-Edge 29 of 60** +
+    #   Miskin (UK), with Barcelona, Pliezhausen (DE), Breda (NL). Metrology engineering, and
+    #   the most British board found in either GB pass.
+    ("matthey", "wd3", "Ext_Career_Site"),           #  137 — Johnson Matthey: West Deptford NJ
+    #   9, **Vilnius (LT) 7**, Enfield 5 + Royston 4 (UK), Skopje 4. The Lithuanian rows matter
+    #   more than the British ones — LT held 24 active postings.
+    ("smithnephew", "wd5", "External"),              #  353 — Pune (IN) 8, **Wrocław (PL) 5** +
+    #   Warsaw, Alajuela (CR) 5, US, Hull + Watford (UK) 4. Global medtech; ~15% EEA/GB.
+    # NL pass, 2026-08-07. Both sampled 60 rows deep.
+    ("damen", "wd3", "Damen_Careers"),               #  128 — **39 of 60 Dutch**: Gorinchem 15,
+    #   Amsterdam 8, Hardinxveld-Giessendam 6, Schiedam 5, Vlissingen 3, Drachten 2, with
+    #   Antalya/Cadiz/Abu Dhabi yards. The most Dutch board found in the pass.
+    ("fugro", "wd3", "Careers"),                     #  132 — Nootdorp (NL) 15 across two
+    #   location spellings, Aberdeen (GB) 4, then Singapore 8, Navi Mumbai 5, Kuala Lumpur 3,
+    #   Houston 2. Geo-data survey; ~a third EEA/GB.
+    # BE pass, 2026-08-07. `workday:aliaxis` (253) was found and **rejected**: Madrid-Colombia,
+    # Auckland, Bangalore, Guatemala and Canadian plants, with almost no EEA in 60 sampled rows —
+    # 253 detail calls for nearly nothing, the Genpact call.
+    ("argenx", "wd3", "External_Careers"),           #   46 — **Gent (BE) 13 of 46**, Boston 6,
+    #   US-remote 8, with German and Italian field roles. Ghent biotech; 28% Belgian on a small
+    #   board, which is the best Belgium-density Workday site found.
+    ("ringcentral", "wd1", "RingCentral_Careers"),   #   61 — reached by probing for Hopin,
+    #   whose events business RingCentral acquired. Manila 15, Belmont CA 13, Bangalore 7,
+    #   **Bulgaria 7**. Taken for the Bulgarian rows; small enough that N+1 costs nothing.
 ]
 
 #: Role terms, matched by Workday's own full-text search. English-only for the same reason as

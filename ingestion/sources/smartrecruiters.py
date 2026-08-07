@@ -53,13 +53,31 @@ TENANTS = [
     "Konecranes",     # 373  — FI/DE/NL industrial
     "Sportradar",     # 70   — AT/SI/DE sports data
     "Visa",           # 2
-    "Thales",         # 2
+    # `Thales` was here and is **removed 2026-08-07**: its SmartRecruiters board is 2 postings
+    # (Leganés and Madrid), while `workday:thales/wd3/Careers` is the group's real board —
+    # Vélizy-Villacoublay, Gennevilliers, Meudon, Massy, plus GB/PT/PL — and carries Spain too.
+    # One company, one board, and this was the smaller one by three orders of magnitude.
     # SK re-run, 2026-08-05. Slovakia holds ~29 active postings in the whole corpus, so a
     # single all-Slovak tenant is worth the N+1 detail calls. Verified: 15 of 15 sampled
     # postings are Košice — a genuine large Slovak IT employer (ex-T-Systems). The other two
     # SK hits were slug-collision impostors and rejected: greenhouse:pantheon is the US WebOps
     # Pantheon (all US/Canada remote), not Slovak Pantheon.tech; ashby:union is a Seattle firm.
     "deutschetelekomitsolutionsslovakia",  # 116 — Košice IT services (Slovak)
+    # RO pass, 2026-08-07. Romania has no open register (ANOFM's `mediere.anofm.ro` renders no
+    # vacancies server-side and data.gov.ro carries only its training/employment statistics)
+    # and its two large boards refuse automated use — eJobs forbids reproducing "informațiile
+    # cuprinse … în anunțurile de recrutare ale Companiilor" and BestJobs lists "colectarea
+    # neautorizată de date (scraping)" among prohibited conduct. Curated employers is the route,
+    # and the Romanian ATS surface is genuinely thin: **64 employers probed, 6 live boards.**
+    # Both tenants below were found by probing for a *Romanian* employer and are worth having
+    # for the countries they actually cover, which is the recurring shape of these passes.
+    "Playtech",       # 137 — measured over 100 sampled: **BG 24, EE 17, CY 8, LV 6, RO 1,
+    #                        MT 1** — 56 EEA, concentrated in exactly the thinnest selectable
+    #                        countries (Bulgaria 63 active, Estonia 50, Latvia 11, Cyprus 17,
+    #                        Malta 9). The strongest thin-country board found since Teamtailor.
+    "Gameloft",       #  56 — ES 8, CA 16, VN 11, **RO 5**, FR 5, BG 1. Genuine Bucharest/Cluj
+    #                        games studios; 34% EEA, and the `TECH_TITLE` filter keeps the
+    #                        engineering rather than the Ho Chi Minh production bulk.
 ]
 
 #: Rows per list page. SmartRecruiters caps a response at 100 whatever `limit` says — asking

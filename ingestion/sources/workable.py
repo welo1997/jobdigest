@@ -81,6 +81,8 @@ ACCOUNTS = [
     # account name "ROI Hunter", all 4 postings Brno, Czechia (Backend Dev, Product Designer,
     # Product/Campaign Manager, IT Technician). The recruitee `roi` slug is a Berlin impostor.
     "roi-hunter",    #  4 — Brno (CZ) adtech; the bare `roi` recruitee slug is NOT this company.
+    # GB expansion pass, 2026-08-07.
+    "lyst",          #  5 — Lyst, London (GB), all five. Fashion search/marketplace.
 ]
 
 _TIMEOUT = 20

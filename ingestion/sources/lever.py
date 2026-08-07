@@ -72,7 +72,24 @@ ORGS = ["spotify", "qonto", "contentsquare", "aircall", "swile", "blablacar",
         "finn",           #  32 — Munich (car subscription); NOT lever:aleph/zeiss (impostors)
         # Thin-EEA expansion pass, 2026-08-06, identity-checked against each board's postings.
         "nfq",            #  15 — Vilnius / Kaunas (LT) + Kraków; Lithuanian/Polish software
-        "siteground"]     #   2 — Sofia (BG); small but purely Bulgarian
+        "siteground",     #   2 — Sofia (BG); small but purely Bulgarian
+        # FR expansion pass, 2026-08-07, identity-checked against each board's own postings.
+        # France's non-ATS routes are all closed: France Travail's API is permitted but
+        # declined on Art. 5.3/Art. 7 (unchanged), APEC forbids "capter tout ou partie du
+        # contenu … et des bases de données qui lui sont liées (offres d'emploi …)", HelloWork
+        # forbids scraping "à quelques fins que ce soit, commerciales ou non", and Welcome to
+        # the Jungle forbids "extraction automatisée de données". Curated employers is the route.
+        # Skipped as duplicates rather than rejected: greenhouse:aircallioinc (62) and
+        # ashby:ledger (9) are the same companies as `aircall` and `ledger` above — one
+        # company, one board, and the Lever board is the one already carried.
+        "scaleway",       #  34 — Paris 6 of 8 + Lille + Milan; French cloud (Iliad)
+        "aqemia.com",     #   6 — Paris 5 of 6 (drug-discovery AI). The slug really does carry
+        #                        the `.com`, which no name-derived guess would produce.
+        # GB expansion pass, 2026-08-07. Both are UK-headquartered with US-weighted boards;
+        # Lever costs one request, and the US rows are wanted since GB and US are both
+        # selectable. Identity-checked against the postings.
+        "bumbleinc",      #  22 — Bumble: New York 5 of 8 / Austin 2 / London 1
+        "matillion"]      #  22 — Matillion (Manchester HQ): US territories + Manchester
 
 
 class LeverSource(BaseSource):

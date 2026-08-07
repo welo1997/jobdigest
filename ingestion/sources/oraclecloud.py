@@ -138,6 +138,53 @@ SITES: list[tuple[str, str, str, str]] = [
     ("ehth", "em2", "CX_2001", "Garrett Motion"),
     #    107 — the best CZ/SK ratio of the industrials at 28%: **22 CZ + 8 SK**, Garrett's Brno
     #    turbocharger R&D/engineering centre. CN/US/RO/IN/MX make up the rest and gate out.
+    # IT expansion pass, 2026-08-07. Oracle turned out to be where Italian employers actually
+    # are — 5 of the 11 boards this pass found, and the largest of them. Every site slug was
+    # checked against the bogus `CX_99999`, per this file's own warning: **all five return the
+    # identical count**, so each is a single-site tenant and the slug is not a filter. Italy's
+    # non-ATS routes are all closed (Cliclavoro's search moved into the SPID-gated SIISL, the
+    # Ministry's open data is statistics, InfoJobs.it has shut down, both Italian ATSes
+    # disallow their own job pages in robots), so curated employers are the whole route.
+    ("fa-etjb-saasfaprod1", "ocs", "CX_1", "Bip"),
+    #    367 — **the largest genuinely Italian board found in either Italian pass.** Milan and
+    #    Rome consultancy; 8 of 8 sampled Italian, and the titles are the product's own
+    #    segment (IT project managers, functional analysts in banking/insurance, finance
+    #    transformation). Note the newer `fa-…-saasfaprod1` tenant shape, as with Brembo.
+    ("iaagmj", "ocs", "GG", "Golden Goose"),
+    #     58 — Venezia (IT) corporate ICT/finance + Paris/Cannes (FR), Wien (AT), Bucharest
+    #     (RO). Honest about what it is: 5 of 8 sampled are store retail (sales assistants,
+    #     sneaker makers), so roughly half of it is not knowledge work. Kept because Oracle is
+    #     not N+1 — one request buys the Venice corporate roles and a real EEA retail spread.
+    ("hdeh", "em3", "CX_1", "A2A"),
+    #     53 — Brescia/Milano utility. Same caveat, sharper: genuine engineering (process
+    #     engineers, waste-to-energy boiler engineers, an AI developer) sitting beside waste
+    #     collection drivers and plant operators. The ISCO 1–3 problem `mpsv` filters for, in a
+    #     source that has no such filter — but it is 53 rows, not 32 000.
+    ("iacrgs", "ocs", "CX_1", "Aeroporti di Roma"),
+    #     20 — Rome airports. The cleanest of the five: all 8 sampled are Roma and all are
+    #     engineering/PM (infrastructure design, electrical systems, PMO). Site read as `ocs`
+    #     with no slug on the careers page; `CX_1` verified to return the tenant's full 20.
+    ("eizj", "em2", "CX", "Mondadori"),
+    #      5 — Milano publishing (Rizzoli Libri / Rizzoli Education). Tiny and internship-heavy,
+    #      kept for the same reason as Illycaffè: entirely Italian and it costs one request.
+    # GB expansion pass, 2026-08-07. Site checked against the bogus `CX_99999`: identical count,
+    # so a single-site tenant and the slug is not a filter.
+    ("fa-eqid-saasfaprod1", "ocs", "CX_1", "Marks & Spencer"),
+    #    695 — and **not the retail board it looks like**. `workday:jlp` (John Lewis/Waitrose)
+    #    was rejected in the same pass for being Salisbury and Petersfield shop floors; M&S's
+    #    sample is Senior Software Engineer - Loyalty, Head of Software Engineering - Mobile
+    #    Apps, Lead Decision Science Analyst and Senior Finance Manager alongside the store
+    #    roles — a genuine digital org. Two caveats: `PrimaryLocation` is the bare string
+    #    "United Kingdom" on every row, so no city ever resolves; and Oracle is not N+1, so
+    #    695 postings cost about four requests, which is what makes the store rows affordable.
+    # BE pass, 2026-08-07. Site verified against the bogus `CX_99999`: identical 150, so a
+    # single-site tenant.
+    ("don", "em2", "CX_1003", "Euroclear"),
+    #    150 — Brussels-headquartered and the board is **Polish**: 7 of 8 sampled are Poland
+    #    (Kraków tech centre — network security, CyberArk, platform engineering, an IT project
+    #    manager) with one Euroclear Nederland row. Probed as a Belgian employer and kept for
+    #    the Polish engineering, which is the pattern this whole session kept turning up.
+    #    The tenant is the opaque three-letter `don`, derivable from nothing.
 ]
 
 #: Oracle's own ceiling. Asking for more returns 200; `_page` strides by what it receives.
