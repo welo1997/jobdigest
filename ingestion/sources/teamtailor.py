@@ -278,6 +278,32 @@ TENANTS = [
     # `ashby:atria` is Singapore/UK/China, not Atria the Finnish food group; `ashby:polar`
     # carries no Finnish row at all. `oraclecloud:ecyq` was correctly reported as already
     # carried — Nixu was acquired by DNV, whose tenant was added earlier the same day.
+    # LV pass, 2026-08-07. Latvia held **68 active postings**; cv.lv is Alma Career, and the
+    # NVA register is unresolved on permission (see the note in CLAUDE.md), so curated employers
+    # is the whole route. The Latvian telcos turned out to be where the professional hiring is.
+    "tet",          #  33 — Tet (ex-Lattelecom), Rīga: product owner, AI services owner, Red
+    #                     Team Lead, data-network expert, storage/server admin. **The best
+    #                     Latvian board found**, and entirely Riga.
+    "bitelatvija",  #  13 — Bite Latvija: Rīga, Jelgava, Rēzekne. A deliberately marginal keep —
+    #                     roughly half the board is shop-floor retail ("Pārdošanas speciālists
+    #                     salonā"), the other half office roles (B2B sales consultant, HR
+    #                     business partner, AI solutions specialist). Kept because the split is
+    #                     ~50/50 rather than the >90% that got `rimilatvia` and `fenixoutdoor`
+    #                     rejected, and because 13 rows is material in a 68-row country.
+    "lmt",          #  10 — Latvijas Mobilais Telefons, Rīga: monitoring-solutions engineer,
+    #                     senior systems analyst, IT transformation architect, senior .NET
+    #                     developer, AI product technical lead. Entirely professional.
+    # **`rimilatvia` (100) was the largest Latvian board found and is rejected on inventory** —
+    # dishwashers, cooks, checkout supervisors, bakery sales, central-kitchen production staff.
+    # It is genuinely Rimi and it would have been the single biggest LV number in the corpus;
+    # taking it would put a supermarket's shop floor into the widened retrieval path. Same call
+    # as `workday:jlp` and `oraclecloud` Posten Bring.
+    # Rejected on identity: `ashby:maxima` is San Mateo, California, not Maxima Latvija;
+    # **`ashby:bite` is a London founding-engineer board while `teamtailor:bitelatvija` is the
+    # Latvian operator** — one more slug answering live on two ATSes with only one right, after
+    # `sunday` and `lunar`; `recruitee:grid` is an esports betting operation (MOBA Trading
+    # Analyst, Live Trader FPS), not Grid Dynamics; `recruitee:accenture` is two Amsterdam rows
+    # of which one is "Senior Marketer (Sample)", i.e. Recruitee seed content.
 ]
 
 

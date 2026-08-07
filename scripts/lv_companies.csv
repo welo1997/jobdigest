@@ -1,0 +1,72 @@
+company,domain,tier
+# Latvia pass — 2026-08-07. LV holds 68 active postings (teamtailor 29, workable 20,
+# greenhouse 15), so it is among the thinnest selectable countries.
+#
+# Prior LV coverage came from the generic thin-country lists (thin_countries_companies.csv,
+# thin_expand_companies.csv, thin_expand2_companies.csv), which found mintos and printfulinc.
+# This is the first list assembled specifically for Latvia. Names below are new.
+#
+# Non-ATS routes: cv.lv is Alma Career (excluded 2026-08-03, same terms as jobs.cz). The NVA
+# publishes "Vakances" on data.gov.lv under CC0-1.0, refreshed daily — permitted, but measured
+# 2026-08-07 at 1 633 rows of which education 614 / healthcare 380 / public administration 210
+# and **IT/telecoms 21**, with no description text and the employer given only as a registration
+# number. Recorded as low value rather than refused. The full NVA register (private sector too)
+# lives behind cvvp.nva.gov.lv, whose API is being re-examined in this same pass.
+#
+# Weighted to the segments where Latvian ISCO 1-2 hiring actually is: fintech/lending, iGaming
+# (Riga is a major Evolution/Playtech hub), IT services, and deep-tech hardware.
+Lokalise,lokalise.com,1
+Printify,printify.com,1
+Sonarworks,sonarworks.com,1
+Giraffe360,giraffe360.com,1
+Aerones,aerones.com,1
+Longenesis,longenesis.com,2
+Anatomy Next,anatomynext.com,3
+Cellbox Labs,cellboxlabs.com,3
+Naco Technologies,nacotechnologies.com,3
+TWINO,twino.eu,1
+Eleving Group,eleving.com,1
+4finance,4finance.com,1
+Creamfinance,creamfinance.com,2
+Capitalia,capitalia.com,3
+Indexo,indexo.lv,2
+Citadele,citadele.lv,1
+Luminor,luminor.lv,2
+Rietumu Banka,rietumu.lv,3
+Evolution Latvia,evolution.com,1
+Tet,tet.lv,1
+LMT,lmt.lv,1
+Bite Latvija,bite.lv,2
+SAF Tehnika,saftehnika.com,2
+HansaMatrix,hansamatrix.com,2
+Tilde,tilde.com,1
+C.T.Co,ctco.lv,1
+Emergn,emergn.com,1
+Squalio,squalio.com,2
+DPA,dpa.lv,2
+Draugiem Group,draugiemgroup.com,2
+Accenture Latvia,accenture.com,3
+Tietoevry Latvia,tietoevry.com,3
+Grid Dynamics Latvia,griddynamics.com,2
+airBaltic,airbaltic.com,2
+Latvenergo,latvenergo.lv,2
+Sadales tikls,sadalestikls.lv,3
+Elektrum,elektrum.lv,3
+RB Rail,railbaltica.org,2
+Latvijas dzelzcels,ldz.lv,3
+Riga Airport,riga-airport.com,3
+Latvijas Valsts mezi,lvm.lv,3
+Latvijas Finieris,finieris.com,3
+Grindeks,grindeks.lv,2
+Olainfarm,olainfarm.lv,2
+Silvanols,silvanols.lv,3
+Madara Cosmetics,madaracosmetics.com,2
+Rimi Latvia,rimi.lv,3
+Maxima Latvija,maxima.lv,3
+Cido,cido.lv,3
+Latvijas Balzams,lb.lv,3
+Groglass,groglass.com,2
+Peruza,peruza.lv,3
+Baltic International Bank,bib.eu,3
+Lursoft,lursoft.lv,3
+Aerodium,aerodium.lv,3
