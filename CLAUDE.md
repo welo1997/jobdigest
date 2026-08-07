@@ -978,6 +978,19 @@ goes red. A test that cannot fail documents nothing.
   plus exactly one genuine vacancy dataset, the City of Vantaa's **CC BY 4.0** REST API, whose
   documented endpoint now serves an unrelated HTML page. Perfect licence, dead endpoint: the
   Sicily case in a third form.
+  **LV pass, 2026-08-07.** Latvia held **68 active postings**. 55 employers probed → 16 live
+  boards → 12 supported → **3 wired → 56 rows, 55 Latvian, 48 in Riga: +81%**. The Latvian
+  telcos are where the professional hiring is — `teamtailor:tet` 33 (product owner, AI services
+  owner, Red Team Lead) and `teamtailor:lmt` 10 (systems analyst, IT transformation architect,
+  senior .NET). `teamtailor:bitelatvija` 13 is a deliberately marginal keep at a ~50/50
+  office/shop-floor split.
+  **The largest Latvian board found was rejected**: `teamtailor:rimilatvia` is 100 rows,
+  genuinely Rimi, and entirely supermarket shop floor — dishwashers, cooks, checkout
+  supervisors, central-kitchen production. It would have been the biggest single LV number in
+  the corpus. `ashby:bite` is a London board while `teamtailor:bitelatvija` is the Latvian
+  operator — **the third slug live on two ATSes with only one right**, after `sunday` and
+  `lunar`. Also rejected: `ashby:maxima` (San Mateo), `recruitee:grid` (esports betting, not
+  Grid Dynamics), `recruitee:accenture` (Recruitee seed content).
   **Twenty-five Workday sites are now found-and-not-added across these six countries** (SE 1 227,
   DK/CH/FI/IE ~1 537, FI a further ~400), all pending the same untaken export timing. That
   measurement is now the single biggest blocked lever in this file.
@@ -1296,8 +1309,30 @@ goes red. A test that cannot fail documents nothing.
     file has **no description at all** (only a link into a hash-route SPA) and names the employer
     only by registration number. So: permitted, buildable, low value, category-filtered — reopen
     if LV subscribers appear, not before. NVA's own `cvvp.nva.gov.lv` holds the private-sector
-    register behind a 945-byte shell with no discoverable API (the Actiris problem without
-    Actiris's permission).
+    register behind a 945-byte shell — and **on 2026-08-07 that API was found**, which changes
+    the reasoning without changing the answer. Read the AngularJS bundle rather than guessing
+    paths (the Actiris lesson): `/js/app.*.js` names the view `pub_vakance_list` and a
+    `$resource("./data/" + entity + "/:id")` prefix. So **`GET /data/pub_vakance_list?limit=N`
+    returns the live list and `GET /data/pub_vakance/{id}` returns the full record** — no key, no
+    session. The list carries `uzn_uznemums_nosaukums` (the real company name, private employers
+    included — "SIA Starfish"), `vieta` (street address), `alga_no_lidz` (salary),
+    `publicesanas_laiks` and `aktuala_lidz`; the detail adds `darba_apraksts` as full HTML. The
+    endpoint even distinguishes its own errors usefully: `404 "View definition for X not found"`
+    means no such entity, while `400 "X.list is not a part of this API"` means the entity exists
+    and that operation is not exposed — which is how `pub_vakance` was found at all.
+    **It is still skipped, and the reason is the EURES reason rather than caution.** NVA
+    publishes ten datasets on data.gov.lv, all CC0 — and the only vacancy-*record* one is
+    "Vakances", scoped in its own description to `Latvijas valsts sektorā`; the other nine are
+    unemployment statistics. So the dedication covers exactly the subset where the employer is a
+    public body, and stops precisely where third-party employer content begins. That is not an
+    oversight, it is the same boundary ELA's licence draws: **the portal is the agency's, the
+    vacancy texts are the employers'.** No terms page could be found on `nva.gov.lv` and
+    `cvvp.nva.gov.lv` serves no robots.txt, so nothing *refuses* us either — this is the Personio
+    and hipo.ro shape, **permission unestablished, which is not permission**. Do not build it on
+    the strength of the endpoint working; that is the Bundesagentur error. Two further facts for
+    whoever revisits: descriptions carry employer contact emails inline ("CV sūtīt uz
+    info@starfish.lv"), so the MPSV scrubbing discipline would be mandatory; and `limit=5000`
+    returns 400, so the page ceiling is lower and would need probing.
 
   **Closed for the usual reasons, recorded so nobody re-probes them:** ES Empléate answers every
   path with a session-gated error notice and its UI is a hash-route SPA (**and Adzuna covers ES
