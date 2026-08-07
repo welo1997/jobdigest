@@ -1,10 +1,25 @@
-# Phase 1 fires at 05:00 UTC. The claude.ai routine should run ~06:00 (cron min 1h),
+# Phase 1 fires at 03:00 UTC. The claude.ai routine should run ~06:00 (cron min 1h),
 # leaving Phase 2 (import + send) at 07:00 to pick up the routine's picks.json.
+#
+# **Moved 05:00 -> 03:00 on 2026-08-07, and the reason is the shape of the failure rather
+# than the run being slow.** The export's real deadline is the routine, not the import: the
+# routine reads whatever shortlists.json is sitting in Drive when it wakes, so an export
+# still running at 06:00 does not delay it, it *misses* it — every subscriber gets yesterday's
+# file or none, with no error anywhere. `Type=oneshot` means systemd sets no start timeout, so
+# nothing else stops it either.
+#
+# Measured on the box: the 2026-08-07 run was 05:00:00 -> 05:39:40 (exit 0), i.e. 39m40s
+# against a ~60-minute window — about 20 minutes of headroom, and gather() has been growing.
+# Starting at 03:00 turns that into ~2h20m of slack without touching any ceiling.
+#
+# It clears the 03:30 backup, which was moved to 01:30 in the same change so the two cannot
+# overlap on a small VPS (pg_dump is consistent under MVCC, so this is I/O contention rather
+# than a correctness problem — but it is free to avoid).
 [Unit]
-Description=JobDigest matcher export daily at 05:00
+Description=JobDigest matcher export daily at 03:00
 
 [Timer]
-OnCalendar=*-*-* 05:00:00
+OnCalendar=*-*-* 03:00:00
 Persistent=true
 Unit=jobdigest-match-export.service
 

@@ -49,12 +49,12 @@ notes/            session logs, security review; notes/INFRA.local.md is gitigno
 ### Flow
 
 ```
-05:00 UTC  export   ingest sources → Postgres → write shortlists.json → Google Drive
+03:00 UTC  export   ingest sources → Postgres → write shortlists.json → Google Drive
 ~06:00     routine  claude.ai reads shortlists.json → writes picks.json      (no DB, no key)
 07:00 UTC  import   pull picks.json → validate → matches → build + send digests
 08:00 UTC  sources  per-source freshness + churn → alert if a source silently died
 09:00 UTC  watchdog digest_runs → alert if any subscriber has had nothing for 3 days
-03:30 UTC  backup   pg_dump → encrypt → off-box
+01:30 UTC  backup   pg_dump → encrypt → off-box
 ```
 
 Retrieve-then-rerank: a cheap full-text prefilter builds a ~120-posting shortlist per
@@ -926,7 +926,7 @@ goes red. A test that cannot fail documents nothing.
   are yrkessjåfør, terminalarbeider and postbud. That is the most tempting rejection in the file:
   perfect country match, wrong work. Same call as `workday:jlp`.
   **Four Workday sites (Jotun, AutoStore, Storebrand, Equinor) were found and deliberately not
-  added** — the 2026-08-07 note says to time the 05:00 export before adding anything else to the
+  added** — the 2026-08-07 note says to time the export before adding anything else to the
   slowest N+1 source, and that measurement still has not been taken.
   **SE + DK/CH/FI/IE pass, 2026-08-07 — 264 employers in two runs, 31 boards wired, 770 rows
   measured through `build_row`.** The countries that needed it most moved most: **CH 79 rows
@@ -1111,8 +1111,18 @@ goes red. A test that cannot fail documents nothing.
   get sized against. The claude.ai routine reads whatever `shortlists.json` is sitting in
   Drive when it wakes at ~06:00. An export still running then does not delay it, it *misses*
   it, and every subscriber gets yesterday's file or none — with no error anywhere, which is
-  this repo's recurring failure shape. So `gather()` has roughly **60 minutes**, not 120.
+  this repo's recurring failure shape.
   `Type=oneshot` means systemd sets no start timeout, so nothing else will stop it either.
+  **The window was 60 minutes until 2026-08-07, when the export was moved 05:00 → 03:00 and it
+  became roughly 3 hours.** The move was made on a measurement rather than a feeling: the
+  2026-08-07 run was `05:00:00 → 05:39:40` (exit 0) — **39m40s of a 60-minute window, ~20
+  minutes of headroom**, read off the box with
+  `systemctl show jobdigest-match-export.service -p ExecMainStartTimestamp -p ExecMainExitTimestamp`
+  (the journal needs group membership the deploy user does not have). The backup moved
+  03:30 → 01:30 in the same change so the two cannot overlap. **This buys slack, not licence:**
+  the ceilings below (`workday.MAX_DETAILS`, `MAX_PAGES_PER_QUERY`, `smartrecruiters` paging)
+  are still what decide coverage, and the failure mode is unchanged and still silent. Re-measure
+  after any change that adds N+1 work, and keep an hour of slack rather than spending it all.
   Measured 2026-08-04 with the raised ceilings: SmartRecruiters 7 min, Workday 29 min at 8
   detail workers and ~19 min at 16, which is why `workday.DETAIL_WORKERS` exists.
 - **A national employment service publishing open data is the best source shape available,
@@ -1529,8 +1539,9 @@ goes red. A test that cannot fail documents nothing.
   application, so it is skipped. Recorded because the temptation to reopen it is stronger than
   for any refused source: the data genuinely is free, and it is 8 003 EU-27 ISCO 1–3 rows.
   Three design facts kept in case the gate ever disappears: §3 answers **only 17:00–07:00
-  local** (15:00–05:00 UTC in summer — the 05:00 export starts as it closes, so it would need
-  its own earlier timer, not a slot in `gather()`), serves a 16:00 snapshot, and caps **20
+  local** (15:00–05:00 UTC in summer — and since the export moved to 03:00 on 2026-08-07 that
+  window now *contains* the export, so this would no longer need its own timer; it was the
+  05:00 start that fell outside it), serves a 16:00 snapshot, and caps **20
   queries per cycle** against slices of country/voivodeship/labour office; §2 contractually
   forbids **publishing out-of-date offers**, making the Muse zombie problem an obligation
   rather than a preference; and transport is **SOAP**, one operation `Dane` at

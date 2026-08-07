@@ -89,7 +89,7 @@ sudo chmod 600 /etc/jobdigest-backup.pass
 sudo systemctl daemon-reload && sudo systemctl enable --now jobdigest-backup.timer
 ```
 
-Nightly at 03:30 (clear of the 07:00 digest). `pg_dump -Fc` → `/var/backups/jobdigest/`,
+Nightly at 01:30 (clear of the 03:00 export and the 07:00 digest). `pg_dump -Fc` → `/var/backups/jobdigest/`,
 30-day rotation, ~13 MB per dump at current size. Each dump is checked for the `PGDMP`
 magic header before it's kept, so a failed dump can never rotate away good ones.
 

@@ -1,9 +1,14 @@
-# Back up every night at 03:30 — well clear of the 07:00 digest run.
+# Back up every night at 01:30 — well clear of the 07:00 digest, and now also clear of the
+# 03:00 export (moved there from 05:00 on 2026-08-07). 01:30 rather than after the export
+# because the ordering "backup, then the day's big ingest" is unchanged from before, and the
+# data the backup exists to protect — profiles, matches, digest_sends, suppression, and the
+# manage_token bearer credentials in them — is written by the 07:00 import either way.
+# Postings are re-ingestible from source; subscriber data is not.
 [Unit]
 Description=Run JobDigest Postgres backup nightly
 
 [Timer]
-OnCalendar=*-*-* 03:30:00
+OnCalendar=*-*-* 01:30:00
 Persistent=true
 RandomizedDelaySec=300
 Unit=jobdigest-backup.service
