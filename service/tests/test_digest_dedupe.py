@@ -30,7 +30,16 @@ def _job(pid: str, score: int, company: str = "Acme", title: str = "Data Analyst
 @pytest.fixture
 def patched(monkeypatch):
     state: dict = {"picks": [], "already": set(), "sent_keys": []}
-    monkeypatch.setattr(digest.store, "matched_jobs", lambda pid, limit=50: list(state["picks"]))
+
+    def matched_jobs(pid, limit=50, offset=0, hidden=False, exclude_sent=False):
+        """Mirrors the real signature *and* what `exclude_sent` does in SQL — see the same
+        fake in test_digest_fallback.py for why it honours the flag rather than ignoring it."""
+        picks = list(state["picks"])
+        if exclude_sent:
+            picks = [j for j in picks if j["posting_id"] not in state["already"]]
+        return picks[:limit]
+
+    monkeypatch.setattr(digest.store, "matched_jobs", matched_jobs)
     monkeypatch.setattr(digest.store, "already_sent_ids", lambda pid: set(state["already"]))
     monkeypatch.setattr(digest.store, "sent_job_keys",
                         lambda pid, days=90: list(state["sent_keys"]))

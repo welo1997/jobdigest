@@ -99,7 +99,8 @@ jobs:
       - name: Fail if the SQL-backed tests skipped themselves
         run: |
           for f in service/tests/test_geo_sql.py service/tests/test_hidden_sql.py \
-                   service/tests/test_education_sql.py; do
+                   service/tests/test_education_sql.py \
+                   service/tests/test_digest_window_sql.py; do
             if python -m pytest "$f" -q 2>&1 | grep -q "skipped"; then
               echo "::error::$f skipped — TEST_DATABASE_URL or the schema load is broken."
               exit 1

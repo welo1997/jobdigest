@@ -88,6 +88,32 @@ and bracketed trailers. Four properties are load-bearing:
   that leaves the page is a job the subscriber hid — and it moves to `/hidden` rather than
   going anywhere (see below).
 
+**The candidate window must exclude what was already emailed, in SQL** (`matched_jobs`'s
+`exclude_sent`, set only by `build_digest`). `build_digest` reads `limit * 6` rows ordered by
+score; suppression used to happen in Python *after* that cut, and since an emailed posting
+stays `is_active` for ever, every job a subscriber had received permanently occupied a
+candidate slot. **The window therefore tightened with tenure** — measured 2026-08-07 on a
+subscriber 15 days in: **21 of 30 slots** held jobs already in their inbox, the 9 survivors
+were all cross-id duplicates that `dedupe_key` then collapsed, and the digest went out with
+**1 job instead of 5 while 25 unsent matches scoring ≥ 6 sat outside the window.** Nothing
+raised, `sendable_n` recorded 1, and a throttled digest is indistinguishable from a quiet
+day — so it read as the product going quiet on its longest-running subscribers. Two rules:
+the flag is **opt-in and must never reach the web path**, because `/matches` is the complete
+record and `match_count` carries the filters separately (that is the `hidden` bug in a new
+place); and `already_sent_ids` stays in `build_digest` as the actual guarantee, so "never
+emailed twice" does not depend on an optimisation staying switched on.
+`test_digest_window_sql.py` executes both against a real Postgres.
+
+**A source that changes its URL scheme re-creates its whole inventory**, because
+`posting_id = md5(url)`. StartupJobs' 2026-08-06 rewrite moved the canonical link from
+`startupjobs.cz/nabidka/{id}/{slug}` to `startupjobs.com/job/{id}`, so the next export
+inserted **450 "new" postings that were the same 450 jobs** — 442 same-job-two-ids pairs,
+both copies active until the old ones aged out ~7 days later. `digest_sends` keys on
+`posting_id` and could not see it; `digest.dedupe_key` is what stopped a full digest of
+already-seen jobs. Expect this whenever an adapter's URL changes: duplicate rows competing
+for shortlist and candidate slots for one staleness window, and a spike in `first_seen_at`
+that is not new inventory.
+
 ### Hiding a job is a move, never a delete
 
 A subscriber ticks jobs on `/matches` — already applied, not interested — confirms, and they

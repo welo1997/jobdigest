@@ -522,12 +522,30 @@ resurrect something the subscriber hid."""
 
 
 def matched_jobs(profile_id: str, limit: int = 50, offset: int = 0,
-                 hidden: bool = False) -> list[dict]:
+                 hidden: bool = False, exclude_sent: bool = False) -> list[dict]:
     """AI-picked jobs for a profile (matches join postings), best fit first.
 
     Read side for the digest: returns only active postings the matcher selected
     (score not null), highest score first. The digest still filters out anything in
     digest_sends so a job is never emailed twice.
+
+    **`exclude_sent` is for the digest only, and it exists because `limit` is a window
+    over a growing history.** `build_digest` asks for `limit * 6` rows and then drops the
+    already-emailed ones *in Python*, so before this flag every job a subscriber had ever
+    been sent still occupied a candidate slot — and the postings stay `is_active`, so those
+    slots are never released. Measured in production on 2026-08-07: a subscriber 15 days
+    into a daily digest had **21 of 30 slots** filled with jobs already in their inbox, the
+    remaining 9 were all cross-id duplicates the dedupe step then collapsed, and the email
+    went out with **1 job instead of 5 while 25 unsent matches scoring >= 6 sat outside the
+    window**. Nothing errored, `sendable_n` recorded 1, and the outcome is indistinguishable
+    from a quiet day — this repo's recurring failure shape. The ceiling tightens the longer
+    someone subscribes, so it reads as the product going quiet on its most engaged users.
+
+    It is **opt-in and must stay that way.** `/matches` is deliberately the complete record
+    — an emailed job stays on the page — and `match_count` carries this function's filters
+    *separately*, so defaulting it to True (or letting the web path pass it) would render
+    "42 matches" above a list that stops at 30. That is the bug `test_hidden_sql.py` already
+    guards for `hidden`; the same rule applies here.
 
     `offset` pages the /matches web page. The ordering must be total for that to be safe —
     `score desc, posted_at desc` is not, because posted_at is null for whole sources
@@ -555,6 +573,10 @@ def matched_jobs(profile_id: str, limit: int = 50, offset: int = 0,
             join postings p on p.posting_id = m.posting_id
             where m.profile_id = %s and p.is_active and m.score is not null
               and m.status {'=' if hidden else '<>'} %s
+              {'''and not exists (select 1 from digest_sends d
+                                  where d.profile_id = m.profile_id
+                                    and d.posting_id = m.posting_id)'''
+               if exclude_sent else ''}
             order by {'m.updated_at desc, p.posting_id'
                       if hidden else
                       'm.score desc, p.posted_at desc nulls last, p.posting_id'}

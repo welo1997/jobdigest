@@ -162,7 +162,14 @@ def build_digest(profile: dict, limit: int = DEFAULT_LIMIT) -> list[dict]:
     second copy."""
     if not profile.get("id"):
         return []
-    picks = store.matched_jobs(profile["id"], limit=limit * 6)
+    # `exclude_sent` does the already-sent filter in SQL so the `limit * 6` window is 30
+    # *candidates*, not 30 rows of which most are already in the subscriber's inbox. Without
+    # it the window silently tightened as someone's history grew — 21 of 30 slots spent on
+    # sent jobs after 15 days, and a 1-job email where 5 were available (see store.py).
+    picks = store.matched_jobs(profile["id"], limit=limit * 6, exclude_sent=True)
+    # Kept deliberately: this is the guarantee ("a job is never emailed twice"), and it must
+    # not depend on an optimisation flag staying switched on. It is now a no-op, and a
+    # cheap one — if it ever drops a row again, the SQL above regressed.
     already = store.already_sent_ids(profile["id"])
     unsent = [j for j in picks if j["posting_id"] not in already]
     # Seeded with what was emailed recently, so a relisted ad is caught across days too —
