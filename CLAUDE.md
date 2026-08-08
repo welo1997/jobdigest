@@ -427,6 +427,41 @@ and skips a malformed record rather than aborting everyone's digest. Do not rela
 `shortlists.json` must **never** contain email addresses. A profile is an opaque UUID. This
 is what makes the transfer non-identifying and is load-bearing for the privacy policy.
 
+**A `picks.json` that covers only some subscribers imports cleanly and exits 0 — nothing
+except `matcher.coverage_gap` can see it.** `import_picks` iterates the entries the file
+happens to contain, so a file covering 5 of 30 profiles writes those 5 and leaves the other
+25 with no `picks_n`, no email and no error; `jobdigest-match.sh` checks only that the file
+*exists* and is under 20h old, both true of a truncated one. The watchdog needs three days
+**and** `starved_profiles` excludes profiles younger than that window, so a new subscriber's
+first three days of silence are invisible by design — the window a first impression lives in.
+Four things make the check work, and each is a trap avoided:
+
+- **It reads the file, not `digest_runs`.** `picks_n` is `not null default 0` (migration 011),
+  so "absent from the file" and "the model returned nothing for them" are the *same stored
+  value*, and `watchdog.diagnose` reads the second meaning (`MATCHER`). The distinction only
+  exists in the file, so a profile mentioned with every pick below `MATCH_FLOOR` counts as
+  **covered** — considered and rejected is not skipped.
+- **`store.exported_profile_ids` filters `shortlist_n > 0`**, because `export_shortlists`
+  records the run and *then* `continue`s on an empty shortlist. Those profiles are
+  legitimately not in the file and are already the watchdog's `RETRIEVAL` case; counting them
+  would fire the alert daily for a problem it cannot name, which is how an alert channel gets
+  filtered into a folder nobody opens.
+- **An unreadable or truncated file reports the *whole* export as uncovered**, never "no gap".
+- **The exit code lives in a separate step placed after the send and the archive.**
+  `jobdigest-match.sh` runs under `set -euo pipefail`, so failing inside the import would skip
+  `service.pipeline` and cost the *covered* subscribers their digest over the uncovered ones.
+  `import_picks` logs the gap; `--check-coverage` carries the exit code and runs last, where
+  systemd's existing `OnFailure` alerter picks it up and noticing costs nobody anything.
+
+**`sendable_profiles`' `order by last_digest_at nulls first` is a priority policy, not tidy
+SQL.** It is the order profiles appear in `shortlists.json`, and any finite matcher budget —
+a context window, a subscription's usage cap, a batch that dies half way — drops the *tail* of
+that file. `nulls first` therefore guarantees the people a truncated run starves are
+long-tenured subscribers who had a digest recently, never someone waiting on their first.
+Rewriting it as `order by created_at` looks like cleanup and inverts the policy exactly
+(newest signup last); `nulls last` does the same while keeping the ascending sort.
+`test_export_coverage_sql.py` fails on both.
+
 ### The site speaks eight languages, and the stored subscription speaks none of them
 
 `en cs de sk pl es fr it`, declared once in `web/i18n/config.ts`. Locale lives in the URL
@@ -740,6 +775,17 @@ written to fail when the guarantee breaks — not merely to pass:
 - `test_hidden_sql.py` — hiding is a move, not a delete: the two queries behind the page
   agree, a re-score cannot resurrect a hidden job, and one subscriber cannot hide another's.
   SQL-backed, so it skips without `TEST_DATABASE_URL` — and CI fails if it does.
+- `test_export_coverage_sql.py` — who a truncated run sacrifices, and who we notice it
+  missed: `nulls first` keeps a first-digest subscriber out of the tail of `shortlists.json`,
+  and `exported_profile_ids` is the denominator that makes a partial `picks.json` loud.
+
+**The CI skip-check globs `service/tests/test_*_sql.py`; it must never go back to a list.** It
+was five hand-written filenames, and a list is a copy — adding a SQL-backed file and
+forgetting the copy leaves a test that can silently stop running, which is the exact failure
+the step exists to prevent, arriving through the step itself. Same lesson as
+`source_watchdog.py` reading `search_jobs.source_classes` and `pending_boards.py` reading the
+adapters' own list structures. The step also fails if the glob matches *nothing*, so a rename
+away from the convention is loud rather than green.
 
 When adding a guard, mutation-check it: break the thing deliberately and confirm the test
 goes red. A test that cannot fail documents nothing.

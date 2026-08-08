@@ -72,6 +72,14 @@ case "${1:-}" in
     rclone moveto "$REMOTE/picks.json" "$REMOTE/processed/picks-$stamp.json" \
       || echo "import: could not archive picks.json (continuing)" >&2
     echo "import: picks loaded + digests sent (archived as processed/picks-$stamp.json)"
+
+    # Did the matcher actually answer for every subscriber the export asked about? A file
+    # covering 5 of 30 profiles imports cleanly, exits 0, and leaves 25 people with no digest
+    # and no error anywhere — the checks above only prove picks.json exists and is fresh, which
+    # a truncated file also is. This is deliberately the LAST step, and under `set -e` its
+    # non-zero exit is what raises the alert: everything that matters (import, send, archive)
+    # has already happened, so noticing costs nobody their digest.
+    $COMPOSE run --rm pipeline python -m service.matcher --check-coverage /exchange/picks.json
     ;;
   *)
     echo "usage: $0 export|import" >&2

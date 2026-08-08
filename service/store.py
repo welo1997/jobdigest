@@ -1329,7 +1329,22 @@ def unsubscribe(manage_token: str) -> Optional[str]:
 
 def sendable_profiles() -> list[dict]:
     """Active, confirmed, non-paused profiles with a deliverable (non-suppressed) email.
-    Frequency-based due-ness is decided by the caller (pipeline)."""
+    Frequency-based due-ness is decided by the caller (pipeline).
+
+    **`nulls first` is a priority order, not a tidy-up, and reversing it changes who gets
+    sacrificed when a run is cut short.** This list is what `export_shortlists` iterates, so
+    its order is the order profiles appear in `shortlists.json` — and the matcher reads that
+    file with a finite budget. Whatever the limit is (a context window, a subscription's usage
+    cap, a batch that fails half way), the profiles at the *end* are the ones that lose their
+    digest. `last_digest_at nulls first` puts never-yet-sent subscribers at the front, so the
+    people a truncated run starves are long-tenured ones who have had a digest recently,
+    never someone waiting on their first. Among the rest, oldest-sent-first, for the same
+    reason.
+
+    That matters more as the list grows: at three subscribers nothing truncates, and the
+    ordering looks arbitrary enough to "clean up" into `order by created_at` or drop entirely.
+    `test_export_coverage_sql.py` fails if it does.
+    """
     with cursor() as cur:
         cur.execute("""
             select p.* from profiles p
@@ -1426,6 +1441,29 @@ def record_digest_run(profile_id: str, **fields: Any) -> None:
             )
     except Exception:                                  # pragma: no cover - defensive
         logging.getLogger("service.store").warning("record_digest_run failed", exc_info=True)
+
+
+def exported_profile_ids() -> set[str]:
+    """Profiles today's export actually put candidates in front of the matcher for.
+
+    This is the denominator for the coverage check in `matcher.coverage_gap`: a profile in
+    this set that `picks.json` never mentions was silently dropped somewhere between the
+    export and the file, and nothing else in the pipeline can see that. `picks_n` cannot
+    answer it — the column is `not null default 0` (migration 011), so "absent from the
+    file" and "the model returned nothing for them" are the same stored value, and the
+    watchdog reads the second meaning. The question is only answerable against the file.
+
+    `shortlist_n > 0` is the filter because `export_shortlists` records the run and *then*
+    `continue`s on an empty shortlist — those profiles are legitimately not in the file, and
+    they are already the watchdog's RETRIEVAL case rather than a coverage gap.
+
+    Scoped to `current_date`, which both writers use: the export runs 03:00 UTC and the
+    import 07:00 UTC, so they agree unless a run straddles midnight, and neither does.
+    """
+    with cursor() as cur:
+        cur.execute("select profile_id::text as id from digest_runs "
+                    "where day = current_date and shortlist_n > 0")
+        return {r["id"] for r in cur.fetchall()}
 
 
 def starved_profiles(days: int = 3) -> list[dict]:

@@ -378,6 +378,80 @@ def export_shortlists(path: str, email: str | None = None, limit_profiles: int |
     return n
 
 
+def _mentioned_profile_ids(path: str) -> set[str] | None:
+    """Every profile_id the picks file names, valid or not. `None` if it cannot be read.
+
+    Deliberately *not* "every profile whose picks were accepted". An entry that arrived
+    malformed, scored below the floor, or named a profile that no longer exists is a
+    different failure and already has its own log line in `import_picks`. What this measures
+    is whether the matcher considered the subscriber **at all** — which is the only thing a
+    truncated or partial file can tell us apart from a subscriber the model rejected.
+
+    Unreadable returns `None` rather than an empty set so the caller can report the whole
+    export as uncovered instead of silently reporting no gap.
+    """
+    try:
+        with open(path, encoding="utf-8") as f:
+            data = json.load(f)
+    except (OSError, json.JSONDecodeError):
+        return None
+    entries = data.get("picks", data) if isinstance(data, dict) else data
+    if not isinstance(entries, list):
+        return None
+    return {str(e.get("profile_id")) for e in entries
+            if isinstance(e, dict) and e.get("profile_id")}
+
+
+def coverage_gap(path: str) -> list[str]:
+    """Profiles today's export asked about that `path` does not mention at all.
+
+    **Nothing else in the pipeline can see this failure.** `import_picks` iterates the
+    entries the file happens to contain, so a file covering 5 of 30 profiles imports
+    cleanly and exits 0; the 25 others get no `picks_n`, no `sendable_n`, no email, and no
+    error anywhere. `jobdigest-match.sh` checks only that picks.json *exists* and is fresh,
+    both of which a truncated file satisfies. The watchdog would eventually notice, but not
+    for three days, and `starved_profiles` excludes profiles younger than that window
+    entirely — so a new subscriber's first three days of silence are invisible by design.
+
+    That is the exact shape of every incident this repo keeps rediscovering: the outcome is
+    indistinguishable from a quiet inventory day. This makes it loud instead.
+
+    Returns the ids sorted, so the alert body is stable run to run.
+    """
+    exported = store.exported_profile_ids()
+    mentioned = _mentioned_profile_ids(path)
+    if mentioned is None:
+        return sorted(exported)
+    return sorted(exported - mentioned)
+
+
+def report_coverage(path: str) -> int:
+    """Log the coverage gap and return how many profiles are missing. Never raises.
+
+    Split from the exit code on purpose: `import_picks` calls this to *log*, because a gap
+    must not abort the import — `jobdigest-match.sh` runs under `set -e`, so a non-zero exit
+    here would skip the send and cost the covered subscribers their digest over the
+    uncovered ones. The `--check-coverage` step carries the exit code instead, and runs
+    after the send and the archive so the alert costs nothing.
+    """
+    try:
+        missing = coverage_gap(path)
+    except Exception:                                  # pragma: no cover - diagnostics only
+        logger.exception("picks coverage: check failed, continuing")
+        return 0
+    for pid in missing:
+        # ASCII on purpose: this line becomes the body of an alert email, assembled from the
+        # journal by jobdigest-alert.py, and a mangled non-ASCII character in a mail that only
+        # ever arrives when something is already wrong is a needless second thing to debug.
+        logger.error("picks coverage: profile %s was exported today but %s does not mention "
+                     "it - that subscriber gets no digest", pid, path)
+    if missing:
+        logger.error("picks coverage: %d exported profile(s) missing from %s. A partial "
+                     "picks file is indistinguishable from a quiet day; check the matcher.",
+                     len(missing), path)
+    return len(missing)
+
+
 def import_picks(path: str) -> int:
     """Read the routine's picks JSON, validate against the DB, write to `matches`.
 
@@ -442,6 +516,7 @@ def import_picks(path: str) -> int:
             logger.exception("picks file: profile %s failed to import, skipping", pid)
             continue
     logger.info("Imported %d picks from %s", total, path)
+    report_coverage(path)
     return total
 
 
@@ -510,6 +585,9 @@ def main() -> None:
                     help="no-API: write shortlists JSON for the claude.ai routine")
     ap.add_argument("--import", dest="import_path", metavar="FILE",
                     help="no-API: read the routine's picks JSON into `matches`")
+    ap.add_argument("--check-coverage", dest="coverage_path", metavar="FILE",
+                    help="exit non-zero if the picks file misses a profile the export asked "
+                         "about (run AFTER the send, so the alert costs no digests)")
     ap.add_argument("--email", help="operate on a single subscriber by email")
     ap.add_argument("--limit-profiles", type=int)
     ap.add_argument("--shortlist", type=int, default=SHORTLIST_SIZE)
@@ -522,6 +600,14 @@ def main() -> None:
     if args.export:
         export_shortlists(args.export, email=args.email,
                           limit_profiles=args.limit_profiles, shortlist_size=args.shortlist)
+    elif args.coverage_path:
+        # Non-zero is the alert: the systemd unit's OnFailure hands the journal to
+        # jobdigest-alert.py, the same path the watchdogs use. No second notification channel.
+        n = report_coverage(args.coverage_path)
+        if n:
+            sys.exit(1)
+        logger.info("picks coverage: every exported profile is present in %s",
+                    args.coverage_path)
     elif args.import_path:
         import_picks(args.import_path)
     else:  # --match: metered API path (premium / on-demand)
