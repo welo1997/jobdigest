@@ -412,16 +412,37 @@ knowing.** It read: 70% of the corpus has no description, median length 35 chara
 2026-08-03 (Alma Career's terms) and platsbanken, mpsv and the ATS boards replaced them.
 **Re-measured on production 2026-08-08: 91 818 of 96 583 active postings — 95% — carry a
 description, averaging 4 861 characters.** The old figures survive above only as the reasoning
-for the education classifier's design; do not cite them as current, and **re-run the education
-measurement before concluding anything from its ~3% ceiling**, because that ceiling was derived
-from a corpus that was 70% unreadable and is now 95% readable. The claim that "the entire Czech
-and Slovak inventory will hold `null` for ever" is also void — the sources it referred to are
-gone, and `mpsv` ships descriptions on 94% of its rows.
+for the education classifier's design; do not cite them as current. The claim that "the entire
+Czech and Slovak inventory will hold `null` for ever" is also void — the sources it referred to
+are gone, and `mpsv` ships descriptions on 94% of its rows.
+
+**That re-run has now happened (2026-08-08, end of day), and the ~3% ceiling was an artefact of
+the unreadable corpus: it is 9.4%, three times higher.** Against 98 858 active postings, of
+which 94 026 (95.1%) carry a description averaging 4 791 characters:
+
+| `education_min` | rows | share |
+|---|---|---|
+| `null` | 89 607 | **90.6%** |
+| `bachelor` | 6 946 | 7.0% |
+| `master` | 1 173 | 1.2% |
+| `secondary` | 641 | 0.65% |
+| `vocational` | 247 | 0.25% |
+| `doctorate` | 244 | 0.25% |
+| **any requirement** | **9 251** | **9.4%** |
+
+Nothing about the design changes and the three consequences below all still hold — but note the
+first one now rests on 90.6% rather than ~97%, which strengthens rather than weakens it: a gate
+that dropped nulls would still empty a digest rather than narrow it. The classifier did not get
+better; the corpus became readable, and the same rules now have text to read. **Do not re-derive
+this**; re-measure only after changing `service/education.py`'s patterns, which requires
+`python -m service.backfill_education` anyway.
 
 Three consequences, which still hold on their own terms:
 
-- **Null always passes the gate**, as with `work_mode` and an unresolved city. It is ~97% of
-  rows; a gate that dropped nulls would not narrow a digest, it would empty it. `test_education_sql.py`
+- **Null always passes the gate**, as with `work_mode` and an unresolved city. It is **90.6%**
+  of rows (measured 2026-08-08; it was ~97% when the corpus was mostly description-less, and the
+  conclusion is unchanged by the shift); a gate that dropped nulls would not narrow a digest, it
+  would empty it. `test_education_sql.py`
   executes that against a real Postgres, because `x = any(...)` on a null column is `NULL`, and
   `WHERE` discards `NULL` exactly as it discards `false` — the string cannot show you that.
 - **The classifier's only safe error is a miss.** A false positive deletes a job from an inbox
