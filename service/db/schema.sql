@@ -296,6 +296,11 @@ create table if not exists digest_runs (
     picks_n      int  not null default 0,             -- matches the AI returned
     sendable_n   int  not null default 0,             -- jobs clearing EMAIL_MIN_SCORE
     sent         boolean not null default false,      -- a digest actually left the box
+    -- Bytes this subscriber's entry occupied in shortlists.json (migration 016). Nullable,
+    -- unlike every count above: 0 is a real measurement here ("their export was empty"), so a
+    -- default would make unmeasured rows indistinguishable from genuinely empty ones. This is
+    -- the matcher's per-subscriber cost, and the unit the scaling plan is sized against.
+    shortlist_bytes bigint,
     recorded_at  timestamptz not null default now(),
     primary key (day, profile_id)
 );

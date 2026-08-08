@@ -1,0 +1,44 @@
+-- Migration 016: record what each subscriber costs the matcher, every day, automatically.
+--
+-- The matcher is one Claude call per subscriber over a ~120-posting shortlist, so its cost is
+-- `O(subscribers × shortlist)` and the per-subscriber payload is the unit that decides whether
+-- the product can grow. Every item on `notes/scaling/PLAN.md` is an attempt to move that one
+-- number — delta matching, cohort matching, cached judgements, a shorter shortlist — and none
+-- of them can be judged without it.
+--
+-- Until now it was knowable only by hand: `scripts/scaling_budget.py` measures it exactly, but
+-- someone has to hold a shell on the box and run it against `exchange/shortlists.json`. That
+-- means in practice it gets measured once, quoted for months, and goes stale silently as the
+-- corpus, the adapters and the shortlist query all move underneath it. The figure that decides
+-- the architecture should not depend on somebody remembering to look.
+--
+-- So the export records it. One number per subscriber per day, on the row that already exists:
+--
+--   shortlist_bytes  the serialised size of this subscriber's entry in shortlists.json
+--
+-- Paired with `shortlist_n` (already here since migration 011, and the candidate count) it
+-- gives bytes-per-candidate as well, which is the figure that survives a change to
+-- SHORTLIST_SIZE and therefore the one worth trending.
+--
+-- **Nullable on purpose.** Every other count on this table is `not null default 0`, and that
+-- was right for them — migration 011's note explains why `picks_n` must not distinguish absent
+-- from zero. Here the opposite holds: 0 is a real, meaningful measurement ("this subscriber's
+-- export was empty"), so a default of 0 would make every row written before this migration
+-- indistinguishable from a genuinely empty export. Null means "not measured" and nothing else.
+--
+-- `bigint` rather than `int`: at 120 candidates a subscriber is ~77 kB today, so `int` has
+-- ample room — but this column exists precisely to be watched while the payload is changed,
+-- and a measurement column that can overflow while you are experimenting on the thing it
+-- measures is a poor instrument. The four bytes are free.
+--
+-- Adds no personal data: this is a count of our own behaviour, like every other column here,
+-- and it inherits the cascade on profile delete, so the 30-day erasure promise needs no extra
+-- step. No privacy-policy change is triggered (security rule 4 — no new data category,
+-- processor, or retention).
+--
+-- **Apply this before deploying the code that writes it.** Migrations here are manual and no
+-- deploy step applies them. `store.record_digest_run` degrades per column if you get the order
+-- wrong — the new field drops out and the rest of the row still lands, so the watchdog keeps
+-- its `shortlist_n` — but that is a safety net, not the intended path.
+
+alter table digest_runs add column if not exists shortlist_bytes bigint;

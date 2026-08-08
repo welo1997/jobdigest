@@ -333,7 +333,11 @@ def test_an_empty_shortlist_is_still_recorded(store, tmp_path):
                            "regions": ["cz"]}]
     store.shortlist_out = []
     assert matcher.export_shortlists(str(tmp_path / "shortlists.json")) == 0
-    assert store.runs == [{"profile_id": REAL, "shortlist_n": 0, "widened": False}]
+    # `shortlist_bytes` is 0 rather than null here, and the distinction is the point: null
+    # means "not measured" (a row predating migration 016), 0 means "measured, and this
+    # subscriber's export was empty" — which is the alertable case.
+    assert store.runs == [{"profile_id": REAL, "shortlist_n": 0, "widened": False,
+                           "shortlist_bytes": 0}]
 
 
 def test_a_widened_shortlist_is_recorded_as_widened(store, tmp_path, monkeypatch):

@@ -1536,7 +1536,17 @@ def mark_digest_sent(profile_id: str) -> None:
 # migration_011_digest_runs.sql.
 
 #: The fields a stage may report. Anything else is ignored rather than trusted into SQL.
-_DIGEST_RUN_FIELDS = ("shortlist_n", "widened", "picks_n", "sendable_n", "sent")
+_DIGEST_RUN_FIELDS = ("shortlist_n", "widened", "picks_n", "sendable_n", "sent",
+                      "shortlist_bytes")
+
+#: The columns that predate migration 016, and the fallback set if the insert above fails.
+#: Migrations here are manual `.sql` files that no deploy step applies, so "code deployed
+#: before its migration" is an ordering people actually hit. Without this the whole INSERT
+#: fails on the unknown column and the row is lost — including `shortlist_n`, which
+#: `watchdog.diagnose` reads to tell a retrieval failure (ours) from the matcher correctly
+#: rejecting a fair shortlist (not a bug). A measurement must never cost the diagnostics that
+#: were already working; same rule as `matcher._record_shadow`.
+_DIGEST_RUN_FIELDS_PRE_016 = ("shortlist_n", "widened", "picks_n", "sendable_n", "sent")
 
 
 def record_digest_run(profile_id: str, **fields: Any) -> None:
@@ -1552,17 +1562,38 @@ def record_digest_run(profile_id: str, **fields: Any) -> None:
     if not profile_id or not cols:
         return
     try:
-        with cursor(commit=True) as cur:
-            cur.execute(
-                f"""insert into digest_runs (day, profile_id, {', '.join(cols)})
-                    values (current_date, %s, {', '.join(['%s'] * len(cols))})
-                    on conflict (day, profile_id) do update set
-                    {', '.join(f'{c} = excluded.{c}' for c in cols)},
-                    recorded_at = now()""",
-                (profile_id, *(fields[c] for c in cols)),
-            )
+        _write_digest_run(profile_id, fields, cols)
+        return
     except Exception:                                  # pragma: no cover - defensive
-        logging.getLogger("service.store").warning("record_digest_run failed", exc_info=True)
+        pass
+
+    # Retry without anything newer than migration 011. If the column genuinely does not exist
+    # yet, the row still lands and the watchdog keeps working; if the failure was something
+    # else, this fails too and we log once below.
+    legacy = [c for c in cols if c in _DIGEST_RUN_FIELDS_PRE_016]
+    log = logging.getLogger("service.store")
+    if legacy and len(legacy) < len(cols):
+        try:
+            _write_digest_run(profile_id, fields, legacy)
+            log.warning("record_digest_run: dropped %s (missing column? apply pending "
+                        "migrations); the rest of the row was written",
+                        sorted(set(cols) - set(legacy)))
+            return
+        except Exception:                              # pragma: no cover - defensive
+            pass
+    log.warning("record_digest_run failed", exc_info=True)
+
+
+def _write_digest_run(profile_id: str, fields: dict, cols: list[str]) -> None:
+    with cursor(commit=True) as cur:
+        cur.execute(
+            f"""insert into digest_runs (day, profile_id, {', '.join(cols)})
+                values (current_date, %s, {', '.join(['%s'] * len(cols))})
+                on conflict (day, profile_id) do update set
+                {', '.join(f'{c} = excluded.{c}' for c in cols)},
+                recorded_at = now()""",
+            (profile_id, *(fields[c] for c in cols)),
+        )
 
 
 def exported_profile_ids() -> set[str]:

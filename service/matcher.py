@@ -373,6 +373,24 @@ def _record_shadow(profile: dict, live_shortlist: list[dict]) -> None:
                          profile.get("id"))
 
 
+def _entry_bytes(entry: dict | None) -> int:
+    """What this subscriber costs the matcher, in bytes of `shortlists.json`.
+
+    Serialised the same way the file is written (`ensure_ascii=False`), because that is the
+    payload the routine reads — counting characters instead would under-report every Czech,
+    Swedish and Norwegian posting, and three of the largest sources are not English.
+
+    `indent=1` in the final `json.dump` adds a little whitespace this does not count. That is
+    deliberate: the figure is meant to track the *content* a subscriber costs the model, and
+    pretty-printing is an artefact of the transport that could change without the cost
+    changing. Bytes-on-disk is not the same question, and `scripts/scaling_budget.py` measures
+    the same way so the two agree.
+    """
+    if not entry:
+        return 0
+    return len(json.dumps(entry, ensure_ascii=False).encode("utf-8"))
+
+
 def export_shortlists(path: str, email: str | None = None, limit_profiles: int | None = None,
                       shortlist_size: int = SHORTLIST_SIZE) -> int:
     """Write a JSON shortlist file for the claude.ai routine to match. Returns #profiles."""
@@ -383,11 +401,26 @@ def export_shortlists(path: str, email: str | None = None, limit_profiles: int |
         shortlist, meta = store.query_shortlist_meta(p, limit=shortlist_size)
         already = store.already_sent_ids(p["id"]) if p.get("id") else set()
         shortlist = [c for c in shortlist if c["posting_id"] not in already]
+        # Built here, above the write, for two reasons: `shortlist_bytes` must measure the
+        # entry that actually ships rather than an estimate of it, and doing it in one
+        # `record_digest_run` call keeps this loop at one round trip per profile — which is
+        # the thing the scaling work is trying to reduce, not add to.
+        #
+        # No email address: the routine matches on the profile, and `import_picks` keys on
+        # profile_id, so the address was never read by anything downstream — it only widened
+        # what a shortlist file discloses if the transport folder were ever exposed. Without
+        # it the export is pseudonymous: an opaque id, stated preferences, and public jobs.
+        entry = {
+            "profile_id": str(p["id"]),
+            "profile": _profile_export(p),
+            "candidates": [_candidate_export(c) for c in shortlist],
+        } if shortlist else None
         # Recorded before the `continue` below: a profile that exports nothing is exactly the
         # case worth alerting on, and skipping the write would make the worst outcome the one
         # that leaves no trace. See store.record_digest_run.
         store.record_digest_run(p.get("id"), shortlist_n=len(shortlist),
-                                widened=bool(meta.get("widened")))
+                                widened=bool(meta.get("widened")),
+                                shortlist_bytes=_entry_bytes(entry))
         # Before the `continue`, for the same reason `record_digest_run` is: a profile the
         # keyword path found nothing for is the single most informative row this table can
         # hold — it is exactly the retrieval failure the vector ranking is supposed to fix,
@@ -397,15 +430,7 @@ def export_shortlists(path: str, email: str | None = None, limit_profiles: int |
             logger.warning("profile %s: no candidates to export (retrieval found %d, "
                            "%d already sent)", p.get("id"), meta["n"], len(already))
             continue
-        # No email address: the routine matches on the profile, and `import_picks` keys on
-        # profile_id, so the address was never read by anything downstream — it only widened
-        # what a shortlist file discloses if the transport folder were ever exposed. Without
-        # it the export is pseudonymous: an opaque id, stated preferences, and public jobs.
-        payload["profiles"].append({
-            "profile_id": str(p["id"]),
-            "profile": _profile_export(p),
-            "candidates": [_candidate_export(c) for c in shortlist],
-        })
+        payload["profiles"].append(entry)
     with open(path, "w", encoding="utf-8") as f:
         json.dump(payload, f, ensure_ascii=False, indent=1)
     n = len(payload["profiles"])
