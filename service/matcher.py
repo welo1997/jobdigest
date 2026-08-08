@@ -343,6 +343,36 @@ def _profiles_for(email: str | None, limit_profiles: int | None) -> list[dict]:
     return profiles[:limit_profiles] if limit_profiles else profiles
 
 
+def _record_shadow(profile: dict, live_shortlist: list[dict]) -> None:
+    """Write the vector ranking beside the live one. Never raises, never changes the digest.
+
+    **The try/except is the design, not defensiveness.** This is an experiment sitting inside
+    the one job that decides whether real people get email tomorrow, and `jobdigest-match.sh`
+    runs under `set -euo pipefail`. An embedding column that is null, a pgvector GUC that moves
+    in a future upgrade, or a model swap mid-backfill must cost a measurement — never a
+    subscriber's digest. `shortlist_shadow` is read by nothing on the delivery path, so failing
+    quietly here loses a row of research data and nothing else.
+
+    It runs *after* `already_sent_ids` has been applied to the live shortlist, so `in_live` is
+    computed against what the matcher was really handed rather than what retrieval first
+    returned. Comparing against the pre-filter list would score the vector path as disagreeing
+    on jobs the subscriber had already been emailed.
+    """
+    try:
+        ranked = store.query_shortlist_vector(profile, limit=SHORTLIST_SIZE)
+        if not ranked:
+            return
+        n = store.record_shortlist_shadow(
+            profile["id"], ranked, {c["posting_id"] for c in live_shortlist})
+        agree = sum(1 for r in ranked if r["posting_id"] in
+                    {c["posting_id"] for c in live_shortlist})
+        logger.info("profile %s: shadow shortlist %d rows, %d also in the live shortlist",
+                    profile.get("id"), n, agree)
+    except Exception:                                    # noqa: BLE001 — see the docstring
+        logger.exception("profile %s: shadow shortlist failed (digest unaffected)",
+                         profile.get("id"))
+
+
 def export_shortlists(path: str, email: str | None = None, limit_profiles: int | None = None,
                       shortlist_size: int = SHORTLIST_SIZE) -> int:
     """Write a JSON shortlist file for the claude.ai routine to match. Returns #profiles."""
@@ -358,6 +388,11 @@ def export_shortlists(path: str, email: str | None = None, limit_profiles: int |
         # that leaves no trace. See store.record_digest_run.
         store.record_digest_run(p.get("id"), shortlist_n=len(shortlist),
                                 widened=bool(meta.get("widened")))
+        # Before the `continue`, for the same reason `record_digest_run` is: a profile the
+        # keyword path found nothing for is the single most informative row this table can
+        # hold — it is exactly the retrieval failure the vector ranking is supposed to fix,
+        # and skipping it would leave the comparison blind to the cases that motivated it.
+        _record_shadow(p, shortlist)
         if not shortlist:
             logger.warning("profile %s: no candidates to export (retrieval found %d, "
                            "%d already sent)", p.get("id"), meta["n"], len(already))

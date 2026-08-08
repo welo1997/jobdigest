@@ -21,7 +21,11 @@ import psycopg2
 import psycopg2.extras
 from psycopg2.pool import ThreadedConnectionPool
 
-from service import education, geo, i18n, taxonomy
+# `embed` is safe to import here even though the webapp imports this module: it pulls no ML
+# dependency at import time — fastembed and numpy load inside `embed._load()` / `embed_texts`,
+# neither of which the API ever calls. Only `to_pgvector` is used below, and it stays the one
+# definition of how a vector is rendered for Postgres.
+from service import education, embed, geo, i18n, taxonomy
 
 _POOL: Optional[ThreadedConnectionPool] = None
 
@@ -473,6 +477,39 @@ def _shortlist_terms(profile: dict) -> list[str]:
 SHORTLIST_FLOOR = int(os.environ.get("SHORTLIST_FLOOR", "20"))
 
 
+def _hard_gate(profile: dict) -> tuple[list[str], list[Any]]:
+    """The filters that decide *admissibility* — location, education, eligibility.
+
+    Split out because the vector shadow path (`query_shortlist_vector`) has to apply exactly
+    these and nothing else. A copy would drift, and the drift would be invisible: the shadow
+    is compared against the live shortlist to decide whether to switch ranking, so a shadow
+    gated differently would make the comparison meaningless while still producing a plausible
+    number. Same reasoning as `source_watchdog` reading `search_jobs.source_classes` and the
+    CI skip-check globbing rather than listing.
+
+    What is *not* here is the recall predicate (`role_category` OR keyword). That is the part
+    the vector is meant to replace, so it stays in the caller.
+    """
+    where = ["p.is_active"]
+    params: list[Any] = []
+
+    loc_sql, loc_params = geo.location_predicate(profile)
+    if loc_sql != "true":
+        where.append(loc_sql)
+        params.extend(loc_params)
+    # Deliberately a hard gate rather than part of recall: widening retrieval must not
+    # quietly re-admit roles demanding a qualification the subscriber said they do not have.
+    # A posting whose requirement is unknown passes either way (~97% of them).
+    edu_sql, edu_params = education.education_predicate(profile)
+    if edu_sql != "true":
+        where.append(edu_sql)
+        params.extend(edu_params)
+    if profile.get("eligible_only", True):
+        where.append("p.eligibility = any(%s)")
+        params.append(eligibility_allowlist(profile))
+    return where, params
+
+
 def query_shortlist(profile: dict, limit: int = 120) -> list[dict]:
     """Recall-first candidate shortlist for the AI matcher. See `query_shortlist_meta`."""
     rows, _ = query_shortlist_meta(profile, limit=limit)
@@ -546,24 +583,9 @@ def query_shortlist_meta(profile: dict, limit: int = 120) -> tuple[list[dict], d
     could never have matched. `widened` is recorded so the difference stays visible.
     """
     def build(recall_on: bool) -> tuple[str, list[Any]]:
-        where = ["p.is_active"]
-        where_params: list[Any] = []
-
-        loc_sql, loc_params = geo.location_predicate(profile)
-        if loc_sql != "true":
-            where.append(loc_sql)
-            where_params.extend(loc_params)
-        # Deliberately outside the `recall_on` branch, so it survives the widening pass. The
-        # floor widens *retrieval* — it must not quietly re-admit roles demanding a
-        # qualification the subscriber said they do not have. A posting whose requirement is
-        # unknown passes either way (~97% of them), so this narrows far less than it looks.
-        edu_sql, edu_params = education.education_predicate(profile)
-        if edu_sql != "true":
-            where.append(edu_sql)
-            where_params.extend(edu_params)
-        if profile.get("eligible_only", True):
-            where.append("p.eligibility = any(%s)")
-            where_params.append(eligibility_allowlist(profile))
+        # The hard gates are shared with the vector shadow path so the two cannot drift; note
+        # they sit outside the `recall_on` branch, so they survive the widening pass.
+        where, where_params = _hard_gate(profile)
 
         # Recall predicate: role_category match OR keyword match.
         if recall_on:
@@ -643,6 +665,106 @@ def query_shortlist_meta(profile: dict, limit: int = 120) -> tuple[list[dict], d
             "profile %s: shortlist of %d below floor %d — widened to %d (location only)",
             profile.get("id"), meta["n_narrow"], SHORTLIST_FLOOR, len(rows))
     return rows, meta
+
+
+def query_shortlist_vector(profile: dict, limit: int = 120) -> list[dict]:
+    """The same admissible set as `query_shortlist_meta`, ranked by embedding similarity.
+
+    Written for `shortlist_shadow`: it decides nothing, is read by no delivery path, and
+    exists so the vector ranking can be compared against the live one over real days before
+    anyone considers switching. It applies `_hard_gate` — the *same* object the live query
+    uses, not a copy — and drops only the recall predicate, which is the half the vector is
+    meant to replace.
+
+    **`hnsw.iterative_scan` is load-bearing and its absence is silent.** pgvector's HNSW scan
+    gathers `hnsw.ef_search` (default 40) candidates from the index and applies the WHERE
+    clause *afterwards*, so a selective gate starves it. Measured on production 2026-08-08,
+    this shape of query returned **4 rows for a LIMIT of 120** on one live profile and **0 rows
+    at every K** on another, against gated pools of 15 393 and 18 543 postings — no error, no
+    log, just an absence, which is this repo's recurring failure shape. Recall then came out
+    near-zero *and flat across K*, and flatness is the tell: a merely bad ranking still
+    improves as K grows. `relaxed_order` keeps scanning until K rows survive the filter;
+    measured against an exact scan it recovers 14 of 15 true hits at K=120 where the default
+    recovered 2. Anything that later puts this ranking on the delivery path inherits the same
+    trap.
+
+    Cross-source duplicates are collapsed on `dedup_key` in Python rather than with
+    `distinct on`, because `distinct on` requires a sort over the whole gated set and would
+    throw away the index scan this is supposed to be measuring. Over-fetching then collapsing
+    keeps the query production-shaped.
+    """
+    vec = profile.get("embedding")
+    if vec is None:
+        return []
+    # psycopg2 hands a halfvec back as its own text literal, which is exactly the form the
+    # cast wants — no float round-trip, so nothing is lost or reformatted on the way.
+    lit = vec if isinstance(vec, str) else embed.to_pgvector(vec)
+
+    where, params = _hard_gate(profile)
+    where.append("p.embedding is not null")
+
+    sql = f"""
+        select p.posting_id,
+               coalesce(p.dedup_key, p.posting_id) as dkey,
+               p.embedding <=> %s::halfvec as dist
+        from postings p
+        where {' and '.join(where)}
+        order by dist
+        limit %s
+    """
+    # psycopg2 binds positionally by position in the SQL *text*: the select-list vector comes
+    # first, then the gate's params, then the limit. `order by dist` refers to the select-list
+    # alias so the vector literal appears once — ordering by the expression a second time
+    # would shift every later parameter by one. See the same note in `query_shortlist_meta`.
+    with cursor() as cur:
+        # pgvector registers its GUCs in _PG_init, which has not run on a freshly pooled
+        # connection; `set hnsw.*` raises "unrecognized configuration parameter" until some
+        # vector expression forces the library to load. `set local` is scoped to this
+        # transaction, which the pool rolls back on return, so no other query inherits it.
+        cur.execute("select '[1,0]'::vector <=> '[0,1]'::vector")
+        cur.execute("set local hnsw.iterative_scan = relaxed_order")
+        cur.execute(sql, [lit, *params, limit * 2])
+        rows = [dict(r) for r in cur.fetchall()]
+
+    out, seen = [], set()
+    for r in rows:
+        if r["dkey"] in seen:
+            continue
+        seen.add(r["dkey"])
+        out.append({"posting_id": r["posting_id"],
+                    "rank": len(out) + 1,
+                    # cosine distance -> similarity, so a bigger number is a better match and
+                    # the stored column reads the way a reader expects.
+                    "similarity": 1.0 - float(r["dist"])})
+        if len(out) >= limit:
+            break
+    return out
+
+
+def record_shortlist_shadow(profile_id: str, rows: list[dict],
+                            live_ids: Iterable[str]) -> int:
+    """Record today's vector ranking beside the live one. Emailed to nobody.
+
+    Rewrites the day's rows rather than upserting them, so the table always holds what the
+    most recent export actually computed instead of a merge of several attempts. `in_live` is
+    the whole point of writing it now: whether the vector would have surfaced what the keyword
+    path did is cheap to compute at this moment and impossible to reconstruct afterwards, once
+    postings age out and `is_active` flips.
+    """
+    if not profile_id or not rows:
+        return 0
+    live = {str(x) for x in (live_ids or ())}
+    values = [(str(profile_id), r["posting_id"], r["rank"], r["similarity"],
+               r["posting_id"] in live) for r in rows]
+    with cursor(commit=True) as cur:
+        cur.execute("delete from shortlist_shadow where day = current_date "
+                    "and profile_id = %s", (profile_id,))
+        psycopg2.extras.execute_values(
+            cur,
+            "insert into shortlist_shadow "
+            "  (day, profile_id, posting_id, rank, similarity, in_live) values %s",
+            values, template="(current_date, %s::uuid, %s, %s, %s, %s)")
+    return len(values)
 
 
 HIDDEN_STATUS = "dismissed"

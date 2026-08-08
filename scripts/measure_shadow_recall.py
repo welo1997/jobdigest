@@ -67,13 +67,41 @@ def _gate_sql(profile: dict) -> tuple[str, list]:
 
 
 def vector_top_k(profile: dict, k: int) -> list[str]:
+    """The vector top-K, with the HNSW post-filter defeated.
+
+    **Without the `iterative_scan` line this function measures the index setting, not the
+    embeddings, and it does so silently.** pgvector's HNSW scan collects `hnsw.ef_search`
+    (default 40) candidates from the index and applies the WHERE clause *afterwards*, so a
+    selective gate starves it: measured on production 2026-08-08, this query returned **4 rows
+    for a LIMIT of 120** on one profile and **0 rows at every K** on another, while the pool it
+    was filtering held 15 393 and 18 543 postings. Recall therefore came out near-zero *and
+    flat across K* — the flatness is the tell, because a genuinely bad ranking still improves
+    as K grows. `relaxed_order` keeps scanning until K rows survive the filter; measured
+    against an exact scan it recovers 14 of 15 true hits at K=120, where the default recovered
+    2.
+
+    This is not only a measurement concern. Any production vector shortlist runs the same
+    shape of query behind the same gates, so it inherits the same starvation — an empty
+    shortlist with no error, no log and no failed timer, which is this repo's recurring
+    failure mode. Whatever wires the vector path into `query_shortlist_meta` must set this too.
+    """
     gate, params = _gate_sql(profile)
     with store.cursor() as cur:
+        # pgvector registers its GUCs in _PG_init, which has not run on a freshly pooled
+        # connection; `set hnsw.*` errors with "unrecognized configuration parameter" until
+        # some vector expression forces the library to load.
+        cur.execute("select '[1,0]'::vector <=> '[0,1]'::vector")
+        cur.execute("set local hnsw.iterative_scan = relaxed_order")
         cur.execute(
             f"select p.posting_id from postings p where {gate} "
             f"order by p.embedding <=> %s::halfvec limit %s",
             (*params, embed.to_pgvector(profile["embedding_vec"]), k))
-        return [r["posting_id"] for r in cur.fetchall()]
+        rows = [r["posting_id"] for r in cur.fetchall()]
+    if len(rows) < k:
+        # Fewer rows than asked for means the scan, not the corpus, decided the answer.
+        logger.warning("top-%d returned only %d rows — the index is still truncating; every "
+                       "recall figure below it is a floor, not a measurement", k, len(rows))
+    return rows
 
 
 def run(ks: list[int]) -> None:
