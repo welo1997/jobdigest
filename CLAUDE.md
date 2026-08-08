@@ -891,8 +891,17 @@ goes red. A test that cannot fail documents nothing.
   either would add a personal-data category the privacy policy does not cover (rule 4); and
   `country_code="CZ"` is a source-level constant, which is normally wrong, but is the sound
   exception here because the Úřad práce registers vacancies in Czechia by statute. The
-  per-vacancy portal link (`up.gov.cz/volna-mista-v-cr?id=`) is stable and unique but its
-  deep-linking is **unverified** — the server returns an identical shell for a bogus id.
+  per-vacancy portal link was `up.gov.cz/volna-mista-v-cr?id=` — stable, unique, and marked
+  **unverified** because the server returns an identical shell for a bogus id. It was also
+  dead: `up.gov.cz` is client-rendered and routes on the **fragment**, so the vacancy is at
+  `#/volna-mista-detail/{portalId}` and `?id=` is not a route — the app ignores it and shows
+  its own empty search page. **Every MPSV link ever emailed was broken**, and it surfaced
+  only when a subscriber clicked one (2026-08-08). Fixed by the startupjobs shape:
+  `JOB_URL` carries the fragment route and `posting_id` keeps hashing `ID_URL`, the id-only
+  string every previous run stored, so the links repair in place via `upsert_postings` and
+  **no id churns** — hashing the new link would have re-created all ~7 300 CZ rows. The
+  general rule, now twice: a source returning the right *number* of rows says nothing about
+  whether its links resolve, and "unverified" in a comment is a bug nobody has looked at.
   `recruitee` is the other addition: the mid-size Czech employers (STRV, Trask, Twisto,
   Livesport) that no existing ATS adapter reached. Both found via `scripts/discover_ats.py`,
   which reads a company's ATS slug off its own careers page. Cocuma's terms are B2B and carry
