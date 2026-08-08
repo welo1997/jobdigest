@@ -42,7 +42,7 @@ import os
 
 import pytest
 
-from service import matcher, store
+from service import embed, matcher, store
 
 TEST_DSN = os.environ.get("TEST_DATABASE_URL")
 pytestmark = pytest.mark.skipif(not TEST_DSN, reason="TEST_DATABASE_URL is not set")
@@ -267,3 +267,89 @@ def test_nothing_on_the_delivery_path_touches_the_shadow_table():
             assert text[max(0, i - 10):i].strip().endswith("delete"), \
                 f"{path.name} reads shortlist_shadow; the shadow is write-only in service/"
             start = i + 1
+
+
+def test_the_query_text_excludes_what_measured_as_noise():
+    """Pins the three exclusions from the 2026-08-08 measurement.
+
+    Each was measured against subscribers' real picks, and `other_tech_function` alone moved
+    recall@120 from 2.7% to 42.7% on the profile that carried it. These are cheap to undo by
+    accident — adding `stack` back looks like restoring lost signal — so they are pinned with
+    the reason attached rather than left to a comment.
+    """
+    p = {
+        "label": "My digest",
+        "role_categories": ["other_tech_function", "social_media"],
+        # Tokens chosen to appear ONLY in `stack`, so the assertion below tests that the field
+        # is excluded rather than that a word is absent — the CV line legitimately names tools.
+        "stack": ["figma", "capcut"],
+        "sectors": ["ecommerce"],
+        "cv_summary": "Detected: social media - ~2 yrs",
+    }
+    text = embed.profile_text(p)
+
+    assert "other tech function" not in text, \
+        "the grab-bag category embeds to a centroid of nothing; see UNEMBEDDABLE_CATEGORIES"
+    assert "My digest" not in text, "the label is the default on every live profile"
+    assert "figma" not in text and "capcut" not in text, \
+        "tool names swamp the role words in the query vector"
+    assert "social media" in text, "the subscriber's actual subject must survive"
+    assert "Detected: social media" in text, "the CV line is the best query text measured"
+
+
+def test_a_profile_with_only_an_unembeddable_category_still_gets_a_query():
+    """An empty query string embeds to ~0 and matches arbitrarily — worse than a noisy one.
+
+    Someone whose only category is `other_tech_function` is precisely the subscriber the
+    taxonomy does not serve, and they must not also be the one the vector path silently
+    ignores. Falls back to what they did state.
+    """
+    text = embed.profile_text({
+        "label": "Sales roles in Brno",
+        "role_categories": ["other_tech_function"],
+        "stack": ["salesforce"],
+    })
+    assert text.strip(), "fell through to an empty query string"
+    assert "salesforce" in text
+
+
+def test_changing_the_query_recipe_re_embeds_stored_profiles():
+    """The recipe version is part of the stored identity, or a change is invisible.
+
+    `_embed_profiles` re-embeds only rows whose vector is null or whose stored identity
+    differs. If that identity carried the model alone, editing `profile_text` would leave every
+    existing profile meaning the old recipe while new profiles meant the new one — the column
+    meaning two things at once, which is what `backfill_geo` and `backfill_education` exist to
+    prevent for their columns.
+    """
+    assert embed.PROFILE_EMBEDDING_ID != embed.EMBEDDING_MODEL_ID
+    assert embed.EMBEDDING_MODEL_ID in embed.PROFILE_EMBEDDING_ID, \
+        "the model half must stay comparable with postings.embedding_model"
+    assert str(embed.PROFILE_TEXT_VERSION) in embed.PROFILE_EMBEDDING_ID
+
+    # Behavioural, not a source grep: asserting the constant appears in the function body
+    # passes on a comment that merely mentions it, which is how the first version of this test
+    # survived the mutation it was written to catch. Instead, flip one profile's stored
+    # identity to the current one and require the work queue to shrink by exactly that row.
+    import service.backfill_embeddings as bf
+
+    email = f"{PREFIX}stale@example.test"
+    with store.cursor(commit=True) as cur:
+        cur.execute("delete from profiles where email = %s", (email,))
+        cur.execute(
+            "insert into profiles (email, label, status, embedding, embedding_model) "
+            "values (%s,'stale recipe','active',%s::halfvec,%s) returning id::text as id",
+            (email, _vec(0.5), embed.EMBEDDING_MODEL_ID))   # model right, recipe stale
+        pid = cur.fetchone()["id"]
+    try:
+        before = bf._embed_profiles(dry_run=True)
+        with store.cursor(commit=True) as cur:
+            cur.execute("update profiles set embedding_model = %s where id = %s::uuid",
+                        (embed.PROFILE_EMBEDDING_ID, pid))
+        after = bf._embed_profiles(dry_run=True)
+        assert after == before - 1, (
+            "a profile whose stored recipe version is stale was not queued for re-embedding; "
+            "_embed_profiles is comparing the model alone and is blind to a recipe change")
+    finally:
+        with store.cursor(commit=True) as cur:
+            cur.execute("delete from profiles where email = %s", (email,))

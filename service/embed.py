@@ -121,6 +121,37 @@ def posting_text(row: dict) -> str:
     return " | ".join(p for p in parts if p)
 
 
+#: Categories that must not be embedded, because the words are not a subject.
+#:
+#: `other_tech_function` spans marketing, sales, finance, HR and legal — it *means*
+#: "miscellaneous", so the string "other tech function" embeds to a centroid of nothing and
+#: drags the whole profile vector toward generic office work. Measured on production
+#: 2026-08-08: a social-media subscriber carrying this category was shown meat-processing
+#: foremen, quality controllers and *obchodní referent* as its nearest neighbours, and removing
+#: the category alone took recall@120 against that subscriber's real picks from **2.7% to
+#: 42.7%**, and recall@25 from 0% to 14.7%. It is the single largest factor measured.
+#:
+#: This removes nothing the subscriber asked for: the category still gates and still steers the
+#: live keyword shortlist, which is what actually decides their digest. It is excluded from the
+#: *similarity query* only, where it is noise rather than signal.
+UNEMBEDDABLE_CATEGORIES = frozenset({"other_tech_function"})
+
+#: Bump when the recipe below changes. It is part of the stored profile identity for exactly
+#: the reason `FASTEMBED_VERSION` is: a changed recipe moves the query point while the model
+#: name stays identical, so without this the stored vectors keep meaning the old text and
+#: `backfill_embeddings` — which re-embeds only null or model-mismatched rows — would never
+#: notice. Same failure `backfill_geo` and `backfill_education` exist to prevent.
+PROFILE_TEXT_VERSION = 2
+
+#: What lands in `profiles.embedding_model` — the model identity *plus* the recipe version.
+#:
+#: Postings store `EMBEDDING_MODEL_ID` alone because their text recipe is the document itself;
+#: profiles carry this because their recipe is a judgement call that has already changed once.
+#: The two remain directly comparable on the model half, which is what has to match for cosine
+#: distance to mean anything — the query text may differ from the document text, and does.
+PROFILE_EMBEDDING_ID = f"{EMBEDDING_MODEL_ID}+ptext{PROFILE_TEXT_VERSION}"
+
+
 def profile_text(profile: dict) -> str:
     """The query side of the same space.
 
@@ -128,19 +159,46 @@ def profile_text(profile: dict) -> str:
     work modes, education levels, seniorities. Encoding a hard filter into a soft similarity
     score is how a filter stops being hard: the vector would trade a location match against a
     skills match, and `geo.location_predicate` exists precisely so that trade never happens.
-    What goes in is subject matter: what they call the work, what they know, what they studied.
+
+    **What is in here is what measured well, not what was available.** Three things were
+    dropped on 2026-08-08 after measuring each against the subscribers' real picks:
+
+    - **`label`**, because it is a free-text name for the search and is the default
+      `"My digest"` on every live profile — identical noise in every vector. The keyword path
+      mines it too, but through `_shortlist_terms`, which strips seniority words, place names
+      and filler first; the embedding had no such hygiene.
+    - **`stack`**, because tool names swamp the subject. A profile reading
+      `social media | figma | excel | canva | capcut` retrieved on the tools, not the role.
+    - **`other_tech_function`** — see `UNEMBEDDABLE_CATEGORIES`.
+
+    What remains is the role words and the CV line, which is the only prose the subscriber
+    actually wrote about themselves and the single best query text measured (recall@25 of 9.2%
+    against 3.8% for the old recipe on the data profile).
+
+    **The tension worth knowing about**: a typed role chip that maps to no category becomes a
+    `stack` keyword, and dropping `stack` here means that word no longer steers the *vector*
+    path. It still steers the live full-text shortlist, which is what decides digests today —
+    so nothing a subscriber states is lost. Revisit this if the vector path ever becomes the
+    admission decision rather than a ranking, because then it would be.
+
+    Falls back rather than returning empty: a subscriber whose only category is unembeddable
+    still needs a query, so their stack and label are used instead of nothing.
     """
-    parts: list[str] = [clean(profile.get("label"))]
+    cats = [str(c).replace("_", " ") for c in (profile.get("role_categories") or [])
+            if c not in UNEMBEDDABLE_CATEGORIES]
 
-    for cat in (profile.get("role_categories") or []):
-        parts.append(str(cat).replace("_", " "))
-    parts.extend(str(s) for s in (profile.get("stack") or []))
-    parts.extend(str(s) for s in (profile.get("sectors") or []))
-
+    parts: list[str] = list(cats)
     if profile.get("education_field"):
         parts.append(clean(profile["education_field"]))
     if profile.get("cv_summary"):
         parts.append(clean(profile["cv_summary"]))
+
+    if not parts:
+        # Nothing embeddable survived — a subscriber who picked only `other_tech_function`, or
+        # only typed free text. An empty string embeds to ~0 and would match arbitrarily, which
+        # is worse than a noisy query, so fall back to whatever they did state.
+        parts = [str(s) for s in (profile.get("stack") or [])]
+        parts.append(clean(profile.get("label")))
 
     return " | ".join(p for p in parts if p)
 

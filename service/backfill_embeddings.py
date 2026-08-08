@@ -132,8 +132,13 @@ def _embed_profiles(dry_run: bool) -> int:
             "       cv_summary "
             "  from profiles "
             " where status = 'active' "
+            # `PROFILE_EMBEDDING_ID`, not `EMBEDDING_MODEL_ID`: it carries the
+            # `profile_text` recipe version too, so changing what goes into the query string
+            # re-embeds every profile instead of leaving the stored vectors quietly meaning
+            # the old recipe while new ones mean the new. Without that this select is blind to
+            # a recipe change, which is the failure `backfill_geo` documents for its own column.
             "   and (embedding is null or embedding_model is distinct from %s)",
-            (embed.EMBEDDING_MODEL_ID,))
+            (embed.PROFILE_EMBEDDING_ID,))
         rows = [dict(r) for r in cur.fetchall()]
     if not rows:
         return 0
@@ -148,7 +153,7 @@ def _embed_profiles(dry_run: bool) -> int:
             "update profiles as p set embedding = v.embedding::halfvec, "
             "       embedding_model = v.model, embedded_at = now() "
             "  from (values %s) as v(id, embedding, model) where p.id = v.id::uuid",
-            [(r["id"], embed.to_pgvector(v), embed.EMBEDDING_MODEL_ID)
+            [(r["id"], embed.to_pgvector(v), embed.PROFILE_EMBEDDING_ID)
              for r, v in zip(rows, vectors)],
             template="(%s,%s,%s)")
     logger.info("embedded %d profiles", len(rows))
