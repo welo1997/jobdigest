@@ -813,6 +813,50 @@ away from the convention is loud rather than green.
 When adding a guard, mutation-check it: break the thing deliberately and confirm the test
 goes red. A test that cannot fail documents nothing.
 
+**`scripts/check_links.py` is the one check that leaves the machine, and it exists because
+nothing here had ever fetched a URL it stored.** `posting_id = md5(url)` and the link goes
+straight into an email `href`, so a dead link is invisible to every other check: right row
+count, fresh ids, no churn, correct country split, green tests — and a subscriber clicking
+nothing. That failed twice in three days (startupjobs 404s on 2026-08-06, MPSV's non-route
+`?id=` on 2026-08-08). It runs each adapter under bounded sampling, builds URLs through the
+real `normalize`, fetches them and asks whether the page carries **the posting's own title**.
+Five things are load-bearing:
+
+- **A 200 is not a pass, and neither is the employer's name.** A link landing on
+  `jobs.lever.co/spotify` rather than the posting carries the employer on every row, so
+  employer-only is `WEAK` — accepting it passes the exact failure being hunted.
+- **A shell is detected by text-to-HTML *ratio*, not length.** Platsbanken answers 124 KB
+  holding 1 619 characters of navigation chrome (1.3%) and read as `MISMATCH` under a length
+  test — a working adapter reported broken. Two of its links also passed on a *single* title
+  word matched against that chrome, so title evidence needs two distinct words.
+- **`BLOCKED` ≠ `DEAD`.** Himalayas 403s the honest agent *and* a spoofed Chrome string, and
+  opens fine in a browser. Failing on it daily is how a red check gets muted.
+- **`BROWSER_CONFIRMED` is a dated record, not an exemption.** Six sources are unprovable over
+  HTTP by construction (workday, oraclecloud, platsbanken, mpsv render client-side; himalayas
+  is behind Cloudflare; workingnomads is a redirector). All six were opened by hand on
+  2026-08-08 and were correct. A run flags only sources **nobody has ever looked at**.
+- **Not in CI**, deliberately — two dozen third-party sites would make it red for reasons that
+  are not ours. `--self-check` *is* in the suite, covering the part that rots silently: the
+  sampling table names attributes that live in the adapters, and a rename does not raise, it
+  silently stops bounding a source. Same lesson as `pending_boards.py` and the CI skip-check.
+
+It samples the **adapters**, not the database, so it proves the URL an adapter builds *today*
+resolves — not that stored rows carry it. Baseline 2026-08-08: 63 links across 21 sources —
+**45 OK, 0 DEAD, 0 MISMATCH**, every non-OK result one of the six browser-confirmed sources
+above. No source was emitting a broken link.
+
+**It also found a bug in a field nobody was watching, because it prints the employer next to
+the link.** Every Himalayas row came back with `companyName: "name"` — the literal string, all
+20, from a 66-minute-old CDN cache, while other parameter combinations returned real employers
+at the same moment. A poisoned upstream cache variant, and the variant our ingest uses.
+Undetectable otherwise: right count, right titles, right links, and a plausible-looking
+string that would have shown as the employer in digests. `himalayas._company` refuses
+placeholders, and **dropping the name is the safe direction**: `digest.dedupe_key` treats an
+empty key as always unique, never a match, whereas a uniform wrong employer collapses two real
+employers advertising the same role in the same city and the second is never emailed.
+`normalize` logs an error when a whole run shares one employer, because the next degraded
+payload will pick a different string and that *shape* is the thing to watch.
+
 ---
 
 ## Known constraints and decisions
