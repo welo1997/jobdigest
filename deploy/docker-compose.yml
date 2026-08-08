@@ -6,7 +6,20 @@ name: jobdigest
 
 services:
   db:
-    image: postgres:16-alpine
+    # Postgres 16 + pgvector, built from deploy/db.Dockerfile rather than pulled.
+    #
+    # NOT `image: pgvector/pgvector:pg16`. That image is Debian/glibc, this cluster was
+    # initdb'd on Alpine/musl with `collate=en_US.utf8`, and the two libcs order that same
+    # locale differently (measured: musl says 'a' < 'B' is false, glibc says true). Pointing
+    # the existing data directory at glibc would leave all 19 indexed text columns — the
+    # unique index on profiles.email among them — physically sorted by rules the server no
+    # longer uses, so index scans would miss rows that exist, with nothing raised anywhere.
+    # Building pgvector into the Alpine image keeps the data directory bit-compatible, so
+    # adopting it is an ordinary container recreate. See deploy/db.Dockerfile.
+    build:
+      context: ..
+      dockerfile: deploy/db.Dockerfile
+    image: jobdigest-db:pg16-pgvector
     restart: unless-stopped
     environment:
       POSTGRES_USER: jobmatch
