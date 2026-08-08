@@ -144,6 +144,11 @@ def test_ads_without_url_or_headline_are_skipped():
 
 
 def test_company_location_and_category_are_carried():
+    # `source_category` is the raw Swedish SSYK leaf label, one of ~954. It is NOT a
+    # role_category, so `taxonomy.classify` discards it — this asserts the adapter carries the
+    # field, not that the value is usable. Making it usable means a curated SSYK map here, the
+    # shape `smartrecruiters.FUNCTION_HINTS` uses; deliberately not written while the vector
+    # path may replace the recall predicate that would consume it.
     p = PlatsbankenSource().normalize([_ad()])[0]
     assert p.company == "Toca Boca AB"
     assert p.location == "Stockholm, Stockholms län"

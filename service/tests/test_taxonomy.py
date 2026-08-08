@@ -32,6 +32,10 @@ DBT_SCHEMA = ROOT / "dbt" / "models" / "staging" / "stg_job_postings.yml"
 WEB_OPTIONS = ROOT / "web" / "lib" / "options.ts"
 WEB_PAGE = ROOT / "web" / "app" / "(site)" / "[locale]" / "page.tsx"
 
+#: A title no pattern in PATTERNS can read, so the hint is the only thing left to decide the
+#: answer — which is exactly the path that was writing raw source labels into the column.
+OPAQUE = "Något Oklassificerbart"
+
 
 # ------------------------------------------------------------------ classifier ---
 
@@ -82,6 +86,56 @@ def test_hint_is_the_fallback_not_an_override():
     assert taxonomy.classify("Něco Divného", "other_tech_function") == "other_tech_function"
     assert taxonomy.classify(None) == "uncategorised"
     assert taxonomy.classify("") == "uncategorised"
+
+
+def test_a_non_canonical_hint_is_discarded_not_stored():
+    """`classify` used to end `return hint or UNCATEGORISED`, handing the source's own string
+    straight into `postings.role_category`. Four adapters map their hint through a curated
+    table first; five passed a raw third-party string (platsbanken's Swedish SSYK label,
+    workable's employer-typed department, startupjobs' field slug, recruitee's category_code,
+    oraclecloud's JobFamily).
+
+    Measured on production 2026-08-08: 14 135 of 98 858 active postings (14%) carried a value
+    outside CATEGORIES — platsbanken alone 13 561 rows across 954 distinct labels. The recall
+    predicate is `role_category = any(...) OR search_tsv @@ (...)`, so every one of those rows
+    was unreachable through the category half and survived on keyword alone. Nothing failed:
+    the dbt `accepted_values` test runs in Snowflake against stg_job_postings.sql's own SQL
+    `case`, which never sees a hint, so it structurally cannot catch this.
+
+    `uncategorised` is the honest answer. It is not better at matching — neither value is
+    selectable as a preference — but it means "unknown" to every consumer instead of meaning
+    a category that does not exist."""
+    assert taxonomy.classify(OPAQUE, "Systemutvecklare/Programmerare") == "uncategorised"
+    assert taxonomy.classify(OPAQUE, "Greenvolt Next España, S.L.") == "uncategorised"
+    # ...while a canonical hint still rescues a title the regexes cannot read.
+    assert taxonomy.classify(OPAQUE, "software_engineering") == "software_engineering"
+    # ...and a readable title still beats any hint, canonical or not.
+    assert taxonomy.classify("Data Engineer", "Utesäljare") == "data_engineering"
+
+
+@pytest.mark.parametrize("hint", [
+    # platsbanken — occupation.label, the Swedish SSYK leaf label (954 distinct in production)
+    "Systemutvecklare/Programmerare", "Utesäljare", "Helpdesktekniker/Supporttekniker",
+    "Butikssäljare, dagligvaror/Medarbetare, dagligvaror",
+    "Läkarsekreterare/Vårdadmin/Medicinsk sekreterare",
+    # workable — job.function/department, employer free text. These are not job functions at all.
+    "Greenvolt Next España, S.L.", "Engine by Starling", "FBS", "Wild Card", "NTG Freelancer",
+    # startupjobs — the field's parent slug, and it arrives in both cases
+    "sales", "Tech", "top-management",
+    # recruitee — category_code
+    "information_technology", "marketing_pr", "government_nonprofit",
+    # oraclecloud — per-tenant HCM JobFamily/JobFunction
+    "Integrated Supply Chain", "Health, Safety & Environment", "Customer/Product Support",
+])
+def test_classify_only_ever_returns_a_canonical_category(hint):
+    """Every value here is real production data pulled from the five adapters that passed a
+    raw hint. The title is deliberately unclassifiable, so the hint is the only thing that can
+    decide the answer — which is exactly the path that was writing junk into the column.
+
+    The literals live in this file rather than being passed through a shell: Swedish and Czech
+    diacritics are silently mangled in transit (`Dataingenjör` -> `Datainginjor`), which has
+    already produced one wrong conclusion in this repo."""
+    assert taxonomy.classify(OPAQUE, hint) in taxonomy.CATEGORIES
 
 
 # ------------------------------------------------------- internal consistency ----

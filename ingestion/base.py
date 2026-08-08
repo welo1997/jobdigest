@@ -28,6 +28,14 @@ class JobPosting:
     # Coarse role_category hint derived from the source's profession/category filter
     # (e.g. a jobs.cz "Marketing" field). Used only as a fallback when the title-based
     # classifier can't categorise a (often non-English) title. Not persisted to Snowflake.
+    #
+    # **It must already be a value in `service.taxonomy.CATEGORIES`, or None.** An adapter maps
+    # its source's vocabulary here (see `smartrecruiters.FUNCTION_HINTS`, `themuse.CATEGORIES`,
+    # `jobscz.FIELD_CATEGORIES`) and uses None where there is no confident mapping — a wrong
+    # guess costs little, a missing one costs nothing. A raw third-party string is NOT a hint:
+    # `taxonomy.classify` discards it, and before it did, five adapters passing one had put 14%
+    # of the corpus into a category nothing could match. The absence of this sentence is what
+    # let that happen without anyone noticing.
     source_category: Optional[str] = None
 
     def as_tuple(self) -> tuple:

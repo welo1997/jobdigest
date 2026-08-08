@@ -114,7 +114,9 @@ def test_an_undated_listing_is_dropped_rather_than_kept():
 
 
 def test_unmapped_category_yields_no_hint():
-    """`source_category` becomes `role_category` verbatim when the title cannot classify."""
+    """`source_category` becomes `role_category` when the title cannot classify — and only if
+    it is already a canonical category, since `taxonomy.classify` discards anything else.
+    Mapping a Muse category to `None` is what keeps the hint honest at the source."""
     p = _one(name="Coordinator", categories=[{"name": "Science and Engineering"}])
     assert p.source_category is None
 

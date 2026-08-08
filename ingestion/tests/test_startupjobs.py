@@ -121,6 +121,9 @@ def test_offer_without_display_id_or_title_is_skipped():
 
 
 def test_field_gives_a_category_hint_for_the_classifier():
+    # "sales" is StartupJobs' own field slug, not a role_category — `taxonomy.classify`
+    # discards it (the canonical value would be `other_tech_function`). This pins what the
+    # adapter extracts; a map from these 12 slugs is what would make it count.
     assert StartupJobsSource().normalize([_offer()])[0].source_category == "sales"
 
 

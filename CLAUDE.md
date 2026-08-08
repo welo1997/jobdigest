@@ -750,6 +750,32 @@ These are not style preferences. Breaking one has consequences outside this repo
   `web/lib/options.ts` cannot import it, so tests assert they do not drift. Adding a category
   means: pattern, subject word, shortlist keywords, dbt `accepted_values`, a chip in
   `ROLE_OPTIONS` + a label in all eight catalogues, run tests.
+  **A source's `source_category` hint must already be a value in `CATEGORIES`, or `None` —
+  `classify` discards anything else, and until 2026-08-08 it did not.** The line was
+  `return hint or UNCATEGORISED`, so the hint went verbatim into `postings.role_category`.
+  Four adapters map their source's vocabulary first and use `None` where there is no confident
+  mapping (`jobscz.FIELD_CATEGORIES`, `profesia`'s profession pairs,
+  `smartrecruiters.FUNCTION_HINTS`, `themuse.CATEGORIES`); five passed a raw third-party string
+  — `platsbanken` (the Swedish SSYK leaf label), `workable` (`function`/`department`, employer
+  free text), `startupjobs` (field slug), `recruitee` (`category_code`), `oraclecloud`
+  (`JobFamily`). Measured on production: **14 135 of 98 858 active postings — 14% — held a
+  value outside the canonical ten**, platsbanken alone 13 561 rows across **954** distinct
+  labels; workable's were not job functions at all (`"Greenvolt Next España, S.L."`,
+  `"Engine by Starling"`, `"Wild Card"`). The recall predicate is
+  `role_category = any(...) OR search_tsv @@ (...)`, so every one of those rows was unreachable
+  through the category half and survived on keyword alone, **including genuine tech roles** —
+  `Systemutvecklare/Programmerare` 220, `Projektledare, IT` 140, `Mjukvaruutvecklare` 108,
+  `IT-arkitekt/Lösningsarkitekt` 97. Nothing reported it and nothing could: the dbt
+  `accepted_values` test runs in Snowflake against `stg_job_postings.sql`'s own SQL `case`,
+  which never sees a hint — and that side is decommissioned. There is deliberately **no
+  backfill**: `upsert_postings` rewrites `role_category` on conflict and `deactivate_stale`
+  retires the rest, so the column drains over the 7-day staleness window, and bad-value →
+  `uncategorised` changes nothing for retrieval since neither is selectable as a preference.
+  `service.ingest._report_discarded_hints` now logs, per source, how many rows carried a
+  discarded hint and its top values — a report for a human in the shape of
+  `unmet_demand_terms()`, so writing a curated map becomes evidence-driven. **Writing one is
+  deliberately open**, gated on whether the vector path replaces the recall predicate that
+  would consume it; the measured labels are in `notes/2026-08-08-role-category-hint-guard.md`.
 - User-facing copy has **one** definition per language: `web/i18n/messages/*.ts`, shaped by
   `web/i18n/schema.ts`. Never inline a user-visible string in a component under
   `app/(site)/`. Adding one means: a key in the schema, a value in all eight catalogues.
@@ -1631,9 +1657,20 @@ payload will pick a different string and that *shape* is the thing to watch.
   keyword half of the `category OR keyword` recall predicate. **This is already the condition of
   `platsbanken` (Swedish) and `mpsv` (Czech)**, our two largest non-English sources, so it is
   accepted rather than broken — but it means **the marginal value of a fourth national source may
-  be lower than teaching the taxonomy Norwegian, Swedish and Czech role words.** Settle it with
-  `select source, role_category, count(*)` over the non-English sources on the box before choosing
-  which to do; that measurement has **not** been taken.
+  be lower than teaching the taxonomy Norwegian, Swedish and Czech role words.**
+  **That measurement was taken on 2026-08-08 and it found something worse than blindness.**
+  `select source, role_category, count(*)` over the non-English sources did not return
+  `uncategorised` for platsbanken — it returned **954 distinct Swedish SSYK labels**, because
+  `classify` was handing the source's own hint back verbatim (see the `role_category` convention
+  above). So the Swedish corpus was not sitting in a first-class "unknown" bucket, it was in
+  14 135 categories that no query could name. The guard fixes the column; **it does not teach the
+  taxonomy Swedish**, and the tech labels it now files as `uncategorised` are the concrete
+  argument for doing so: `Systemutvecklare/Programmerare` 220, `Projektledare, IT` 140,
+  `Mjukvaruutvecklare` 108, `IT-arkitekt/Lösningsarkitekt` 97, `Systemförvaltare` 118 —
+  ~600 rows of unambiguous software/platform work, plus ~1 500 sales and ~317 IT-support rows
+  in categories the taxonomy does not model at all. Do this **after** the vector gate
+  (`scripts/measure_shadow_recall.py`), not before: if cosine replaces the recall predicate, a
+  hand-curated SSYK map is work done for a code path being retired.
 - **Austria was swept end to end on 2026-08-07 and every non-ATS route is closed. Do not
   re-open one because AT looks thin.** Seven doors, and the useful thing is that no two shut
   for the same reason:

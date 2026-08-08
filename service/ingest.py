@@ -15,7 +15,7 @@ import argparse
 import logging
 import os
 import sys
-from collections import Counter
+from collections import Counter, defaultdict
 
 # Make the repo root importable when run as `python -m service.ingest` or directly.
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -70,11 +70,35 @@ def build_row(p) -> dict:
     }
 
 
+def _report_discarded_hints(discarded: dict[str, Counter]) -> None:
+    """Name the adapters passing a `source_category` that is not a real role_category.
+
+    `taxonomy.classify` discards a non-canonical hint rather than writing it into
+    `postings.role_category`, which is the fix for 14% of the corpus sitting in a category
+    nothing could match. But a guard that silently drops the value replaces one quiet failure
+    with another: the adapter goes on producing junk and the row falls back to title-only
+    classification — which, for the Swedish and Czech sources, usually means `uncategorised`.
+
+    So this is a report for a human, in the shape of `store.unmet_demand_terms()`: it never
+    feeds anything automatic, it just makes the vocabulary visible so a decision to write a
+    curated map (or to teach the taxonomy Swedish) can be taken on measured labels rather than
+    a guess. Warning level because every line here is an adapter to fix, not weather.
+    """
+    for source, hints in sorted(discarded.items(), key=lambda kv: -sum(kv[1].values())):
+        top = ", ".join(f"{h!r} x{n}" for h, n in hints.most_common(5))
+        logger.warning(
+            "%s: %d rows carried a source_category that is not a role_category (%d distinct) "
+            "— discarded, classified on title alone. Top: %s",
+            source, sum(hints.values()), len(hints), top,
+        )
+
+
 def run(include_cz: bool, stale_days: int) -> None:
     postings = gather(include_cz=include_cz)
     logger.info("Fetched %d postings", len(postings))
 
     rows, seen = [], set()
+    discarded: dict[str, Counter] = defaultdict(Counter)
     for p in postings:
         # Broad scope: keep every role at a tech company (all sources here are
         # already tech-focused boards). Only drop rows with no URL or no title.
@@ -83,6 +107,9 @@ def run(include_cz: bool, stale_days: int) -> None:
         if p.posting_id in seen:
             continue
         seen.add(p.posting_id)
+        hint = getattr(p, "source_category", None)
+        if hint and hint not in taxonomy.CATEGORIES:
+            discarded[p.source][hint] += 1
         rows.append(build_row(p))
 
     n = store.upsert_postings(rows)
@@ -91,6 +118,7 @@ def run(include_cz: bool, stale_days: int) -> None:
     logger.info("Upserted %d postings; deactivated %d stale; %d active total",
                 n, stale, store.count_active())
     logger.info("By role_category: %s", dict(by_cat.most_common()))
+    _report_discarded_hints(discarded)
 
 
 def main() -> None:
