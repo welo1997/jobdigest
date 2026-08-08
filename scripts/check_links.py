@@ -246,6 +246,11 @@ BROWSER_CONFIRMED = {
                  "recruitee.com's marketing page) and removed; mailerlite renders correctly",
     "smartrecruiters": "2026-08-08 — Playtech QA Engineer renders in full; the WEAK verdict "
                        "was a short-title matching gap, since fixed",
+    "greenhouse": "2026-08-08 — full 178-board sweep. form3 (404 to every HTTP client) and "
+                  "roblox (times out) both render their postings in a browser; trivago's "
+                  "apply page loads 510 characters of nav and no job, and is unresolved",
+    "lever": "2026-08-08 — full 49-board sweep; aircall and ledger were found dead at the "
+             "board root and swapped for their live Greenhouse/Ashby boards",
     "workday": "2026-08-08 — NVIDIA JR2022638 renders in full; Workday ships an empty shell",
     "oraclecloud": "2026-08-08 — Vertiv 20267130 renders the right title; Oracle CX is a SPA",
     "platsbanken": "2026-08-08 — annons 31330844 renders in full; the ad pages are a SPA",
@@ -373,7 +378,12 @@ def probe(url: str, title: str, company: Optional[str]) -> tuple[str, str]:
         return "ROBOTS", "robots.txt disallows this path"
     resp = _get(url)
     if isinstance(resp, str):                       # a transport failure, already described
-        return "DEAD", resp
+        # NOT dead. `careers.roblox.com` read-times-out for every HTTP client and renders the
+        # posting perfectly in a browser — 222 postings that a DEAD verdict would have had
+        # someone delete. This mirrors `probe_boards.py`, which has always separated *dead*
+        # (answered, nothing there) from *unreachable* (no answer), because only one of the
+        # two is worth a commit.
+        return "UNREACHABLE", f"{resp} — no answer to an HTTP client; a browser has to say"
     if resp.status_code != 200:
         wall = _fold(resp.text[:4000])
         if resp.status_code in (403, 429) and any(m in wall for m in BOT_WALL_MARKERS):
@@ -390,7 +400,20 @@ def probe(url: str, title: str, company: Optional[str]) -> tuple[str, str]:
             # third party's bot policy.
             return "BLOCKED", (f"HTTP {resp.status_code} from {resp.url.split('/')[2]} after a "
                                "redirect — the link resolved; the destination refuses bots")
-        return "DEAD", f"HTTP {resp.status_code}"
+        # A non-200 from an employer's own career domain is **not** proof the link is broken,
+        # and this is the correction that matters most in the whole file. Measured 2026-08-08:
+        # `form3` answers 404 to our agent and renders "Finance Manager" in full in a browser;
+        # `roblox` times out and renders fine. Meanwhile `lever:aircall` answers 404 and is
+        # genuinely gone. **The bodies are indistinguishable** — 0.1% text-to-HTML for Lever's
+        # real 404, 0.7% for form3's bot-block — so no per-link test can separate them.
+        #
+        # What separated them was the **board root**: `jobs.lever.co/aircall` is 404, while
+        # `www.form3.tech/careers` serves 7 838 characters. That is a board-level check this
+        # script does not yet do, so until it does, a non-200 is reported for a human rather
+        # than classified. Guessing DEAD here would have deleted three working boards and 227
+        # postings; guessing BLOCKED would have hidden three genuinely dead ones.
+        return "UNCONFIRMED", (f"HTTP {resp.status_code} — could be a dead link or bot "
+                               "protection; check the board root in a browser")
 
     page = visible_text(resp.text)
     rendered = len(page) / max(len(resp.text), 1)

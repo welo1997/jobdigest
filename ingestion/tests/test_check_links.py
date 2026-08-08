@@ -92,10 +92,31 @@ def test_a_refusal_after_a_redirect_blames_the_destination_not_our_link(monkeypa
     assert "welcometothejungle.com" in note and "redirect" in note
 
 
-def test_a_404_is_dead(monkeypatch):
-    """The startupjobs case: `/job/{id}` without the slug, on every posting, for a day."""
+def test_a_404_is_reported_but_not_called_dead_on_its_own(monkeypatch):
+    """The startupjobs case — and the correction that came out of full board coverage.
+
+    A 404 from an employer's career domain is not proof of a broken link: `form3` answers 404
+    to every HTTP client and renders the job in a browser, `roblox` times out and renders
+    fine, and `lever:aircall` answers 404 and is genuinely gone. Their bodies are
+    indistinguishable (0.1% text-to-HTML for Lever's real 404, 0.7% for form3's block), so
+    the verdict says "look at this" rather than guessing. Guessing would have deleted three
+    working boards and 227 postings."""
     _serve(monkeypatch, _Resp(404, _page("Page not found")))
-    assert probe("https://www.startupjobs.com/job/104109", "Backend vývojář", "Shoptet")[0] == "DEAD"
+    verdict, note = probe("https://www.startupjobs.com/job/104109", "Backend vývojář", "Shoptet")
+    assert verdict == "UNCONFIRMED"
+    assert "404" in note and "board root" in note
+
+
+def test_a_timeout_is_unreachable_not_dead(monkeypatch):
+    """`careers.roblox.com` times out for every HTTP client and serves 222 postings fine to a
+    browser. Same distinction `probe_boards.py` has always drawn: dead means answered and
+    empty, unreachable means no answer, and only one of those is worth a commit."""
+    def boom(*a, **k):
+        raise check_links.requests.ConnectTimeout("timed out")
+    monkeypatch.setattr(check_links.requests, "get", boom)
+    verdict, note = probe("https://careers.roblox.com/jobs/7350081", "ML Engineer", "Roblox")
+    assert verdict == "UNREACHABLE"
+    assert "browser" in note
 
 
 # --- the case that is easy to get wrong ----------------------------------------------
