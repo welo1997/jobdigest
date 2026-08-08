@@ -367,12 +367,20 @@ Measured before it was built, against 20 763 active postings on 2026-08-02:
 | …softened ("or equivalent", "preferred") | 286 |
 | **binding and readable** | **~666 (3.2%)** |
 
-The ceiling is not employer silence: **70% of the corpus has no description to read.** Median
-description length is 35 characters — `jobscz` (9 639 postings, the largest source) averages
-32 and stores scraps like "70 000 – 80 000 Kč", `profesia` (4 365) stores the empty string,
-`cocuma` (319) averages 9. **The entire Czech and Slovak inventory will hold `null` forever**,
-so this filter is real for English-language ATS postings and inert for someone searching only
-Czech boards. Three consequences:
+**That measurement described a corpus that no longer exists, and the reason it inverted is worth
+knowing.** It read: 70% of the corpus has no description, median length 35 characters, because
+`jobscz` (9 639 postings) averaged 32 and stored scraps like "70 000 – 80 000 Kč", `profesia`
+(4 365) stored the empty string, `cocuma` (319) averaged 9. Those sources were excluded on
+2026-08-03 (Alma Career's terms) and platsbanken, mpsv and the ATS boards replaced them.
+**Re-measured on production 2026-08-08: 91 818 of 96 583 active postings — 95% — carry a
+description, averaging 4 861 characters.** The old figures survive above only as the reasoning
+for the education classifier's design; do not cite them as current, and **re-run the education
+measurement before concluding anything from its ~3% ceiling**, because that ceiling was derived
+from a corpus that was 70% unreadable and is now 95% readable. The claim that "the entire Czech
+and Slovak inventory will hold `null` for ever" is also void — the sources it referred to are
+gone, and `mpsv` ships descriptions on 94% of its rows.
+
+Three consequences, which still hold on their own terms:
 
 - **Null always passes the gate**, as with `work_mode` and an unresolved city. It is ~97% of
   rows; a gate that dropped nulls would not narrow a digest, it would empty it. `test_education_sql.py`
@@ -599,6 +607,21 @@ loaded zero boards, caught its own `FileNotFoundError`, logged a warning and ret
 Nothing errored; the symptom was an absence in `select source, count(*) from postings`.
 `test_curated_boards.py` now fails if the seed stops shipping. When a source's number looks
 wrong, check whether its data even reached the image.
+
+**The `db` service is a BUILT image now, not a pulled one, and the reason is a corruption
+hazard rather than a preference.** `deploy/db.Dockerfile` compiles pgvector into
+`postgres:16-alpine`; `image: pgvector/pgvector:pg16` is the obvious alternative and would
+silently corrupt this database. That image is Debian/glibc, this cluster was initdb'd on
+Alpine/musl with `collate=en_US.utf8`, and the two libcs order that same locale name
+differently — measured on both images 2026-08-08, musl says `'a' < 'B'` is **false** and glibc
+says **true**. Point the existing data directory at the other libc and all 19 indexed
+text/varchar columns stay physically sorted by the old rules while the server compares by the
+new ones, so index scans miss rows that exist, including through the unique index on
+`profiles.email`. Nothing raises. **Never swap this image for a glibc one without a dump and
+restore**, and `db` must stay in `deploy.sh`'s build list — a built image that no deploy step
+builds is the 2026-08-02 "deployed is not running" failure waiting to recur. Verified after the
+switch on 2026-08-08: `server_version` 16.14 unchanged, musl ordering unchanged, 96 583 active
+postings unchanged, 0 invalid indexes.
 
 Rebuild **`api` as well as `pipeline`** whenever the change touches anything the webapp
 imports (`webapp.py`, `store.py`, `geo.py`, `taxonomy.py`, …) — `api` runs `service.webapp` from
