@@ -17,6 +17,7 @@ import TSX, so the agreement between them is asserted on the files themselves.
 """
 
 import re
+import unicodedata
 from pathlib import Path
 
 import pytest
@@ -108,6 +109,31 @@ ROLE_IDS = set(re.findall(r'id:\s*"([a-z_]+)"', OPTIONS_TEXT))
 WORK_TYPE_IDS = _id_list("WORK_TYPE_IDS")
 SENIORITY_IDS = _id_list("SENIORITY_IDS")
 
+# The English search word each chip contributes when no category models it — the third spelling
+# `resolveRoleId` accepts, and the one that works in every language, so it belongs in the
+# collision check alongside the id and the translated label.
+ROLE_KEYWORDS = dict(
+    re.findall(r'id:\s*"([a-z_]+)"\s*,\s*category:[^,]+,\s*keyword:\s*"([^"]+)"', OPTIONS_TEXT)
+)
+
+
+def _role_labels(locale: str) -> dict[str, str]:
+    """`roles` in one catalogue, as id → rendered label."""
+    return dict(re.findall(r'"?([a-z_]+)"?\s*:\s*"([^"]*)"', _block(_catalogue(locale), "roles")))
+
+
+def _normalize_role_text(text: str) -> str:
+    """Python mirror of `normalizeRoleText` in `web/lib/options.ts`.
+
+    A copy, and knowingly so — pytest cannot run the TypeScript. What keeps it honest is
+    `test_the_typed_role_resolver_still_folds_case_and_accents` below, which fails if the
+    original stops applying any of the four folds this reimplements.
+    """
+    decomposed = unicodedata.normalize("NFD", text)
+    stripped = "".join(c for c in decomposed if not unicodedata.combining(c))
+    spaced = re.sub(r"[_\-./]+", " ", stripped.lower())
+    return re.sub(r"\s+", " ", spaced).strip()
+
 
 def test_every_declared_locale_has_a_catalogue_and_is_wired_up():
     assert len(LOCALES) >= 2, "LOCALES parsed as fewer than two languages — the parse is broken"
@@ -132,6 +158,76 @@ def test_every_role_chip_has_a_label(locale):
     """A missing id renders as `product_manager` in the UI, with nothing failing."""
     missing = ROLE_IDS - _keys(_block(_catalogue(locale), "roles"))
     assert not missing, f"{locale}.ts is missing role labels for: {sorted(missing)}"
+
+
+@pytest.mark.parametrize("locale", LOCALES)
+def test_no_two_roles_share_a_spelling_in_any_language(locale):
+    """`resolveRoleId` turns typed text into a role id, and it returns the **first** match.
+
+    That is what lets someone type "Data Engineer" into "Add another role…" and get the
+    `data_engineer` chip — its skills and its `role_categories` entry — instead of a raw string
+    that reaches only the keyword path. It resolves three spellings per role: the id, the
+    English `keyword`, and the label in the visitor's own language, so a Czech visitor typing
+    "Datový analytik" stores exactly what an English visitor tapping the chip stores.
+
+    The hazard is a *collision*. If two roles normalise to the same text in some language, the
+    earlier one in `ROLE_OPTIONS` wins and the later one becomes unreachable by typing — in
+    that language only. Nothing fails: the visitor gets a real chip with a real category, just
+    the wrong one, and it renders in the language they are reading so it looks deliberate. That
+    is the same shape as the label-keyed `ROLE_CAT` bug this whole file exists because of, and
+    it can arrive from a translation alone, with no code change.
+
+    Marketing and Finance are the pair to watch: both map to `other_tech_function`, so a
+    catalogue that rendered either as its category name would collide.
+    """
+    labels = _role_labels(locale)
+    seen: dict[str, tuple[str, str]] = {}
+    for role_id in sorted(ROLE_IDS):
+        for kind, spelling in (
+            ("id", role_id),
+            ("keyword", ROLE_KEYWORDS.get(role_id, "")),
+            ("label", labels.get(role_id, "")),
+        ):
+            key = _normalize_role_text(spelling)
+            if not key:
+                continue
+            if key in seen and seen[key][0] != role_id:
+                other_id, other_kind = seen[key]
+                raise AssertionError(
+                    f"{locale}.ts: {role_id}'s {kind} and {other_id}'s {other_kind} both "
+                    f"normalise to {key!r} — typing it resolves to {other_id} "
+                    f"(first in ROLE_OPTIONS), so {role_id} cannot be reached by typing"
+                )
+            seen.setdefault(key, (role_id, kind))
+
+
+def test_the_typed_role_resolver_still_folds_case_and_accents():
+    """A guard on the mirror above, not on the browser.
+
+    `_normalize_role_text` reimplements `normalizeRoleText` in Python so the collision test can
+    run at all, and a copy is exactly what goes stale: soften the TypeScript to compare raw
+    strings and the collision test above keeps passing against rules the site no longer applies.
+    Assert the four folds are still in the source — the accent strip is the one that carries
+    Czech, Slovak and Polish, and is the one a "simplify this regex" edit would drop.
+    """
+    body = re.search(
+        r"export const normalizeRoleText[^;]+;", OPTIONS_TEXT, re.S
+    )
+    assert body, "normalizeRoleText not found in web/lib/options.ts"
+    src = body.group(0)
+    for fold, why in (
+        ('normalize("NFD")', "decomposition, without which the accent strip cannot match"),
+        # Asserted as the escape sequence, because that is what the file holds — the TS writes
+        # the combining range as `̀-ͯ` rather than as the (invisible) characters
+        # themselves. Searching for the decoded form finds nothing and fails on a correct file.
+        (r"\u0300-\u036f", "the combining-mark strip that folds Czech/Slovak/Polish accents"),
+        ("toLowerCase()", "case folding"),
+        (r"\s+", "whitespace collapsing"),
+    ):
+        assert fold in src, (
+            f"normalizeRoleText no longer applies {fold} ({why}) — "
+            "service/tests/test_web_i18n.py's Python mirror is now wrong"
+        )
 
 
 @pytest.mark.parametrize("locale", LOCALES)

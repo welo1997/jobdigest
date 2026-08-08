@@ -192,13 +192,23 @@ button.nav-link{background:none;border:0;padding:0;cursor:pointer;font-family:in
   font-family:var(--font-mono);letter-spacing:.08em;text-transform:uppercase;}
 .cvor::before,.cvor::after{content:"";flex:1;height:1px;background:var(--line);}
 
-/* The seam between the two halves of step 1. Roles and skills are both chip grids with an
-   "Add…" box under them, so with only a margin between them the skill chips read as more role
-   chips — the visitor tags themselves "Designer, Figma" without noticing the question changed.
-   `--line`, not the `--line-soft` the wizard footer uses: soft is #1E2836 on a #151C2B surface,
-   which measured as a seam nobody can see, and an invisible separator is the same as no
-   separator. This one has a job to do. */
-.wz-split{margin-top:22px;padding-top:18px;border-top:1px solid var(--line);}
+/* Roles | skills, the two halves of step 1. Stacked, they were two chip grids each with an
+   "Add…" box, and the second read as more of the first — the visitor tags themselves
+   "Designer, Figma" without noticing the question changed. Side by side the two labels sit on
+   one line and the distinction is structural rather than something a hairline has to carry.
+   The `--line` rule between them carries the seam. It is drawn as a border on the second
+   column, so the columns must stretch to the row's height — left to `align-items:start` the
+   rule stops wherever the shorter column ends (measured: 178px of a 229px row) and reads as an
+   unfinished line rather than a divider. Stretching costs nothing: `.field`'s children are
+   block-level and stay at the top of a taller box. `min-width:0` so a long chip cannot push a
+   column wider than its track. */
+.wz-cols{display:grid;grid-template-columns:1fr 1fr;gap:0 28px;}
+.wz-cols>.field{min-width:0;margin-bottom:0;}
+.wz-cols>.field+.field{padding-left:28px;border-left:1px solid var(--line);}
+/* The hint belongs to both columns now, so it leads them in rather than trailing one of them —
+   below the pair it hung off the bottom of whichever column happened to be taller and read as
+   a footnote to that one. */
+.wz-cols-note{margin-top:0;margin-bottom:16px;}
 .addwrap{margin-top:14px;display:flex;gap:8px;}
 .addwrap input{flex:1;font:inherit;font-size:var(--fs-sm);color:var(--ink);background:var(--paper);
   border:1px solid var(--line);border-radius:var(--r-sm);padding:10px 12px;}
@@ -387,6 +397,12 @@ a.hidden-link:hover{color:var(--brand);text-decoration:underline;}
      page entirely, which is the same fix taken further: on phones the interactive form is what
      the visitor should land on, not a 780px mock email they have to scroll past. */
   .build{grid-template-columns:1fr;gap:26px;}.steps{grid-template-columns:1fr;}
+  /* Step 1's two columns stack on phones — 1fr 1fr of a ~330px card is not a chip row, it is a
+     word per line. The divider has to rotate with them: a left border on a stacked column draws
+     a rule down the side of the page rather than between the two questions. */
+  .wz-cols{grid-template-columns:1fr;gap:0;}
+  .wz-cols>.field+.field{padding-left:0;border-left:0;margin-top:20px;padding-top:18px;
+    border-top:1px solid var(--line);}
   /* Restore the horizontal gutter that `.hero`/`.section` zero out with their `padding: X 0 Y`
      shorthands. Below --maxw (1120px) that left the microtrust row, the "how it works" label and
      every card flush against the screen edge on phones. `.wrap.hero`/`.wrap.section` (specificity

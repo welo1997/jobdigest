@@ -189,6 +189,7 @@ const en: Messages = {
       needEmail: "Enter a valid email",
       needTurnstile: "Please complete the verification",
       needRole: "Pick at least one role to continue",
+      needCountry: "Pick at least one country to continue",
       needLevelToContinue: "Pick at least one level to continue",
       genericError: "Something went wrong — please retry",
     },

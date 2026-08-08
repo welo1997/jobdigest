@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Nav, Footer } from "@/components/SiteChrome";
 import Turnstile, { turnstileEnabled, TurnstileHandle } from "@/components/Turnstile";
@@ -14,13 +14,12 @@ import {
 import { track } from "@/lib/analytics";
 import { LocationPicker, LocationValue } from "@/components/LocationPicker";
 import { EducationPicker, EducationValue } from "@/components/EducationPicker";
-import { WORK_MODES } from "@/lib/geo";
 import {
-  EDUCATION_LEVELS, cleanEducationField, cleanEducationLevels, levelsUpTo,
+  cleanEducationField, cleanEducationLevels, levelsUpTo,
 } from "@/lib/education";
 import {
-  CV_ROLE_ID, DEFAULT_ROLE_IDS, SENIORITY_IDS, SKILL_OPTS, WORK_TYPE_IDS,
-  roleCategory, roleKeyword,
+  CV_ROLE_ID, EXAMPLE_ROLE_IDS, ROLE_OPTIONS, SENIORITY_IDS, WORK_TYPE_IDS,
+  mergeSkillOptions, resolveRoleId, roleCategory, roleKeyword, suggestedSkills,
 } from "@/lib/options";
 import Link from "next/link";
 import { fmt, legalHref } from "@/i18n/config";
@@ -28,23 +27,40 @@ import { rich, useI18n } from "@/i18n/context";
 
 // Chip state holds ids, never labels — see lib/options.ts for why that distinction became
 // load-bearing once the same chip renders differently in eight languages.
-const DEFAULT_ROLES = ["product_manager", "marketing", "data_analyst", "designer"];
-const DEFAULT_SKILLS = ["SQL", "Figma", "Analytics"];
-const DEFAULT_WORK = ["fulltime", "freelance"];
-const DEFAULT_LEVELS = ["junior", "mid"];
+// Nothing is pre-ticked. Four highlighted role chips read as "we already know what you do",
+// and a visitor who taps Next without touching them subscribes to a product manager /
+// marketing / data analyst / designer digest they never asked for — a filter they did not
+// choose, which is the failure `role_categories` is most expensive to get wrong. The chips
+// stay as the picker and as the worked example of what belongs here; they are simply off.
+// `goNext` already refuses step 1 with an empty `roles`, so the empty state is a prompt to
+// choose rather than a way past the question.
+const DEFAULT_ROLES: string[] = [];
+const DEFAULT_SKILLS: string[] = [];
+const DEFAULT_WORK: string[] = [];
+const DEFAULT_LEVELS: string[] = [];
 
-// Opens on the home market with no city restriction: "Czechia, any city, plus remote from
-// anywhere in the EU" — the widest sensible default, so a subscriber who skips this step is
-// never narrowed by a choice they did not make.
+// Nothing pre-picked here either, and the two halves of that are not the same statement.
+//
+// `countries` was `["CZ"]`, which is a *filter* — a visitor who tapped through subscribed to a
+// Czech digest they never asked for, and if they were Slovak or German the mistake was silent
+// on both sides. `goNext` refuses step 2 with no country for exactly that reason, so the empty
+// state is the question being asked rather than a way past it.
+//
+// `workModes` was all three and `education.levels` all five, which are *not* filters — both
+// readers treat a full set and an empty set identically (`cleanWorkModes`,
+// `cleanEducationLevels`, and `geo.clean_work_modes` / `education.clean_levels` on the server).
+// So these two carry no default to remove; what changed is that the pickers now render the
+// empty set as untouched chips instead of borrowing the all-ticked look, which said "we have
+// decided this for you" about a control that had decided nothing. The label above them still
+// reads "anything goes", because that is what an empty selection means.
+//
+// `remoteScope` stays `eu`: it is a <select>, and a select has no unticked state to offer.
 const DEFAULT_LOCATION: LocationValue = {
-  countries: ["CZ"], cities: [], remoteScope: "eu", workModes: [...WORK_MODES],
+  countries: [], cities: [], remoteScope: "eu", workModes: [],
 };
 
-// Every level ticked, i.e. no education filter at all. Same principle as the location default:
-// a visitor who skips this step must not be narrowed by a choice they did not make, and this
-// axis can only ever exclude postings, never add any.
 const DEFAULT_EDUCATION: EducationValue = {
-  levels: [...EDUCATION_LEVELS], field: "",
+  levels: [], field: "",
 };
 
 // The wizard is three panels: roles + skills, where & how, email. Roles and skills used to be
@@ -73,10 +89,37 @@ export default function Landing() {
   const roleLabel = (id: string) => t.roles[id] ?? id;
 
   const [step, setStep] = useState(0);
-  const [roleOpts, setRoleOpts] = useState<string[]>(DEFAULT_ROLE_IDS);
-  const [skillOpts, setSkillOpts] = useState(SKILL_OPTS);
+  const [roleOpts, setRoleOpts] = useState<string[]>(EXAMPLE_ROLE_IDS);
   const [roles, setRoles] = useState<Set<string>>(new Set(DEFAULT_ROLES));
   const [skills, setSkills] = useState<Set<string>>(new Set(DEFAULT_SKILLS));
+  // Skills the visitor brought rather than the roles: typed into the box, or read off a CV.
+  // The offered row is *derived* from the roles instead of stored, so this is the only part of
+  // it that has to be remembered — an effect writing `skillOpts` on every role change would be
+  // the same list held in two places, and the copy is what goes stale.
+  const [extraSkills, setExtraSkills] = useState<string[]>([]);
+  // Suggestions follow the roles; the visitor's own words follow them and never lose their
+  // place. `skills` is merged in last so a chip that is *ticked* is always on screen even after
+  // the role that suggested it is untoggled — it is still going into `stack`, and a submitted
+  // filter with no chip to show for it is the failure this wizard keeps being audited for.
+  const skillOpts = useMemo(
+    () => mergeSkillOptions(suggestedSkills(roles), extraSkills, skills),
+    [roles, extraSkills, skills],
+  );
+  // The roles the vocabulary knows but this row is not already showing — what the "Add another
+  // role…" box offers as a dropdown. Discoverability is the whole job: the chip row is a short
+  // example on purpose, so without this the other seven categories are reachable only by
+  // guessing their name, and a visitor who guesses "Backend Developer" instead of "Software
+  // Engineer" lands on the keyword path for a category that exists.
+  //
+  // Offered by translated label, which is also what a picked suggestion puts in the box — and
+  // `addCustomRole` resolves that label straight back to the id, so the dropdown needs no
+  // separate value/id plumbing of its own. Filtered against `roleOpts` rather than `roles` so
+  // a chip already on screen is not also listed here; unticking it leaves the chip in place,
+  // which is where it should be re-ticked.
+  const roleSuggestions = useMemo(
+    () => ROLE_OPTIONS.filter((r) => !roleOpts.includes(r.id)).map((r) => roleLabel(r.id)),
+    [roleOpts, t],
+  );
   const [loc, setLoc] = useState<LocationValue>(DEFAULT_LOCATION);
   const [edu, setEdu] = useState<EducationValue>(DEFAULT_EDUCATION);
   const [work, setWork] = useState<Set<string>>(new Set(DEFAULT_WORK));
@@ -125,7 +168,7 @@ export default function Landing() {
   const saveWizardState = () => {
     try {
       sessionStorage.setItem("jd_google_wiz", JSON.stringify({
-        roleOpts, skillOpts, roles: [...roles], skills: [...skills], loc,
+        roleOpts, extraSkills, roles: [...roles], skills: [...skills], loc,
         work: [...work], levels: [...levels], cvSignals, step, consent, edu,
       }));
     } catch {}
@@ -140,14 +183,19 @@ export default function Landing() {
     try {
       const s = JSON.parse(sessionStorage.getItem("jd_google_wiz") || "null");
       if (s) {
-        setRoleOpts(s.roleOpts || DEFAULT_ROLE_IDS);
-        setSkillOpts(s.skillOpts || SKILL_OPTS);
+        setRoleOpts(s.roleOpts || EXAMPLE_ROLE_IDS);
+        setExtraSkills(s.extraSkills || []);
         setRoles(new Set<string>(s.roles || []));
         setSkills(new Set<string>(s.skills || []));
-        setLoc(s.loc && s.loc.countries?.length ? s.loc : DEFAULT_LOCATION);
+        // Restored as stashed, empty selections included. The `countries?.length` /
+        // `levels?.length` tests these used to carry were how a *default* was re-imposed on
+        // someone who had cleared it; now that the default is itself empty they would only
+        // throw away the rest of a stashed value (the cities, the scope, the field of study)
+        // because one array inside it was legitimately empty.
+        setLoc(s.loc || DEFAULT_LOCATION);
         setWork(new Set<string>(s.work || []));
         setLevels(new Set<string>(s.levels || []));
-        setEdu(s.edu && s.edu.levels?.length ? s.edu : DEFAULT_EDUCATION);
+        setEdu(s.edu || DEFAULT_EDUCATION);
         setCvSignals(s.cvSignals || null);
         // Carried so someone who ticked the box before the OAuth hop is not asked twice.
         // `=== true` because anything else — absent key, older stashed state — must read as
@@ -183,17 +231,41 @@ export default function Landing() {
     setter(next);
   };
 
+  // A typed role is resolved against the vocabulary before it is stored, so "Data Engineer"
+  // becomes the `data_engineer` chip rather than the string "Data Engineer". Both halves of
+  // that matter: the id is what `SKILLS_BY_ROLE` is keyed on, so the skill column fills in as
+  // if the chip had been tapped, and it is what `roleCategory` reads, so the subscription
+  // carries `role_categories: ["data_engineering"]` instead of quietly settling for the
+  // keyword path. The old behaviour stored the raw text and lost both, with the chip sitting
+  // there looking recognised.
+  //
+  // Unresolved text is still added verbatim — Sales, Cybersecurity, IT Support — and still
+  // reaches `stack` as a keyword. That path is not being narrowed here, only the set of things
+  // that need it.
   const addCustomRole = () => {
-    const v = addRole.trim();
-    if (!v) return;
+    const typed = addRole.trim();
+    if (!typed) return;
+    const v = resolveRoleId(typed, t.roles) ?? typed;
     if (!roleOpts.includes(v)) setRoleOpts([...roleOpts, v]);
     addTo(roles, v, setRoles);
     setAddRole("");
   };
+  // Recorded in `extraSkills` as well as ticked, and the difference only shows when they untick
+  // it: a word someone took the trouble to type stays on offer, rather than disappearing the
+  // moment they change their mind about it.
   const addCustomSkill = () => {
-    const v = addSkill.trim();
-    if (!v) return;
-    if (!skillOpts.includes(v)) setSkillOpts([...skillOpts, v]);
+    const typed = addSkill.trim();
+    if (!typed) return;
+    // Ticked under the spelling already on offer, when there is one. Typing "sql" while the row
+    // shows "SQL" used to add a *second*, differently-cased entry to `skills`: the row deduped
+    // case-insensitively so no new chip appeared, `skills.has("SQL")` was still false so the
+    // one on screen stayed unpressed, and `stack` shipped the term anyway — a filter with no
+    // chip to show for it. Suggesting skills per role made that collision the common case
+    // rather than a curiosity, since the row now holds words the visitor is likely to type.
+    const v = skillOpts.find((s) => s.toLowerCase() === typed.toLowerCase()) ?? typed;
+    if (!extraSkills.some((s) => s.toLowerCase() === v.toLowerCase())) {
+      setExtraSkills([...extraSkills, v]);
+    }
     addTo(skills, v, setSkills);
     setAddSkill("");
   };
@@ -223,17 +295,14 @@ export default function Landing() {
         if (!nextRoleOpts.includes(r)) nextRoleOpts.push(r);
         nextRoles.add(r);
       });
-      // prefill skill chips
+      // prefill skill chips. They go into `extraSkills` for the same reason a typed one does —
+      // these came off the visitor's own CV, so unticking one must not take the word away.
       const skillLabels = sig.skills.map((s) => cap(s));
-      const nextSkillOpts = [...skillOpts];
       const nextSkills = new Set(skills);
-      skillLabels.forEach((s) => {
-        if (!nextSkillOpts.includes(s)) nextSkillOpts.push(s);
-        nextSkills.add(s);
-      });
+      skillLabels.forEach((s) => nextSkills.add(s));
       setRoleOpts(nextRoleOpts);
       setRoles(nextRoles);
-      setSkillOpts(nextSkillOpts);
+      setExtraSkills(mergeSkillOptions(extraSkills, skillLabels));
       setSkills(nextSkills);
       // Prefill seniority from the CV's detected level(s) — the user can still override before
       // subscribing. `sig.seniorities` already holds the stored codes, which is exactly what
@@ -246,9 +315,12 @@ export default function Landing() {
       // for. Deliberately a *UI* prefill only: the server never derives this from a CV, because
       // a CV that failed to mention a master's would otherwise silently delete every
       // master-requiring role from the digest. See `cvparse.merge_into_profile`.
+      // A CV that named a field but no level leaves the chips untouched — `[]` is "no
+      // preference", the same thing the all-ticked set used to say, and ticking all five on
+      // a detection that never happened is the pre-selection this screen just removed.
       if (sig.education || sig.education_field) {
         setEdu({
-          levels: sig.education ? levelsUpTo(sig.education) : [...EDUCATION_LEVELS],
+          levels: sig.education ? levelsUpTo(sig.education) : [],
           field: sig.education_field || "",
         });
       }
@@ -277,11 +349,14 @@ export default function Landing() {
     const workTypes: string[] = [];
     if (work.has("fulltime")) workTypes.push("permanent");
     if (work.has("freelance")) workTypes.push("freelance/contract");
-    // "Type of work — tap all that fit" is an inclusive multi-select, and Full-time ships
-    // pre-selected. Tapping Part-time therefore means "part-time fits me too", never "only
-    // part-time" — so it is only "only" when Full-time is not also selected. Sending the bare
-    // `work.has("parttime")` recorded part_time_only on subscribers who had Full-time visibly
-    // ticked, and the matcher then penalised every full-time role it showed them.
+    // "Type of work — tap all that fit" is an inclusive multi-select, so tapping Part-time
+    // means "part-time fits me too", never "only part-time" — it is only "only" when Full-time
+    // is not also selected. Sending the bare `work.has("parttime")` recorded part_time_only on
+    // subscribers who had Full-time visibly ticked, and the matcher then penalised every
+    // full-time role it showed them. That bug arrived because Full-time used to ship
+    // pre-selected; it no longer does, which makes the reading *more* load-bearing rather than
+    // less — Part-time alone is now a thing a visitor can genuinely mean, and this is the line
+    // that lets them say it.
     const partTimeOnly = work.has("parttime") && !work.has("fulltime");
     const seniorities = [...levels];
     // "Add another role…" lets someone type a role no category models — Sales, Cybersecurity,
@@ -305,7 +380,13 @@ export default function Landing() {
       stack: [...new Set([...skills, ...freeRoles]
         .map((s) => s.trim().toLowerCase()).filter(Boolean))],
       role_categories: roleSlugs,
-      countries: loc.countries.length ? loc.countries : ["CZ"],
+      // No `|| ["CZ"]`. That fallback was harmless while CZ was also the default, and became a
+      // trap the moment the default was emptied: it would answer "where can you work?" with a
+      // country the visitor never picked, in the one case where nothing else knows they didn't.
+      // `goNext` and both submit paths refuse an empty selection instead, so this is what they
+      // chose or the request does not happen. Should one ever be bypassed, the server reads an
+      // empty list as *no* country filter — wide, and visibly wrong — rather than as Czechia.
+      countries: loc.countries,
       cities: loc.cities,
       remote_scope: loc.remoteScope,
       work_modes: loc.workModes,
@@ -327,6 +408,7 @@ export default function Landing() {
 
   const submitGoogle = async () => {
     if (!consent) return show(t.landing.toast.needConsent);
+    if (loc.countries.length === 0) return show(t.landing.toast.needCountry);
     if (levels.size === 0) return show(t.landing.toast.needLevel);
     setSubmitting(true);
     track("subscribe_submitted", { skills: skills.size, variant: [...levels].join("+") || "none" });
@@ -345,6 +427,11 @@ export default function Landing() {
     if (googleMode) return submitGoogle();
     if (!consent) return show(t.landing.toast.needConsent);
     if (!email.trim().includes("@")) return show(t.landing.toast.needEmail);
+    // The step guards are the ones a visitor actually meets; these two are the backstop for a
+    // path that reaches the last panel without passing them — the Google round-trip forces
+    // `setStep(LAST)` from stashed state, so "you cannot get here without answering" is a
+    // property of the wizard's navigation rather than of this screen.
+    if (loc.countries.length === 0) return show(t.landing.toast.needCountry);
     if (levels.size === 0) return show(t.landing.toast.needLevel);
     // A real person blocked by the bot check is a UX failure worth seeing, not just a stat.
     if (turnstileEnabled && !tsToken) {
@@ -389,6 +476,11 @@ export default function Landing() {
     // is indexed by step number, so it silently stops guarding anything if the index is not
     // moved with the panel — and the failure is invisible: the visitor reaches the email box
     // with no level picked, and `submit` refuses at the very end instead of here.
+    // Countries stopped being pre-filled with CZ, so this is now the only thing standing
+    // between an untouched step 2 and `buildPayload`'s fallback quietly choosing a country for
+    // the visitor. It is checked before the level guard because it is the first question on
+    // the panel, and a toast should name the control nearest the top that still needs an answer.
+    if (step === 1 && loc.countries.length === 0) return show(t.landing.toast.needCountry);
     if (step === 1 && levels.size === 0) return show(t.landing.toast.needLevelToContinue);
     setStep((s) => Math.min(LAST, s + 1));
   };
@@ -483,49 +575,77 @@ export default function Landing() {
                       </div>
                     )}
                     <div className="cvor">{t.landing.orPickManually}</div>
+                    <p className="wz-hint wz-cols-note">{t.landing.q2hint}</p>
 
-                    <div className="chips">
-                      {roleOpts.map((o) => (
-                        <Chip key={o} label={roleLabel(o)} on={roles.has(o)}
-                          toggle={() => toggleIn(roles, o, setRoles)} />
-                      ))}
-                    </div>
-                    <div className="addwrap">
-                      <input
-                        type="text"
-                        value={addRole}
-                        onChange={(e) => setAddRole(e.target.value)}
-                        onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addCustomRole(); } }}
-                        placeholder={t.landing.addRolePlaceholder}
-                        aria-label={t.landing.addRoleAria}
-                      />
-                      <button type="button" onClick={addCustomRole}>{t.common.add}</button>
-                    </div>
+                    {/* Roles and skills side by side — one question about the visitor, asked
+                        once. The CV zone above spans both because it fills in both.
 
-                    {/* Skills, formerly step 2. Demoted from a `.wz-q` heading to a `.field`
-                        label, which is how every other sub-question in the wizard is written
-                        (`Work setup`, `Countries you can work in`). `q2` / `q2hint` are the same
-                        catalogue entries as before, so no language lost a translation in the
-                        move — only the element they render into changed. */}
-                    <div className="field wz-split">
-                      <label htmlFor="wz-add-skill">{t.landing.q2}</label>
-                      <p className="wz-hint">{t.landing.q2hint}</p>
-                      <div className="chips">
-                        {skillOpts.map((o) => (
-                          <Chip key={o} label={o} on={skills.has(o)} toggle={() => toggleIn(skills, o, setSkills)} />
-                        ))}
+                        Both labels come from `t.prefs.*`, not `t.landing.*`, and that is the
+                        point rather than a shortcut: these are the same two fields the
+                        subscriber edits on /preferences, so naming them differently on the two
+                        screens would be the drift this repo's one-definition-per-language rule
+                        exists to stop. They are also already translated in all eight
+                        catalogues, so a column heading needed no new string invented by someone
+                        who does not read Polish. `landing.q2` ("What are you good at?") is no
+                        longer rendered — a heading has to be parallel with the one beside it,
+                        and a question cannot sit next to a noun. */}
+                    <div className="wz-cols">
+                      <div className="field">
+                        <label htmlFor="wz-add-role">{t.prefs.roles}</label>
+                        <div className="chips">
+                          {roleOpts.map((o) => (
+                            <Chip key={o} label={roleLabel(o)} on={roles.has(o)}
+                              toggle={() => toggleIn(roles, o, setRoles)} />
+                          ))}
+                        </div>
+                        <div className="addwrap">
+                          <input
+                            id="wz-add-role"
+                            type="text"
+                            value={addRole}
+                            onChange={(e) => setAddRole(e.target.value)}
+                            onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addCustomRole(); } }}
+                            placeholder={t.landing.addRolePlaceholder}
+                            aria-label={t.landing.addRoleAria}
+                            list="wz-role-suggestions"
+                            autoComplete="off"
+                          />
+                          {/* Native `<datalist>`, not a combobox: it suggests without
+                              constraining, which is the exact shape of this control — the box
+                              has to keep accepting a role the taxonomy models with nothing, so
+                              anything that turned it into a closed list of ten would break the
+                              rule that a stated role never vanishes. It also costs no
+                              dependency and no ARIA of our own in a static export.
+                              `autoComplete="off"` so the browser's own form history does not
+                              open a second competing dropdown over this one. */}
+                          <datalist id="wz-role-suggestions">
+                            {roleSuggestions.map((label) => (
+                              <option key={label} value={label} />
+                            ))}
+                          </datalist>
+                          <button type="button" onClick={addCustomRole}>{t.common.add}</button>
+                        </div>
                       </div>
-                      <div className="addwrap">
-                        <input
-                          id="wz-add-skill"
-                          type="text"
-                          value={addSkill}
-                          onChange={(e) => setAddSkill(e.target.value)}
-                          onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addCustomSkill(); } }}
-                          placeholder={t.landing.addSkillPlaceholder}
-                          aria-label={t.landing.addSkillAria}
-                        />
-                        <button type="button" onClick={addCustomSkill}>{t.common.add}</button>
+
+                      <div className="field">
+                        <label htmlFor="wz-add-skill">{t.prefs.skills}</label>
+                        <div className="chips">
+                          {skillOpts.map((o) => (
+                            <Chip key={o} label={o} on={skills.has(o)} toggle={() => toggleIn(skills, o, setSkills)} />
+                          ))}
+                        </div>
+                        <div className="addwrap">
+                          <input
+                            id="wz-add-skill"
+                            type="text"
+                            value={addSkill}
+                            onChange={(e) => setAddSkill(e.target.value)}
+                            onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addCustomSkill(); } }}
+                            placeholder={t.landing.addSkillPlaceholder}
+                            aria-label={t.landing.addSkillAria}
+                          />
+                          <button type="button" onClick={addCustomSkill}>{t.common.add}</button>
+                        </div>
                       </div>
                     </div>
                   </div>

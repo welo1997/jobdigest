@@ -161,6 +161,7 @@ export interface Messages {
       needEmail: string;
       needTurnstile: string;
       needRole: string;
+      needCountry: string;
       needLevelToContinue: string;
       genericError: string;
     };

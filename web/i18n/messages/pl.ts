@@ -196,6 +196,7 @@ const pl: Messages = {
       needEmail: "Podaj prawidłowy e-mail",
       needTurnstile: "Ukończ weryfikację",
       needRole: "Wybierz co najmniej jedno stanowisko, aby kontynuować",
+      needCountry: "Wybierz co najmniej jeden kraj, aby kontynuować",
       needLevelToContinue: "Wybierz co najmniej jeden poziom, aby kontynuować",
       genericError: "Coś poszło nie tak — spróbuj ponownie",
     },

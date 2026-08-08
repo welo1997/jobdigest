@@ -199,6 +199,7 @@ const de: Messages = {
       needEmail: "Gib eine gültige E-Mail-Adresse ein",
       needTurnstile: "Bitte schließe die Verifizierung ab",
       needRole: "Wähle mindestens eine Position, um fortzufahren",
+      needCountry: "Wähle mindestens ein Land, um fortzufahren",
       needLevelToContinue: "Wähle mindestens ein Level, um fortzufahren",
       genericError: "Etwas ist schiefgelaufen — bitte erneut versuchen",
     },

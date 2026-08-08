@@ -198,6 +198,7 @@ const sk: Messages = {
       needEmail: "Zadajte platný e-mail",
       needTurnstile: "Dokončite prosím overenie",
       needRole: "Pokračujte výberom aspoň jednej pozície",
+      needCountry: "Pokračujte výberom aspoň jednej krajiny",
       needLevelToContinue: "Pokračujte výberom aspoň jednej úrovne",
       genericError: "Niečo sa pokazilo — skúste to prosím znova",
     },

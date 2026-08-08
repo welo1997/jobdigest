@@ -192,6 +192,7 @@ const it: Messages = {
       needEmail: "Inserisci una e-mail valida",
       needTurnstile: "Completa la verifica",
       needRole: "Scegli almeno una posizione per continuare",
+      needCountry: "Scegli almeno un paese per continuare",
       needLevelToContinue: "Scegli almeno un livello per continuare",
       genericError: "Qualcosa è andato storto — riprova",
     },

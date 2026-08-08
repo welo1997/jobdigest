@@ -155,6 +155,39 @@ def test_frontend_maps_only_reference_real_categories():
     )
 
 
+def test_skill_suggestions_are_keyed_by_real_role_ids():
+    """`SKILLS_BY_ROLE` drives the skill chips the signup wizard offers for the picked roles.
+
+    It is keyed by role **chip id**, and a key that matches no chip is the quietest possible
+    bug: `suggestedSkills` looks the id up, finds nothing, and contributes nothing — so the
+    role simply offers no skills and every other role still does. Nothing throws, nothing
+    logs, and the column looks plausible. Renaming a chip in `ROLE_OPTIONS` without renaming
+    it here does exactly that, which is why the check is on the *keys* rather than on the
+    values: the words themselves are editorial, the ids are a contract.
+
+    Not asserted: that every role has an entry. A role with no suggestions is a legitimate
+    state — it falls back to handing the question to the visitor, the same way a typed role
+    does — so requiring one would be a rule about copy, enforced as a test.
+    """
+    text = WEB_OPTIONS.read_text(encoding="utf-8")
+
+    options = re.search(r"export const ROLE_OPTIONS[^=]*=\s*\[(.*?)\n\];", text, re.S)
+    assert options, f"ROLE_OPTIONS not found in {WEB_OPTIONS.name}"
+    role_ids = set(re.findall(r'id:\s*"([a-z_]+)"', options.group(1)))
+    assert role_ids, "no role ids extracted — the parse, not the frontend, is broken"
+
+    block = re.search(r"export const SKILLS_BY_ROLE[^=]*=\s*\{(.*?)\n\};", text, re.S)
+    assert block, f"SKILLS_BY_ROLE not found in {WEB_OPTIONS.name}"
+    keyed = set(re.findall(r"^\s*([a-z_]+):\s*\[", block.group(1), re.M))
+    assert keyed, "no keys extracted — the parse, not the frontend, is broken"
+
+    unknown = keyed - role_ids
+    assert not unknown, (
+        "web/lib/options.ts suggests skills for role chips that do not exist: "
+        f"{sorted(unknown)} — these suggestions can never be shown"
+    )
+
+
 def test_every_language_names_every_category_in_its_subject_words():
     """`i18n.SUBJECT_WORDS` is what the digest subject calls a category, per language.
 
