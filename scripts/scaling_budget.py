@@ -79,6 +79,15 @@ REPRESENTATIVE_DESC_SHARE = 0.5
 
 DEFAULT_AT = (10, 100, 1_000, 10_000)
 
+#: What actually bounds a shard of `shortlists.json`. `deploy/matcher-routine.md` has the
+#: routine read the file and iterate every subscriber in one pass, so a shard has to fit in
+#: one context window — the limit is tokens, not megabytes, and it therefore *falls* as the
+#: per-subscriber payload grows. Sharding by file size would pick the wrong boundary.
+CONTEXT_TOKENS = 1_000_000
+#: Instructions, the model's own output, and headroom. Stated rather than hidden because it is
+#: the one number here nobody has measured; the shard band moves linearly with it.
+CONTEXT_USABLE_SHARE = 0.7
+
 
 class NotMeasurable(Exception):
     """The file holds nothing to measure — refuse rather than divide by zero."""
@@ -167,6 +176,44 @@ def measure(payload: dict) -> Measurement:
     )
 
 
+@dataclass
+class ShardPlan:
+    n: int
+    per_shard_min: int      # when each subscriber costs the most
+    per_shard_max: int      # when each costs the least
+    shards_min: int
+    shards_max: int
+
+
+def shard_plan(m: Measurement, n: int) -> ShardPlan:
+    """How many subscribers fit one routine invocation, and how many invocations that needs.
+
+    **`ceil`, never floor.** Rounding the shard count down drops the remainder, and a
+    subscriber who falls off the end of the plan is not an error anywhere — they simply never
+    get matched. That is `sendable_profiles`' tail problem in a new place, and it is the kind
+    of arithmetic that looks like a rounding detail right up until somebody stops receiving
+    email.
+    """
+    import math
+
+    usable = CONTEXT_TOKENS * CONTEXT_USABLE_SHARE
+    if m.measured_tokens_per_profile is not None:
+        lo = hi = m.measured_tokens_per_profile
+    else:
+        lo = m.bytes_per_profile / CHARS_PER_TOKEN_HIGH
+        hi = m.bytes_per_profile / CHARS_PER_TOKEN_LOW
+    if hi >= usable:
+        raise NotMeasurable(
+            f"one subscriber is ~{hi:,.0f} tokens against {usable:,.0f} usable — a single "
+            f"subscriber does not fit one context window, so sharding is not the fix. Shrink "
+            f"the shortlist or the description budget first."
+        )
+    per_max = int(usable // lo)
+    per_min = int(usable // hi)
+    return ShardPlan(n=n, per_shard_min=per_min, per_shard_max=per_max,
+                     shards_min=math.ceil(n / per_max), shards_max=math.ceil(n / per_min))
+
+
 def project(m: Measurement, n: int) -> Projection:
     """What N subscribers cost the matcher per day, at one call per subscriber per day."""
     if m.measured_tokens_per_profile is not None:
@@ -244,6 +291,23 @@ def render(m: Measurement, at: list[int] | tuple[int, ...] = DEFAULT_AT) -> str:
         span = _fmt(p.tokens_per_day_low) if exact else \
             f"{_fmt(p.tokens_per_day_low)} - {_fmt(p.tokens_per_day_high)}"
         lines.append(f"    {n:>7,} subscribers   {span:>20} tokens")
+
+    # The routine reads a file and iterates every subscriber in one pass, so a shard is
+    # bounded by one context window rather than by bytes. Each shard is one model pass, so
+    # this row is also the number of routine invocations a day costs.
+    try:
+        lines += ["", f"  shards of shortlists.json  (one routine pass each, "
+                      f"{int(CONTEXT_USABLE_SHARE * 100)}% of {_fmt(CONTEXT_TOKENS)} ctx)",
+                  "  " + "-" * 46]
+        for n in at:
+            sp = shard_plan(m, n)
+            per = (f"{sp.per_shard_min}" if sp.per_shard_min == sp.per_shard_max
+                   else f"{sp.per_shard_min}-{sp.per_shard_max}")
+            cnt = (f"{sp.shards_min}" if sp.shards_min == sp.shards_max
+                   else f"{sp.shards_min}-{sp.shards_max}")
+            lines.append(f"    {n:>7,} subscribers   {per:>12} per shard   {cnt:>12} shards")
+    except NotMeasurable as exc:
+        lines += ["", f"  shards: {exc}"]
 
     if m.warnings:
         lines += ["", "  warnings", "  " + "-" * 46]

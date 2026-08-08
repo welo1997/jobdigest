@@ -182,6 +182,52 @@ def test_token_estimate_is_a_band_and_brackets_the_ratio():
     assert p.tokens_per_day_high == pytest.approx(m.bytes_per_profile / sb.CHARS_PER_TOKEN_LOW, rel=1e-6)
 
 
+# --- what actually bounds a shard -----------------------------------------------------------
+
+
+def test_shard_size_is_bounded_by_context_not_bytes():
+    """`deploy/matcher-routine.md` has the routine read the file and iterate every subscriber
+    in one pass, so a shard has to fit in one context window. Megabytes are not the limit;
+    tokens are — which makes shard size fall as the per-subscriber payload grows.
+    """
+    small = sb.measure(_payload(n_candidates=sb.SHORTLIST_SIZE, desc_len=40))
+    large = sb.measure(_payload(n_candidates=sb.SHORTLIST_SIZE, desc_len=sb.DESC_CHARS))
+    assert sb.shard_plan(small, 10_000).per_shard_max > \
+        sb.shard_plan(large, 10_000).per_shard_max
+
+
+def test_a_partial_shard_still_counts_as_a_shard():
+    """Rounding down would silently drop the remainder.
+
+    This is the `sendable_profiles` tail problem in a new place: a subscriber who falls off
+    the end of the shard plan is not an error anywhere, they simply never get matched.
+    """
+    m = sb.measure(_payload(n_candidates=sb.SHORTLIST_SIZE, desc_len=sb.DESC_CHARS))
+    plan = sb.shard_plan(m, 10_000)
+    assert plan.per_shard_min >= 1
+    assert plan.shards_max * plan.per_shard_min >= 10_000
+    assert plan.shards_min * plan.per_shard_max >= 10_000
+
+
+def test_one_subscriber_needs_one_shard_not_zero():
+    m = sb.measure(_payload(n_candidates=sb.SHORTLIST_SIZE, desc_len=sb.DESC_CHARS))
+    assert sb.shard_plan(m, 1).shards_max == 1
+
+
+def test_a_payload_too_large_for_any_context_is_refused_not_rounded_to_zero():
+    """If one subscriber cannot fit a context window, sharding is not the answer and the tool
+    must say so rather than reporting a shard that cannot exist."""
+    m = sb.measure(_payload(n_candidates=sb.SHORTLIST_SIZE, desc_len=sb.DESC_CHARS))
+    m.measured_tokens_per_profile = sb.CONTEXT_TOKENS * 2
+    with pytest.raises(sb.NotMeasurable):
+        sb.shard_plan(m, 100)
+
+
+def test_the_report_names_the_shard_count():
+    m = sb.measure(_payload(n_candidates=sb.SHORTLIST_SIZE, desc_len=sb.DESC_CHARS))
+    assert "shard" in sb.render(m, [10_000]).lower()
+
+
 # --- it must not leak what it is measuring ------------------------------------------------
 
 
