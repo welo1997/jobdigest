@@ -29,6 +29,32 @@ chmod 700 "$EX"
 case "${1:-}" in
   export)
     $COMPOSE run --rm pipeline python -m service.ingest --cz
+
+    # Embed what the ingest just added, in its OWN container and BEFORE the shortlist export.
+    #
+    # Own container, because peak RAM is then max(ingest, embed) rather than their sum. Both
+    # halves are measured on this box: ingest peaks at 1334 MiB (cgroup memory.peak, 2026-08-08)
+    # and embed at +740 MB, against 3814 MB total and NO SWAP. Sequential fits with ~1.4 GB to
+    # spare; concurrent would leave ~600 MB, and an over-commit here is the OOM killer taking
+    # Postgres, not a slowdown.
+    #
+    # BEFORE the export, because `export_shortlists` runs `query_shortlist_vector` to record
+    # `shortlist_shadow`. A posting with a null embedding is invisible to that query, so running
+    # embed afterwards would make the shadow structurally blind to the 7-11k postings ingested
+    # minutes earlier — exactly the freshest inventory the live keyword path favours via
+    # `first_seen_at desc`. The comparison the shadow exists to enable would then be rigged
+    # against the vector side every single day, and nothing would say so.
+    #
+    # NON-FATAL, because this script runs under `set -euo pipefail` and the shadow is read by
+    # nothing on the delivery path. A failure here must cost a day of measurement, never a day
+    # of digests — the same reasoning that puts `--check-coverage` last in the import branch.
+    # It is echoed to stderr so a silent degradation still lands in the journal.
+    #
+    # Cost measured 2026-08-08: 2459 postings in 171s (14.4/s), so a typical 7-11k daily delta
+    # is ~8-13 min inside a window that runs 03:00 -> ~06:00 and currently uses ~42 min.
+    $COMPOSE run --rm pipeline python -m service.backfill_embeddings \
+      || echo "export: embedding backfill FAILED — shortlist_shadow will be stale, digests unaffected" >&2
+
     $COMPOSE run --rm pipeline python -m service.matcher --export /exchange/shortlists.json
     rclone copyto "$EX/shortlists.json" "$REMOTE/shortlists.json"
     echo "export: shortlists.json pushed to $REMOTE"

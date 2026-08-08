@@ -49,7 +49,7 @@ notes/            session logs, security review; notes/INFRA.local.md is gitigno
 ### Flow
 
 ```
-03:00 UTC  export   ingest sources → Postgres → write shortlists.json → Google Drive
+03:00 UTC  export   ingest sources → Postgres → embed new rows → shortlists.json → Drive
 ~06:00     routine  claude.ai reads shortlists.json → writes picks.json      (no DB, no key)
 07:00 UTC  import   pull picks.json → validate → matches → build + send digests
 08:00 UTC  sources  per-source freshness + churn → alert if a source silently died
@@ -61,6 +61,44 @@ Retrieve-then-rerank: a cheap full-text prefilter builds a ~120-posting shortlis
 subscriber, then one Claude call reads the whole shortlist in context and picks what fits.
 Cost scales with subscribers, not inventory. Candidates go to the model by integer index —
 posting IDs never round-trip — and invented indices are dropped.
+
+**The shortlist stays keyword-retrieved at ~120, and that is a measured decision, not inertia**
+(2026-08-08, `notes/2026-08-08-phase1-vector-gate.md`). The plan was to hand the matcher ~25
+vector-retrieved candidates instead — a 5–10× token cut, and the thing that makes cost survive
+growth. `scripts/measure_shadow_recall.py` was built as the falsifiable gate for it and **came
+back negative**: against 100% vector coverage, recall@25 of the AI's own past picks is
+**16.4% / 6.2% / 1.4%** across the three subscribers, and even recall@120 only reaches
+41% / 16% / 5%. Narrowing would drop jobs subscribers currently receive.
+
+Read the reason carefully, because the obvious conclusion is wrong. **The vector path is not
+broken** — inspected directly on production, it returns on-topic candidates (Data Engineer,
+Platform Data Engineer, Product Data Analyst in the right country for a data/product profile).
+It surfaces a *different* set of equally plausible jobs than the keyword path did. And `matches`
+was populated from **keyword** shortlists, so anything only vectors would find cannot appear in
+the ground truth and cannot be credited — recall@K is a necessary condition, never evidence of
+improvement, as the script's own docstring says. What is proven is "narrowing loses things",
+not "vectors don't work". **The seniority blindness is now visible in production rather than in
+a fixture**: for a junior–mid subscriber the vector top two are *Senior* Data Platform Engineer
+and *Manager*, Data & AI. Filtering `profiles.seniorities` before the vector sort, instead of
+hoping cosine encodes it, is the cheap next experiment.
+
+So **the live vector path was deliberately not built** — the handoff gated it on this gate, and
+the gate said no; an opt-in flag would be a switch nobody should throw. What *is* running is
+`shortlist_shadow`: `export_shortlists` records the vector top-K alongside the live shortlist
+every day, reading nothing on the delivery path, and it is the only thing that can measure
+improvement rather than agreement. **Do not re-open this from intuition** — re-open it on
+accumulated shadow days, on seniority being gated outside cosine, or on subscriber count making
+the token cost binding. All three are stated in the note.
+
+**The embed step runs between the ingest and the shortlist export, in its own container, and is
+non-fatal.** Own container so peak RAM is `max(ingest, embed)` — measured **1334 MiB** and
+**+740 MB** against 3814 MB with no swap, where an over-commit is the OOM killer taking
+Postgres. *Before* the export because a null embedding is invisible to `query_shortlist_vector`,
+so embedding afterwards would leave the shadow blind to the 7–11k rows ingested minutes earlier
+— the freshest inventory, which is exactly what the live path favours via `first_seen_at desc`,
+rigging the comparison against the vector side daily with nothing reporting it. Non-fatal
+because `jobdigest-match.sh` runs under `set -euo pipefail` and a measurement must never cost a
+day of digests. Costs ~8–13 min for a normal daily delta (measured 14.4 docs/s).
 
 Picks ≥ `MATCH_FLOOR` (4) are stored; only ≥ `EMAIL_MIN_SCORE` (6) are emailed. The rest
 show on the subscriber's `/matches` page. `digest_sends` guarantees a job is never emailed
