@@ -30,7 +30,26 @@ COPY search_jobs.py ./search_jobs.py
 # contributed 0 rows to production while every check stayed green.
 COPY dbt/seeds/target_companies.csv ./dbt/seeds/target_companies.csv
 
-# Run as non-root.
+# Bake the embedding model into the image rather than fetching it on first use.
+#
+# fastembed downloads ~250MB of ONNX weights the first time a model is instantiated. Left to
+# run time that is a source which fetches on demand, and this repo has been bitten by that
+# shape more than once: it fails on a network hiccup, inside a container with no terminal, at
+# 03:00, and the symptom is an absence rather than an error. Baking it also means the image is
+# the whole artifact — `docker run` needs no egress to Hugging Face.
+#
+# FASTEMBED_CACHE_PATH is set explicitly because the default is a temp directory: it would be
+# wiped, silently re-downloaded, and the build-time download would have bought nothing.
+#
+# The model name comes from service/embed.py rather than being repeated here. It is pinned
+# alongside the fastembed version as part of the embedding identity (EMBEDDING_MODEL_ID), and a
+# second copy in a Dockerfile is exactly how an image ends up baking one model while the code
+# requests another — then fetching the difference at run time, at 03:00, quietly.
+ENV FASTEMBED_CACHE_PATH=/app/.fastembed_cache
+RUN python -c "from service import embed; embed._load(); print('baked', embed.EMBEDDING_MODEL_ID)"
+
+# Run as non-root. The chown covers .fastembed_cache above, so the app user can read the
+# weights without being able to replace them.
 RUN useradd -m app && chown -R app /app
 USER app
 
