@@ -16,5 +16,5 @@
 # side's tooling and drags the whole root stack in with `-r requirements.txt`.
 -r requirements-worker.txt
 
-pytest==9.0.3
+pytest==9.1.1
 pytest-mock==3.15.1
