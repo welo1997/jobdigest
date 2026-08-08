@@ -14,6 +14,7 @@ import {
 import { track } from "@/lib/analytics";
 import { LocationPicker, LocationValue } from "@/components/LocationPicker";
 import { EducationPicker, EducationValue } from "@/components/EducationPicker";
+import { SuggestInput } from "@/components/SuggestInput";
 import {
   cleanEducationField, cleanEducationLevels, levelsUpTo,
 } from "@/lib/education";
@@ -242,8 +243,12 @@ export default function Landing() {
   // Unresolved text is still added verbatim — Sales, Cybersecurity, IT Support — and still
   // reaches `stack` as a keyword. That path is not being narrowed here, only the set of things
   // that need it.
-  const addCustomRole = () => {
-    const typed = addRole.trim();
+  //
+  // Takes the text explicitly, because the suggestion list submits the option that was clicked
+  // rather than what is in the box — reading `addRole` here would add the half-typed prefix
+  // instead of the row the visitor pointed at. It defaults to the box for the Add button.
+  const addCustomRole = (text: string = addRole) => {
+    const typed = text.trim();
     if (!typed) return;
     const v = resolveRoleId(typed, t.roles) ?? typed;
     if (!roleOpts.includes(v)) setRoleOpts([...roleOpts, v]);
@@ -599,31 +604,25 @@ export default function Landing() {
                           ))}
                         </div>
                         <div className="addwrap">
-                          <input
-                            id="wz-add-role"
-                            type="text"
+                          {/* Suggests without constraining, which is the exact shape this
+                              control has to keep: the box must go on accepting a role the
+                              taxonomy models with nothing — Sales, Cybersecurity, IT support —
+                              so anything that turned it into a closed list of ten would break
+                              the rule that a stated role never vanishes. This was a native
+                              `<datalist>`, which got that for free but drew its popup at
+                              content width under one end of a much wider field, and a
+                              browser-drawn popup is not reachable from CSS. See
+                              `SuggestInput` for what owning the list costs. */}
+                          <SuggestInput
+                            inputId="wz-add-role"
                             value={addRole}
-                            onChange={(e) => setAddRole(e.target.value)}
-                            onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addCustomRole(); } }}
+                            onChange={setAddRole}
+                            onSubmit={addCustomRole}
+                            options={roleSuggestions}
                             placeholder={t.landing.addRolePlaceholder}
-                            aria-label={t.landing.addRoleAria}
-                            list="wz-role-suggestions"
-                            autoComplete="off"
+                            ariaLabel={t.landing.addRoleAria}
                           />
-                          {/* Native `<datalist>`, not a combobox: it suggests without
-                              constraining, which is the exact shape of this control — the box
-                              has to keep accepting a role the taxonomy models with nothing, so
-                              anything that turned it into a closed list of ten would break the
-                              rule that a stated role never vanishes. It also costs no
-                              dependency and no ARIA of our own in a static export.
-                              `autoComplete="off"` so the browser's own form history does not
-                              open a second competing dropdown over this one. */}
-                          <datalist id="wz-role-suggestions">
-                            {roleSuggestions.map((label) => (
-                              <option key={label} value={label} />
-                            ))}
-                          </datalist>
-                          <button type="button" onClick={addCustomRole}>{t.common.add}</button>
+                          <button type="button" onClick={() => addCustomRole()}>{t.common.add}</button>
                         </div>
                       </div>
 

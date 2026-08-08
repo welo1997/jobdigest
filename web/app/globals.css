@@ -216,6 +216,24 @@ button.nav-link{background:none;border:0;padding:0;cursor:pointer;font-family:in
 .addwrap button{font:inherit;font-weight:700;font-size:var(--fs-sm);color:var(--brand);background:var(--brand-tint);
   border:0;border-radius:var(--r-sm);padding:0 16px;cursor:pointer;}
 
+/* SuggestInput. The wrapper takes the flex slot the bare input used to hold, and the input
+   fills it — so `left:0;right:0` on the list is the field's own width, which is the whole
+   point of replacing the native <datalist> (the browser drew that popup at content width,
+   under one end of a much wider box). `min-width:0` because a flex item defaults to
+   min-width:auto and an input carries an intrinsic size, which would otherwise push the
+   two-column layout wider than its track on a narrow screen instead of shrinking. */
+.addwrap .sugg{flex:1;min-width:0;position:relative;}
+.addwrap .sugg input{width:100%;}
+/* Below the sticky .nav (z-index 30) on purpose: a suggestion list that paints over the site
+   header would cover the language switcher and the theme toggle. */
+.sugg-list{position:absolute;top:calc(100% + 5px);left:0;right:0;z-index:20;margin:0;padding:5px;
+  list-style:none;max-height:236px;overflow-y:auto;background:var(--surface);
+  border:1px solid var(--line);border-radius:var(--r-sm);box-shadow:var(--shadow-lg);}
+.sugg-list li{font-size:var(--fs-sm);color:var(--ink);padding:9px 11px;border-radius:6px;cursor:pointer;}
+/* Hover and keyboard highlight are the same state, so arrowing and pointing cannot disagree
+   about which row is current — `onMouseEnter` moves `active`, and this styles it once. */
+.sugg-list li[aria-selected="true"]{background:var(--brand-tint);color:var(--brand);font-weight:600;}
+
 .emailin{width:100%;font:inherit;font-size:1.05rem;color:var(--ink);background:var(--paper);
   border:1.5px solid var(--line);border-radius:var(--r-md);padding:15px 16px;margin-top:4px;}
 .emailin:focus{border-color:var(--brand);box-shadow:0 0 0 3px var(--brand-tint);outline:none;}
