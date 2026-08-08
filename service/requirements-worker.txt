@@ -11,3 +11,18 @@ requests==2.34.2
 beautifulsoup4==4.15.0
 # AI matcher (service.pipeline --match -> service.matcher -> Claude)
 anthropic==0.120.2
+# Retrieval embeddings (service/embed.py). onnxruntime + tokenizers, deliberately NOT torch:
+# the VPS has 3814MB and no swap, so torch's 2-3GB install and runtime overhead is not a
+# tradeoff, it is an OOM with Postgres as the likely victim. fastembed is ~50MB.
+#
+# **Pinned exactly, and the version is part of the embedding identity.** 0.8.0 warns that
+# paraphrase-multilingual-MiniLM-L12-v2 "now uses mean pooling instead of CLS embedding" — a
+# library upgrade that moves the vector space while the model name stays identical. Bumping this
+# pin means re-running the backfill, or `postings.embedding` holds two incomparable spaces at
+# once and cosine distance silently compares nonsense. See service/embed.py's
+# EMBEDDING_MODEL_ID, which records this version so a partial re-embed is visible.
+#
+# `api` and `pipeline` build from the same root Dockerfile, so these land in the API image too.
+# That is why service/embed.py loads the model **lazily** — the always-on api container carries
+# the ~250MB of weights on disk but never pulls ~550MiB of them into RAM.
+fastembed==0.8.0
