@@ -15,8 +15,23 @@ fix is `hnsw.iterative_scan`, and `test_the_scan_is_told_not_to_stop_at_ef_searc
 that line is ever removed — the behavioural version would need tens of thousands of indexed
 rows to reproduce, so the mechanism is pinned directly instead.
 
-Same harness and reason as `test_geo_sql.py` — see its docstring for the throwaway database
-recipe. It additionally needs pgvector, which `deploy/db.Dockerfile` builds.
+Same harness and reason as `test_geo_sql.py`, but **do not reuse that file's recipe**: it
+starts `postgres:16`, which has no pgvector, so every case here skips itself and the run reads
+green. This file needs its own database, and the port is deliberately not 5434 — the plain
+`postgres:16` the other SQL tests use is usually already sitting there.
+
+    docker build -f deploy/db.Dockerfile -t jobdigest-db:pg16-pgvector .
+    docker run --rm -d --name jd_test_pg -e POSTGRES_USER=jobmatch \\
+      -e POSTGRES_PASSWORD=jobmatch -e POSTGRES_DB=jobmatch \\
+      -e POSTGRES_INITDB_ARGS="--locale=en_US.utf8" -p 5435:5432 jobdigest-db:pg16-pgvector
+    docker exec -i jd_test_pg psql -U jobmatch -d jobmatch < service/db/schema.sql
+    TEST_DATABASE_URL=postgresql://jobmatch:jobmatch@localhost:5435/jobmatch \\
+      python -m pytest service/tests -q
+
+`schema.sql` alone is enough — it carries the migration 015 shape — and the fixture reports
+which half is missing rather than failing obscurely: no `vector` extension and no
+`shortlist_shadow` skip with different reasons. **A skip here is a configuration failure, not
+a pass**; CI enforces that by failing the build if any `test_*_sql.py` file skips.
 Skipped when TEST_DATABASE_URL is unset.
 """
 

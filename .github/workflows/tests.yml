@@ -46,7 +46,15 @@ jobs:
     # of its cases had never run anywhere. A throwaway Postgres makes them real.
     services:
       postgres:
-        image: postgres:16
+        # pgvector, because schema.sql declares `create extension vector` and the SQL-backed
+        # tests below fail the build if they skip themselves. NOT the same call as the VPS:
+        # CLAUDE.md forbids `pgvector/pgvector:pg16` for the *live* database because that image
+        # is Debian/glibc while the cluster was initdb'd on Alpine/musl, and pointing an
+        # existing data directory at the other libc leaves every indexed text column sorted by
+        # rules the server no longer uses. Here the database is created from empty on every
+        # run, so there is no data directory to mis-sort — and the previous `postgres:16` was
+        # glibc too, so this changes nothing about what CI has always tested on.
+        image: pgvector/pgvector:pg16
         env:
           POSTGRES_USER: jobmatch
           POSTGRES_PASSWORD: jobmatch
