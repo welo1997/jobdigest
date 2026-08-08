@@ -857,9 +857,10 @@ Five things are load-bearing:
   silently stops bounding a source. Same lesson as `pending_boards.py` and the CI skip-check.
 
 It samples the **adapters**, not the database, so it proves the URL an adapter builds *today*
-resolves — not that stored rows carry it. Baseline 2026-08-08: 63 links across 21 sources —
-**45 OK, 0 DEAD, 0 MISMATCH**, every non-OK result one of the six browser-confirmed sources
-above. Widened to 8 boards × 8 links it found the two dead employer boards below.
+resolves — not that stored rows carry it. Baseline 2026-08-08, after the two removals below and at 6 boards × 5 links: **105 links
+across 21 sources — 77 OK, 0 DEAD, 0 MISMATCH**, every non-OK result one of the six
+browser-confirmed sources above, exit 0. The narrow first pass (63 links, one board per ATS)
+missed both dead boards; widening to 8 × 8 is what found them.
 
 **A live API is not a live board, and `probe_boards.py` structurally cannot see the
 difference** — it reads the API, which is the half that stays alive. The wide run found two:
