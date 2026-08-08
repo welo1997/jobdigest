@@ -55,6 +55,9 @@ ORGS = [
     # EU-based (FR/DE/NL/PT), which the rest of this list is thin on
     # `forto` was here and was removed 2026-08-08 — see the note below.
     "alan", "swan", "tacto", "choco", "oyster",
+    # Added 2026-08-08 to replace the dead `lever:ledger` board — same company,
+    # 9 live postings. See the lever ORGS note.
+    "ledger",
     # second wave, verified 2026-08-01 — AI labs and applied-AI, the densest hiring segment
     "perplexity", "cognition", "decagon", "mercor", "suno", "pika", "listenlabs",
     "physicalintelligence", "poolside", "rogo", "legora", "granola",

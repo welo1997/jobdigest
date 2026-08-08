@@ -87,7 +87,7 @@ sys.path.insert(0, __file__.rsplit("scripts", 1)[0])
 from ingestion import politeness  # noqa: E402
 from search_jobs import source_classes  # noqa: E402
 
-logging.basicConfig(level=logging.WARNING, format="%(levelname)s %(name)s: %(message)s")
+logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
 logger = logging.getLogger("check_links")
 
 try:                                    # Windows consoles still default to cp1250
@@ -487,7 +487,124 @@ def check_source(cls: type, want: int) -> list[dict]:
         rows.append({"source": src_name, "verdict": verdict, "note": note,
                      "url": p.url, "title": p.title, "company": p.company})
         print(f"  {verdict:9} {p.url[:96]}\n            {note}", flush=True)
+
+    # How much of the source's board list is actually behind these links, and — the part that
+    # matters at full coverage — which boards contributed **nothing**.
+    #
+    # A board that yields no posting is not "fine", it is *unprobed*, and at 650 boards that
+    # is not a rare edge: `boards-api.greenhouse.io` starts read-timing-out under a long
+    # sequential sweep, and a timed-out board is swallowed by the adapter as a warning and an
+    # empty list. Counting those as checked would make "all 650 verified" false — the silent
+    # zero this repo keeps re-learning, this time inside the checker itself. `ashby:forto`
+    # is the standing proof that silence here cannot be read as health.
+    configured = _boards_configured(cls)
+    if configured is not None:
+        covered = {_slugish(r["company"]) for r in rows}
+        for r in rows:
+            covered |= _url_tokens(r["url"])
+        missing = sorted(b for b in configured if not _covered(b, covered))
+        print(f"  -- {len(configured) - len(missing)} of {len(configured)} boards produced "
+              f"a link", flush=True)
+        if missing:
+            print(f"  -- NO LINK from {len(missing)}: {', '.join(missing[:40])}"
+                  + (" …" if len(missing) > 40 else ""), flush=True)
+        for board in missing:
+            rows.append({"source": src_name, "verdict": "NO LINK", "url": "", "title": "",
+                         "company": board,
+                         "note": "board contributed no posting — unprobed, not verified"})
     return rows
+
+
+_SLUG_TAIL = re.compile(r"\d+$")
+
+
+def _slugish(text: Optional[str]) -> str:
+    """Lowercase alphanumerics only — the one form a slug and a display name can share.
+
+    A board list holds slugs (`critical-manufacturing`, `hellasdirect`) while a posting
+    carries the employer's display name ("Critical Manufacturing", "Hellas Direct"), so a
+    literal comparison reports working boards as unprobed. It did: the first full-coverage
+    run called `skroutz` uncovered while an OK link from that very board sat three lines
+    above. A checker whose *accounting* is wrong is worse than one that checks less.
+    """
+    return re.sub(r"[^a-z0-9]", "", _fold(text or ""))
+
+
+def _url_tokens(url: str) -> set[str]:
+    """Host labels plus the first path segment — the places a board slug shows up in a link.
+
+    Slugifying the whole URL does not work: Isabel Group's board is `isabelgroup` but its
+    postings live on `careers.isabel.eu`, and neither string contains the other once the
+    whole URL is mashed together. Splitting the host into labels gives `isabel`, which *is*
+    inside `isabelgroup`. Without this the run reported a board with six live postings as
+    unprobed.
+    """
+    if "://" not in url:
+        return set()
+    rest = url.split("://", 1)[1]
+    host, _, path = rest.partition("/")
+    parts = [p for p in host.split(".") if p not in ("www", "com", "org", "net", "io", "eu")]
+    parts += path.split("/")[:1]
+    return {_slugish(p) for p in parts if len(_slugish(p)) >= 2}
+
+
+def _covered(board: str, seen: set[str]) -> bool:
+    slug = _slugish(board)
+    if not slug:
+        return True                                   # nothing to reconcile against
+    # Matching runs **both ways**, and each direction is load-bearing:
+    #   slug inside the seen string — `viva` inside `apply.workable.com/viva/j/...`
+    #   seen string inside the slug — `fenergo` (the employer's display name) inside the slug
+    #                                 `fenergocareers`; likewise `plum` inside `withplum`
+    # A one-directional test reported all three as unprobed while their boards were serving
+    # 10, 87 and 34 jobs. `booksy-1` needs the trailing-number trim on top: Workable and
+    # Recruitee both hand out numbered slugs when a name is taken.
+    trimmed = _SLUG_TAIL.sub("", slug)
+    for s in seen:
+        if not s:
+            continue
+        # Exact at any length, substring only from four characters up. Both halves are
+        # needed: `tet` and `lmt` are real Teamtailor tenants and a length floor alone
+        # reported them unprobed, while a substring rule that short would match anything.
+        if s == slug or s == trimmed:
+            return True
+        if len(s) >= 4 and (slug in s or s in slug
+                            or (trimmed and (trimmed in s or s in trimmed))):
+            return True
+    return False
+
+
+def _boards_configured(cls: type) -> Optional[list[str]]:
+    """The board/tenant identifiers this source is configured with, as plain strings.
+
+    Only the sources whose list is a flat list of slugs can be reconciled against the
+    employer names on their postings; Workday and Oracle carry tuples whose slug is not what
+    `company` ends up holding, so they report None and are covered by the totals alone.
+    """
+    import importlib
+
+    module = importlib.import_module(cls.__module__)
+    for attr in ("ORGS", "TENANTS", "COMPANIES", "ACCOUNTS"):
+        value = getattr(module, attr, None)
+        if isinstance(value, (list, tuple)) and all(isinstance(v, str) for v in value):
+            return list(value)
+    tokens = getattr(cls(), "_board_tokens", None)      # greenhouse loads its list per-instance
+    if isinstance(tokens, list) and all(isinstance(t, str) for t in tokens):
+        return tokens
+    return None
+
+
+def _board_count(cls: type) -> Optional[int]:
+    """How many boards/tenants this source is configured with, or None if not that shape."""
+    import importlib
+
+    module = importlib.import_module(cls.__module__)
+    for attr in ("ORGS", "SITES", "TENANTS", "COMPANIES", "ACCOUNTS"):
+        value = getattr(module, attr, None)
+        if isinstance(value, (list, tuple)):
+            return len(value)
+    tokens = getattr(cls(), "_board_tokens", None)      # greenhouse loads its list per-instance
+    return len(tokens) if isinstance(tokens, list) else None
 
 
 def self_check() -> int:
@@ -536,9 +653,14 @@ def main() -> int:
     ap.add_argument("-n", "--links", type=int, default=3, help="links per source (default 3)")
     ap.add_argument("--boards", type=int,
                     help="how many boards/tenants to sample per ATS (default: the small "
-                         "number in SAMPLING). Applies to `Spread` entries only — widening a "
-                         "search-term or tag list multiplies requests without exercising any "
-                         "new URL construction, which is the thing being tested.")
+                         "number in SAMPLING; 0 means every one). Applies to `Spread` entries "
+                         "only — widening a search-term or tag list multiplies requests "
+                         "without exercising any new URL construction, which is the thing "
+                         "being tested.")
+    ap.add_argument("--details", type=int,
+                    help="override MAX_DETAILS on the N+1 adapters (workday, smartrecruiters). "
+                         "Required with --boards 0: that budget is global, so the default 5 "
+                         "would leave most boards with no posting to probe.")
     ap.add_argument("--json", help="write the full result table here")
     ap.add_argument("--self-check", action="store_true",
                     help="verify the sampling table still matches the adapters, then exit")
@@ -547,12 +669,22 @@ def main() -> int:
     if args.self_check:
         return self_check()
 
-    if args.boards:
+    if args.boards is not None:
+        # 0 means every board. `Spread.of` already returns the whole list when it is shorter
+        # than `n`, so a number above any real list is exactly "all" with no special case.
+        n = 10_000 if args.boards == 0 else args.boards
         for sample in SAMPLING.values():
             for overrides in (sample.module, sample.instance):
                 for marker in overrides.values():
                     if isinstance(marker, Spread):
-                        marker.n = args.boards
+                        marker.n = n
+    if args.details:
+        # `MAX_DETAILS` is a *global* budget in the N+1 adapters, not per tenant: at the
+        # default 5 a 74-site Workday sweep would describe five postings and leave 69 boards
+        # with nothing to probe — full board coverage that silently is not.
+        for sample in SAMPLING.values():
+            if "MAX_DETAILS" in sample.module:
+                sample.module["MAX_DETAILS"] = args.details
 
     classes = source_classes(include_cz=True)
     if args.source:
@@ -579,6 +711,14 @@ def main() -> int:
         counts[r["verdict"]] = counts.get(r["verdict"], 0) + 1
     print("\n" + "=" * 72)
     print("  ".join(f"{v}={n}" for v, n in sorted(counts.items())))
+
+    unprobed = [r for r in rows if r["verdict"] == "NO LINK"]
+    if unprobed:
+        by_source: dict[str, int] = {}
+        for r in unprobed:
+            by_source[r["source"]] = by_source.get(r["source"], 0) + 1
+        print("UNPROBED boards (contributed no posting — NOT verified): "
+              + ", ".join(f"{s} {n}" for s, n in sorted(by_source.items())))
 
     broken = sorted({r["source"] for r in rows if r["verdict"] in ("DEAD", "MISMATCH")})
     unproven = sorted({r["source"] for r in rows

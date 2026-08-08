@@ -42,7 +42,11 @@ HEADERS = politeness.HEADERS
 #: (`company_name` + `city`), not merely a 200. Grow from `scripts/discover_ats.py` output.
 COMPANIES = [
     "strv",           # 5 — Prague, software studio
-    "trask",          # 5 — Mladá Boleslav / Prague, IT consultancy
+    # `trask` was here and was removed 2026-08-08: every offer now redirects to
+    # `recruitee.com/`, the ATS vendor's marketing homepage — the `payconiq` shape, and the
+    # second instance in one sweep. Its API still serves offers. Note the irony worth keeping:
+    # Trask is the board that taught this adapter about `(Sample)` demo rows, and it is now
+    # gone from Recruitee entirely.
     "twisto",         # 3 — Prague, fintech
     "livesportsro",   # 2 — Prague, Livesport s.r.o. (Flashscore)
     "lundegaard",     # 1 — Praha, "Lundegaard a.s." on its own postings
