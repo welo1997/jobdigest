@@ -137,7 +137,7 @@ const cs: Messages = {
 
   landing: {
     wizardAria: "Sestavte si přehled",
-    stepOf: "Krok {n} ze 4",
+    stepOf: "Krok {n} ze {total}",
     q1: "Začněte hledat hned",
     cvReading: "Čteme váš životopis…",
     cvDrop: "Přetáhněte sem životopis — vyplníme to za vás",

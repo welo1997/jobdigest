@@ -3,7 +3,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Nav, Footer } from "@/components/SiteChrome";
-import EmailPreview from "@/components/EmailPreview";
 import Turnstile, { turnstileEnabled, TurnstileHandle } from "@/components/Turnstile";
 import GoogleButton from "@/components/GoogleButton";
 import { useToast } from "@/components/useToast";
@@ -48,7 +47,14 @@ const DEFAULT_EDUCATION: EducationValue = {
   levels: [...EDUCATION_LEVELS], field: "",
 };
 
-const LAST = 3;
+// The wizard is three panels: roles + skills, where & how, email. Roles and skills used to be
+// two steps; they are one question about the visitor and asking them separately bought nothing
+// but a click. LAST is the index of the final step and STEPS the count shown to the reader —
+// both derived, because the "of 4" in `landing.stepOf` was hardcoded in all eight catalogues
+// and merging two panels made every one of them wrong at once, in languages nobody here reads.
+// The string now takes {total} so the copy follows the code.
+const LAST = 2;
+const STEPS = LAST + 1;
 
 function Chip({ label, on, toggle }: { label: string; on: boolean; toggle: () => void }) {
   return (
@@ -379,11 +385,15 @@ export default function Landing() {
   // fall back to defaults and mismatch what the user thinks they picked).
   const goNext = () => {
     if (step === 0 && roles.size === 0) return show(t.landing.toast.needRole);
-    if (step === 2 && levels.size === 0) return show(t.landing.toast.needLevelToContinue);
+    // The seniority chips moved from step 3 to step 2 when roles and skills merged. This guard
+    // is indexed by step number, so it silently stops guarding anything if the index is not
+    // moved with the panel — and the failure is invisible: the visitor reaches the email box
+    // with no level picked, and `submit` refuses at the very end instead of here.
+    if (step === 1 && levels.size === 0) return show(t.landing.toast.needLevelToContinue);
     setStep((s) => Math.min(LAST, s + 1));
   };
 
-  const progress = `${(step + 1) * 25}%`;
+  const progress = `${((step + 1) / STEPS) * 100}%`;
 
   // Same control in both branches of step 4. `legalHref` because the policy exists in fewer
   // languages than the site — consenting to a policy is the last place to send someone to a
@@ -404,17 +414,21 @@ export default function Landing() {
       <main>
         <section>
           <div className="wrap hero">
-            <div className="build">
+            {/* One centred wizard, no second column. The live email preview that used to sit
+                beside it is gone: it was a mock, it competed with the form for the visitor's
+                attention, and on phones it was 780px of scrolling before the thing they came to
+                do. `solo` + `big` are the variants /v2 already defined for this exact layout. */}
+            <div className="build solo wide">
               {/* WIZARD */}
-              <div className="wizard" id="wizard" aria-label={t.landing.wizardAria}>
+              <div className="wizard big" id="wizard" aria-label={t.landing.wizardAria}>
                 <div className="wz-top">
-                  <span className="wz-step">{fmt(t.landing.stepOf, { n: step + 1 })}</span>
+                  <span className="wz-step">{fmt(t.landing.stepOf, { n: step + 1, total: STEPS })}</span>
                   <span className="wz-prog">
                     <i style={{ width: progress }} />
                   </span>
                 </div>
 
-                {/* step 1: roles + CV fast-path */}
+                {/* step 1: roles + skills, with the CV fast-path that fills in both */}
                 {step === 0 && (
                   <div className="wz-panel">
                     <div className="wz-q">{t.landing.q1}</div>
@@ -487,35 +501,38 @@ export default function Landing() {
                       />
                       <button type="button" onClick={addCustomRole}>{t.common.add}</button>
                     </div>
+
+                    {/* Skills, formerly step 2. Demoted from a `.wz-q` heading to a `.field`
+                        label, which is how every other sub-question in the wizard is written
+                        (`Work setup`, `Countries you can work in`). `q2` / `q2hint` are the same
+                        catalogue entries as before, so no language lost a translation in the
+                        move — only the element they render into changed. */}
+                    <div className="field wz-split">
+                      <label htmlFor="wz-add-skill">{t.landing.q2}</label>
+                      <p className="wz-hint">{t.landing.q2hint}</p>
+                      <div className="chips">
+                        {skillOpts.map((o) => (
+                          <Chip key={o} label={o} on={skills.has(o)} toggle={() => toggleIn(skills, o, setSkills)} />
+                        ))}
+                      </div>
+                      <div className="addwrap">
+                        <input
+                          id="wz-add-skill"
+                          type="text"
+                          value={addSkill}
+                          onChange={(e) => setAddSkill(e.target.value)}
+                          onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addCustomSkill(); } }}
+                          placeholder={t.landing.addSkillPlaceholder}
+                          aria-label={t.landing.addSkillAria}
+                        />
+                        <button type="button" onClick={addCustomSkill}>{t.common.add}</button>
+                      </div>
+                    </div>
                   </div>
                 )}
 
-                {/* step 2: skills */}
+                {/* step 2: where & how */}
                 {step === 1 && (
-                  <div className="wz-panel">
-                    <div className="wz-q">{t.landing.q2}</div>
-                    <p className="wz-hint">{t.landing.q2hint}</p>
-                    <div className="chips">
-                      {skillOpts.map((o) => (
-                        <Chip key={o} label={o} on={skills.has(o)} toggle={() => toggleIn(skills, o, setSkills)} />
-                      ))}
-                    </div>
-                    <div className="addwrap">
-                      <input
-                        type="text"
-                        value={addSkill}
-                        onChange={(e) => setAddSkill(e.target.value)}
-                        onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addCustomSkill(); } }}
-                        placeholder={t.landing.addSkillPlaceholder}
-                        aria-label={t.landing.addSkillAria}
-                      />
-                      <button type="button" onClick={addCustomSkill}>{t.common.add}</button>
-                    </div>
-                  </div>
-                )}
-
-                {/* step 3: where & how */}
-                {step === 2 && (
                   <div className="wz-panel">
                     <div className="wz-q">{t.landing.q3}</div>
                     <p className="wz-hint">{t.landing.q3hint}</p>
@@ -543,8 +560,8 @@ export default function Landing() {
                   </div>
                 )}
 
-                {/* step 4: email */}
-                {step === 3 && (
+                {/* step 3: email */}
+                {step === 2 && (
                   <div className="wz-panel">
                     {googleMode ? (
                       <>
@@ -600,13 +617,6 @@ export default function Landing() {
                     </button>
                   )}
                 </div>
-              </div>
-
-              {/* LIVE PREVIEW */}
-              <div className="peek">
-                <span className="cap">{t.landing.livePreview}</span>
-                <EmailPreview roles={roles} skills={skills} work={work} levels={levels}
-                  email={email} limit={3} />
               </div>
             </div>
 

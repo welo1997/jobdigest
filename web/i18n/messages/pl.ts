@@ -134,7 +134,7 @@ const pl: Messages = {
 
   landing: {
     wizardAria: "Zbuduj swój przegląd",
-    stepOf: "Krok {n} z 4",
+    stepOf: "Krok {n} z {total}",
     q1: "Zacznij szukać od razu",
     cvReading: "Czytamy Twoje CV…",
     cvDrop: "Upuść tu CV — wypełnimy to za Ciebie",

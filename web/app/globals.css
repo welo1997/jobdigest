@@ -36,6 +36,23 @@
 html,body{padding:0;margin:0;}
 html{scroll-behavior:smooth;}
 @media (prefers-reduced-motion:reduce){html{scroll-behavior:auto;}}
+/* The scrollbar was the last piece of chrome that ignored the theme: Chrome on Windows paints
+   its own light track and slab-grey thumb, so a dark page carried a bright band down its right
+   edge. Both syntaxes are set and both read the same tokens, so the theme toggle and
+   prefers-color-scheme move the scrollbar with everything else instead of leaving it behind:
+   the standard `scrollbar-*` properties (Firefox, Chrome 121+) and the `::-webkit-` pseudo-
+   elements for older Chrome and Safari. The thumb is drawn with `background-clip:content-box`
+   inside a transparent border, which is what gives it the inset and the rounded cap — there is
+   no padding property on a scrollbar thumb.
+   `scrollbar-gutter:stable` reserves the track whether or not the page scrolls, so moving
+   between a long page (/matches) and a short one (/check-inbox) no longer shifts every centred
+   element sideways by the scrollbar's width. */
+html{scrollbar-gutter:stable;scrollbar-width:thin;scrollbar-color:var(--line) transparent;}
+::-webkit-scrollbar{width:12px;height:12px;}
+::-webkit-scrollbar-track,::-webkit-scrollbar-corner{background:transparent;}
+::-webkit-scrollbar-thumb{background:var(--line);border:3px solid transparent;background-clip:content-box;
+  border-radius:99px;}
+::-webkit-scrollbar-thumb:hover{background:var(--faint);background-clip:content-box;}
 body{background:var(--paper);color:var(--ink);font-family:var(--font-sans);
   font-size:var(--fs-body);line-height:1.55;-webkit-font-smoothing:antialiased;}
 .dawnbar{height:3px;background:var(--dawn);}
@@ -101,8 +118,27 @@ button.nav-link{background:none;border:0;padding:0;cursor:pointer;font-family:in
 .hero h1 .u{color:var(--brand);font-style:italic;}
 .hero .lede{margin-top:16px;font-size:1.12rem;color:var(--muted);max-width:46ch;}
 .build{display:grid;grid-template-columns:1.05fr .95fr;gap:36px;align-items:stretch;margin-top:36px;}
-/* /v2 variant: no live-preview column — one large, centered wizard. */
+/* No live-preview column — one large, centered wizard. Was a /v2-only variant; since the live
+   email preview was removed from the landing page it is what the real hero uses too, so the
+   two-column `.build` rule above now applies to nothing. Kept because /v2 still sets both. */
 .build.solo{grid-template-columns:1fr;max-width:700px;margin-left:auto;margin-right:auto;}
+/* Landing hero: full `.wrap` width, so the wizard's left and right edges sit on the same lines
+   as the "how it works" cards below it. Those live in `.wrap.section` — same --maxw, same 24px
+   gutter — which is why this removes the cap rather than setting a second number: a literal
+   1120px here would silently drift out of alignment the day --maxw changes. /v2 keeps the
+   narrow 700px form, so only the landing opts in. */
+.build.solo.wide{max-width:none;}
+/* Step 4 is the one panel that does not fill this width. The other three are chip grids that
+   spread across it happily; step 4 is a sign-up column — an email box, the Google button, a
+   consent line — and `.emailin`/`.gbtn` are both `width:100%`, so at the hero's full width the
+   email field measured 1050px. A one-line input as wide as a laptop screen reads as a mistake
+   and gives the eye no line to start from. Cap the column, not the card. Scoped to `.wide` so
+   /v2's 700px wizard, where 100% is already a sensible measure, is untouched. */
+.build.solo.wide .emailin,
+.build.solo.wide .gbtn,
+.build.solo.wide .or-divider,
+.build.solo.wide .consent,
+.build.solo.wide .turnstile{max-width:560px;}
 .wizard.big{padding:34px 34px 26px;min-height:460px;}
 .wizard.big .wz-q{font-size:1.7rem;}
 .wizard.big .wz-hint{font-size:var(--fs-body);}
@@ -156,6 +192,13 @@ button.nav-link{background:none;border:0;padding:0;cursor:pointer;font-family:in
   font-family:var(--font-mono);letter-spacing:.08em;text-transform:uppercase;}
 .cvor::before,.cvor::after{content:"";flex:1;height:1px;background:var(--line);}
 
+/* The seam between the two halves of step 1. Roles and skills are both chip grids with an
+   "Add…" box under them, so with only a margin between them the skill chips read as more role
+   chips — the visitor tags themselves "Designer, Figma" without noticing the question changed.
+   `--line`, not the `--line-soft` the wizard footer uses: soft is #1E2836 on a #151C2B surface,
+   which measured as a seam nobody can see, and an invisible separator is the same as no
+   separator. This one has a job to do. */
+.wz-split{margin-top:22px;padding-top:18px;border-top:1px solid var(--line);}
 .addwrap{margin-top:14px;display:flex;gap:8px;}
 .addwrap input{flex:1;font:inherit;font-size:var(--fs-sm);color:var(--ink);background:var(--paper);
   border:1px solid var(--line);border-radius:var(--r-sm);padding:10px 12px;}
@@ -340,8 +383,9 @@ a.hidden-link:hover{color:var(--brand);text-decoration:underline;}
 
 /* ============================================================= RESPONSIVE */
 @media (max-width:920px){
-  /* Wizard first, preview below: on phones the interactive form is what the visitor should land
-     on, not a 780px mock email they have to scroll past. (`.peek` no longer gets order:-1.) */
+  /* The preview column that this rule used to stack below the wizard is gone from the landing
+     page entirely, which is the same fix taken further: on phones the interactive form is what
+     the visitor should land on, not a 780px mock email they have to scroll past. */
   .build{grid-template-columns:1fr;gap:26px;}.steps{grid-template-columns:1fr;}
   /* Restore the horizontal gutter that `.hero`/`.section` zero out with their `padding: X 0 Y`
      shorthands. Below --maxw (1120px) that left the microtrust row, the "how it works" label and

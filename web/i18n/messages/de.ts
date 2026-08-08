@@ -137,7 +137,7 @@ const de: Messages = {
 
   landing: {
     wizardAria: "Digest zusammenstellen",
-    stepOf: "Schritt {n} von 4",
+    stepOf: "Schritt {n} von {total}",
     q1: "Jetzt mit der Suche starten",
     cvReading: "Wir lesen deinen Lebenslauf…",
     cvDrop: "Lebenslauf hier ablegen — wir füllen das aus",

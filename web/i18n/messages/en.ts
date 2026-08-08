@@ -128,7 +128,7 @@ const en: Messages = {
 
   landing: {
     wizardAria: "Build your digest",
-    stepOf: "Step {n} of 4",
+    stepOf: "Step {n} of {total}",
     q1: "Start searching now",
     cvReading: "Reading your CV…",
     cvDrop: "Drop your CV — we'll fill this in",
