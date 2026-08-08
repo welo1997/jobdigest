@@ -61,6 +61,9 @@ class _FakeStore:
         self.profiles_out: list[dict] = []
         self.shortlist_out: list[dict] = []
         self.runs: list[dict] = []
+        # Profiles today's export put candidates in front of the matcher for. Empty by
+        # default so the coverage check is a no-op for every test that isn't about it.
+        self.exported: set[str] = set()
 
     # -- used by import_picks --
     def existing_profile_ids(self, ids):
@@ -91,6 +94,9 @@ class _FakeStore:
     # -- diagnostics (digest_runs); recorded so a test can assert it was written --
     def record_digest_run(self, profile_id, **fields):
         self.runs.append({"profile_id": profile_id, **fields})
+
+    def exported_profile_ids(self):
+        return set(self.exported)
 
 
 @pytest.fixture
@@ -194,6 +200,94 @@ def test_rejects_a_payload_that_is_not_a_list(store, tmp_path):
 
     assert matcher.import_picks(path) == 0
     assert store.written == []
+
+
+# ------------------------------------------------------------- picks coverage ---
+# The failure these pin is not a malformed file — it is a *complete* one that covers only
+# some subscribers. `import_picks` iterates whatever entries exist, so it imports cleanly and
+# exits 0; the uncovered profiles get no picks_n, no email, and no error. The freshness and
+# existence checks in jobdigest-match.sh both pass on a truncated file, and the watchdog needs
+# three days *and* excludes profiles younger than that — so a new subscriber's first three days
+# of silence are invisible by design. This is the one check that can see it on the day.
+
+
+def test_a_profile_missing_from_the_picks_file_is_reported(store, tmp_path):
+    store.exported = {REAL, OTHER}
+    path = _write(tmp_path, {"picks": [
+        {"profile_id": REAL, "jobs": [{"posting_id": "real-a", "score": 9, "reason": "ok"}]},
+    ]})
+
+    assert matcher.coverage_gap(path) == [OTHER]
+    assert matcher.report_coverage(path) == 1
+
+
+def test_no_gap_when_every_exported_profile_is_mentioned(store, tmp_path):
+    store.exported = {REAL, OTHER}
+    path = _write(tmp_path, {"picks": [
+        {"profile_id": REAL, "jobs": [{"posting_id": "real-a", "score": 9, "reason": "ok"}]},
+        {"profile_id": OTHER, "jobs": [{"posting_id": "real-b", "score": 8, "reason": "ok"}]},
+    ]})
+
+    assert matcher.coverage_gap(path) == []
+
+
+def test_a_profile_the_model_rejected_counts_as_covered(store, tmp_path):
+    """The distinction the whole check exists to make. OTHER was considered and every
+    candidate scored below the floor, so nothing is written to `matches` — that is the
+    matcher doing its job on a thin day, not a subscriber who was skipped. Conflating the
+    two is what makes `picks_n` useless for this: the column is `not null default 0`, so
+    both cases store 0."""
+    store.exported = {REAL, OTHER}
+    path = _write(tmp_path, {"picks": [
+        {"profile_id": REAL, "jobs": [{"posting_id": "real-a", "score": 9, "reason": "ok"}]},
+        {"profile_id": OTHER, "jobs": [
+            {"posting_id": "real-b", "score": matcher.MATCH_FLOOR - 1, "reason": "weak"}]},
+    ]})
+
+    assert matcher.import_picks(path) == 1          # nothing stored for OTHER
+    assert matcher.coverage_gap(path) == []         # ...but they were not skipped
+
+
+def test_an_unreadable_file_reports_the_whole_export_as_uncovered(store, tmp_path):
+    """Truncated mid-write, or never written. Reporting "no gap" here would be the worst
+    possible answer — it is the case where nobody got anything."""
+    store.exported = {REAL, OTHER}
+    path = tmp_path / "picks.json"
+    path.write_text('{"picks": [{"profile_id": ', encoding="utf-8")
+
+    assert matcher.coverage_gap(str(path)) == sorted([REAL, OTHER])
+
+
+def test_a_missing_file_reports_the_whole_export_as_uncovered(store, tmp_path):
+    store.exported = {REAL}
+    assert matcher.coverage_gap(str(tmp_path / "absent.json")) == [REAL]
+
+
+def test_a_coverage_gap_does_not_reduce_what_is_imported(store, tmp_path):
+    """The gap is an alert, never a veto: the covered subscribers must still get their
+    digest. `jobdigest-match.sh` runs under `set -e`, which is why the exit code lives in a
+    separate step placed after the send rather than in the import."""
+    store.exported = {REAL, OTHER, GHOST}
+    path = _write(tmp_path, {"picks": [
+        {"profile_id": REAL, "jobs": [{"posting_id": "real-a", "score": 9, "reason": "ok"}]},
+    ]})
+
+    assert matcher.import_picks(path) == 1
+    assert store.written == [(REAL, "real-a", 9, "ok")]
+    assert len(matcher.coverage_gap(path)) == 2
+
+
+def test_a_profile_in_the_file_but_not_in_todays_export_is_not_a_gap(store, tmp_path):
+    """A stale file names yesterday's subscribers. That is the freshness check's job (and
+    `existing_profile_ids`' for invented ones); this check only ever reports the direction
+    that silently loses a digest."""
+    store.exported = {REAL}
+    path = _write(tmp_path, {"picks": [
+        {"profile_id": REAL, "jobs": [{"posting_id": "real-a", "score": 9, "reason": "ok"}]},
+        {"profile_id": GHOST, "jobs": [{"posting_id": "real-b", "score": 9, "reason": "x"}]},
+    ]})
+
+    assert matcher.coverage_gap(path) == []
 
 
 # ------------------------------------------------------------ export_shortlists --

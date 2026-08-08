@@ -100,11 +100,17 @@ def test_stale_postings_are_dropped_before_the_detail_stage():
 
 
 def test_unmapped_function_label_yields_no_hint_rather_than_a_guess():
-    """`source_category` goes straight into `role_category` when the title can't classify.
+    """`source_category` becomes `role_category` when the title can't classify — so it has to
+    already be a real category.
 
     An invented value would be a filter matching nothing and reporting no error — the exact
     `social_media_specialist` failure CLAUDE.md records. `None` falls through to
     `uncategorised`, which is a first-class value.
+
+    `taxonomy.classify` now also discards a non-canonical hint, so a raw label leaking through
+    here can no longer reach the column. That guard is the backstop, not the design: mapping
+    belongs where the source's vocabulary is known, which is this file. Keep returning `None`
+    rather than leaning on it — the guard cannot tell "Supply Chain" from a category we forgot.
     """
     p = _one(function={"label": "Supply Chain"})
     assert p.source_category is None

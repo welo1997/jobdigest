@@ -367,12 +367,20 @@ Measured before it was built, against 20 763 active postings on 2026-08-02:
 | …softened ("or equivalent", "preferred") | 286 |
 | **binding and readable** | **~666 (3.2%)** |
 
-The ceiling is not employer silence: **70% of the corpus has no description to read.** Median
-description length is 35 characters — `jobscz` (9 639 postings, the largest source) averages
-32 and stores scraps like "70 000 – 80 000 Kč", `profesia` (4 365) stores the empty string,
-`cocuma` (319) averages 9. **The entire Czech and Slovak inventory will hold `null` forever**,
-so this filter is real for English-language ATS postings and inert for someone searching only
-Czech boards. Three consequences:
+**That measurement described a corpus that no longer exists, and the reason it inverted is worth
+knowing.** It read: 70% of the corpus has no description, median length 35 characters, because
+`jobscz` (9 639 postings) averaged 32 and stored scraps like "70 000 – 80 000 Kč", `profesia`
+(4 365) stored the empty string, `cocuma` (319) averaged 9. Those sources were excluded on
+2026-08-03 (Alma Career's terms) and platsbanken, mpsv and the ATS boards replaced them.
+**Re-measured on production 2026-08-08: 91 818 of 96 583 active postings — 95% — carry a
+description, averaging 4 861 characters.** The old figures survive above only as the reasoning
+for the education classifier's design; do not cite them as current, and **re-run the education
+measurement before concluding anything from its ~3% ceiling**, because that ceiling was derived
+from a corpus that was 70% unreadable and is now 95% readable. The claim that "the entire Czech
+and Slovak inventory will hold `null` for ever" is also void — the sources it referred to are
+gone, and `mpsv` ships descriptions on 94% of its rows.
+
+Three consequences, which still hold on their own terms:
 
 - **Null always passes the gate**, as with `work_mode` and an unresolved city. It is ~97% of
   rows; a gate that dropped nulls would not narrow a digest, it would empty it. `test_education_sql.py`
@@ -426,6 +434,41 @@ and skips a malformed record rather than aborting everyone's digest. Do not rela
 
 `shortlists.json` must **never** contain email addresses. A profile is an opaque UUID. This
 is what makes the transfer non-identifying and is load-bearing for the privacy policy.
+
+**A `picks.json` that covers only some subscribers imports cleanly and exits 0 — nothing
+except `matcher.coverage_gap` can see it.** `import_picks` iterates the entries the file
+happens to contain, so a file covering 5 of 30 profiles writes those 5 and leaves the other
+25 with no `picks_n`, no email and no error; `jobdigest-match.sh` checks only that the file
+*exists* and is under 20h old, both true of a truncated one. The watchdog needs three days
+**and** `starved_profiles` excludes profiles younger than that window, so a new subscriber's
+first three days of silence are invisible by design — the window a first impression lives in.
+Four things make the check work, and each is a trap avoided:
+
+- **It reads the file, not `digest_runs`.** `picks_n` is `not null default 0` (migration 011),
+  so "absent from the file" and "the model returned nothing for them" are the *same stored
+  value*, and `watchdog.diagnose` reads the second meaning (`MATCHER`). The distinction only
+  exists in the file, so a profile mentioned with every pick below `MATCH_FLOOR` counts as
+  **covered** — considered and rejected is not skipped.
+- **`store.exported_profile_ids` filters `shortlist_n > 0`**, because `export_shortlists`
+  records the run and *then* `continue`s on an empty shortlist. Those profiles are
+  legitimately not in the file and are already the watchdog's `RETRIEVAL` case; counting them
+  would fire the alert daily for a problem it cannot name, which is how an alert channel gets
+  filtered into a folder nobody opens.
+- **An unreadable or truncated file reports the *whole* export as uncovered**, never "no gap".
+- **The exit code lives in a separate step placed after the send and the archive.**
+  `jobdigest-match.sh` runs under `set -euo pipefail`, so failing inside the import would skip
+  `service.pipeline` and cost the *covered* subscribers their digest over the uncovered ones.
+  `import_picks` logs the gap; `--check-coverage` carries the exit code and runs last, where
+  systemd's existing `OnFailure` alerter picks it up and noticing costs nobody anything.
+
+**`sendable_profiles`' `order by last_digest_at nulls first` is a priority policy, not tidy
+SQL.** It is the order profiles appear in `shortlists.json`, and any finite matcher budget —
+a context window, a subscription's usage cap, a batch that dies half way — drops the *tail* of
+that file. `nulls first` therefore guarantees the people a truncated run starves are
+long-tenured subscribers who had a digest recently, never someone waiting on their first.
+Rewriting it as `order by created_at` looks like cleanup and inverts the policy exactly
+(newest signup last); `nulls last` does the same while keeping the ascending sort.
+`test_export_coverage_sql.py` fails on both.
 
 ### The site speaks eight languages, and the stored subscription speaks none of them
 
@@ -565,6 +608,21 @@ Nothing errored; the symptom was an absence in `select source, count(*) from pos
 `test_curated_boards.py` now fails if the seed stops shipping. When a source's number looks
 wrong, check whether its data even reached the image.
 
+**The `db` service is a BUILT image now, not a pulled one, and the reason is a corruption
+hazard rather than a preference.** `deploy/db.Dockerfile` compiles pgvector into
+`postgres:16-alpine`; `image: pgvector/pgvector:pg16` is the obvious alternative and would
+silently corrupt this database. That image is Debian/glibc, this cluster was initdb'd on
+Alpine/musl with `collate=en_US.utf8`, and the two libcs order that same locale name
+differently — measured on both images 2026-08-08, musl says `'a' < 'B'` is **false** and glibc
+says **true**. Point the existing data directory at the other libc and all 19 indexed
+text/varchar columns stay physically sorted by the old rules while the server compares by the
+new ones, so index scans miss rows that exist, including through the unique index on
+`profiles.email`. Nothing raises. **Never swap this image for a glibc one without a dump and
+restore**, and `db` must stay in `deploy.sh`'s build list — a built image that no deploy step
+builds is the 2026-08-02 "deployed is not running" failure waiting to recur. Verified after the
+switch on 2026-08-08: `server_version` 16.14 unchanged, musl ordering unchanged, 96 583 active
+postings unchanged, 0 invalid indexes.
+
 Rebuild **`api` as well as `pipeline`** whenever the change touches anything the webapp
 imports (`webapp.py`, `store.py`, `geo.py`, `taxonomy.py`, …) — `api` runs `service.webapp` from
 the same image, so building only `pipeline` leaves the live API on old code, and `build` alone
@@ -692,6 +750,32 @@ These are not style preferences. Breaking one has consequences outside this repo
   `web/lib/options.ts` cannot import it, so tests assert they do not drift. Adding a category
   means: pattern, subject word, shortlist keywords, dbt `accepted_values`, a chip in
   `ROLE_OPTIONS` + a label in all eight catalogues, run tests.
+  **A source's `source_category` hint must already be a value in `CATEGORIES`, or `None` —
+  `classify` discards anything else, and until 2026-08-08 it did not.** The line was
+  `return hint or UNCATEGORISED`, so the hint went verbatim into `postings.role_category`.
+  Four adapters map their source's vocabulary first and use `None` where there is no confident
+  mapping (`jobscz.FIELD_CATEGORIES`, `profesia`'s profession pairs,
+  `smartrecruiters.FUNCTION_HINTS`, `themuse.CATEGORIES`); five passed a raw third-party string
+  — `platsbanken` (the Swedish SSYK leaf label), `workable` (`function`/`department`, employer
+  free text), `startupjobs` (field slug), `recruitee` (`category_code`), `oraclecloud`
+  (`JobFamily`). Measured on production: **14 135 of 98 858 active postings — 14% — held a
+  value outside the canonical ten**, platsbanken alone 13 561 rows across **954** distinct
+  labels; workable's were not job functions at all (`"Greenvolt Next España, S.L."`,
+  `"Engine by Starling"`, `"Wild Card"`). The recall predicate is
+  `role_category = any(...) OR search_tsv @@ (...)`, so every one of those rows was unreachable
+  through the category half and survived on keyword alone, **including genuine tech roles** —
+  `Systemutvecklare/Programmerare` 220, `Projektledare, IT` 140, `Mjukvaruutvecklare` 108,
+  `IT-arkitekt/Lösningsarkitekt` 97. Nothing reported it and nothing could: the dbt
+  `accepted_values` test runs in Snowflake against `stg_job_postings.sql`'s own SQL `case`,
+  which never sees a hint — and that side is decommissioned. There is deliberately **no
+  backfill**: `upsert_postings` rewrites `role_category` on conflict and `deactivate_stale`
+  retires the rest, so the column drains over the 7-day staleness window, and bad-value →
+  `uncategorised` changes nothing for retrieval since neither is selectable as a preference.
+  `service.ingest._report_discarded_hints` now logs, per source, how many rows carried a
+  discarded hint and its top values — a report for a human in the shape of
+  `unmet_demand_terms()`, so writing a curated map becomes evidence-driven. **Writing one is
+  deliberately open**, gated on whether the vector path replaces the recall predicate that
+  would consume it; the measured labels are in `notes/2026-08-08-role-category-hint-guard.md`.
 - User-facing copy has **one** definition per language: `web/i18n/messages/*.ts`, shaped by
   `web/i18n/schema.ts`. Never inline a user-visible string in a component under
   `app/(site)/`. Adding one means: a key in the schema, a value in all eight catalogues.
@@ -740,9 +824,97 @@ written to fail when the guarantee breaks — not merely to pass:
 - `test_hidden_sql.py` — hiding is a move, not a delete: the two queries behind the page
   agree, a re-score cannot resurrect a hidden job, and one subscriber cannot hide another's.
   SQL-backed, so it skips without `TEST_DATABASE_URL` — and CI fails if it does.
+- `test_export_coverage_sql.py` — who a truncated run sacrifices, and who we notice it
+  missed: `nulls first` keeps a first-digest subscriber out of the tail of `shortlists.json`,
+  and `exported_profile_ids` is the denominator that makes a partial `picks.json` loud.
+
+**The CI skip-check globs `service/tests/test_*_sql.py`; it must never go back to a list.** It
+was five hand-written filenames, and a list is a copy — adding a SQL-backed file and
+forgetting the copy leaves a test that can silently stop running, which is the exact failure
+the step exists to prevent, arriving through the step itself. Same lesson as
+`source_watchdog.py` reading `search_jobs.source_classes` and `pending_boards.py` reading the
+adapters' own list structures. The step also fails if the glob matches *nothing*, so a rename
+away from the convention is loud rather than green.
 
 When adding a guard, mutation-check it: break the thing deliberately and confirm the test
 goes red. A test that cannot fail documents nothing.
+
+**`scripts/check_links.py` is the one check that leaves the machine, and it exists because
+nothing here had ever fetched a URL it stored.** `posting_id = md5(url)` and the link goes
+straight into an email `href`, so a dead link is invisible to every other check: right row
+count, fresh ids, no churn, correct country split, green tests — and a subscriber clicking
+nothing. That failed twice in three days (startupjobs 404s on 2026-08-06, MPSV's non-route
+`?id=` on 2026-08-08). It runs each adapter under bounded sampling, builds URLs through the
+real `normalize`, fetches them and asks whether the page carries **the posting's own title**.
+Five things are load-bearing:
+
+- **A 200 is not a pass, and neither is the employer's name.** A link landing on
+  `jobs.lever.co/spotify` rather than the posting carries the employer on every row, so
+  employer-only is `WEAK` — accepting it passes the exact failure being hunted.
+- **A shell is detected by text-to-HTML *ratio*, not length.** Platsbanken answers 124 KB
+  holding 1 619 characters of navigation chrome (1.3%) and read as `MISMATCH` under a length
+  test — a working adapter reported broken. Two of its links also passed on a *single* title
+  word matched against that chrome, so title evidence needs two distinct words.
+- **`BLOCKED` ≠ `DEAD`.** Himalayas 403s the honest agent *and* a spoofed Chrome string, and
+  opens fine in a browser. Failing on it daily is how a red check gets muted.
+- **`BROWSER_CONFIRMED` is a dated record, not an exemption.** Six sources are unprovable over
+  HTTP by construction (workday, oraclecloud, platsbanken, mpsv render client-side; himalayas
+  is behind Cloudflare; workingnomads is a redirector). All six were opened by hand on
+  2026-08-08 and were correct. A run flags only sources **nobody has ever looked at**.
+- **Sample boards across the list, and links across employers.** `--boards N` widens the ATS
+  board lists via `Spread` (evenly spaced, deterministic) — never `Trim`, which takes the head,
+  and never a query dimension like search terms, which multiplies requests without exercising
+  any new URL construction. Both halves matter: the first wide run fetched eight Greenhouse
+  boards and still probed six Stripe links, because `normalize` concatenates board by board and
+  Stripe alone carries hundreds. `_pick` round-robins by employer, after which Greenhouse alone
+  exercised five distinct URL shapes (`stripe.com/jobs/search?gh_jid=`, `boards.greenhouse.io`,
+  `job-boards.greenhouse.io`, `job-boards.**eu**.greenhouse.io`, `careers.toasttab.com`).
+- **Never manufacture a failure as you widen.** Three false verdicts appeared the moment the run
+  got bigger, each fixed rather than tolerated: a 429 from probing one host six times reads
+  `THROTTLED`, not `DEAD` (waited out once, `Retry-After` honoured, capped at 30 s); a refusal
+  *after a redirect* belongs to the destination (`jobs.livestorm.co` forwards to
+  welcometothejungle.com, which 403s bots and serves the job to a browser); and a title with no
+  distinctive tokens — "PHP Engineer", "QA Engineer", where `php`/`qa` are under the length
+  floor and `engineer` is a stopword — now matches verbatim first. A checker that goes red for
+  its own reasons stops being read.
+- **Not in CI**, deliberately — two dozen third-party sites would make it red for reasons that
+  are not ours. `--self-check` *is* in the suite, covering the part that rots silently: the
+  sampling table names attributes that live in the adapters, and a rename does not raise, it
+  silently stops bounding a source. Same lesson as `pending_boards.py` and the CI skip-check.
+
+It samples the **adapters**, not the database, so it proves the URL an adapter builds *today*
+resolves — not that stored rows carry it. Baseline 2026-08-08, after the two removals below and at 6 boards × 5 links: **105 links
+across 21 sources — 77 OK, 0 DEAD, 0 MISMATCH**, every non-OK result one of the six
+browser-confirmed sources above, exit 0. The narrow first pass (63 links, one board per ATS)
+missed both dead boards; widening to 8 × 8 is what found them.
+
+**A live API is not a live board, and `probe_boards.py` structurally cannot see the
+difference** — it reads the API, which is the half that stays alive. The wide run found two:
+
+- **`ashby:forto`** — the posting API answers with **12 jobs, all `isListed: true`**, and every
+  `jobUrl`, plus the board root, renders "Page not found". Not expiry; the newest was three days
+  old. The employer left Ashby and the API was never torn down. Right count, right titles,
+  stable ids, twelve 404s in a subscriber's inbox.
+- **`recruitee:payconiq`** — all three offers still come back with `careers_url`s, and all three
+  **redirect to `recruitee.com/`**, the ATS vendor's marketing homepage: 200, 18 898 characters
+  of real text, defeating every status-, length- and ratio-based test. Only "does the page carry
+  the posting's title" catches it. `KNOWN_IMPOSTORS` does not cover this and must not be
+  stretched to — payconiq was genuinely Payconiq's board, and then it stopped being one.
+
+Both are removed. When a board's volume looks healthy but oddly static, probe the **public
+page**, not the API.
+
+**It also found a bug in a field nobody was watching, because it prints the employer next to
+the link.** Every Himalayas row came back with `companyName: "name"` — the literal string, all
+20, from a 66-minute-old CDN cache, while other parameter combinations returned real employers
+at the same moment. A poisoned upstream cache variant, and the variant our ingest uses.
+Undetectable otherwise: right count, right titles, right links, and a plausible-looking
+string that would have shown as the employer in digests. `himalayas._company` refuses
+placeholders, and **dropping the name is the safe direction**: `digest.dedupe_key` treats an
+empty key as always unique, never a match, whereas a uniform wrong employer collapses two real
+employers advertising the same role in the same city and the second is never emailed.
+`normalize` logs an error when a whole run shares one employer, because the next degraded
+payload will pick a different string and that *shape* is the thing to watch.
 
 ---
 
@@ -822,8 +994,17 @@ goes red. A test that cannot fail documents nothing.
   either would add a personal-data category the privacy policy does not cover (rule 4); and
   `country_code="CZ"` is a source-level constant, which is normally wrong, but is the sound
   exception here because the Úřad práce registers vacancies in Czechia by statute. The
-  per-vacancy portal link (`up.gov.cz/volna-mista-v-cr?id=`) is stable and unique but its
-  deep-linking is **unverified** — the server returns an identical shell for a bogus id.
+  per-vacancy portal link was `up.gov.cz/volna-mista-v-cr?id=` — stable, unique, and marked
+  **unverified** because the server returns an identical shell for a bogus id. It was also
+  dead: `up.gov.cz` is client-rendered and routes on the **fragment**, so the vacancy is at
+  `#/volna-mista-detail/{portalId}` and `?id=` is not a route — the app ignores it and shows
+  its own empty search page. **Every MPSV link ever emailed was broken**, and it surfaced
+  only when a subscriber clicked one (2026-08-08). Fixed by the startupjobs shape:
+  `JOB_URL` carries the fragment route and `posting_id` keeps hashing `ID_URL`, the id-only
+  string every previous run stored, so the links repair in place via `upsert_postings` and
+  **no id churns** — hashing the new link would have re-created all ~7 300 CZ rows. The
+  general rule, now twice: a source returning the right *number* of rows says nothing about
+  whether its links resolve, and "unverified" in a comment is a bug nobody has looked at.
   `recruitee` is the other addition: the mid-size Czech employers (STRV, Trask, Twisto,
   Livesport) that no existing ATS adapter reached. Both found via `scripts/discover_ats.py`,
   which reads a company's ATS slug off its own careers page. Cocuma's terms are B2B and carry
@@ -1476,9 +1657,20 @@ goes red. A test that cannot fail documents nothing.
   keyword half of the `category OR keyword` recall predicate. **This is already the condition of
   `platsbanken` (Swedish) and `mpsv` (Czech)**, our two largest non-English sources, so it is
   accepted rather than broken — but it means **the marginal value of a fourth national source may
-  be lower than teaching the taxonomy Norwegian, Swedish and Czech role words.** Settle it with
-  `select source, role_category, count(*)` over the non-English sources on the box before choosing
-  which to do; that measurement has **not** been taken.
+  be lower than teaching the taxonomy Norwegian, Swedish and Czech role words.**
+  **That measurement was taken on 2026-08-08 and it found something worse than blindness.**
+  `select source, role_category, count(*)` over the non-English sources did not return
+  `uncategorised` for platsbanken — it returned **954 distinct Swedish SSYK labels**, because
+  `classify` was handing the source's own hint back verbatim (see the `role_category` convention
+  above). So the Swedish corpus was not sitting in a first-class "unknown" bucket, it was in
+  14 135 categories that no query could name. The guard fixes the column; **it does not teach the
+  taxonomy Swedish**, and the tech labels it now files as `uncategorised` are the concrete
+  argument for doing so: `Systemutvecklare/Programmerare` 220, `Projektledare, IT` 140,
+  `Mjukvaruutvecklare` 108, `IT-arkitekt/Lösningsarkitekt` 97, `Systemförvaltare` 118 —
+  ~600 rows of unambiguous software/platform work, plus ~1 500 sales and ~317 IT-support rows
+  in categories the taxonomy does not model at all. Do this **after** the vector gate
+  (`scripts/measure_shadow_recall.py`), not before: if cosine replaces the recall predicate, a
+  hand-curated SSYK map is work done for a code path being retired.
 - **Austria was swept end to end on 2026-08-07 and every non-ATS route is closed. Do not
   re-open one because AT looks thin.** Seven doors, and the useful thing is that no two shut
   for the same reason:

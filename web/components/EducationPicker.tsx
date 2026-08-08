@@ -36,7 +36,7 @@ const HINT: CSSProperties = {
 };
 
 export interface EducationValue {
-  levels: EducationLevel[];   // all five = no preference
+  levels: EducationLevel[];   // all five — or none — = no preference
   field: string;
 }
 
@@ -48,11 +48,17 @@ export function EducationPicker({
   idPrefix?: string;
 }) {
   const { t } = useI18n();
-  const levels = cleanEducationLevels(value.levels);
+  // Empty is preserved rather than widened to all five — the same call as `LocationPicker`'s
+  // work modes, for the same reason. Nothing about the filter changes: both readers treat an
+  // empty and a full selection identically. What changes is that an untouched control looks
+  // untouched, instead of five pressed chips implying the signup wizard picked them.
+  // /preferences is unaffected: it cleans the stored value before passing it in.
+  const levels = value.levels.length ? cleanEducationLevels(value.levels) : [];
+  const noPreference = levels.length === 0 || levels.length === EDUCATION_LEVELS.length;
 
   // Toggling off the last remaining level leaves an empty array, which every reader treats as
-  // "no preference" (see `cleanEducationLevels` and `education.clean_levels`). The chips then
-  // all render pressed again, which is the honest picture of what is being enforced.
+  // "no preference" (see `cleanEducationLevels` and `education.clean_levels`) — and which the
+  // chips now show as such, rather than springing back to all-pressed.
   const toggle = (level: EducationLevel) =>
     onChange({
       ...value,
@@ -68,9 +74,7 @@ export function EducationPicker({
           {t.education.label}
           {" — "}
           <span style={{ fontWeight: 400, color: "var(--muted)" }}>
-            {levels.length === EDUCATION_LEVELS.length
-              ? t.education.anyLevel
-              : t.education.narrowed}
+            {noPreference ? t.education.anyLevel : t.education.narrowed}
           </span>
         </label>
         <div className="chips">

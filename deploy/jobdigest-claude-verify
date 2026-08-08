@@ -1,0 +1,110 @@
+#!/usr/bin/env bash
+# Verify the Claude Code credential for the JobDigest pipeline WITHOUT printing it.
+#
+# Every check here is something that fails silently in production if it is wrong: a token that
+# never got pasted, an editor that loosened 0600, a duplicated line where the last one quietly
+# wins, a CRLF save that appends an invisible \r to the token, or a stray ANTHROPIC_API_KEY
+# that outranks it and moves the pipeline onto metered billing without a word.
+#
+# Run after `claude setup-token`, and again whenever the pipeline stops producing picks. The
+# token from setup-token lasts one year and nothing fails loudly when it expires, so this is
+# also the check a watchdog should call.
+set -uo pipefail
+
+ENV_FILE=/etc/jobdigest/claude.env
+CLAUDE=$(command -v claude || echo /home/deploy/.local/bin/claude)
+fail=0
+ok()  { printf '  ok    %s\n' "$*"; }
+bad() { printf '  FAIL  %s\n' "$*"; fail=1; }
+
+echo "== credential file =="
+if [ ! -f "$ENV_FILE" ]; then
+  bad "$ENV_FILE is missing"
+  echo
+  echo "SOME CHECKS FAILED"
+  exit 1
+fi
+
+perms=$(stat -c '%a %U:%G' "$ENV_FILE")
+if [ "$perms" = "600 deploy:deploy" ]; then
+  ok "permissions ($perms)"
+else
+  bad "permissions are '$perms', expected '600 deploy:deploy' - an editor may have loosened them."
+  bad "  fix: sudo chmod 0600 $ENV_FILE && sudo chown deploy:deploy $ENV_FILE"
+fi
+
+n=$(grep -c '^CLAUDE_CODE_OAUTH_TOKEN=' "$ENV_FILE" 2>/dev/null || true)
+if [ "$n" -eq 0 ]; then
+  bad "no CLAUDE_CODE_OAUTH_TOKEN line yet - run: claude setup-token"
+elif [ "$n" -eq 1 ]; then
+  ok "exactly one CLAUDE_CODE_OAUTH_TOKEN line"
+else
+  bad "$n CLAUDE_CODE_OAUTH_TOKEN lines - the last one silently wins; delete the extras"
+fi
+
+if [ "$n" -ge 1 ]; then
+  # Extracted but never echoed. Only its length, prefix and shape are ever reported.
+  val=$(sed -n 's/^CLAUDE_CODE_OAUTH_TOKEN=//p' "$ENV_FILE" | tail -1)
+
+  if [ -n "$val" ]; then ok "value is not empty (${#val} chars)"; else bad "value is empty"; fi
+
+  first=${val:0:1}
+  if [ "$first" = '"' ] || [ "$first" = "'" ]; then
+    bad "value is quoted - systemd EnvironmentFile keeps the quotes as part of the token"
+  else
+    ok "value is unquoted"
+  fi
+
+  case "$val" in
+    *[[:space:]]) bad "value has trailing whitespace or a CR (file saved with CRLF line endings?)" ;;
+    *)            ok "no trailing whitespace or CR" ;;
+  esac
+
+  case "$val" in
+    sk-ant-oat*) ok "looks like a setup-token OAuth token" ;;
+    sk-ant-api*) bad "this is an API KEY, not an OAuth token - it would bill metered API. Run: claude setup-token" ;;
+    *)           bad "unrecognised token prefix - expected sk-ant-oat..." ;;
+  esac
+fi
+
+echo "== nothing outranks it =="
+# Precedence order per the Claude Code auth docs: cloud-provider vars, then ANTHROPIC_AUTH_TOKEN,
+# then ANTHROPIC_API_KEY, then apiKeyHelper, and only then CLAUDE_CODE_OAUTH_TOKEN. Anything
+# above it here wins silently, which is how a subscription-compute pipeline ends up on metered
+# billing with nothing in the logs to say so.
+for v in ANTHROPIC_API_KEY ANTHROPIC_AUTH_TOKEN CLAUDE_CODE_USE_BEDROCK CLAUDE_CODE_USE_VERTEX CLAUDE_CODE_USE_FOUNDRY; do
+  hit=""
+  grep -hq "^$v=" /etc/environment 2>/dev/null && hit="$hit /etc/environment"
+  grep -hq "^$v=" /opt/jobdigest/deploy/.env 2>/dev/null && hit="$hit deploy/.env"
+  grep -rhq "$v" /etc/systemd/system/jobdigest-*.service 2>/dev/null && hit="$hit systemd-units"
+  grep -hq "^$v=" "$ENV_FILE" 2>/dev/null && hit="$hit claude.env"
+  if [ -z "$hit" ]; then ok "$v absent everywhere"; else bad "$v present in:$hit - it outranks CLAUDE_CODE_OAUTH_TOKEN"; fi
+done
+
+if [ -f /home/deploy/.claude/settings.json ] && grep -q apiKeyHelper /home/deploy/.claude/settings.json 2>/dev/null; then
+  bad "apiKeyHelper is configured in ~/.claude/settings.json - it also outranks the token"
+else
+  ok "no apiKeyHelper configured"
+fi
+
+echo "== live authentication =="
+if [ "$n" -ge 1 ]; then
+  set -a
+  # shellcheck disable=SC1090
+  . "$ENV_FILE"
+  set +a
+  # Deliberately not --bare: bare mode does not read CLAUDE_CODE_OAUTH_TOKEN, so a --bare
+  # invocation would report "not logged in" even with a perfectly good token.
+  out=$("$CLAUDE" -p 'reply with exactly: ok' 2>&1 | head -3)
+  case "$out" in
+    *ok*|*OK*)                            ok "claude -p authenticated and answered" ;;
+    *"Not logged in"*|*"Login expired"*)  bad "not authenticated: $out" ;;
+    *)                                    bad "unexpected reply: $out" ;;
+  esac
+else
+  echo "  skip  (no token to test)"
+fi
+
+echo
+if [ "$fail" -eq 0 ]; then echo "ALL CHECKS PASSED"; else echo "SOME CHECKS FAILED (see FAIL lines above)"; fi
+exit "$fail"

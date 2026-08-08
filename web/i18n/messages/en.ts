@@ -128,7 +128,7 @@ const en: Messages = {
 
   landing: {
     wizardAria: "Build your digest",
-    stepOf: "Step {n} of 4",
+    stepOf: "Step {n} of {total}",
     q1: "Start searching now",
     cvReading: "Reading your CV…",
     cvDrop: "Drop your CV — we'll fill this in",
@@ -189,6 +189,7 @@ const en: Messages = {
       needEmail: "Enter a valid email",
       needTurnstile: "Please complete the verification",
       needRole: "Pick at least one role to continue",
+      needCountry: "Pick at least one country to continue",
       needLevelToContinue: "Pick at least one level to continue",
       genericError: "Something went wrong — please retry",
     },

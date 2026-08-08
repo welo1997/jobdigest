@@ -73,14 +73,36 @@ logger = logging.getLogger(__name__)
 DATA_URL = "https://data.mpsv.cz/od/soubory/volna-mista/volna-mista.json.gz"
 OBCE_URL = "https://data.mpsv.cz/od/soubory/ciselniky/obce.json"
 
-#: The public portal. `up.gov.cz` is a client-rendered app, so this deep link is stable and
-#: unique per vacancy — which is what `make_posting_id` needs — but whether the app honours
-#: `?id=` on load is **unverified**: the server returns an identical shell for a bogus id, so
-#: it cannot be checked without a browser, and there is no server-rendered detail page to use
-#: instead. `urlAdresa` is not a substitute: it is present on only 3% of records and is
-#: usually the employer's homepage ("www.ssok.cz"), often without a scheme — a worse link to
-#: the job and an unstable basis for a posting id.
-PORTAL_URL = "https://up.gov.cz/volna-mista-v-cr?id={portal_id}"
+#: The public portal, and the link a subscriber actually clicks. `up.gov.cz` is a
+#: client-rendered app whose router reads the **fragment**, not the query string: the vacancy
+#: lives at `#/volna-mista-detail/{id}`, and `?id={id}` is not a route at all — the app
+#: ignores it and renders its own empty search page. That was this adapter's link for its
+#: whole life, shipped because it was *"stable and unique per vacancy"* and honestly labelled
+#: **unverified**: the server returns an identical shell for a bogus id, so it cannot be
+#: checked without a browser, and a stored URL is never fetched again. So a subscriber found
+#: it the only way left — one was emailed `?id=67251104` on 2026-08-08 and it went nowhere.
+#:
+#: This is the startupjobs 2026-08-06 failure in a second place, and the shape is the same
+#: both times: a source that returns the right number of rows can still return dead links,
+#: and *"unverified"* in a comment is a bug nobody has looked at yet. A URL must carry
+#: whatever the site needs to resolve it.
+#:
+#: `urlAdresa` is still not a substitute: present on only 3% of records and usually the
+#: employer's homepage ("www.ssok.cz"), often without a scheme.
+JOB_URL = "https://up.gov.cz/volna-mista-v-cr#/volna-mista-detail/{portal_id}"
+
+#: What `posting_id` hashes — **deliberately not `JOB_URL`, and deliberately never fetched.**
+#: `posting_id = md5(url)`, so a vacancy's identity is whatever string the adapter puts in
+#: `url`; hashing the corrected link would re-create all ~7 300 MPSV rows under fresh ids,
+#: both copies active for a staleness window and competing for shortlist slots — the
+#: startupjobs churn, this time self-inflicted. This string is byte-identical to what every
+#: previous run stored, so **repairing the link churns no ids**: the rows keep their identity
+#: and have their `url` corrected in place on the next ingest (`upsert_postings` refreshes
+#: `url` for exactly this case).
+#:
+#: It is the better seed on its own merits, too. `portalId` is the register's own immutable
+#: key, whereas the route is the portal's to restructure — and it has already changed once.
+ID_URL = "https://up.gov.cz/volna-mista-v-cr?id={portal_id}"
 
 #: ISCO-08 major groups to keep: 1 managers, 2 professionals, 3 technicians. See the module
 #: docstring — this is a dilution guard, not a judgement about which work matters.
@@ -342,13 +364,13 @@ class MpsvSource(BaseSource):
             title = _cs(item.get("pozadovanaProfese"))
             if not portal_id or not title:
                 continue
-            url = PORTAL_URL.format(portal_id=portal_id)
             out.append(JobPosting(
-                posting_id=make_posting_id(url),
+                # Hashes the id-only form, not the link — see ID_URL.
+                posting_id=make_posting_id(ID_URL.format(portal_id=portal_id)),
                 source=self.source_name,
                 title=title.strip(),
                 company=(item.get("zamestnavatel") or {}).get("nazev"),
-                url=url,
+                url=JOB_URL.format(portal_id=portal_id),
                 # Contact details are stripped here and the `prvniKontaktSeZamestnavatelem`
                 # block is never touched at all — see the module docstring.
                 description=_scrub(_cs(item.get("upresnujiciInformace"))),

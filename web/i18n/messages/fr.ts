@@ -131,7 +131,7 @@ const fr: Messages = {
 
   landing: {
     wizardAria: "Composez votre digest",
-    stepOf: "Étape {n} sur 4",
+    stepOf: "Étape {n} sur {total}",
     q1: "Commencez à chercher tout de suite",
     cvReading: "Lecture de votre CV…",
     cvDrop: "Déposez votre CV — on remplit tout",
@@ -193,6 +193,7 @@ const fr: Messages = {
       needEmail: "Saisissez un e-mail valide",
       needTurnstile: "Merci de compléter la vérification",
       needRole: "Choisissez au moins un poste pour continuer",
+      needCountry: "Choisissez au moins un pays pour continuer",
       needLevelToContinue: "Choisissez au moins un niveau pour continuer",
       genericError: "Une erreur est survenue — merci de réessayer",
     },

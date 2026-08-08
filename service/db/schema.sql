@@ -5,6 +5,11 @@
 
 create extension if not exists "uuid-ossp";
 create extension if not exists pg_trgm;      -- fuzzy title search / dedup support
+-- Embeddings (migration 015). This is why the `db` service is BUILT from
+-- deploy/db.Dockerfile rather than pulled: stock postgres:16-alpine has no pgvector, and the
+-- obvious pulled alternative (pgvector/pgvector:pg16) is Debian/glibc, which would silently
+-- corrupt this cluster's musl-ordered indexes. See deploy/db.Dockerfile.
+create extension if not exists vector;
 
 -- ---------------------------------------------------------------------------
 -- postings: one enriched row per job, deduped on posting_id (md5 of url).
@@ -51,7 +56,25 @@ create table if not exists postings (
     search_tsv     tsvector generated always as (
         to_tsvector('simple',
             coalesce(title, '') || ' ' || coalesce(company, '') || ' ' || coalesce(description, ''))
-    ) stored
+    ) stored,
+
+    -- Retrieval embedding (migration 015). `halfvec` is fp16: 74MB across 96,583 active rows
+    -- against 148MB for `vector`, and the precision it drops sits far below what changes a
+    -- ranking order — on a 3814MB swapless box what competes for page cache matters.
+    --
+    -- `embedding_model` is not bookkeeping. Two models produce vectors in unrelated spaces, so
+    -- a model swap without a full re-embed leaves this column meaning two things at once and
+    -- cosine distance quietly comparing nonsense. The stored identity includes the *library*
+    -- version for the same reason — fastembed 0.8.0 moved this model from CLS to mean pooling
+    -- while its name stayed byte-identical. Changing either means re-running
+    -- `python -m service.backfill_embeddings`.
+    --
+    -- Null is always valid: ~5% of active postings carry no description and the embed step can
+    -- be skipped, so a missing vector falls back to `first_seen_at` ordering and must never
+    -- remove a job from a digest. Same rule as work_mode, education_min and an unresolved city.
+    embedding       halfvec(384),
+    embedding_model text,
+    embedded_at     timestamptz
 );
 
 create index if not exists idx_postings_active     on postings (is_active, last_seen_at desc);
@@ -63,6 +86,17 @@ create index if not exists idx_postings_dedup       on postings (dedup_key);
 create index if not exists idx_postings_education   on postings (education_min) where education_min is not null;
 create index if not exists idx_postings_title_trgm  on postings using gin (title gin_trgm_ops);
 create index if not exists idx_postings_search_tsv  on postings using gin (search_tsv);
+-- The embed backfill's own work queue: active rows still missing a vector. Partial, so it
+-- stays tiny once caught up — ~8,000 new postings a day rather than 96,583 for ever.
+create index if not exists idx_postings_needs_embedding
+    on postings (first_seen_at desc) where is_active and embedding is null;
+-- Cosine, because these models are trained for it. NOTE for anyone querying this index behind
+-- a WHERE clause: HNSW gathers `hnsw.ef_search` (default 40) candidates and filters
+-- *afterwards*, so a selective gate starves it — measured on production 2026-08-08, a LIMIT of
+-- 120 returned 4 rows for one profile and 0 for another, with nothing raised. Set
+-- `hnsw.iterative_scan = relaxed_order` on any such query; see store.query_shortlist_vector.
+create index if not exists idx_postings_embedding_hnsw
+    on postings using hnsw (embedding halfvec_cosine_ops);
 
 -- ---------------------------------------------------------------------------
 -- profiles: an email subscription + fit criteria. Email-first / token-based —
@@ -119,6 +153,18 @@ create table if not exists profiles (
     has_cv           boolean not null default false,
     cv_summary       text,                            -- short "Detected: ..." line
     years_experience int,
+
+    -- The query side of the posting embedding space (migration 015). Deliberately unindexed:
+    -- there are three subscribers and this is fetched by primary key, never searched.
+    --
+    -- Written by the pipeline, NOT by the webapp on save — keeping the model out of the
+    -- always-on `api` container is what stops ~500MB of resident weights competing with
+    -- Postgres. A profile saved during the day gets its vector on the next nightly run, which
+    -- is soon enough for a daily digest. See service/embed.py `profile_text` for what is
+    -- encoded, and note it deliberately excludes anything a hard gate already decides.
+    embedding       halfvec(384),
+    embedding_model text,
+    embedded_at     timestamptz,
 
     created_at      timestamptz not null default now()
 );
@@ -256,3 +302,37 @@ create table if not exists digest_runs (
 
 create index if not exists idx_digest_runs_profile_day on digest_runs (profile_id, day desc);
 create index if not exists idx_digest_runs_day on digest_runs (day desc);
+
+-- ---------------------------------------------------------------------------
+-- shortlist_shadow (migration 015): the vector ranking, recorded beside the live
+-- keyword one and emailed to nobody.
+-- ---------------------------------------------------------------------------
+-- Switching how candidates are retrieved decides what real people are shown, so it is settled
+-- by measurement rather than by argument: the vector path writes here nightly, the keyword
+-- path keeps deciding digests, and the two are compared per subscriber over real days. That
+-- comparison is the only thing that can show *improvement* — `scripts/measure_shadow_recall.py`
+-- can only show preservation, because `matches` was itself populated from keyword shortlists
+-- and a posting vectors would find but keywords missed can never appear in it.
+--
+-- `in_live` is the whole point and is why the row is written now: whether the vector would
+-- have surfaced what the keyword path did is cheap at this moment and impossible to
+-- reconstruct later, once postings age out and `is_active` flips.
+--
+-- Keyed by day so a window can be compared rather than one night, and cascading on profile
+-- delete so the 30-day erasure promise needs no extra step (same reasoning as digest_runs).
+-- Holds no personal data beyond the profile reference it is keyed on. Nothing on the delivery
+-- path may read it — `test_shortlist_shadow_sql.py` fails if digest, mailer, webapp, pipeline
+-- or the watchdog so much as names it.
+create table if not exists shortlist_shadow (
+    day         date not null,
+    profile_id  uuid not null references profiles(id) on delete cascade,
+    posting_id  text not null references postings(posting_id) on delete cascade,
+    rank        int  not null,
+    similarity  real not null,
+    in_live     boolean not null default false,       -- also in that day's keyword shortlist
+    recorded_at timestamptz not null default now(),
+    primary key (day, profile_id, posting_id)
+);
+
+create index if not exists idx_shortlist_shadow_profile_day
+    on shortlist_shadow (profile_id, day desc);

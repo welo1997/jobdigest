@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import json
 
+from ingestion.base import make_posting_id
 from ingestion.sources.mpsv import (
     ISCO_MAJOR_KEEP,
     _CHUNK,
@@ -182,7 +183,52 @@ def test_country_is_czechia_and_salary_is_czk():
     assert p.country_code == "CZ"
     assert p.currency == "CZK" and "50000" in p.salary_raw
     assert p.posted_at.isoformat() == "2026-07-01"
-    assert p.url.endswith("id=9") and p.posting_id
+    assert p.posting_id
+
+
+def test_url_is_the_fragment_route_because_the_query_form_is_not_a_route_at_all():
+    """`?id=` renders the portal's empty search page — the app routes on the fragment.
+
+    This adapter emitted `?id={portal_id}` from the day it was written, on the strength of
+    the id being stable and unique, with the comment saying in as many words that whether
+    the app honours it was **unverified**. It does not: `up.gov.cz` is client-rendered and
+    its router reads `#/volna-mista-detail/{id}`. Every MPSV link ever emailed was dead, and
+    nothing downstream could see it — a stored URL is never fetched again, so it surfaced
+    only when a subscriber clicked one on 2026-08-08 and landed nowhere.
+    """
+    p = MpsvSource().normalize([{"portalId": 67251104,
+                                 "pozadovanaProfese": {"cs": "Datový analytik"}}])[0]
+    assert p.url == "https://up.gov.cz/volna-mista-v-cr#/volna-mista-detail/67251104"
+
+
+def test_posting_id_still_hashes_the_id_only_url_so_the_link_fix_churns_nothing():
+    """Byte-identical to what every run before the fix stored.
+
+    `posting_id = md5(url)`, so hashing the corrected link would re-create all ~7 300 MPSV
+    rows under fresh ids — two active copies of every Czech vacancy competing for shortlist
+    slots until the originals age out, which is the startupjobs 2026-08-06 churn brought on
+    deliberately. Hashing the id-only form instead lets `upsert_postings` repair `url` in
+    place on the next ingest and change nothing else.
+    """
+    p = MpsvSource().normalize([{"portalId": 67251104,
+                                 "pozadovanaProfese": {"cs": "Datový analytik"}}])[0]
+    assert p.posting_id == make_posting_id(
+        "https://up.gov.cz/volna-mista-v-cr?id=67251104")
+
+
+def test_the_fragment_survives_the_email_scheme_guard():
+    """`digest.safe_url` replaces anything that is not plain http(s) with '#'.
+
+    No other adapter emits a fragment, so this link is the first to travel through that guard
+    with one — and a guard that stripped or rejected it would put every MPSV job back on a
+    dead link by a different route, with the adapter and its tests all green.
+    """
+    from service.digest import safe_url
+
+    p = MpsvSource().normalize([{"portalId": 67251104,
+                                 "pozadovanaProfese": {"cs": "Datový analytik"}}])[0]
+    assert safe_url(p.url) == p.url
+    assert "#/volna-mista-detail/67251104" in safe_url(p.url)
 
 
 def test_remote_signal_is_never_invented():

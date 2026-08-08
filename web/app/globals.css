@@ -36,6 +36,23 @@
 html,body{padding:0;margin:0;}
 html{scroll-behavior:smooth;}
 @media (prefers-reduced-motion:reduce){html{scroll-behavior:auto;}}
+/* The scrollbar was the last piece of chrome that ignored the theme: Chrome on Windows paints
+   its own light track and slab-grey thumb, so a dark page carried a bright band down its right
+   edge. Both syntaxes are set and both read the same tokens, so the theme toggle and
+   prefers-color-scheme move the scrollbar with everything else instead of leaving it behind:
+   the standard `scrollbar-*` properties (Firefox, Chrome 121+) and the `::-webkit-` pseudo-
+   elements for older Chrome and Safari. The thumb is drawn with `background-clip:content-box`
+   inside a transparent border, which is what gives it the inset and the rounded cap — there is
+   no padding property on a scrollbar thumb.
+   `scrollbar-gutter:stable` reserves the track whether or not the page scrolls, so moving
+   between a long page (/matches) and a short one (/check-inbox) no longer shifts every centred
+   element sideways by the scrollbar's width. */
+html{scrollbar-gutter:stable;scrollbar-width:thin;scrollbar-color:var(--line) transparent;}
+::-webkit-scrollbar{width:12px;height:12px;}
+::-webkit-scrollbar-track,::-webkit-scrollbar-corner{background:transparent;}
+::-webkit-scrollbar-thumb{background:var(--line);border:3px solid transparent;background-clip:content-box;
+  border-radius:99px;}
+::-webkit-scrollbar-thumb:hover{background:var(--faint);background-clip:content-box;}
 body{background:var(--paper);color:var(--ink);font-family:var(--font-sans);
   font-size:var(--fs-body);line-height:1.55;-webkit-font-smoothing:antialiased;}
 .dawnbar{height:3px;background:var(--dawn);}
@@ -101,8 +118,27 @@ button.nav-link{background:none;border:0;padding:0;cursor:pointer;font-family:in
 .hero h1 .u{color:var(--brand);font-style:italic;}
 .hero .lede{margin-top:16px;font-size:1.12rem;color:var(--muted);max-width:46ch;}
 .build{display:grid;grid-template-columns:1.05fr .95fr;gap:36px;align-items:stretch;margin-top:36px;}
-/* /v2 variant: no live-preview column — one large, centered wizard. */
+/* No live-preview column — one large, centered wizard. Was a /v2-only variant; since the live
+   email preview was removed from the landing page it is what the real hero uses too, so the
+   two-column `.build` rule above now applies to nothing. Kept because /v2 still sets both. */
 .build.solo{grid-template-columns:1fr;max-width:700px;margin-left:auto;margin-right:auto;}
+/* Landing hero: full `.wrap` width, so the wizard's left and right edges sit on the same lines
+   as the "how it works" cards below it. Those live in `.wrap.section` — same --maxw, same 24px
+   gutter — which is why this removes the cap rather than setting a second number: a literal
+   1120px here would silently drift out of alignment the day --maxw changes. /v2 keeps the
+   narrow 700px form, so only the landing opts in. */
+.build.solo.wide{max-width:none;}
+/* Step 4 is the one panel that does not fill this width. The other three are chip grids that
+   spread across it happily; step 4 is a sign-up column — an email box, the Google button, a
+   consent line — and `.emailin`/`.gbtn` are both `width:100%`, so at the hero's full width the
+   email field measured 1050px. A one-line input as wide as a laptop screen reads as a mistake
+   and gives the eye no line to start from. Cap the column, not the card. Scoped to `.wide` so
+   /v2's 700px wizard, where 100% is already a sensible measure, is untouched. */
+.build.solo.wide .emailin,
+.build.solo.wide .gbtn,
+.build.solo.wide .or-divider,
+.build.solo.wide .consent,
+.build.solo.wide .turnstile{max-width:560px;}
 .wizard.big{padding:34px 34px 26px;min-height:460px;}
 .wizard.big .wz-q{font-size:1.7rem;}
 .wizard.big .wz-hint{font-size:var(--fs-body);}
@@ -156,12 +192,47 @@ button.nav-link{background:none;border:0;padding:0;cursor:pointer;font-family:in
   font-family:var(--font-mono);letter-spacing:.08em;text-transform:uppercase;}
 .cvor::before,.cvor::after{content:"";flex:1;height:1px;background:var(--line);}
 
+/* Roles | skills, the two halves of step 1. Stacked, they were two chip grids each with an
+   "Add…" box, and the second read as more of the first — the visitor tags themselves
+   "Designer, Figma" without noticing the question changed. Side by side the two labels sit on
+   one line and the distinction is structural rather than something a hairline has to carry.
+   The `--line` rule between them carries the seam. It is drawn as a border on the second
+   column, so the columns must stretch to the row's height — left to `align-items:start` the
+   rule stops wherever the shorter column ends (measured: 178px of a 229px row) and reads as an
+   unfinished line rather than a divider. Stretching costs nothing: `.field`'s children are
+   block-level and stay at the top of a taller box. `min-width:0` so a long chip cannot push a
+   column wider than its track. */
+.wz-cols{display:grid;grid-template-columns:1fr 1fr;gap:0 28px;}
+.wz-cols>.field{min-width:0;margin-bottom:0;}
+.wz-cols>.field+.field{padding-left:28px;border-left:1px solid var(--line);}
+/* The hint belongs to both columns now, so it leads them in rather than trailing one of them —
+   below the pair it hung off the bottom of whichever column happened to be taller and read as
+   a footnote to that one. */
+.wz-cols-note{margin-top:0;margin-bottom:16px;}
 .addwrap{margin-top:14px;display:flex;gap:8px;}
 .addwrap input{flex:1;font:inherit;font-size:var(--fs-sm);color:var(--ink);background:var(--paper);
   border:1px solid var(--line);border-radius:var(--r-sm);padding:10px 12px;}
 .addwrap input:focus{border-color:var(--brand);box-shadow:0 0 0 3px var(--brand-tint);outline:none;}
 .addwrap button{font:inherit;font-weight:700;font-size:var(--fs-sm);color:var(--brand);background:var(--brand-tint);
   border:0;border-radius:var(--r-sm);padding:0 16px;cursor:pointer;}
+
+/* SuggestInput. The wrapper takes the flex slot the bare input used to hold, and the input
+   fills it — so `left:0;right:0` on the list is the field's own width, which is the whole
+   point of replacing the native <datalist> (the browser drew that popup at content width,
+   under one end of a much wider box). `min-width:0` because a flex item defaults to
+   min-width:auto and an input carries an intrinsic size, which would otherwise push the
+   two-column layout wider than its track on a narrow screen instead of shrinking. */
+.addwrap .sugg{flex:1;min-width:0;position:relative;}
+.addwrap .sugg input{width:100%;}
+/* Below the sticky .nav (z-index 30) on purpose: a suggestion list that paints over the site
+   header would cover the language switcher and the theme toggle. */
+.sugg-list{position:absolute;top:calc(100% + 5px);left:0;right:0;z-index:20;margin:0;padding:5px;
+  list-style:none;max-height:236px;overflow-y:auto;background:var(--surface);
+  border:1px solid var(--line);border-radius:var(--r-sm);box-shadow:var(--shadow-lg);}
+.sugg-list li{font-size:var(--fs-sm);color:var(--ink);padding:9px 11px;border-radius:6px;cursor:pointer;}
+/* Hover and keyboard highlight are the same state, so arrowing and pointing cannot disagree
+   about which row is current — `onMouseEnter` moves `active`, and this styles it once. */
+.sugg-list li[aria-selected="true"]{background:var(--brand-tint);color:var(--brand);font-weight:600;}
 
 .emailin{width:100%;font:inherit;font-size:1.05rem;color:var(--ink);background:var(--paper);
   border:1.5px solid var(--line);border-radius:var(--r-md);padding:15px 16px;margin-top:4px;}
@@ -340,9 +411,16 @@ a.hidden-link:hover{color:var(--brand);text-decoration:underline;}
 
 /* ============================================================= RESPONSIVE */
 @media (max-width:920px){
-  /* Wizard first, preview below: on phones the interactive form is what the visitor should land
-     on, not a 780px mock email they have to scroll past. (`.peek` no longer gets order:-1.) */
+  /* The preview column that this rule used to stack below the wizard is gone from the landing
+     page entirely, which is the same fix taken further: on phones the interactive form is what
+     the visitor should land on, not a 780px mock email they have to scroll past. */
   .build{grid-template-columns:1fr;gap:26px;}.steps{grid-template-columns:1fr;}
+  /* Step 1's two columns stack on phones — 1fr 1fr of a ~330px card is not a chip row, it is a
+     word per line. The divider has to rotate with them: a left border on a stacked column draws
+     a rule down the side of the page rather than between the two questions. */
+  .wz-cols{grid-template-columns:1fr;gap:0;}
+  .wz-cols>.field+.field{padding-left:0;border-left:0;margin-top:20px;padding-top:18px;
+    border-top:1px solid var(--line);}
   /* Restore the horizontal gutter that `.hero`/`.section` zero out with their `padding: X 0 Y`
      shorthands. Below --maxw (1120px) that left the microtrust row, the "how it works" label and
      every card flush against the screen edge on phones. `.wrap.hero`/`.wrap.section` (specificity

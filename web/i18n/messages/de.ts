@@ -137,7 +137,7 @@ const de: Messages = {
 
   landing: {
     wizardAria: "Digest zusammenstellen",
-    stepOf: "Schritt {n} von 4",
+    stepOf: "Schritt {n} von {total}",
     q1: "Jetzt mit der Suche starten",
     cvReading: "Wir lesen deinen Lebenslauf…",
     cvDrop: "Lebenslauf hier ablegen — wir füllen das aus",
@@ -199,6 +199,7 @@ const de: Messages = {
       needEmail: "Gib eine gültige E-Mail-Adresse ein",
       needTurnstile: "Bitte schließe die Verifizierung ab",
       needRole: "Wähle mindestens eine Position, um fortzufahren",
+      needCountry: "Wähle mindestens ein Land, um fortzufahren",
       needLevelToContinue: "Wähle mindestens ein Level, um fortzufahren",
       genericError: "Etwas ist schiefgelaufen — bitte erneut versuchen",
     },

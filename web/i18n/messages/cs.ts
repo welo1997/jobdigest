@@ -137,7 +137,7 @@ const cs: Messages = {
 
   landing: {
     wizardAria: "Sestavte si přehled",
-    stepOf: "Krok {n} ze 4",
+    stepOf: "Krok {n} ze {total}",
     q1: "Začněte hledat hned",
     cvReading: "Čteme váš životopis…",
     cvDrop: "Přetáhněte sem životopis — vyplníme to za vás",
@@ -199,6 +199,7 @@ const cs: Messages = {
       needEmail: "Zadejte platný e-mail",
       needTurnstile: "Dokončete prosím ověření",
       needRole: "Pokračujte výběrem alespoň jedné pozice",
+      needCountry: "Pokračujte výběrem alespoň jedné země",
       needLevelToContinue: "Pokračujte výběrem alespoň jedné úrovně",
       genericError: "Něco se pokazilo — zkuste to prosím znovu",
     },

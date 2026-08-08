@@ -1,0 +1,73 @@
+#!/usr/bin/env bash
+# Record the PEAK memory of the transient `pipeline` container during the export window.
+#
+# Why this exists: the export's systemd unit reports MemoryPeak=99MB, and that number is a
+# trap. The unit runs `docker compose run`, so the container lives in Docker's cgroup, not the
+# unit's -- 99MB is the compose *client*. The thing that actually allocates (ingest holding
+# every posting in memory, plus Workday/SmartRecruiters detail workers) is unaccounted.
+#
+# That matters because the box has 3814MB total and NO SWAP, so an over-commit is not a
+# slowdown, it is the OOM killer taking Postgres or the export outright. Phase 1 wants to add
+# an embedding model to this box; sizing that against a guess would be indefensible.
+#
+# Method: poll for the container, then read cgroup v2 `memory.peak`, which is a monotonic
+# high-water mark -- so a single late read captures the true peak even between samples. Falls
+# back to sampling `docker stats` if memory.peak is not exposed.
+set -uo pipefail
+
+OUT=/var/log/jobdigest-pipeline-mem.log
+WINDOW=${1:-5400}                 # seconds to watch; default 90 min covers a ~42 min export
+deadline=$(( $(date +%s) + WINDOW ))
+peak_bytes=0
+method="none"
+seen_container=""
+
+note() { printf '%s %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$*" >> "$OUT"; }
+
+peak_from_cgroup() {   # $1 = full container id
+  local cid="$1" p
+  for p in \
+    "/sys/fs/cgroup/system.slice/docker-${cid}.scope/memory.peak" \
+    "/sys/fs/cgroup/docker/${cid}/memory.peak" \
+    "/sys/fs/cgroup/system.slice/docker.service/docker-${cid}.scope/memory.peak"
+  do
+    if [ -r "$p" ]; then cat "$p"; return 0; fi
+  done
+  return 1
+}
+
+note "watching for a pipeline container for ${WINDOW}s"
+
+while [ "$(date +%s)" -lt "$deadline" ]; do
+  cid=$(docker ps -q --no-trunc --filter "name=pipeline" 2>/dev/null | head -1)
+  if [ -n "$cid" ]; then
+    if [ -z "$seen_container" ]; then
+      seen_container="$cid"
+      note "container ${cid:0:12} is up"
+    fi
+    if v=$(peak_from_cgroup "$cid" 2>/dev/null) && [ -n "$v" ]; then
+      method="cgroup:memory.peak"
+      [ "$v" -gt "$peak_bytes" ] 2>/dev/null && peak_bytes="$v"
+    else
+      # Fallback: parse `docker stats` MemUsage ("1.23GiB / 3.725GiB"). Coarser, because it
+      # samples rather than high-water-marks, so a spike between polls can be missed.
+      raw=$(docker stats --no-stream --format '{{.MemUsage}}' "$cid" 2>/dev/null | awk '{print $1}')
+      if [ -n "$raw" ]; then
+        method="docker stats (sampled)"
+        b=$(numfmt --from=iec "${raw%iB}" 2>/dev/null || echo 0)
+        [ "$b" -gt "$peak_bytes" ] 2>/dev/null && peak_bytes="$b"
+      fi
+    fi
+  elif [ -n "$seen_container" ]; then
+    break                          # it ran and exited; we have the peak
+  fi
+  sleep 5
+done
+
+if [ "$peak_bytes" -gt 0 ]; then
+  note "PEAK $(( peak_bytes / 1048576 )) MiB  (method: $method)"
+  # Context that makes the number actionable rather than just a figure in a log.
+  note "context: $(free -m | awk '/^Mem:/ {print "total="$2"MB available="$7"MB"}'), swap=$(free -m | awk '/^Swap:/ {print $2}')MB"
+else
+  note "no pipeline container observed in the window (export may not have run)"
+fi

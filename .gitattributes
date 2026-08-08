@@ -5,6 +5,13 @@
 *.service       text eol=lf
 *.timer         text eol=lf
 Dockerfile      text eol=lf
+# Two gaps found 2026-08-08, both of which ship a broken file rather than fail a check.
+# `Dockerfile` is an exact-name pattern, so deploy/db.Dockerfile matched nothing; and the
+# operational scripts in deploy/ carry no .sh extension because they are installed onto PATH
+# as commands (jobdigest-claude-verify, jobdigest-mem-sample), so *.sh missed them too. Both
+# would have been checked out CRLF on Windows and shipped that way by `git archive`.
+*.Dockerfile    text eol=lf
+deploy/jobdigest-* text eol=lf
 *.Caddyfile     text eol=lf
 Caddyfile       text eol=lf
 *.sql           text eol=lf

@@ -359,12 +359,17 @@ def main() -> None:
     rows = rows[: args.limit]
 
     if args.check_live:
-        from notify import check_url_liveness  # lazy: avoids the snowflake import unless needed
+        # `notify.check_url_liveness` used to live here and was deleted with the rest of the
+        # personal-alert feed on 2026-07-21, leaving this flag as an ImportError nobody hit.
+        # `scripts/check_links.py` is the replacement, and it is stricter: a 200 is not a pass
+        # unless the page actually carries the posting's title.
+        from scripts.check_links import probe  # lazy: only this flag needs requests-per-row
         live = []
         for r in rows:
-            verdict, note = check_url_liveness(r["url"])
+            verdict, note = probe(r["url"], r.get("title") or "", r.get("company"))
             r["liveness"] = verdict
-            if verdict != "dead":
+            r["liveness_note"] = note
+            if verdict != "DEAD":
                 live.append(r)
         logger.info("Liveness: kept %d of %d", len(live), len(rows))
         rows = live

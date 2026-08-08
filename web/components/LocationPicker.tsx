@@ -44,7 +44,7 @@ export interface LocationValue {
   countries: string[];
   cities: string[];        // qualified, e.g. "cz:prague"
   remoteScope: RemoteScope;
-  workModes: WorkMode[];   // all three = no preference
+  workModes: WorkMode[];   // all three — or none — = no preference
 }
 
 export function LocationPicker({
@@ -57,7 +57,15 @@ export function LocationPicker({
   const { t, locale, country } = useI18n();
   const [typed, setTyped] = useState<Record<string, string>>({});
   const { countries, cities, remoteScope } = value;
-  const workModes = cleanWorkModes(value.workModes);
+  // Empty is preserved rather than widened to all three. Both mean "no preference" to every
+  // reader (`cleanWorkModes` here, `geo.clean_work_modes` on the server), so this changes no
+  // filter — it changes what the chips *look* like on a control nobody has touched. Normalising
+  // first drew all three pressed, which is the signup wizard claiming a decision it had not
+  // been given; /preferences is unaffected because it cleans the stored value before passing
+  // it in, so a subscriber whose row says "all three" still sees all three pressed.
+  const workModes = value.workModes.length ? cleanWorkModes(value.workModes) : [];
+  const noModePreference = workModes.length === 0 || workModes.length === WORK_MODES.length;
+  const remoteExcluded = workModes.length > 0 && !workModes.includes("remote");
 
   const toggleCountry = (code: string) => {
     if (countries.includes(code)) {
@@ -86,7 +94,9 @@ export function LocationPicker({
 
   // Unticking the last one is not an error and must not be blocked: an empty selection means
   // "no preference" everywhere it is read (see `cleanWorkModes` and `geo.clean_work_modes`),
-  // so it widens back to all three rather than matching nothing.
+  // so it widens back to all three rather than matching nothing. It now *looks* empty when it
+  // gets there instead of springing back to all-pressed, which is the same state said honestly
+  // — the label beside it goes on reading "anything goes".
   const toggleWorkMode = (mode: WorkMode) =>
     onChange({
       ...value,
@@ -179,9 +189,7 @@ export function LocationPicker({
           {t.location.workSetup}
           {" — "}
           <span style={{ fontWeight: 400, color: "var(--muted)" }}>
-            {workModes.length === WORK_MODES.length
-              ? t.location.anythingGoes
-              : t.location.leaveOutRest}
+            {noModePreference ? t.location.anythingGoes : t.location.leaveOutRest}
           </span>
         </label>
         <div className="chips">
@@ -199,14 +207,19 @@ export function LocationPicker({
 
       <div className="field">
         <label htmlFor={`${idPrefix}-remote`}>{t.location.remoteLabel}</label>
+        {/* Disabled only when remote was deliberately left out. The old test was the bare
+            `!workModes.includes("remote")`, which is correct for every selection except the
+            empty one — and empty is now the state this control opens in. An empty set contains
+            no "remote" and yet admits fully remote roles, so that test would have greyed the
+            question out on an untouched form and then gone on applying the answer behind it. */}
         <select id={`${idPrefix}-remote`} value={remoteScope}
-          disabled={!workModes.includes("remote")}
+          disabled={remoteExcluded}
           onChange={(e) => onChange({ ...value, remoteScope: e.target.value as RemoteScope })}>
           {REMOTE_SCOPES.map((s) => (
             <option key={s} value={s}>{t.geo.remoteScope[s]}</option>
           ))}
         </select>
-        {!workModes.includes("remote") && (
+        {remoteExcluded && (
           <p style={HINT}>{t.location.remoteDisabledNote}</p>
         )}
       </div>

@@ -46,7 +46,15 @@ jobs:
     # of its cases had never run anywhere. A throwaway Postgres makes them real.
     services:
       postgres:
-        image: postgres:16
+        # pgvector, because schema.sql declares `create extension vector` and the SQL-backed
+        # tests below fail the build if they skip themselves. NOT the same call as the VPS:
+        # CLAUDE.md forbids `pgvector/pgvector:pg16` for the *live* database because that image
+        # is Debian/glibc while the cluster was initdb'd on Alpine/musl, and pointing an
+        # existing data directory at the other libc leaves every indexed text column sorted by
+        # rules the server no longer uses. Here the database is created from empty on every
+        # run, so there is no data directory to mis-sort — and the previous `postgres:16` was
+        # glibc too, so this changes nothing about what CI has always tested on.
+        image: pgvector/pgvector:pg16
         env:
           POSTGRES_USER: jobmatch
           POSTGRES_PASSWORD: jobmatch
@@ -94,14 +102,24 @@ jobs:
       # A skip is silent by default, and this suite's most expensive tests are exactly the
       # ones that skip themselves when misconfigured. If the Postgres service or the schema
       # load ever breaks, these files go back to skipping and the job stays green — so fail
-      # loudly instead of trusting the tick. Every SQL-backed file belongs in this list: one
-      # left out is one that can quietly stop running.
+      # loudly instead of trusting the tick.
+      #
+      # Globbed, never a hand-maintained list. It was a list of five filenames, and a list is
+      # a copy: adding a SQL-backed test file and forgetting the copy leaves a file that can
+      # silently stop running — the failure this step exists to prevent, arriving through the
+      # step itself. Same lesson as `source_watchdog` reading `search_jobs.source_classes`
+      # and `pending_boards.py` reading the adapters' own lists. The naming convention
+      # (`test_*_sql.py`) is what makes it derivable, so keep to it.
       - name: Fail if the SQL-backed tests skipped themselves
         run: |
-          for f in service/tests/test_geo_sql.py service/tests/test_hidden_sql.py \
-                   service/tests/test_education_sql.py \
-                   service/tests/test_digest_window_sql.py \
-                   service/tests/test_eligibility_sql.py; do
+          shopt -s nullglob
+          files=(service/tests/test_*_sql.py)
+          if [ ${#files[@]} -eq 0 ]; then
+            echo "::error::no service/tests/test_*_sql.py found — the glob or a rename broke."
+            exit 1
+          fi
+          echo "Checking ${#files[@]} SQL-backed file(s): ${files[*]}"
+          for f in "${files[@]}"; do
             if python -m pytest "$f" -q 2>&1 | grep -q "skipped"; then
               echo "::error::$f skipped — TEST_DATABASE_URL or the schema load is broken."
               exit 1

@@ -95,8 +95,17 @@ build_and_check() {
     sudo cp $REMOTE_DIR/deploy/jobdigest-*.service $REMOTE_DIR/deploy/jobdigest-*.timer /etc/systemd/system/
     sudo chmod +x $REMOTE_DIR/deploy/*.sh
     sudo systemctl daemon-reload
-    sudo docker compose build api web pipeline
-    sudo docker compose up -d api web
+    # `db` is in the build list because it is no longer a pulled image — it is built from
+    # deploy/db.Dockerfile (Postgres 16 + pgvector on Alpine, for the collation reason in that
+    # file). Leaving it out is how the box would keep running the old image while master
+    # believes otherwise, which is the 2026-08-02 'deployed is not running' failure again.
+    sudo docker compose build db api web pipeline
+    # `up -d db` is a no-op unless the built image id or the service config actually changed,
+    # so this does not recreate the database on every deploy. When it does change (a new
+    # upstream postgres:16-alpine, or an edit to db.Dockerfile) the recreate is brief and the
+    # api reconnects — but it IS a database restart, so avoid shipping a db change alongside
+    # anything else you would want to bisect.
+    sudo docker compose up -d db api web
     for i in \$(seq 1 20); do
       if sudo docker compose exec -T api curl -fsS http://127.0.0.1:8000/health >/dev/null 2>&1; then
         echo 'deploy: api healthy'; exit 0

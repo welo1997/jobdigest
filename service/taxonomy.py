@@ -79,6 +79,11 @@ UNCATEGORISED = "uncategorised"
 #: being `uncategorised` — it is a first-class value and useful for auditing the taxonomy.
 CATEGORIES: tuple[str, ...] = tuple(c for c, _ in PATTERNS) + (UNCATEGORISED,)
 
+#: Membership set for the guard in `classify`. Derived, never a second list — a copy is how
+#: the value written to `postings.role_category` and the value a subscriber may ask for drift
+#: apart, which is the whole reason this module is the single definition.
+_VALID: frozenset[str] = frozenset(CATEGORIES)
+
 
 def classify(title: str | None, hint: str | None = None) -> str:
     """Classify a job title into a role_category.
@@ -86,12 +91,27 @@ def classify(title: str | None, hint: str | None = None) -> str:
     Title patterns win. When none match, fall back to the source-provided profession
     `hint` (e.g. a jobs.cz "Marketing" field), which rescues localised CZ/SK titles the
     regexes still miss. Only `uncategorised` when neither fires.
+
+    **The hint must already be a value in `CATEGORIES`; anything else is discarded.** It used
+    to be returned verbatim, and five adapters were passing a raw third-party string —
+    platsbanken's Swedish SSYK label, workable's employer-typed department, startupjobs' field
+    slug, recruitee's `category_code`, oraclecloud's `JobFamily`. That put 14 135 of 98 858
+    active postings (14%, measured 2026-08-08) into a category no subscriber can select and no
+    query can match, reachable only through the keyword half of the recall predicate. Nothing
+    reported it: the dbt `accepted_values` test runs against `stg_job_postings.sql`'s own SQL
+    `case`, which never sees a hint.
+
+    Mapping a raw label to a real category is a per-source curation job (see
+    `smartrecruiters.FUNCTION_HINTS`, `themuse.CATEGORIES`) and belongs in the adapter, where
+    the source's vocabulary is known. Here the only safe answer is `uncategorised`: not better
+    at matching, but it means "unknown" to every consumer rather than naming a category that
+    does not exist.
     """
     text = title or ""
     for category, pattern in PATTERNS:
         if pattern.search(text):
             return category
-    return hint or UNCATEGORISED
+    return hint if hint in _VALID else UNCATEGORISED
 
 
 # ------------------------------------------------------------------- retrieval ---
