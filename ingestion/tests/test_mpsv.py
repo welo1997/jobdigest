@@ -216,6 +216,21 @@ def test_posting_id_still_hashes_the_id_only_url_so_the_link_fix_churns_nothing(
         "https://up.gov.cz/volna-mista-v-cr?id=67251104")
 
 
+def test_the_fragment_survives_the_email_scheme_guard():
+    """`digest.safe_url` replaces anything that is not plain http(s) with '#'.
+
+    No other adapter emits a fragment, so this link is the first to travel through that guard
+    with one — and a guard that stripped or rejected it would put every MPSV job back on a
+    dead link by a different route, with the adapter and its tests all green.
+    """
+    from service.digest import safe_url
+
+    p = MpsvSource().normalize([{"portalId": 67251104,
+                                 "pozadovanaProfese": {"cs": "Datový analytik"}}])[0]
+    assert safe_url(p.url) == p.url
+    assert "#/volna-mista-detail/67251104" in safe_url(p.url)
+
+
 def test_remote_signal_is_never_invented():
     """The register has no remote field; guessing one is the 2026-07-28 bug again."""
     item = {"portalId": 3, "pozadovanaProfese": {"cs": "Vývojář"},

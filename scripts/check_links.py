@@ -31,6 +31,8 @@ is on it — the stored title's words, or the employer's name, in the rendered t
     BLOCKED     403/429 from bot protection. Not the same as broken — Himalayas answers this
                 to every HTTP client, honest agent and spoofed Chrome alike, and the page
                 opens normally in a real browser.
+    THROTTLED   429/503 that survived a backoff. Our own probing rate, not the link: widen
+                the run far enough and a board will rate-limit you. Never a failure.
     CLOSED      200, but the page says the role is filled or expired.
     MISMATCH    200 with real server-rendered text that mentions neither the job nor the
                 employer — a shell, a redirect to a board's front page, or the wrong posting.
@@ -73,6 +75,7 @@ import json
 import logging
 import re
 import sys
+import time
 import unicodedata
 from dataclasses import dataclass, field
 from typing import Any, Optional
@@ -146,6 +149,37 @@ class Trim:
         raise TypeError(f"{label} is {type(current).__name__}, not a list or dict")
 
 
+class Spread(Trim):
+    """Marker: take `n` evenly-spaced entries instead of the first `n`.
+
+    For a **board list** the head is the worst possible sample. Greenhouse carries 149 board
+    tokens and the first one is Stripe, which serves its postings from `stripe.com/careers`
+    rather than `job-boards.greenhouse.io` — so probing the head exercised one URL shape and
+    reported the whole source green. Even spacing walks the list as it was actually built:
+    the ATS-native boards, the custom-domain ones, and whatever was appended in the last
+    country sweep. Deterministic, so two runs probe the same boards and a regression is
+    attributable.
+
+    Query dimensions (search terms, tags, occupation fields) stay `Trim` — widening those
+    multiplies requests without touching URL construction, which is what is being tested.
+    """
+
+    def of(self, current: Any, label: str) -> Any:
+        if isinstance(current, dict):
+            items = list(current.items())
+            return dict(items[i] for i in _spread_indices(len(items), self.n))
+        if isinstance(current, (list, tuple)):
+            return [current[i] for i in _spread_indices(len(current), self.n)]
+        raise TypeError(f"{label} is {type(current).__name__}, not a list or dict")
+
+
+def _spread_indices(length: int, n: int) -> list[int]:
+    if length <= n:
+        return list(range(length))
+    step = (length - 1) / (n - 1) if n > 1 else 0
+    return sorted({round(i * step) for i in range(n)})
+
+
 @dataclass
 class Sample:
     """How to make one source produce a handful of postings cheaply."""
@@ -165,28 +199,28 @@ SAMPLING: dict[str, Sample] = {
     "himalayas": Sample(module={"MAX_PAGES": 1}),
     "jobicy": Sample(module={"QUERIES": Trim(1)}),
     "arbeitnow": Sample(module={"MAX_PAGES": 1}),
-    "greenhouse": Sample(instance={"_board_tokens": Trim(3)}),
-    "ashby": Sample(module={"ORGS": Trim(3)}),
-    "lever": Sample(module={"ORGS": Trim(3)}),
+    "greenhouse": Sample(instance={"_board_tokens": Spread(3)}),
+    "ashby": Sample(module={"ORGS": Spread(3)}),
+    "lever": Sample(module={"ORGS": Spread(3)}),
     # `_pages` is set from a default argument, which Python evaluates at def time — patching
     # the module constant would look like it worked and change nothing. Set the instance.
     "themuse": Sample(module={"LOCATIONS": Trim(1)},
                       instance={"_categories": Trim(1), "_pages": 1}),
-    "oraclecloud": Sample(module={"SITES": Trim(1), "MAX_PAGES": 1}),
+    "oraclecloud": Sample(module={"SITES": Spread(1), "MAX_PAGES": 1}),
     "platsbanken": Sample(module={"OCCUPATION_FIELDS": Trim(1), "MAX_WINDOWS": 1,
                                   "MAX_PAGES_PER_WINDOW": 1}),
-    "smartrecruiters": Sample(module={"TENANTS": Trim(1), "MAX_LIST_PAGES": 1,
+    "smartrecruiters": Sample(module={"TENANTS": Spread(1), "MAX_LIST_PAGES": 1,
                                       "MAX_DETAILS": 5}),
-    "workday": Sample(module={"SITES": Trim(1), "SEARCH_TERMS": Trim(1),
+    "workday": Sample(module={"SITES": Spread(1), "SEARCH_TERMS": Trim(1),
                               "MAX_PAGES_PER_QUERY": 1, "MAX_DETAILS": 5}),
     "adzuna": Sample(module={"COUNTRY_CONFIG": Trim(1), "SEARCH_TERMS": Trim(1)},
                      note="spends live API budget"),
     "usajobs": Sample(module={"SEARCH_TERMS": Trim(1), "MAX_PAGES_PER_TERM": 1}),
     "startupjobs": Sample(module={"MAX_PAGES": 1}),
     "cocuma": Sample(module={"MAX_PAGES": 1}),
-    "recruitee": Sample(module={"COMPANIES": Trim(3)}),
-    "workable": Sample(module={"ACCOUNTS": Trim(3)}),
-    "teamtailor": Sample(module={"TENANTS": Trim(3)}),
+    "recruitee": Sample(module={"COMPANIES": Spread(3)}),
+    "workable": Sample(module={"ACCOUNTS": Spread(3)}),
+    "teamtailor": Sample(module={"TENANTS": Spread(3)}),
     # No bounding hook: one gzipped dump, all or nothing. ~40 s.
     "mpsv": Sample(note="downloads the full 16 MB register"),
 }
@@ -206,6 +240,12 @@ BOT_WALL_MARKERS = ("just a moment", "security verification", "attention require
 #: on them and re-reporting them every run would bury the one that is actually new. The date
 #: is the point: this is a record of when someone last looked, not a permanent exemption.
 BROWSER_CONFIRMED = {
+    "ashby": "2026-08-08 — 8 boards spot-checked; `forto` was found dead (whole board 404s "
+             "while its API still lists 12 jobs) and removed from ORGS",
+    "recruitee": "2026-08-08 — `payconiq` was found dead (all offers redirect to "
+                 "recruitee.com's marketing page) and removed; mailerlite renders correctly",
+    "smartrecruiters": "2026-08-08 — Playtech QA Engineer renders in full; the WEAK verdict "
+                       "was a short-title matching gap, since fixed",
     "workday": "2026-08-08 — NVIDIA JR2022638 renders in full; Workday ships an empty shell",
     "oraclecloud": "2026-08-08 — Vertiv 20267130 renders the right title; Oracle CX is a SPA",
     "platsbanken": "2026-08-08 — annons 31330844 renders in full; the ad pages are a SPA",
@@ -261,6 +301,15 @@ def evidence(page: str, title: str, company: Optional[str]) -> tuple[Optional[st
     words is enough and word order is ignored.
     """
     folded = _fold(page)
+    # The whole title, verbatim. This is the strongest evidence there is, and it is checked
+    # first because the token rules below can leave a real title with nothing to match on:
+    # "PHP Engineer" and "QA Engineer" reduce to *no* usable tokens (`php` and `qa` are under
+    # the length floor, `engineer` is a stopword), so both were reported WEAK against pages
+    # that render the title in their first line and their `<title>` tag. Two false alarms in
+    # one run, on two different sources.
+    whole = _WS.sub(" ", _fold(title)).strip()
+    if len(whole) >= 5 and whole in folded:
+        return "OK", f"exact title {whole[:40]!r}"
     title_tokens = _tokens(title)
     if title_tokens:
         hit = [t for t in title_tokens if t in folded]
@@ -279,23 +328,68 @@ def evidence(page: str, title: str, company: Optional[str]) -> tuple[Optional[st
     return None, ""
 
 
+#: Statuses that mean "you are going too fast", not "this link is broken".
+THROTTLE_STATUS = frozenset({429, 503})
+
+#: How long to wait out a 429 before deciding it is real. `politeness.throttle` spaces
+#: requests 1 s per host, which is fine for an export walking many hosts and *not* fine for
+#: this script, which deliberately hits one board's host `-n` times in a row.
+BACKOFF_SECONDS = 8
+
+
+def _get(url: str):
+    """GET with one polite retry on a rate-limit. Returns a response, or a string on failure.
+
+    Found on the first wide run (`--boards 8 -n 6`): Working Nomads answered 429 to the
+    fourth of six requests and the link was reported **DEAD**. It was not — we were. A
+    checker that manufactures its own failures when you widen it is worse than no checker,
+    because the run goes red, the red is wrong, and the next person stops reading it. So a
+    rate-limit is waited out once, `Retry-After` honoured if the server sends one, and only
+    reported if it survives that.
+    """
+    for attempt in (1, 2):
+        politeness.throttle(url)
+        try:
+            resp = requests.get(url, headers=politeness.HEADERS, timeout=TIMEOUT,
+                                allow_redirects=True)
+        except requests.RequestException as exc:
+            return type(exc).__name__
+        if resp.status_code not in THROTTLE_STATUS or attempt == 2:
+            return resp
+        try:
+            wait = min(float(resp.headers.get("Retry-After", BACKOFF_SECONDS)), 30.0)
+        except ValueError:                          # Retry-After can also be an HTTP date
+            wait = BACKOFF_SECONDS
+        logger.info("%s: HTTP %d, waiting %.0fs", url[:60], resp.status_code, wait)
+        time.sleep(wait)
+    return resp                                     # pragma: no cover - loop always returns
+
+
 def probe(url: str, title: str, company: Optional[str]) -> tuple[str, str]:
     """Fetch one posting URL and decide whether it lands on the job. (verdict, note)."""
     if not url.lower().startswith(("http://", "https://")):
         return "DEAD", f"not an http(s) url: {url[:40]!r}"
     if not politeness.robots_allows(url):
         return "ROBOTS", "robots.txt disallows this path"
-    politeness.throttle(url)
-    try:
-        resp = requests.get(url, headers=politeness.HEADERS, timeout=TIMEOUT,
-                            allow_redirects=True)
-    except requests.RequestException as exc:
-        return "DEAD", type(exc).__name__
+    resp = _get(url)
+    if isinstance(resp, str):                       # a transport failure, already described
+        return "DEAD", resp
     if resp.status_code != 200:
         wall = _fold(resp.text[:4000])
         if resp.status_code in (403, 429) and any(m in wall for m in BOT_WALL_MARKERS):
             return "BLOCKED", (f"HTTP {resp.status_code} from bot protection — the page is not "
                                "necessarily broken, a browser has to say")
+        if resp.status_code in THROTTLE_STATUS:
+            return "THROTTLED", (f"HTTP {resp.status_code} after a retry — this is our own "
+                                 "probing rate, not a broken link; lower -n or --boards")
+        if resp.url.rstrip("/") != url.rstrip("/"):
+            # We were redirected and *then* refused, so the link resolved and forwarded — the
+            # refusal belongs to the destination. `jobs.livestorm.co` (a Recruitee board on a
+            # custom domain) forwards to welcometothejungle.com, which 403s every bot and
+            # serves the right job to a browser. Reporting that DEAD blames our adapter for a
+            # third party's bot policy.
+            return "BLOCKED", (f"HTTP {resp.status_code} from {resp.url.split('/')[2]} after a "
+                               "redirect — the link resolved; the destination refuses bots")
         return "DEAD", f"HTTP {resp.status_code}"
 
     page = visible_text(resp.text)
@@ -340,7 +434,39 @@ def postings_for(cls: type, want: int) -> list[Any]:
     _apply(module, sample.module, cls.__module__)
     src = cls()
     _apply(src, sample.instance, cls.__name__)
-    return src.normalize(src.fetch())[:want]
+    return _pick(src.normalize(src.fetch()), want)
+
+
+def _pick(postings: list, want: int) -> list:
+    """`want` postings spread across employers, not the head of the list.
+
+    Widening the *board* list is not enough on its own, and the first wide run proved it:
+    with eight Greenhouse boards fetched, all six probed links were still Stripe's, because
+    `normalize` concatenates board by board and Stripe alone carries hundreds of postings.
+    Eight boards were paid for and one was tested.
+
+    Round-robin by employer fixes it without assuming anything about ordering, and it also
+    drops duplicate URLs — Workable listed one job twice in the same run, which would have
+    spent a probe re-testing a link already checked.
+    """
+    groups: dict[str, list] = {}
+    seen: set[str] = set()
+    for p in postings:
+        if p.url in seen:
+            continue
+        seen.add(p.url)
+        # Employer where there is one; otherwise the host, which at least separates boards.
+        key = (p.company or "").casefold().strip() or p.url.split("/", 3)[2]
+        groups.setdefault(key, []).append(p)
+
+    out: list = []
+    while len(out) < want and any(groups.values()):
+        for key in list(groups):
+            if groups[key]:
+                out.append(groups[key].pop(0))
+                if len(out) >= want:
+                    break
+    return out
 
 
 def check_source(cls: type, want: int) -> list[dict]:
@@ -408,6 +534,11 @@ def main() -> int:
     ap.add_argument("-s", "--source", action="append", default=[],
                     help="source name (repeatable); default is every source in gather()")
     ap.add_argument("-n", "--links", type=int, default=3, help="links per source (default 3)")
+    ap.add_argument("--boards", type=int,
+                    help="how many boards/tenants to sample per ATS (default: the small "
+                         "number in SAMPLING). Applies to `Spread` entries only — widening a "
+                         "search-term or tag list multiplies requests without exercising any "
+                         "new URL construction, which is the thing being tested.")
     ap.add_argument("--json", help="write the full result table here")
     ap.add_argument("--self-check", action="store_true",
                     help="verify the sampling table still matches the adapters, then exit")
@@ -415,6 +546,13 @@ def main() -> int:
 
     if args.self_check:
         return self_check()
+
+    if args.boards:
+        for sample in SAMPLING.values():
+            for overrides in (sample.module, sample.instance):
+                for marker in overrides.values():
+                    if isinstance(marker, Spread):
+                        marker.n = args.boards
 
     classes = source_classes(include_cz=True)
     if args.source:
@@ -444,7 +582,8 @@ def main() -> int:
 
     broken = sorted({r["source"] for r in rows if r["verdict"] in ("DEAD", "MISMATCH")})
     unproven = sorted({r["source"] for r in rows
-                       if r["verdict"] in ("SHELL", "WEAK", "BLOCKED", "NO SAMPLE")})
+                       if r["verdict"] in ("SHELL", "WEAK", "BLOCKED", "THROTTLED",
+                                           "NO SAMPLE")})
     # Split by whether anyone has ever looked. Re-listing the same six client-rendered
     # sources every run is how the one that is genuinely new gets missed.
     known = [s for s in unproven if s in BROWSER_CONFIRMED]

@@ -835,6 +835,22 @@ Five things are load-bearing:
   HTTP by construction (workday, oraclecloud, platsbanken, mpsv render client-side; himalayas
   is behind Cloudflare; workingnomads is a redirector). All six were opened by hand on
   2026-08-08 and were correct. A run flags only sources **nobody has ever looked at**.
+- **Sample boards across the list, and links across employers.** `--boards N` widens the ATS
+  board lists via `Spread` (evenly spaced, deterministic) — never `Trim`, which takes the head,
+  and never a query dimension like search terms, which multiplies requests without exercising
+  any new URL construction. Both halves matter: the first wide run fetched eight Greenhouse
+  boards and still probed six Stripe links, because `normalize` concatenates board by board and
+  Stripe alone carries hundreds. `_pick` round-robins by employer, after which Greenhouse alone
+  exercised five distinct URL shapes (`stripe.com/jobs/search?gh_jid=`, `boards.greenhouse.io`,
+  `job-boards.greenhouse.io`, `job-boards.**eu**.greenhouse.io`, `careers.toasttab.com`).
+- **Never manufacture a failure as you widen.** Three false verdicts appeared the moment the run
+  got bigger, each fixed rather than tolerated: a 429 from probing one host six times reads
+  `THROTTLED`, not `DEAD` (waited out once, `Retry-After` honoured, capped at 30 s); a refusal
+  *after a redirect* belongs to the destination (`jobs.livestorm.co` forwards to
+  welcometothejungle.com, which 403s bots and serves the job to a browser); and a title with no
+  distinctive tokens — "PHP Engineer", "QA Engineer", where `php`/`qa` are under the length
+  floor and `engineer` is a stopword — now matches verbatim first. A checker that goes red for
+  its own reasons stops being read.
 - **Not in CI**, deliberately — two dozen third-party sites would make it red for reasons that
   are not ours. `--self-check` *is* in the suite, covering the part that rots silently: the
   sampling table names attributes that live in the adapters, and a rename does not raise, it
@@ -843,7 +859,23 @@ Five things are load-bearing:
 It samples the **adapters**, not the database, so it proves the URL an adapter builds *today*
 resolves — not that stored rows carry it. Baseline 2026-08-08: 63 links across 21 sources —
 **45 OK, 0 DEAD, 0 MISMATCH**, every non-OK result one of the six browser-confirmed sources
-above. No source was emitting a broken link.
+above. Widened to 8 boards × 8 links it found the two dead employer boards below.
+
+**A live API is not a live board, and `probe_boards.py` structurally cannot see the
+difference** — it reads the API, which is the half that stays alive. The wide run found two:
+
+- **`ashby:forto`** — the posting API answers with **12 jobs, all `isListed: true`**, and every
+  `jobUrl`, plus the board root, renders "Page not found". Not expiry; the newest was three days
+  old. The employer left Ashby and the API was never torn down. Right count, right titles,
+  stable ids, twelve 404s in a subscriber's inbox.
+- **`recruitee:payconiq`** — all three offers still come back with `careers_url`s, and all three
+  **redirect to `recruitee.com/`**, the ATS vendor's marketing homepage: 200, 18 898 characters
+  of real text, defeating every status-, length- and ratio-based test. Only "does the page carry
+  the posting's title" catches it. `KNOWN_IMPOSTORS` does not cover this and must not be
+  stretched to — payconiq was genuinely Payconiq's board, and then it stopped being one.
+
+Both are removed. When a board's volume looks healthy but oddly static, probe the **public
+page**, not the API.
 
 **It also found a bug in a field nobody was watching, because it prints the employer next to
 the link.** Every Himalayas row came back with `companyName: "name"` — the literal string, all
