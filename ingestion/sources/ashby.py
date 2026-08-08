@@ -24,6 +24,19 @@ HEADERS = politeness.HEADERS
 # confirmed the same way. A board that goes dark is a silent zero — `fetch` skips a non-200
 # and logs nothing at error level — so re-probe rather than assume when volume drops.
 #
+# **A live API is not a live board, and `probe_boards.py` cannot tell the difference.**
+# Found 2026-08-08 by `scripts/check_links.py`: `forto`'s posting API answered 200 with 12
+# jobs, every one `isListed: true` and carrying a `jobUrl` — and **every one of those URLs,
+# and the board root `jobs.ashbyhq.com/forto` itself, renders "Page not found"**. Not an
+# expiry: the newest was published three days earlier. The employer has left Ashby and the
+# posting API was never torn down with the career site.
+#
+# This is a third failure shape, and it defeats every check that existed. `probe_boards.py`
+# separates *dead* (answers, zero jobs) from *unreachable* (no answer); this board answers
+# with twelve. The count is right, the titles are right, the ids are stable — and all twelve
+# links are 404s in a subscriber's inbox. Only fetching the page finds it. When a board's
+# volume looks healthy but oddly static, probe the **public page**, not the API.
+#
 # Deliberately NOT here despite being live on Ashby: `clickhouse` (already a Greenhouse board
 # in dbt/seeds/target_companies.csv) and `qonto` (already a Lever org). Both serve the same
 # postings under a second source, and while `digest.dedupe_key` would collapse them in the
@@ -40,7 +53,11 @@ ORGS = [
     "airbyte", "prefect", "motherduck", "neon", "render", "railway", "resend",
     "vanta", "attio", "tldraw", "dune",
     # EU-based (FR/DE/NL/PT), which the rest of this list is thin on
-    "alan", "swan", "tacto", "forto", "choco", "oyster",
+    # `forto` was here and was removed 2026-08-08 — see the note below.
+    "alan", "swan", "tacto", "choco", "oyster",
+    # Added 2026-08-08 to replace the dead `lever:ledger` board — same company,
+    # 9 live postings. See the lever ORGS note.
+    "ledger",
     # second wave, verified 2026-08-01 — AI labs and applied-AI, the densest hiring segment
     "perplexity", "cognition", "decagon", "mercor", "suno", "pika", "listenlabs",
     "physicalintelligence", "poolside", "rogo", "legora", "granola",

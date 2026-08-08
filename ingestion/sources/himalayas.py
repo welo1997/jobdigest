@@ -4,6 +4,26 @@ https://himalayas.app/jobs/api?limit=&offset= returns {"jobs": [...]}. Each job
 carries `locationRestrictions` (list) and `timezoneRestrictions`, which we keep in
 the location text for region tagging, and an `expiryDate` epoch used to skip
 already-expired postings at ingestion time. Every listing is remote.
+
+The upstream sometimes serves the field *name* instead of the value
+--------------------------------------------------------------------
+Found on 2026-08-08 by `scripts/check_links.py`, which prints the employer alongside the
+link: **every row of `?limit=100&offset=0` came back with `companyName: "name"`** — the
+literal string, for all 20 postings, repeatably, out of a CDN cache 66 minutes old
+(`x-vercel-cache: HIT`). Other parameter combinations against the same endpoint at the same
+moment returned real employers, so it is a poisoned cache variant upstream rather than
+anything we send; the variant our ingest uses is the broken one.
+
+Nothing else could have caught it. The count was right, the titles were right, the links
+were right, and "name" is a plausible-looking string — it would simply have appeared as the
+employer in subscribers' digests. `_company` therefore refuses placeholder values, and
+`normalize` shouts when a whole run shares one employer.
+
+**Dropping the name is the safe direction, not merely the tidy one.** `digest.dedupe_key`
+keys on (company, title, city) and treats an *empty* key as always unique, never a match —
+so a missing employer suppresses nothing. A wrong-but-uniform employer does the opposite: it
+makes every Himalayas posting look like the same company, so two different employers
+advertising the same role in the same city collapse into one and the second is never emailed.
 """
 
 from __future__ import annotations
@@ -27,6 +47,11 @@ HEADERS = politeness.HEADERS
 PAGE_SIZE = 100
 MAX_PAGES = 15
 
+#: Values that are the *shape* of an employer name without being one. `"name"` is what the
+#: broken cache variant serves; the rest are the usual JSON placeholders. Compared casefolded.
+_NOT_A_COMPANY = frozenset({"name", "companyname", "company", "null", "none", "undefined",
+                            "n/a", "-"})
+
 # Map common Himalayas location-restriction strings to ISO-3166 alpha-2.
 _COUNTRY_MAP = {
     "united states": "US", "usa": "US",
@@ -35,6 +60,12 @@ _COUNTRY_MAP = {
     "poland": "PL", "austria": "AT", "ireland": "IE", "portugal": "PT",
     "czech republic": "CZ", "czechia": "CZ", "slovakia": "SK", "canada": "CA",
 }
+
+
+def _company(raw) -> Optional[str]:
+    """An employer name, or None if the API handed back a placeholder. See the docstring."""
+    name = (raw or "").strip() if isinstance(raw, str) else ""
+    return None if name.casefold() in _NOT_A_COMPANY else (name or None)
 
 
 class HimalayasSource(BaseSource):
@@ -101,7 +132,7 @@ class HimalayasSource(BaseSource):
                     posting_id=make_posting_id(url),
                     source=self.source_name,
                     title=item.get("title"),
-                    company=item.get("companyName"),
+                    company=_company(item.get("companyName")),
                     url=url,
                     description=item.get("description") or item.get("excerpt"),
                     location=location,
@@ -116,6 +147,15 @@ class HimalayasSource(BaseSource):
             "Himalayas: normalised %d postings (%d expired skipped)",
             len(postings), skipped_expired,
         )
+        # A multi-employer board on which everything shares one employer is a broken payload,
+        # not a quiet day — and it is invisible downstream, because the count and the titles
+        # stay right. The placeholder above is the case we know; this catches the next one,
+        # whatever string it picks. Logged at error level so the pipeline's own logs carry it.
+        names = {p.company for p in postings if p.company}
+        if len(postings) >= 10 and len(names) == 1:
+            logger.error("Himalayas: all %d postings claim one employer (%r) — the feed is "
+                         "serving a degraded payload, treat the company column as suspect",
+                         len(postings), next(iter(names)))
         return postings
 
     @staticmethod

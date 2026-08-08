@@ -42,7 +42,11 @@ HEADERS = politeness.HEADERS
 #: (`company_name` + `city`), not merely a 200. Grow from `scripts/discover_ats.py` output.
 COMPANIES = [
     "strv",           # 5 — Prague, software studio
-    "trask",          # 5 — Mladá Boleslav / Prague, IT consultancy
+    # `trask` was here and was removed 2026-08-08: every offer now redirects to
+    # `recruitee.com/`, the ATS vendor's marketing homepage — the `payconiq` shape, and the
+    # second instance in one sweep. Its API still serves offers. Note the irony worth keeping:
+    # Trask is the board that taught this adapter about `(Sample)` demo rows, and it is now
+    # gone from Recruitee entirely.
     "twisto",         # 3 — Prague, fintech
     "livesportsro",   # 2 — Prague, Livesport s.r.o. (Flashscore)
     "lundegaard",     # 1 — Praha, "Lundegaard a.s." on its own postings
@@ -139,8 +143,17 @@ COMPANIES = [
     #                      so the country resolves to null and the matcher decides. Kept because
     #                      the roles are PHP/ML engineering and the board costs one request.
     # CY/LU/MT/IS/LI pass (batch C), 2026-08-07.
-    "payconiq",       #  3 — Payconiq International: Amsterdam (NL), all three. Luxembourg-HQ
-    #                      payments, but the engineering sits in the Netherlands.
+    # `payconiq` was here and was removed 2026-08-08. Its API still serves three offers with
+    # `careers_url`s, and **all three redirect to `recruitee.com/`** — the ATS vendor's own
+    # marketing homepage, with a 200. The board's career site is gone; the API outlived it.
+    # A subscriber clicking got "Customizable ATS & hiring software", not a job.
+    #
+    # The same shape as `ashby:forto` on the same day, and worse in one respect: a redirect to
+    # a *substantial* page defeats every status- and length-based check. 200, 18 898 characters
+    # of real text, no error anywhere. What catches it is asking whether the page carries the
+    # posting's own title — `scripts/check_links.py`, verdict MISMATCH. `KNOWN_IMPOSTORS` does
+    # not cover this: payconiq was never an impostor, it was genuinely Payconiq's board, and
+    # then it stopped being one.
     # `raketech` was skipped rather than rejected: five rows, every one "Remote job" so no
     # country resolves, and three of the five are freelance casino content writers.
 ]

@@ -23,10 +23,10 @@ HEADERS = politeness.HEADERS
 # all 10 originals still serve jobs. Lever has the lowest hit rate of the three ATS adapters
 # — 6 live out of 82 EU/US candidates probed — because most of the companies that used it
 # have since moved to Greenhouse or Ashby. Check the other two adapters before adding here.
-ORGS = ["spotify", "qonto", "contentsquare", "aircall", "swile", "blablacar",
+ORGS = ["spotify", "qonto", "contentsquare", "swile", "blablacar",
         "zopa", "moonpig", "moonpay", "vestiairecollective",
         # added 2026-08-01, FR/PT/EE-heavy
-        "farfetch", "malt", "agicap", "360learning", "pipedrive", "ledger",
+        "farfetch", "malt", "agicap", "360learning", "pipedrive",
         # CZ-headquartered, added 2026-08-03 via scripts/discover_ats.py. Both were found by
         # probing the Lever API directly: neither careers page carries an ATS link in its
         # HTML, so a page scan alone sees nothing. Job counts are small but the postings are
@@ -79,9 +79,18 @@ ORGS = ["spotify", "qonto", "contentsquare", "aircall", "swile", "blablacar",
         # contenu … et des bases de données qui lui sont liées (offres d'emploi …)", HelloWork
         # forbids scraping "à quelques fins que ce soit, commerciales ou non", and Welcome to
         # the Jungle forbids "extraction automatisée de données". Curated employers is the route.
-        # Skipped as duplicates rather than rejected: greenhouse:aircallioinc (62) and
-        # ashby:ledger (9) are the same companies as `aircall` and `ledger` above — one
-        # company, one board, and the Lever board is the one already carried.
+        # `aircall` and `ledger` were here and were REMOVED 2026-08-08, and the pair is
+        # the lesson: both boards' APIs still answer (aircall with 77 postings), and both
+        # boards are **gone** — `jobs.lever.co/aircall` and `jobs.lever.co/ledger` are 404 at
+        # the root, so every posting link 404s too. Found by `scripts/check_links.py` at full
+        # board coverage; six of six probed aircall links were dead.
+        #
+        # They were replaced rather than dropped, which is the part that matters. Both
+        # companies were already known on another ATS and had been "skipped as duplicates" in
+        # favour of these Lever boards — greenhouse:aircallioinc (64 live, links render) and
+        # ashby:ledger (9 live). So the employers moved ATS and we were left holding the old
+        # board. **When a board dies, check whether the duplicate that was skipped for it is
+        # now the live one**; deleting alone would have cost 73 real postings.
         "scaleway",       #  34 — Paris 6 of 8 + Lille + Milan; French cloud (Iliad)
         "aqemia.com",     #   6 — Paris 5 of 6 (drug-discovery AI). The slug really does carry
         #                        the `.com`, which no name-derived guess would produce.

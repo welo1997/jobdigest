@@ -813,6 +813,83 @@ away from the convention is loud rather than green.
 When adding a guard, mutation-check it: break the thing deliberately and confirm the test
 goes red. A test that cannot fail documents nothing.
 
+**`scripts/check_links.py` is the one check that leaves the machine, and it exists because
+nothing here had ever fetched a URL it stored.** `posting_id = md5(url)` and the link goes
+straight into an email `href`, so a dead link is invisible to every other check: right row
+count, fresh ids, no churn, correct country split, green tests — and a subscriber clicking
+nothing. That failed twice in three days (startupjobs 404s on 2026-08-06, MPSV's non-route
+`?id=` on 2026-08-08). It runs each adapter under bounded sampling, builds URLs through the
+real `normalize`, fetches them and asks whether the page carries **the posting's own title**.
+Five things are load-bearing:
+
+- **A 200 is not a pass, and neither is the employer's name.** A link landing on
+  `jobs.lever.co/spotify` rather than the posting carries the employer on every row, so
+  employer-only is `WEAK` — accepting it passes the exact failure being hunted.
+- **A shell is detected by text-to-HTML *ratio*, not length.** Platsbanken answers 124 KB
+  holding 1 619 characters of navigation chrome (1.3%) and read as `MISMATCH` under a length
+  test — a working adapter reported broken. Two of its links also passed on a *single* title
+  word matched against that chrome, so title evidence needs two distinct words.
+- **`BLOCKED` ≠ `DEAD`.** Himalayas 403s the honest agent *and* a spoofed Chrome string, and
+  opens fine in a browser. Failing on it daily is how a red check gets muted.
+- **`BROWSER_CONFIRMED` is a dated record, not an exemption.** Six sources are unprovable over
+  HTTP by construction (workday, oraclecloud, platsbanken, mpsv render client-side; himalayas
+  is behind Cloudflare; workingnomads is a redirector). All six were opened by hand on
+  2026-08-08 and were correct. A run flags only sources **nobody has ever looked at**.
+- **Sample boards across the list, and links across employers.** `--boards N` widens the ATS
+  board lists via `Spread` (evenly spaced, deterministic) — never `Trim`, which takes the head,
+  and never a query dimension like search terms, which multiplies requests without exercising
+  any new URL construction. Both halves matter: the first wide run fetched eight Greenhouse
+  boards and still probed six Stripe links, because `normalize` concatenates board by board and
+  Stripe alone carries hundreds. `_pick` round-robins by employer, after which Greenhouse alone
+  exercised five distinct URL shapes (`stripe.com/jobs/search?gh_jid=`, `boards.greenhouse.io`,
+  `job-boards.greenhouse.io`, `job-boards.**eu**.greenhouse.io`, `careers.toasttab.com`).
+- **Never manufacture a failure as you widen.** Three false verdicts appeared the moment the run
+  got bigger, each fixed rather than tolerated: a 429 from probing one host six times reads
+  `THROTTLED`, not `DEAD` (waited out once, `Retry-After` honoured, capped at 30 s); a refusal
+  *after a redirect* belongs to the destination (`jobs.livestorm.co` forwards to
+  welcometothejungle.com, which 403s bots and serves the job to a browser); and a title with no
+  distinctive tokens — "PHP Engineer", "QA Engineer", where `php`/`qa` are under the length
+  floor and `engineer` is a stopword — now matches verbatim first. A checker that goes red for
+  its own reasons stops being read.
+- **Not in CI**, deliberately — two dozen third-party sites would make it red for reasons that
+  are not ours. `--self-check` *is* in the suite, covering the part that rots silently: the
+  sampling table names attributes that live in the adapters, and a rename does not raise, it
+  silently stops bounding a source. Same lesson as `pending_boards.py` and the CI skip-check.
+
+It samples the **adapters**, not the database, so it proves the URL an adapter builds *today*
+resolves — not that stored rows carry it. Baseline 2026-08-08, after the two removals below and at 6 boards × 5 links: **105 links
+across 21 sources — 77 OK, 0 DEAD, 0 MISMATCH**, every non-OK result one of the six
+browser-confirmed sources above, exit 0. The narrow first pass (63 links, one board per ATS)
+missed both dead boards; widening to 8 × 8 is what found them.
+
+**A live API is not a live board, and `probe_boards.py` structurally cannot see the
+difference** — it reads the API, which is the half that stays alive. The wide run found two:
+
+- **`ashby:forto`** — the posting API answers with **12 jobs, all `isListed: true`**, and every
+  `jobUrl`, plus the board root, renders "Page not found". Not expiry; the newest was three days
+  old. The employer left Ashby and the API was never torn down. Right count, right titles,
+  stable ids, twelve 404s in a subscriber's inbox.
+- **`recruitee:payconiq`** — all three offers still come back with `careers_url`s, and all three
+  **redirect to `recruitee.com/`**, the ATS vendor's marketing homepage: 200, 18 898 characters
+  of real text, defeating every status-, length- and ratio-based test. Only "does the page carry
+  the posting's title" catches it. `KNOWN_IMPOSTORS` does not cover this and must not be
+  stretched to — payconiq was genuinely Payconiq's board, and then it stopped being one.
+
+Both are removed. When a board's volume looks healthy but oddly static, probe the **public
+page**, not the API.
+
+**It also found a bug in a field nobody was watching, because it prints the employer next to
+the link.** Every Himalayas row came back with `companyName: "name"` — the literal string, all
+20, from a 66-minute-old CDN cache, while other parameter combinations returned real employers
+at the same moment. A poisoned upstream cache variant, and the variant our ingest uses.
+Undetectable otherwise: right count, right titles, right links, and a plausible-looking
+string that would have shown as the employer in digests. `himalayas._company` refuses
+placeholders, and **dropping the name is the safe direction**: `digest.dedupe_key` treats an
+empty key as always unique, never a match, whereas a uniform wrong employer collapses two real
+employers advertising the same role in the same city and the second is never emailed.
+`normalize` logs an error when a whole run shares one employer, because the next degraded
+payload will pick a different string and that *shape* is the thing to watch.
+
 ---
 
 ## Known constraints and decisions
@@ -891,8 +968,17 @@ goes red. A test that cannot fail documents nothing.
   either would add a personal-data category the privacy policy does not cover (rule 4); and
   `country_code="CZ"` is a source-level constant, which is normally wrong, but is the sound
   exception here because the Úřad práce registers vacancies in Czechia by statute. The
-  per-vacancy portal link (`up.gov.cz/volna-mista-v-cr?id=`) is stable and unique but its
-  deep-linking is **unverified** — the server returns an identical shell for a bogus id.
+  per-vacancy portal link was `up.gov.cz/volna-mista-v-cr?id=` — stable, unique, and marked
+  **unverified** because the server returns an identical shell for a bogus id. It was also
+  dead: `up.gov.cz` is client-rendered and routes on the **fragment**, so the vacancy is at
+  `#/volna-mista-detail/{portalId}` and `?id=` is not a route — the app ignores it and shows
+  its own empty search page. **Every MPSV link ever emailed was broken**, and it surfaced
+  only when a subscriber clicked one (2026-08-08). Fixed by the startupjobs shape:
+  `JOB_URL` carries the fragment route and `posting_id` keeps hashing `ID_URL`, the id-only
+  string every previous run stored, so the links repair in place via `upsert_postings` and
+  **no id churns** — hashing the new link would have re-created all ~7 300 CZ rows. The
+  general rule, now twice: a source returning the right *number* of rows says nothing about
+  whether its links resolve, and "unverified" in a comment is a bug nobody has looked at.
   `recruitee` is the other addition: the mid-size Czech employers (STRV, Trask, Twisto,
   Livesport) that no existing ATS adapter reached. Both found via `scripts/discover_ats.py`,
   which reads a company's ATS slug off its own careers page. Cocuma's terms are B2B and carry
