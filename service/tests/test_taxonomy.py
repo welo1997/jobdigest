@@ -254,6 +254,46 @@ def test_dbt_accepted_values_match_the_taxonomy():
     )
 
 
+def test_the_answer_keys_name_only_real_categories():
+    """`scripts/categorization_score.py` is the gate, and a typo in either of its answer keys
+    is the worst kind of failure it can have: the classifier is marked wrong for being right,
+    the category looks broken, and the next iteration "fixes" a classifier that was fine.
+    Nothing else checks these tables — they are read by a script, not by the service."""
+    import sys as _sys
+
+    _sys.path.insert(0, str(ROOT))
+    from scripts import categorization_score as scorer
+
+    named = (set(scorer.FIELD_MAP.values()) | set(scorer.GROUP_MAP.values())
+             | set(scorer.ISCO_MAP.values()))
+    unknown = named - set(taxonomy.CATEGORIES)
+    assert not unknown, (
+        f"the answer key grades against categories that do not exist: {sorted(unknown)}")
+
+
+def test_no_isco_prefix_is_both_mapped_and_out_of_scope():
+    """The two ISCO tables are read at the same prefix length, so a code in both is a silent
+    coin-flip on which rule applies — and the out-of-scope set is only allowed to override a
+    map entry at a *longer* prefix (7512 bakers inside 751, 3121 mining inside 312)."""
+    from scripts import categorization_score as scorer
+
+    both = set(scorer.ISCO_MAP) & scorer.ISCO_OUT_OF_SCOPE
+    assert not both, f"prefixes both mapped and excluded: {sorted(both)}"
+
+
+def test_the_isco_key_is_read_longest_prefix_first():
+    """Without it, a 2-digit sub-major would swallow the unit groups that opt out of it, and
+    the exclusions that make the key honest would silently stop applying."""
+    from scripts.categorization_score import truth_for_isco
+
+    assert truth_for_isco("2141")[0] == "engineering"      # via "214"
+    assert truth_for_isco("2211")[0] == "healthcare"       # via "22"
+    assert truth_for_isco("7512") == (None, False)         # bakers opt out of 751
+    assert truth_for_isco("7511")[0] == "manufacturing_production"
+    assert truth_for_isco("2161") == (None, False)         # architects have no category
+    assert truth_for_isco("") == (None, True)              # a hole is not an exclusion
+
+
 def test_frontend_maps_only_reference_real_categories():
     """The chip vocabulary maps role ids to categories. A stale value here produces a
     profile whose role filter matches nothing, with no error on any side.
