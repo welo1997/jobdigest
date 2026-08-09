@@ -143,6 +143,10 @@ OCCUPATION_FIELDS: list[tuple[str, str]] = [
 #: the taxonomy had no category for them; it now does. Mapping them here costs nothing and
 #: means no second change is needed if that exclusion is lifted.
 SSYK_FIELD_CATEGORIES: dict[str, str] = {
+    # The whole technical field is engineering (mechanical / electrical / civil / process),
+    # mapped 2026-08-09 when the `engineering` category was added. 2 495 ads — a title still
+    # wins, so a software-adjacent title inside it is unaffected.
+    "Yrken med teknisk inriktning": "engineering",
     "Hälso- och sjukvård": "healthcare",
     "Pedagogik": "education",
     "Pedagogiskt arbete": "education",

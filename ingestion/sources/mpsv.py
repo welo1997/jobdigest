@@ -121,21 +121,27 @@ ISCO_MAJOR_KEEP = frozenset("123")
 #: else (the 2026-08-08 hint guard), so a typo here silently means "uncategorised" rather than
 #: an error. `test_mpsv.py` pins it.
 #:
-#: Deliberately incomplete. ISCO 21 (engineering professionals) and 31 (engineering
-#: technicians) are **1 654 of the 7 298 kept vacancies and have no category in this
-#: taxonomy** — they are mechanical, electrical and civil engineers, distinct from
-#: `software_engineering`. Mapping them anywhere would be a guess; they stay unmapped and the
-#: gap is recorded in notes/categorization/PLAN.md as evidence for a future category.
+#: ISCO 21 (science and engineering professionals) and 31 (science and engineering associate
+#: professionals) map to `engineering`, added 2026-08-09 — the 1 654 mechanical, electrical and
+#: civil engineers and technicians that had no category until then and sat uncategorised. The
+#: 2-digit map is deliberately coarse: groups 211–213 (physicists, mathematicians, life
+#: scientists) and 216 (architects) also sit under 21, so a handful are filed as engineering
+#: rather than the science/design category the taxonomy still lacks. A readable title overrides
+#: it (patterns win over the hint), and the held-out ISCO/SSYK scorer will surface any concentrated
+#: miss — the register's own grouping is the best signal available, and 21/31-as-engineering is
+#: what it asserts. The specific ICT codes 251/252 keep their finer mapping (checked first).
 ISCO_CATEGORIES: dict[str, str] = {
     # 1 managers
     "121": "operations", "122": "sales", "132": "manufacturing_production",
     "133": "devops_platform", "141": "hospitality", "142": "sales",
     # 2 professionals
+    "21": "engineering",                              # science & engineering (251/252 override)
     "22": "healthcare", "23": "education",
     "241": "finance_accounting", "242": "operations", "243": "marketing",
     "251": "software_engineering", "252": "devops_platform",
     "261": "legal",
     # 3 associate professionals
+    "31": "engineering",                              # science & engineering technicians
     "32": "healthcare",
     "331": "finance_accounting", "332": "sales", "333": "operations",
     "334": "other_tech_function",

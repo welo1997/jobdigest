@@ -65,6 +65,7 @@ const cs: Messages = {
     construction: "Stavebnictví",
     logistics: "Logistika",
     manufacturing: "Výroba",
+    engineering: "Inženýrství",
   },
 
   workTypes: {

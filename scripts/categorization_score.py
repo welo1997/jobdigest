@@ -57,6 +57,7 @@ BASE_URL = "https://jobsearch.api.jobtechdev.se/search"
 
 #: SSYK occupation *field* → category, for the fields that mean exactly one thing.
 FIELD_MAP: dict[str, str] = {
+    "Yrken med teknisk inriktning": "engineering",   # in scope since the 2026-08-09 category
     "Hälso- och sjukvård": "healthcare",
     "Pedagogik": "education",
     "Hotell, restaurang, storhushåll": "hospitality",
@@ -105,7 +106,7 @@ OUT_OF_SCOPE: frozenset[str] = frozenset({
     "Yrken med social inriktning", "Sanering och renhållning", "Naturbruk",
     "Säkerhet och bevakning", "Kropps- och skönhetsvård", "Naturvetenskap",
     "Militära yrken", "Chefer och verksamhetsledare", "Kultur, media, design",
-    "Yrken med teknisk inriktning",
+    # "Yrken med teknisk inriktning" left this set on 2026-08-09 — it now maps to engineering.
 })
 
 

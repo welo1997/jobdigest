@@ -82,6 +82,15 @@ OPAQUE = "Något Oklassificerbart"
     ("Svetsare", "manufacturing_production"),
     ("Verkstadsmontör", "manufacturing_production"),
     ("Backend Engineer", "software_engineering"),
+    # Non-software engineering (added 2026-08-09), and the boundary against software that its
+    # ordering exists to hold. A discipline qualifier -> engineering; a software title stays put.
+    ("Mechanical Engineer", "engineering"),
+    ("Electrical Engineer", "engineering"),
+    ("Maskiningenjör", "engineering"),         # SE mechanical engineer
+    ("Automationsingenjör", "engineering"),    # SE — the case the sector comment calls out
+    ("Strojní inženýr", "engineering"),        # CZ mechanical engineer
+    ("Software Engineer", "software_engineering"),   # NOT engineering — no discipline qualifier
+    ("Dataingenjör", "data_engineering"),      # SE — data_engineering wins over broad ingenjör
     ("Social Media Manager", "social_media"),
     ("Specialista sociálních sítí", "social_media"),          # CZ
     ("Náborár pre projekty, Marketing | Sociálne siete", "social_media"),  # SK

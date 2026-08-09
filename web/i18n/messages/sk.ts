@@ -64,6 +64,7 @@ const sk: Messages = {
     construction: "Stavebníctvo",
     logistics: "Logistika",
     manufacturing: "Výroba",
+    engineering: "Inžinierstvo",
   },
 
   workTypes: {

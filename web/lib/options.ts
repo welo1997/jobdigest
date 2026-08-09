@@ -52,6 +52,7 @@ export const ROLE_OPTIONS: RoleOption[] = [
   { id: "construction", category: "construction", keyword: "construction" },
   { id: "logistics", category: "logistics_transport", keyword: "warehouse" },
   { id: "manufacturing", category: "manufacturing_production", keyword: "production operator" },
+  { id: "engineering", category: "engineering", keyword: "mechanical engineer" },
   // Offered only when a CV asks for it (never in the default chip row), and modelled by no
   // category — so it rides the keyword path, exactly as the old "ML Engineer" label did.
   { id: "ml_engineer", category: null, keyword: "ml engineer" },
@@ -217,6 +218,7 @@ export const SKILLS_BY_ROLE: Record<string, string[]> = {
   devops: ["Kubernetes", "Docker", "Terraform", "AWS", "Linux", "Ansible"],
   finance: ["Excel", "Controlling", "SAP", "IFRS", "Forecasting", "Power BI"],
   ml_engineer: ["Python", "PyTorch", "TensorFlow", "MLOps", "NLP", "scikit-learn"],
+  engineering: ["AutoCAD", "SolidWorks", "MATLAB", "CAD", "PLC", "Six Sigma"],
 };
 
 // Three roles at six skills each is eighteen chips above an input box — a wall to read rather

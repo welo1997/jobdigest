@@ -62,6 +62,7 @@ const pl: Messages = {
     construction: "Budownictwo",
     logistics: "Logistyka",
     manufacturing: "Produkcja",
+    engineering: "Inżynieria",
   },
 
   workTypes: {

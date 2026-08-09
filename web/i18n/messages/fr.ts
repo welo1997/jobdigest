@@ -59,6 +59,7 @@ const fr: Messages = {
     construction: "Construction",
     logistics: "Logistique",
     manufacturing: "Production",
+    engineering: "Ingénierie",
   },
 
   workTypes: {

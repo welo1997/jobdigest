@@ -266,12 +266,15 @@ def test_a_longer_isco_prefix_wins():
     assert mpsv._isco_category({"profeseCzIsco": {"id": "CzIsco/25221"}}) == "devops_platform"
 
 
-def test_an_unmapped_group_returns_none_rather_than_a_guess():
-    """ISCO 21 and 31 are engineering professionals and technicians — 1 654 of the 7 298 kept
-    vacancies, and no category in this taxonomy models them. Returning the nearest thing would
-    file mechanical engineers as software engineers."""
-    assert mpsv._isco_category({"profeseCzIsco": {"id": "CzIsco/21441"}}) is None
-    assert mpsv._isco_category({"profeseCzIsco": {"id": "CzIsco/31151"}}) is None
+def test_isco_21_and_31_map_to_engineering():
+    """ISCO 21 (science and engineering professionals) and 31 (their technicians) are the 1 654
+    mechanical, electrical and civil engineers the `engineering` category was added for on
+    2026-08-09. They must NOT be filed as software_engineering (the nearest neighbour that used
+    to be the temptation), and the ICT codes 251/252 keep their finer mapping despite sitting
+    numerically adjacent."""
+    assert mpsv._isco_category({"profeseCzIsco": {"id": "CzIsco/21441"}}) == "engineering"
+    assert mpsv._isco_category({"profeseCzIsco": {"id": "CzIsco/31151"}}) == "engineering"
+    assert mpsv._isco_category({"profeseCzIsco": {"id": "CzIsco/25131"}}) == "software_engineering"
     assert mpsv._isco_category({"profeseCzIsco": {}}) is None
 
 

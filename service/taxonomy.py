@@ -91,7 +91,9 @@ PATTERNS: tuple[tuple[str, "re.Pattern[str]"], ...] = (
     # --- tech --------------------------------------------------------------------------
     ("data_engineering", re.compile(
         r"data engineer|analytics engineer|dataops|data platform|data warehouse|\betl\b|"
-        r"datov[ýá] inžen|dátový inžinier|data inžinier", re.I)),
+        # `dataingenjör` (SE) explicitly, so it is not swept up by engineering's broad
+        # `ingenjör` a few patterns down — data_engineering is more specific and comes first.
+        r"datov[ýá] inžen|dátový inžinier|data inžinier|dataingenjör", re.I)),
     ("machine_learning", re.compile(
         r"machine learning|\bml engineer|\bai engineer|data scientist|mlops|"
         r"deep learning|computer vision|\bnlp\b|strojové uč|"
@@ -118,6 +120,20 @@ PATTERNS: tuple[tuple[str, "re.Pattern[str]"], ...] = (
     ("design", re.compile(
         r"designer|\bux\b|\bui\b|user experience|user interface|design lead|"
         r"designér|dizajnér|grafik|grafičk|návrhá[řr]", re.I)),
+    # Non-software engineering — mechanical, electrical, civil, process. MUST precede
+    # software_engineering, whose bare `\bengineer\b` catch-all would otherwise file
+    # "Mechanical Engineer" as software. It requires a discipline qualifier before "engineer"
+    # (never bare), so a software title stays put; the Swedish "-ingenjör" compounds have no
+    # software collision (Sweden titles software work "utvecklare", not "ingenjör"). This is the
+    # home for ISCO major 21/31 and Platsbanken's "Yrken med teknisk inriktning" — ~4 000
+    # register rows that had no category until 2026-08-09 and sat uncategorised.
+    ("engineering", re.compile(
+        r"mechanical engineer|electrical engineer|civil engineer|structural engineer|"
+        r"process engineer|chemical engineer|automotive engineer|aerospace engineer|"
+        r"industrial engineer|manufacturing engineer|mechatronic|electronics engineer|"
+        r"hardware engineer|"
+        r"ingenjör|ingeniör|"                     # any Swedish -ingenjör compound
+        r"strojní inžen|strojní inžinier|elektroinžen|konstruktér|konštruktér", re.I)),
     ("software_engineering", re.compile(
         r"software engineer|software developer|back[- ]?end|front[- ]?end|full[- ]?stack|"
         r"web developer|mobile developer|\bios\b|android|\bdeveloper\b|programmer|"
@@ -214,6 +230,8 @@ SHORTLIST_KEYWORDS: dict[str, list[str]] = {
     "data_analysis": ["data analyst", "bi analyst", "analytik", "power bi", "reporting"],
     "machine_learning": ["machine learning", "ml engineer", "data scientist", "ai engineer",
                          "strojové učení"],
+    "engineering": ["mechanical engineer", "electrical engineer", "civil engineer",
+                    "process engineer", "ingenjör", "konstruktér", "strojní inženýr"],
     "software_engineering": ["software engineer", "developer", "vývojář", "programátor",
                              "backend", "frontend", "fullstack"],
     "devops_platform": ["devops", "sre", "platform engineer", "cloud engineer",
@@ -257,6 +275,7 @@ SUBJECT_WORDS: dict[str, str] = {
     "data_engineering": "data engineering",
     "data_analysis": "data",
     "machine_learning": "ML",
+    "engineering": "engineering",
     "software_engineering": "engineering",
     "devops_platform": "platform",
     "product": "product",
