@@ -377,10 +377,44 @@ def test_an_unknown_field_returns_none_rather_than_a_guess():
     assert platsbanken._ssyk_category({}) is None
 
 
-def test_the_map_covers_fields_that_are_not_ingested_yet():
-    """`OCCUPATION_FIELDS` excludes healthcare, pedagogy, restaurant, transport, construction
-    and manufacturing — an exclusion made when the taxonomy had no category for them. It now
-    does, so the map covers them and lifting the exclusion needs no second change."""
+# The eight care/manual fields un-excluded on 2026-08-09, each with the category the label
+# resolves to. The original seven fields are heterogeneous (a field like "Administration,
+# ekonomi, juridik" spans finance, HR, legal and admin) and resolve per-ad via title patterns
+# and SSYK *group* mappings, so they deliberately have no field-level default — this list is
+# only the newly-rankable homogeneous fields, which is exactly the set that must map.
+_NEWLY_RANKABLE = {
+    "Hälso- och sjukvård": "healthcare",
+    "Transport, distribution, lager": "logistics_transport",
+    "Pedagogik": "education",
+    "Hotell, restaurang, storhushåll": "hospitality",
+    "Installation, drift, underhåll": "skilled_trades",
+    "Industriell tillverkning": "manufacturing_production",
+    "Bygg och anläggning": "construction",
+    "Hantverk": "skilled_trades",
+}
+
+
+def test_the_un_excluded_fields_all_map_to_a_real_category():
+    """Every care/manual field added on 2026-08-09 must map — via its label — to a real
+    `role_category`, or it would land in `uncategorised` and reach the widened shortlist path,
+    which is the harm the original exclusion guarded against. Fails if one of these is added to
+    `OCCUPATION_FIELDS` without its `SSYK_FIELD_CATEGORIES` mapping (or the mapping is renamed
+    out from under it)."""
+    from service import taxonomy
     ingested = {name for _, name in platsbanken.OCCUPATION_FIELDS}
-    assert "Hälso- och sjukvård" not in ingested
-    assert platsbanken.SSYK_FIELD_CATEGORIES["Hälso- och sjukvård"] == "healthcare"
+    for label, expected in _NEWLY_RANKABLE.items():
+        assert label in ingested, f"{label!r} was dropped from OCCUPATION_FIELDS"
+        assert platsbanken.SSYK_FIELD_CATEGORIES.get(label) == expected
+        assert expected in taxonomy.CATEGORIES
+
+
+def test_the_unrankable_fields_are_deliberately_left_out():
+    """Six fields (social work, sanitation, security, agriculture, beauty, military) map to no
+    current category, so they stay excluded rather than pour ~6 100 uncategorised ads into the
+    widened path. Pinned so a future 'ingest everything' edit has to confront the reason."""
+    ingested = {name for _, name in platsbanken.OCCUPATION_FIELDS}
+    for label in ("Yrken med social inriktning", "Sanering och renhållning",
+                  "Säkerhet och bevakning", "Naturbruk", "Kropps- och skönhetsvård",
+                  "Militära yrken"):
+        assert label not in ingested, f"{label!r} was ingested but maps to no category"
+        assert label not in platsbanken.SSYK_FIELD_CATEGORIES

@@ -93,17 +93,41 @@ HEADERS = {**politeness.HEADERS, "Accept": "application/json"}
 BASE_URL = "https://jobsearch.api.jobtechdev.se/search"
 
 #: SSYK occupation fields to ingest, by Arbetsförmedlingen concept id. Counts measured
-#: 2026-08-04. The excluded fields are not "less important" — they are healthcare (5 012),
-#: pedagogy, hotel/restaurant, transport, construction, industrial manufacturing, sanitation
-#: and agriculture, i.e. the ~21 000 ads this product's nine role categories cannot rank.
+#: 2026-08-09 from the `occupation-field` facet (the whole register is 40 367 ads).
+#:
+#: **Broadened 2026-08-09 from 7 to 15 fields.** The original 7 were the
+#: managers-professionals-technicians analogue, chosen when the taxonomy knew nine
+#: mostly-technical categories and could not rank care or manual work. The 2026-08-09 taxonomy
+#: broadening added healthcare, education, hospitality, skilled_trades, construction,
+#: logistics_transport and manufacturing_production, and `SSYK_FIELD_CATEGORIES` already maps
+#: every field to one of them — so eight more fields are now *rankable* and are added here.
+#:
+#: **Six fields are still excluded, and the reason is the same invariant as before.** They map
+#: to no current category (`social work`, `sanitation`, `security`, `agriculture`, `beauty`,
+#: `military`), so ingesting them would land ~6 100 ads in `uncategorised` — and the widened
+#: shortlist path drops the recall predicate under `SHORTLIST_FLOOR`, so a subscriber tripping
+#: it would be shown jobs no category could have matched. Adding rankable inventory is the win;
+#: adding unrankable inventory to the widened path is the harm the first exclusion guarded
+#: against. Do not add these without a category to rank them (this repo's "no category without
+#: inventory, no inventory without a category" rule).
 OCCUPATION_FIELDS: list[tuple[str, str]] = [
-    ("RPTn_bxG_ExZ", "Försäljning, inköp, marknadsföring"),   # 3 731
-    ("X82t_awd_Qyc", "Administration, ekonomi, juridik"),     # 3 632
-    ("apaJ_2ja_LuF", "Data/IT"),                              # 2 707
-    ("6Hq3_tKo_V57", "Yrken med teknisk inriktning"),         # 2 517
-    ("bh3H_Y3h_5eD", "Chefer och verksamhetsledare"),         # 2 415
-    ("9puE_nYg_crq", "Kultur, media, design"),                #   378
-    ("kJeN_wmw_9wX", "Naturvetenskap"),                       #   356
+    # The original seven (managers / professionals / technicians).
+    ("RPTn_bxG_ExZ", "Försäljning, inköp, marknadsföring"),   # 3 747
+    ("X82t_awd_Qyc", "Administration, ekonomi, juridik"),     # 3 747
+    ("apaJ_2ja_LuF", "Data/IT"),                              # 2 704
+    ("6Hq3_tKo_V57", "Yrken med teknisk inriktning"),         # 2 495
+    ("bh3H_Y3h_5eD", "Chefer och verksamhetsledare"),         # 2 488
+    ("9puE_nYg_crq", "Kultur, media, design"),                #   388
+    ("kJeN_wmw_9wX", "Naturvetenskap"),                       #   358
+    # Added 2026-08-09 — now rankable by the broadened taxonomy (label → SSYK_FIELD_CATEGORIES).
+    ("NYW6_mP6_vwf", "Hälso- och sjukvård"),                  # 5 406  -> healthcare
+    ("ASGV_zcE_bWf", "Transport, distribution, lager"),       # 4 003  -> logistics_transport
+    ("MVqp_eS8_kDZ", "Pedagogik"),                            # 2 462  -> education
+    ("ScKy_FHB_7wT", "Hotell, restaurang, storhushåll"),      # 2 355  -> hospitality
+    ("yhCP_AqT_tns", "Installation, drift, underhåll"),       # 1 906  -> skilled_trades
+    ("wTEr_CBC_bqh", "Industriell tillverkning"),             # 1 877  -> manufacturing_production
+    ("j7Cq_ZJe_GkT", "Bygg och anläggning"),                  # 1 873  -> construction
+    ("PaxQ_o1G_wWH", "Hantverk"),                             #   180  -> skilled_trades
 ]
 
 #: The API's own maximum. Asking for more is a 400, not a silent truncation — but page by the
