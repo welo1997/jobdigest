@@ -53,6 +53,18 @@ const cs: Messages = {
     devops: "DevOps",
     finance: "Finance",
     ml_engineer: "ML inženýr",
+    sales: "Obchod",
+    hr: "HR a nábor",
+    legal: "Právo",
+    customer_support: "Zákaznická podpora",
+    operations: "Provoz",
+    healthcare: "Zdravotnictví",
+    education: "Školství",
+    hospitality: "Pohostinství",
+    skilled_trades: "Řemesla",
+    construction: "Stavebnictví",
+    logistics: "Logistika",
+    manufacturing: "Výroba",
   },
 
   workTypes: {

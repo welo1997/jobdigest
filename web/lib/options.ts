@@ -29,14 +29,29 @@ export interface RoleOption {
 // rule that stops a role the taxonomy does not model from vanishing.
 export const ROLE_OPTIONS: RoleOption[] = [
   { id: "product_manager", category: "product", keyword: "product manager" },
-  { id: "marketing", category: "other_tech_function", keyword: "marketing" },
+  { id: "marketing", category: "marketing", keyword: "marketing" },
   { id: "social_media", category: "social_media", keyword: "social media" },
   { id: "data_analyst", category: "data_analysis", keyword: "data analyst" },
   { id: "designer", category: "design", keyword: "designer" },
   { id: "software_engineer", category: "software_engineering", keyword: "software engineer" },
   { id: "data_engineer", category: "data_engineering", keyword: "data engineer" },
   { id: "devops", category: "devops_platform", keyword: "devops" },
-  { id: "finance", category: "other_tech_function", keyword: "finance" },
+  { id: "finance", category: "finance_accounting", keyword: "finance" },
+  // Added 2026-08-09 when the taxonomy stopped being tech-only. Appended deliberately:
+  // DEFAULT_ROLE_IDS is ROLE_OPTIONS.slice(0, 9), so the default chip row is unchanged and
+  // these are opt-in rather than a reshuffled signup form.
+  { id: "sales", category: "sales", keyword: "sales" },
+  { id: "hr", category: "hr_recruiting", keyword: "recruiter" },
+  { id: "legal", category: "legal", keyword: "legal counsel" },
+  { id: "customer_support", category: "customer_support", keyword: "customer support" },
+  { id: "operations", category: "operations", keyword: "operations" },
+  { id: "healthcare", category: "healthcare", keyword: "nurse" },
+  { id: "education", category: "education", keyword: "teacher" },
+  { id: "hospitality", category: "hospitality", keyword: "chef" },
+  { id: "skilled_trades", category: "skilled_trades", keyword: "electrician" },
+  { id: "construction", category: "construction", keyword: "construction" },
+  { id: "logistics", category: "logistics_transport", keyword: "warehouse" },
+  { id: "manufacturing", category: "manufacturing_production", keyword: "production operator" },
   // Offered only when a CV asks for it (never in the default chip row), and modelled by no
   // category — so it rides the keyword path, exactly as the old "ML Engineer" label did.
   { id: "ml_engineer", category: null, keyword: "ml engineer" },

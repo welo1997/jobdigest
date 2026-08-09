@@ -47,7 +47,20 @@ OPAQUE = "Något Oklassificerbart"
     ("Product Owner", "product"),
     ("Product Designer", "design"),            # design must win over product
     ("Java vývojář", "software_engineering"),  # CZ title
-    ("Účetní", "other_tech_function"),         # CZ title
+    ("Účetní", "finance_accounting"),          # CZ title — was other_tech_function until
+                                               # the 2026-08-09 split
+    # The sectors added when the taxonomy stopped being tech-only. Each must beat a broad
+    # tech pattern that would otherwise swallow it.
+    ("Všeobecná sestra", "healthcare"),        # CZ nurse
+    ("Sjuksköterska", "healthcare"),           # SE nurse
+    ("Učitelé na 1. stupni základních škol", "education"),
+    ("Financial Analyst", "finance_accounting"),  # NOT data_analysis: analyst is broad
+    ("Elektrikář", "skilled_trades"),
+    ("Stavbyvedoucí", "construction"),
+    ("Skladník", "logistics_transport"),
+    ("Produktionstekniker", "manufacturing_production"),
+    ("Restaurangchef", "hospitality"),         # SE: "chef" here means manager, not cook
+    ("IT-chef", "uncategorised"),              # ...and the same word must NOT mean hospitality
     ("Backend Engineer", "software_engineering"),
     ("Social Media Manager", "social_media"),
     ("Specialista sociálních sítí", "social_media"),          # CZ
@@ -62,12 +75,16 @@ def test_classify(title, expected):
 
 def test_social_media_beats_the_catch_all():
     """Almost every social title also says "marketing" or "content", so without the ordering
-    they all land in other_tech_function — and a subscriber who asked for social media gets
-    the entire marketing/sales/finance/HR bucket instead. This is the same class of bug as
-    test_specificity_order_holds, one layer down."""
+    they all land in the broader marketing pattern — and a subscriber who asked for social
+    media gets general marketing instead. This is the same class of bug as
+    test_specificity_order_holds, one layer down.
+
+    Before 2026-08-09 the bucket underneath was `other_tech_function`, which held marketing,
+    sales, finance, HR and legal together; the split made that bucket `marketing`, and the
+    ordering requirement is unchanged."""
     assert taxonomy.classify("Social Media Marketing Specialist") == "social_media"
     assert taxonomy.classify("Content Creator") == "social_media"
-    assert taxonomy.classify("Marketing Specialist") == "other_tech_function"
+    assert taxonomy.classify("Marketing Specialist") == "marketing"
     # ...but a designer who also runs the socials is still a designer.
     assert taxonomy.classify("Grafik a správa sociálních sítí") == "design"
 

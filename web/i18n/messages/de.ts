@@ -53,6 +53,18 @@ const de: Messages = {
     devops: "DevOps",
     finance: "Finanzen",
     ml_engineer: "ML Engineer",
+    sales: "Vertrieb",
+    hr: "HR & Recruiting",
+    legal: "Recht",
+    customer_support: "Kundensupport",
+    operations: "Operations",
+    healthcare: "Gesundheitswesen",
+    education: "Bildung",
+    hospitality: "Gastronomie",
+    skilled_trades: "Handwerk",
+    construction: "Bau",
+    logistics: "Logistik",
+    manufacturing: "Produktion",
   },
 
   workTypes: {

@@ -52,6 +52,18 @@ const sk: Messages = {
     devops: "DevOps",
     finance: "Financie",
     ml_engineer: "ML inžinier",
+    sales: "Obchod",
+    hr: "HR a nábor",
+    legal: "Právo",
+    customer_support: "Zákaznícka podpora",
+    operations: "Prevádzka",
+    healthcare: "Zdravotníctvo",
+    education: "Školstvo",
+    hospitality: "Pohostinstvo",
+    skilled_trades: "Remeslá",
+    construction: "Stavebníctvo",
+    logistics: "Logistika",
+    manufacturing: "Výroba",
   },
 
   workTypes: {
