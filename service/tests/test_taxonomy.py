@@ -144,6 +144,32 @@ OPAQUE = "Något Oklassificerbart"
     ("Specialista informačních technologií", "uncategorised"),  # `technolog\b` is bounded:
                                                           # IT is not an engineering technolog
     ("Mechanici a opraváři osobních automobilů", "skilled_trades"),
+    # The English pass of 2026-08-09-d. Written from what production actually holds: with the
+    # registers drained, 22 488 of the uncategorised rows are English ATS postings, and these
+    # are the systematic shapes inside them. Measured on the disjoint half of that block
+    # (18.7% -> 32.1% of the residue classified), which is where these titles are NOT from.
+    ("Solutions Architect", "software_engineering"),      # the plural is the commoner form
+    ("Enterprise Architect", "software_engineering"),
+    ("Data Architect", "data_engineering"),               # ...but data work still wins
+    ("Cloud Architect", "devops_platform"),               # ...and so does platform work
+    ("Large Language Model Architect", "machine_learning"),   # the single commonest one
+    ("Software Engr I", "software_engineering"),          # Workday/Oracle abbreviate the title
+    ("Field Service Engr I", "skilled_trades"),           # ...and a field engineer is a trade
+    ("Assembler - Level 1", "manufacturing_production"),
+    ("Production Supervisor", "manufacturing_production"),
+    ("Database Administrator", "devops_platform"),
+    ("Quantitative Researcher", "data_analysis"),
+    ("People Partner", "hr_recruiting"),
+    ("Executive Assistant", "other_tech_function"),
+    ("Teaching Assistant", "education"),                  # ...but a school assistant teaches
+    ("Customer Assistant - Food - Malvern", "sales"),     # UK retail shop floor
+    ("Customer Support Specialist", "customer_support"),  # ...and support is not retail
+    ("Agente di commercio", "sales"),                     # IT field sales, via adzuna
+    # A deliberate decline, kept as a test so it is a decision rather than an oversight: a
+    # bare "Project Manager" is construction, IT, marketing or events depending on the
+    # employer, and `uncategorised` is the honest answer for 50 postings rather than a guess
+    # that puts them in a stranger's digest.
+    ("Project Manager", "uncategorised"),
     ("Social Media Manager", "social_media"),
     ("Specialista sociálních sítí", "social_media"),          # CZ
     ("Náborár pre projekty, Marketing | Sociálne siete", "social_media"),  # SK

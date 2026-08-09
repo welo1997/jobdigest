@@ -103,7 +103,7 @@ PATTERNS: tuple[tuple[str, "re.Pattern[str]"], ...] = (
     # and it only lived here because `engineering` did not exist yet. `konstruktör` picks it up.
     ("skilled_trades", re.compile(
         r"electrician|welder|plumber|\bmechanic\b|locksmith|\bfitter\b|hvac|"
-        r"maintenance technician|"
+        r"maintenance technician|field service (?:technician|engineer|engr)|"
         # Czech, added 2026-08-09-c from the ISCO key. The stem, minus one word: `zámečna` is
         # the metalworking *shop floor*, which the register files as manufacturing, not the
         # trade. Written as a lookahead rather than as a list of inflections because Czech
@@ -130,8 +130,9 @@ PATTERNS: tuple[tuple[str, "re.Pattern[str]"], ...] = (
         r"förare|brevbärare|paketbud|distributör|\btaxi|bärgare|bärgning|"
         r"transportledare|transportplanerare|trafikplanerare|depåmedarbetare", re.I)),
     ("manufacturing_production", re.compile(
-        r"production (?:operator|technician|planner|manager)|machine operator|"
-        r"assembly|quality (?:inspector|technician)|cnc|"
+        r"production (?:operator|technician|planner|manager|associate|supervisor|worker)|"
+        r"machine operator|manufacturing (?:technician|associate|operator)|"
+        r"assembly|\bassembler\b|equipment installer|quality (?:inspector|technician)|cnc|"
         # Czech. `dělní` and `výrob` are stems for the same reason the Swedish half is:
         # "Dělníci", "Dělnice", "v kovovýrobě". `obsluha` (machine tending) sits here only
         # because hospitality's `občerstven` and logistics' `manipulačn` read their own
@@ -150,10 +151,16 @@ PATTERNS: tuple[tuple[str, "re.Pattern[str]"], ...] = (
         r"data engineer|analytics engineer|dataops|data platform|data warehouse|\betl\b|"
         # `dataingenjör` (SE) explicitly, so it is not swept up by engineering's broad
         # `ingenjör` a few patterns down — data_engineering is more specific and comes first.
-        r"datov[ýá] inžen|dátový inžinier|data inžinier|dataingenjör", re.I)),
+        r"datov[ýá] inžen|dátový inžinier|data inžinier|dataingenjör|"
+        r"data architect|data modell?er", re.I)),
     ("machine_learning", re.compile(
         r"machine learning|\bml engineer|\bai engineer|data scientist|mlops|"
         r"deep learning|computer vision|\bnlp\b|strojové uč|"
+        # The vocabulary the field actually advertises in now. "Large Language Model
+        # Architect" was the single commonest uncategorised English title in production
+        # (2026-08-09, 46 postings) and nothing here could read it.
+        r"large language model|\bllms?\b|generative ai|\bgen ?ai\b|"
+        r"\bai\b[^|]{0,20}(?:architect|scientist)|prompt engineer|"
         r"umělá inteligence|umelá inteligencia|datov[ýá] v[ěe]dec", re.I)),
     # Before `data_analysis` on purpose: that pattern ends in a bare `\banalyst\b`, so
     # "Financial Analyst" and "Credit Analyst" were landing in data analysis — a subscriber
@@ -170,12 +177,14 @@ PATTERNS: tuple[tuple[str, "re.Pattern[str]"], ...] = (
         r"löne(?:administratör|assistent|konsult)", re.I)),
     ("data_analysis", re.compile(
         r"data analyst|bi analyst|business intelligence|power bi|\btableau\b|\banalyst\b|"
+        r"quantitative (?:researcher|analyst)|"
         r"analytics|analytik|analytičk|analytičc", re.I)),
     ("devops_platform", re.compile(
         r"devops|platform engineer|site reliability|\bsre\b|cloud engineer|"
         r"infrastructure engineer|\bkubernetes\b|cloud architect|"
         r"správce systém|správca systémov|systémov[ýá] administr|"
         r"administrátor (?:is|it|systém|sít|server)|síťov[ýá] administr|"
+        r"database administrator|\bdba\b|"
         r"nätverkstekniker|systemtekniker|systemförvaltare|infrastrukturarkitekt", re.I)),
     ("product", re.compile(
         r"product manager|product owner|product lead|product management|\btpm\b|program manager|"
@@ -209,7 +218,12 @@ PATTERNS: tuple[tuple[str, "re.Pattern[str]"], ...] = (
     ("software_engineering", re.compile(
         r"software engineer|software developer|back[- ]?end|front[- ]?end|full[- ]?stack|"
         r"web developer|mobile developer|\bios\b|android|\bdeveloper\b|programmer|"
-        r"\bengineer(?:ing)?\b|qa engineer|\bsdet\b|"
+        # `engr` because Workday and Oracle tenants abbreviate it in the title itself
+        # ("Software Engr I", "Application Engr II") — 25 postings in one production sample,
+        # invisible to `\bengineer\b`. `solutions?` because the plural is the commoner form
+        # and `solution architect` alone matched none of it.
+        r"\bengineer(?:ing)?\b|\bengr\b|qa engineer|\bsdet\b|"
+        r"solutions? architect|enterprise architect|"
         r"vývojá[řr]|vývojárk|programátor|programátork|softwarov|softvérov|"
         # Any Swedish -utvecklare compound, except the two that are not software:
         # "affärsutvecklare" (business development) and "verksamhetsutvecklare".
@@ -237,6 +251,14 @@ PATTERNS: tuple[tuple[str, "re.Pattern[str]"], ...] = (
         r"marknad|kommunikatör|kommunikationsansvarig|kommunikationschef", re.I)),
     ("sales", re.compile(
         r"\bsales\b|account executive|account manager|key account|business development|"
+        # Retail shop floor, which the taxonomy could read in Swedish (`butik`) and Czech
+        # (`prodava`) but not in English. `customer assistant` is UK supermarket language for
+        # a shop-floor job, not a support role — support advertises itself as customer
+        # support/service/care, all of which this pattern leaves to `customer_support`.
+        r"store (?:manager|associate|assistant)|retail associate|grocery associate|"
+        r"shop assistant|sales assistant|customer assistant|"
+        # IT/FR field-sales titles that arrive through adzuna and arbeitnow.
+        r"agente di commercio|commercial(?:e)?\s+terrain|"
         r"obchodn|prodejce|predajca|prodava|prodejn|pokladní|maloobchod|"
         # `sälj` as a stem, because the register writes "säljarjobb", "säljteam" and "Sälj på
         # förbokade möten" far more often than the bare "säljare" this used to require.
@@ -245,7 +267,8 @@ PATTERNS: tuple[tuple[str, "re.Pattern[str]"], ...] = (
         # of it under Företagssäljare than under Kundtjänstpersonal, so sales takes it.
         r"mötesbokare|mötesbokning|besöksbokare|företagsbokare", re.I)),
     ("hr_recruiting", re.compile(
-        r"recruit|talent acquisition|people ops|human resources|\bhr\b|rekryter|"
+        r"recruit|talent acquisition|people ops|people partner|people operations|"
+        r"human resources|\bhr\b|rekryter|"
         r"personalist|nábor|náborář|mzdov[áý] účetní", re.I)),
     ("legal", re.compile(
         r"\blegal\b|counsel|paralegal|compliance officer|"
@@ -262,7 +285,9 @@ PATTERNS: tuple[tuple[str, "re.Pattern[str]"], ...] = (
     # Deliberately last of the business group and much narrower than it was.
     ("other_tech_function", re.compile(
         r"business analyst|\bcontent\b|community|partnerships|strategy|"
-        r"administrativ|asistent|assistent|koordinátor|koordinator", re.I)),
+        r"administrativ|asistent|assistent|koordinátor|koordinator|"
+        # English admin titles: the CZ/SE spellings above never matched "Executive Assistant".
+        r"(?:executive|administrative|office|personal) assistant", re.I)),
 )
 
 UNCATEGORISED = "uncategorised"
