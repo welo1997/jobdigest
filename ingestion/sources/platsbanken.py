@@ -190,6 +190,18 @@ SSYK_GROUP_CATEGORIES: dict[str, str] = {
     "Driftchefer inom bygg, anläggning och gruva": "construction",
 }
 
+#: Groups whose field default is *wrong* and for which no category is right either — the hint
+#: declines rather than guessing. "Yrken med teknisk inriktning" maps to `engineering` as a
+#: field, but it also carries property managers and urban planners, and hinting those as
+#: engineering puts a `Fastighetsförvaltare` in the digest of everyone who asked for mechanical
+#: work. The rule is the taxonomy's own: a lookup in front of the matcher must be able to say
+#: "I don't know" and hand off, never name a category that is not true. Mirrored by
+#: `scripts/categorization_score.OUT_OF_SCOPE_GROUPS`, which excludes them from the answer key
+#: for the same reason.
+SSYK_GROUP_UNMAPPED: frozenset[str] = frozenset({
+    "Fastighetsförvaltare", "Planeringsarkitekter m.fl.", "Arkitekter m.fl.",
+})
+
 
 def _ssyk_category(ad: dict) -> Optional[str]:
     """The register's own occupation classification, as a `role_category`.
@@ -197,10 +209,16 @@ def _ssyk_category(ad: dict) -> Optional[str]:
     Group before field: "Data/IT" defaults to software, but an IT support technician inside
     it is `customer_support`, and filing every one of them as a developer would put them in
     the wrong subscriber's digest.
+
+    A group may also *veto* its field's answer without offering one (`SSYK_GROUP_UNMAPPED`) —
+    a property manager inside the technical field is not an engineer, and "no hint" is the
+    honest answer where "the field's category" would be a wrong one.
     """
     group = ((ad.get("occupation_group") or {}).get("label") or "").strip()
     if group in SSYK_GROUP_CATEGORIES:
         return SSYK_GROUP_CATEGORIES[group]
+    if group in SSYK_GROUP_UNMAPPED:
+        return None
     field = ((ad.get("occupation_field") or {}).get("label") or "").strip()
     return SSYK_FIELD_CATEGORIES.get(field)
 

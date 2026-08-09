@@ -109,24 +109,46 @@ OUT_OF_SCOPE: frozenset[str] = frozenset({
     # "Yrken med teknisk inriktning" left this set on 2026-08-09 — it now maps to engineering.
 })
 
+#: The same exclusion one level down: *groups* inside an in-scope field that the field's
+#: category is wrong for. "Yrken med teknisk inriktning" is not homogeneous — alongside the
+#: mechanical, electrical and chemical engineers it carries property managers
+#: (`Fastighetsförvaltare`) and urban planners (`Planeringsarkitekter`), which are not
+#: engineering and have no category of their own. Grading the classifier as *wrong* for
+#: declining to call a property manager an engineer scores it against a wrong answer key and
+#: rewards guessing — the same failure the field-level exclusion exists to prevent. Mirrored in
+#: `platsbanken.SSYK_GROUP_UNMAPPED`, so the shipped hint declines on exactly these groups too.
+OUT_OF_SCOPE_GROUPS: frozenset[str] = frozenset({
+    "Fastighetsförvaltare", "Planeringsarkitekter m.fl.", "Arkitekter m.fl.",
+})
+
 
 def truth_for(row: dict) -> str | None:
     """The publisher's answer for one ad, or None when it is out of scope or unmapped."""
     group = (row.get("group") or "").strip()
     if group in GROUP_MAP:
         return GROUP_MAP[group]
+    if group in OUT_OF_SCOPE_GROUPS:
+        return None
     field = (row.get("field") or "").strip()
     if field in OUT_OF_SCOPE:
         return None
     return FIELD_MAP.get(field)
 
 
-def fetch(pages: int = 20) -> list[dict]:
+def fetch(pages: int = 20, before: str | None = None) -> list[dict]:
     """Pull a fresh answer key. Deliberately unfiltered by occupation field.
 
     Sampling only the seven fields `platsbanken.OCCUPATION_FIELDS` ingests would leave the
     seven sector categories added on 2026-08-09 with no ground truth at all — the scorer
     would be blind to exactly the newest and least-proven half of the taxonomy.
+
+    `before` (an ISO timestamp, `--before`) asks the API for ads published earlier than that
+    moment. **That is what makes a holdout possible, and a holdout is not optional here.**
+    Patterns get written by reading the titles this key declined, so scoring them against the
+    same key measures memorisation, not classification: every word added scores by
+    construction. A run over a disjoint slice is the only number that says whether the
+    vocabulary generalises. The API caps `offset` at 2 000, so a second sample cannot be had
+    by paging further — it has to come from a different window.
     """
     import requests
     from ingestion import politeness
@@ -135,8 +157,10 @@ def fetch(pages: int = 20) -> list[dict]:
     rows: list[dict] = []
     for offset in range(0, pages * 100, 100):
         politeness.throttle(BASE_URL)
-        resp = requests.get(BASE_URL, headers=headers,
-                            params={"limit": 100, "offset": offset}, timeout=45)
+        params: dict[str, object] = {"limit": 100, "offset": offset}
+        if before:
+            params["published-before"] = before
+        resp = requests.get(BASE_URL, headers=headers, params=params, timeout=45)
         if resp.status_code != 200:
             print(f"  api returned {resp.status_code}, stopping", file=sys.stderr)
             break
@@ -164,7 +188,8 @@ def score(rows: list[dict]) -> dict:
     for row in rows:
         expected = truth_for(row)
         if expected is None:
-            if (row.get("field") or "") in OUT_OF_SCOPE:
+            if ((row.get("field") or "") in OUT_OF_SCOPE
+                    or (row.get("group") or "").strip() in OUT_OF_SCOPE_GROUPS):
                 out_of_scope += 1
             else:
                 unmapped += 1
@@ -218,12 +243,15 @@ def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("--fetch", action="store_true", help="refresh the answer key from the API")
     ap.add_argument("--pages", type=int, default=20, help="100 ads per page (default 20)")
+    ap.add_argument("--before", help="ISO timestamp: only ads published before it. With "
+                                     "CATEGORIZATION_TRUTH pointing elsewhere, this is how a "
+                                     "holdout key disjoint from the cached one is built")
     ap.add_argument("--titles", type=Path,
                     help="a file of production titles (one per line) to report coverage on")
     args = ap.parse_args(argv)
 
     if args.fetch:
-        rows = fetch(args.pages)
+        rows = fetch(args.pages, args.before)
         CACHE.parent.mkdir(parents=True, exist_ok=True)
         CACHE.write_text(json.dumps(rows, ensure_ascii=False, indent=1), encoding="utf-8")
         print(f"answer key: {len(rows)} ads -> {CACHE}")

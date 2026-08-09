@@ -91,6 +91,36 @@ OPAQUE = "Något Oklassificerbart"
     ("Strojní inženýr", "engineering"),        # CZ mechanical engineer
     ("Software Engineer", "software_engineering"),   # NOT engineering — no discipline qualifier
     ("Dataingenjör", "data_engineering"),      # SE — data_engineering wins over broad ingenjör
+    # The Swedish vocabulary pass of 2026-08-09-b. Every title here is real register text the
+    # classifier declined, and the words behind them are stems and occupation nouns, not the
+    # ads' own phrasing — measured on a *holdout* slice the patterns were not written from
+    # (51.1% -> 71.6%), because scoring new words against the sample they were read out of
+    # only measures memorisation. See `scripts/categorization_score.py --before`.
+    ("Undersköterskor till hemtjänsten", "healthcare"),   # plural: the stem, not the word
+    ("Leg. Fysioterapeut sökes för uppdrag", "healthcare"),
+    ("Psykolog habilitering", "healthcare"),
+    ("Fastighetsskötare", "skilled_trades"),   # ...and `skötersk` must NOT reach `skötare`
+    ("Elevassistent till Bosgårdsskolan", "education"),
+    ("Timvikarie förskola - Innovitaskolan", "education"),
+    ("Sushikock", "hospitality"),              # `kock` as a suffix, with its Swedish endings
+    ("Serverings- och barpersonal sökes", "hospitality"),
+    ("Butiksmedarbetare, Willys Helsingborg Berga", "sales"),
+    ("Säljarjobb utan lönetak!", "sales"),     # the stem: "säljare" alone missed this
+    ("Träarbetare Mariestad", "construction"),
+    ("Hjullastarförare till Stockholm-Spånga", "construction"),  # NOT logistics' `förare`
+    ("Taxiförare / färdtjänstförare i Uppsala kommun", "logistics_transport"),
+    ("Brevbärare/paketbud - Solna", "logistics_transport"),
+    ("Ställare inom formsprutning", "manufacturing_production"),
+    ("Bilplåtslagare till Werksta Falkenberg", "manufacturing_production"),
+    ("Mekanikkonstruktör till Nord-Lock", "engineering"),   # SE spelling of konstruktér
+    ("Elkonstruktör", "engineering"),          # was skilled_trades before engineering existed
+    ("Senior Java-utvecklare", "software_engineering"),
+    ("Affärsutvecklare", "uncategorised"),     # ...but business development is not software
+    ("It-supporttekniker | Skövde", "customer_support"),
+    ("Löneadministratör", "finance_accounting"),
+    ("Senior ekonom", "finance_accounting"),   # moved out of the other_tech_function residual
+    ("Grafisk Formgivare till Newport", "design"),
+    ("Kommunikatör vid Kunskapscentrum", "marketing"),
     ("Social Media Manager", "social_media"),
     ("Specialista sociálních sítí", "social_media"),          # CZ
     ("Náborár pre projekty, Marketing | Sociálne siete", "social_media"),  # SK

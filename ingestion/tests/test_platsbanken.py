@@ -371,6 +371,35 @@ def test_the_group_beats_the_field():
     assert platsbanken._ssyk_category(ad) == "customer_support"
 
 
+def test_a_group_may_veto_its_fields_answer_without_offering_one():
+    """The technical field maps to `engineering`, but it also carries property managers and
+    urban planners. Hinting those as engineering is the lookup-table failure this repo already
+    has a rule for: a table in front of the matcher must be able to say "I don't know" and hand
+    off, never name a category that is not true. Declining costs one uncategorised row;
+    guessing puts a `Fastighetsförvaltare` in the digest of everyone who asked for mechanics."""
+    technical = {"occupation_field": {"label": "Yrken med teknisk inriktning"}}
+    assert platsbanken._ssyk_category(
+        {**technical, "occupation_group": {"label": "Ingenjörer och tekniker inom maskinteknik"}}
+    ) == "engineering"
+    for vetoed in platsbanken.SSYK_GROUP_UNMAPPED:
+        assert platsbanken._ssyk_category(
+            {**technical, "occupation_group": {"label": vetoed}}) is None, vetoed
+
+
+def test_the_veto_and_the_scorers_answer_key_do_not_drift():
+    """`scripts/categorization_score.py` excludes the same groups from the ground truth, for
+    the same reason — grading the classifier as *wrong* for declining to call a property
+    manager an engineer scores it against an answer that is not true. Two copies of one
+    judgement, so the copy is asserted rather than trusted (the `source_watchdog` lesson)."""
+    import sys
+    from pathlib import Path
+
+    sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+    from scripts.categorization_score import OUT_OF_SCOPE_GROUPS
+
+    assert platsbanken.SSYK_GROUP_UNMAPPED == OUT_OF_SCOPE_GROUPS
+
+
 def test_an_unknown_field_returns_none_rather_than_a_guess():
     assert platsbanken._ssyk_category({"occupation_field": {"label": "Militära yrken"},
                                        "occupation_group": {}}) is None

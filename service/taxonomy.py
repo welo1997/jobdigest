@@ -42,16 +42,29 @@ PATTERNS: tuple[tuple[str, "re.Pattern[str]"], ...] = (
     # Sized against production before being written, per CLAUDE.md's "grow the taxonomy from
     # the report *and* real inventory": these are the sectors with measurable rows in the
     # 42 532 `uncategorised` postings, not a guess at what a job board ought to have.
+    # The Swedish half is stems, not whole words, and that is the lesson of the 2026-08-09
+    # scorer run: `sjuksköterska` does not match "Sjuksköterskor", and the register writes far
+    # more ads in the plural than the singular. `skötersk` covers sjuk-, under-, tand-, skol-
+    # and distriktssköterska in every inflection. It deliberately does NOT read `skötare`,
+    # which would take `fastighetsskötare` (a caretaker) out of skilled_trades.
     ("healthcare", re.compile(
         r"\bnurse|\bdoctor\b|physician|dentist|physiotherap|pharmacist|paramedic|"
         r"caregiver|midwife|\bgp\b|surgeon|radiolog|"
-        r"sestra|sestry|zdravotn|lékař|lékárn|zubní|fyzioterapeut|ošetřovatel|pečovat|"
-        r"sjuksköterska|undersköterska|läkare|tandläkare|barnmorska|vårdbiträde", re.I)),
+        r"sestra|sestry|zdravotn|lékař|lékárn|zubní|ošetřovatel|pečovat|"
+        r"skötersk|läkare|tandläkare|barnmorska|vårdbiträde|\bvårdare\b|vårdsamordnare|"
+        # `terapeut` covers fysio-, arbets-, psyko- and samtalsterapeut in both languages.
+        r"terapeut|sjukgymnast|psykolog(?!i)|farmaceut|apotekare|tandhygienist|tandvård|"
+        r"logoped|audionom|veterinär|djursjukskötare|hemtjänst|äldreomsorg|sjukvård|"
+        r"omsorgsassistent|stödassistent", re.I)),
     ("education", re.compile(
         r"teacher|lecturer|professor|educator|\btutor\b|kindergarten|preschool|"
         r"teaching assistant|"
         r"učitel|učitelka|vychovatel|pedagog|lektor(?!ov)|docent|vysokoškolsk[ýá] uči|"
-        r"lärare|förskollärare|barnskötare|studie- och yrkesvägledare", re.I)),
+        r"lärare|förskol|barnskötare|studie- och yrkesvägledare|"
+        r"elevassistent|elevresurs|studiehandledare|fritidspedagog|"
+        r"skolvikarie|lärarvikarie|husvikarie|doktorand|amanuens|forskare|utbildare\b|"
+        # Coaching and instructing is education's nearest true home; SSYK files it there too.
+        r"instruktör|\btränare\b|dansledare", re.I)),
     # "chef" is deliberately absent: in Swedish it means *manager* (Restaurangchef, IT-chef,
     # Ekonomichef), so a bare match would misfile every Swedish leadership title into
     # hospitality. Only the French-derived "chef de cuisine" is unambiguous.
@@ -59,34 +72,56 @@ PATTERNS: tuple[tuple[str, "re.Pattern[str]"], ...] = (
         r"chef de cuisine|\bbarista\b|waiter|waitress|bartender|receptionist|housekeep|"
         r"restaurant manager|hotel manager|"
         r"kuchař|kuchařk|číšník|servírk|recepční|"
-        r"\bkock\b|servitör|servitris|restaurangchef|hotellchef|bartender|"
-        r"pizzabagare|köksbiträde|restaurangbiträde|köksmästare|kökschef|"
-        r"\bbagare\b|konditor|cafébiträde", re.I)),
+        # `kock` with its Swedish suffixes and no others: "Sushikock", "Eventkockar" and
+        # "Lunchkock" are cooks, and the shipyard "Kockums" is not.
+        r"kock(?:ar|en|arna|erska)?\b|servitör|servitris|restaurang|hotellchef|bartender|"
+        r"pizzabagare|köksbiträde|köksmästare|kökschef|souschef|hovmästare|"
+        r"servering|servis\b|servispersonal|diskare|barpersonal|"
+        r"måltidsbiträde|måltidsservice|kostchef|gatukök|värdinna|"
+        r"\bbagare\b|konditor|cafébiträde|\bcafé|\bkafé|\bcafe\b", re.I)),
+    # `elkonstruktör` left this pattern on 2026-08-09: an electrical *designer* is an engineer,
+    # and it only lived here because `engineering` did not exist yet. `konstruktör` picks it up.
     ("skilled_trades", re.compile(
         r"electrician|welder|plumber|\bmechanic\b|locksmith|\bfitter\b|hvac|"
         r"maintenance technician|"
         r"elektrikář|elektrikár|svářeč|zámečník|instalatér|montér|údržbář|automechanik|"
-        r"elektriker|rörmokare|mekaniker|elkonstruktör|"
-        r"servicetekniker|underhållstekniker|driftstekniker|fastighetsskötare", re.I)),
+        r"elektriker|rörmokare|mekaniker|"
+        r"servicetekniker|underhållstekniker|driftstekniker|fastighetsskötare|"
+        # Named trades only. A bare `tekniker` is NOT here on purpose: the register spreads it
+        # across trades, manufacturing, construction, IT support and networks, and taking it
+        # first would cost more rows than it wins (measured 2026-08-09: +12, −17).
+        r"låstekniker|vitvaru|hjälpmedelstekniker|stationstekniker|teletekniker|"
+        r"lastbilstekniker|industritekniker|installatör|vaktmästare|sömmersk|sömmare", re.I)),
+    # Before logistics_transport, so the machine *drivers* of a building site (grävmaskinist,
+    # hjullastarförare) are read here rather than by that pattern's `förare`.
     ("construction", re.compile(
         r"construction|site manager|bricklayer|carpenter|surveyor|"
         r"stavbyvedoucí|stavební|zedník|tesař|"
-        r"byggledare|byggnadsarbetare|snickare|murare|platschef|"
+        r"byggledare|byggnadsarbetare|snickare|snickeri|murare|platschef|"
         r"anläggningsarbetare|anläggare|rörläggare|byggarbetare|byggprojektledare|"
-        r"stensättare|plattsättare|betongarbetare|takläggare", re.I)),
+        r"stensättare|plattsättare|betongarbetare|betonghåltagare|takläggare|"
+        r"träarbetare|markarbet|grävmaskinist|hjullastar|maskinförare|"
+        r"ventilationsmontör|ventilationstekniker|kyltekniker|isoleringsmontör|"
+        r"ställningsmontör|ställningsbyggare|putsare|golvläggare|målar|"
+        r"hantverkare|rivning|\brivare\b", re.I)),
     ("logistics_transport", re.compile(
         r"warehouse|forklift|truck driver|delivery driver|courier|dispatcher|"
         r"logistics coordinator|freight|"
-        r"skladník|řidič|kurýr|spediter|logistik(?:a|y)?\b|"
-        r"lagerarbetare|truckförare|chaufför|lastbilsförare|"
-        r"orderplockare|lagermedarbetare|terminalarbetare|budbilsförare|"
-        r"distributionsförare|godsmottag", re.I)),
+        r"skladník|řidič|kurýr|spediter|logistik|"
+        r"\blager|truckkort|chaufför|orderplockare|terminalarbetare|godsmottag|"
+        # `förare` as a suffix: buss-, taxi-, lastbils-, skjutstativ-, motvikts-, båt-.
+        # Everything a building site drives was claimed by `construction` one pattern up.
+        r"förare|brevbärare|paketbud|distributör|\btaxi|bärgare|bärgning|"
+        r"transportledare|transportplanerare|trafikplanerare|depåmedarbetare", re.I)),
     ("manufacturing_production", re.compile(
         r"production (?:operator|technician|planner|manager)|machine operator|"
         r"assembly|quality (?:inspector|technician)|cnc|"
         r"operátor výroby|seřizovač|výrobní|montážní|"
-        r"produktionstekniker|processoperatör|maskinoperatör|"
-        r"svetsare|\bsvets\b|verkstadsmontör|\bmontör\b|montörer|"
+        r"produktionstekniker|produktionsmedarbetare|produktionspersonal|"
+        r"produktionsarbetare|operatör|ställare|"
+        r"svetsare|\bsvets\b|montör|montering|montage|"
+        # Vehicle body repair: the register files it as manufacturing, not as a trade.
+        r"plåtslagare|skadetekniker|bilskade|däcktekniker|tryckeri|"
         r"produktionsledare|industriarbetare", re.I)),
     # --- tech --------------------------------------------------------------------------
     ("data_engineering", re.compile(
@@ -105,7 +140,12 @@ PATTERNS: tuple[tuple[str, "re.Pattern[str]"], ...] = (
         r"\bfinanc(?:e|ial)\b|account(?:ant|ing)|\bcontroller\b|bookkeep|\btreasury\b|"
         r"\baudit(?:or)?\b|payroll|tax (?:advisor|manager|specialist)|"
         r"účetní|účtovník|mzdová účetní|daňov|finanční|"
-        r"revisor|redovisning|ekonomiassistent|lönespecialist", re.I)),
+        # `ekonom` moved here from `other_tech_function` on 2026-08-09. In Swedish and Czech it
+        # names the finance profession itself ("Senior ekonom", "Ekonomichef"), and the residual
+        # bucket was the wrong home for it once finance_accounting existed. `(?!ick)` keeps the
+        # Czech adjective "ekonomický" out.
+        r"revisor|redovisning|ekonom(?!ick)|lönespecialist|"
+        r"löne(?:administratör|assistent|konsult)", re.I)),
     ("data_analysis", re.compile(
         r"data analyst|bi analyst|business intelligence|power bi|\btableau\b|\banalyst\b|"
         r"analytics|analytik|analytičk|analytičc", re.I)),
@@ -113,13 +153,14 @@ PATTERNS: tuple[tuple[str, "re.Pattern[str]"], ...] = (
         r"devops|platform engineer|site reliability|\bsre\b|cloud engineer|"
         r"infrastructure engineer|\bkubernetes\b|cloud architect|"
         r"správce systém|správca systémov|systémov[ýá] administr|"
-        r"administrátor (?:is|it|systém|sít|server)|síťov[ýá] administr", re.I)),
+        r"administrátor (?:is|it|systém|sít|server)|síťov[ýá] administr|"
+        r"nätverkstekniker|systemtekniker|systemförvaltare|infrastrukturarkitekt", re.I)),
     ("product", re.compile(
         r"product manager|product owner|product lead|product management|\btpm\b|program manager|"
         r"produktov\w*\s+manaž|produktov\w*\s+vlastník", re.I)),
     ("design", re.compile(
         r"designer|\bux\b|\bui\b|user experience|user interface|design lead|"
-        r"designér|dizajnér|grafik|grafičk|návrhá[řr]", re.I)),
+        r"designér|dizajnér|grafik|grafičk|návrhá[řr]|formgivare|grafisk", re.I)),
     # Non-software engineering — mechanical, electrical, civil, process. MUST precede
     # software_engineering, whose bare `\bengineer\b` catch-all would otherwise file
     # "Mechanical Engineer" as software. It requires a discipline qualifier before "engineer"
@@ -131,15 +172,23 @@ PATTERNS: tuple[tuple[str, "re.Pattern[str]"], ...] = (
         r"mechanical engineer|electrical engineer|civil engineer|structural engineer|"
         r"process engineer|chemical engineer|automotive engineer|aerospace engineer|"
         r"industrial engineer|manufacturing engineer|mechatronic|electronics engineer|"
-        r"hardware engineer|"
+        r"hardware engineer|electrical\b.{0,40}engineer|"
         r"ingenjör|ingeniör|"                     # any Swedish -ingenjör compound
-        r"strojní inžen|strojní inžinier|elektroinžen|konstruktér|konštruktér", re.I)),
+        # `konstruktör` (SE) as well as `konstruktér` (CZ): mechanical and electrical designers
+        # are the single largest group inside the register's technical field, and until
+        # 2026-08-09 the Swedish spelling was the one missing.
+        r"strojní inžen|strojní inžinier|elektroinžen|konstruktér|konštruktér|konstruktör|"
+        r"kvalitetstekniker", re.I)),
     ("software_engineering", re.compile(
         r"software engineer|software developer|back[- ]?end|front[- ]?end|full[- ]?stack|"
         r"web developer|mobile developer|\bios\b|android|\bdeveloper\b|programmer|"
         r"\bengineer(?:ing)?\b|qa engineer|\bsdet\b|"
         r"vývojá[řr]|vývojárk|programátor|programátork|softwarov|softvérov|"
-        r"systemutvecklare|mjukvaruutvecklare|apputvecklare|webbutvecklare|"
+        # Any Swedish -utvecklare compound, except the two that are not software:
+        # "affärsutvecklare" (business development) and "verksamhetsutvecklare".
+        r"(?<!affärs)(?<!verksamhets)utvecklare|"
+        r"lösningsarkitekt|systemarkitekt|dataarkitekt|it-arkitekt|integrationsarkitekt|"
+        r"solution architect|software architect|"
         r"\btestare\b|testledare|systemtestare", re.I)),
     # Must precede other_tech_function: nearly every social title also says "marketing" or
     # "content", so without this it lands in the catch-all and a subscriber who asked for
@@ -157,10 +206,17 @@ PATTERNS: tuple[tuple[str, "re.Pattern[str]"], ...] = (
     # is a migration, not a taxonomy edit.
     ("marketing", re.compile(
         r"marketing|marketingov|marketér|\bseo\b|\bsem\b|growth|brand manager|"
-        r"copywriter|content marketing|\bpr\b|public relations|kampan", re.I)),
+        r"copywriter|content marketing|\bpr\b|public relations|kampan|"
+        r"marknad|kommunikatör|kommunikationsansvarig|kommunikationschef", re.I)),
     ("sales", re.compile(
         r"\bsales\b|account executive|account manager|key account|business development|"
-        r"säljare|obchodní zástupce|obchodní manaž|obchodník|prodejce|predajca", re.I)),
+        r"obchodní zástupce|obchodní manaž|obchodník|prodejce|predajca|"
+        # `sälj` as a stem, because the register writes "säljarjobb", "säljteam" and "Sälj på
+        # förbokade möten" far more often than the bare "säljare" this used to require.
+        r"sälj|försäljning|butik|kundansvarig|kundrådgivare|\bprovision\b|"
+        # Appointment setting sits between sales and support in SSYK; the register files more
+        # of it under Företagssäljare than under Kundtjänstpersonal, so sales takes it.
+        r"mötesbokare|mötesbokning|besöksbokare|företagsbokare", re.I)),
     ("hr_recruiting", re.compile(
         r"recruit|talent acquisition|people ops|human resources|\bhr\b|rekryter|"
         r"personalist|nábor|náborář|mzdov[áý] účetní", re.I)),
@@ -169,7 +225,9 @@ PATTERNS: tuple[tuple[str, "re.Pattern[str]"], ...] = (
         r"právník|právnik|advokát|jurist|koncipient", re.I)),
     ("customer_support", re.compile(
         r"customer (?:support|service|care)|help ?desk|technical support|support specialist|"
-        r"it support|service desk|zákaznick|kundtjänst|kundservice|podpora zákazn", re.I)),
+        r"it[- ]?support|service desk|zákaznick|kundtjänst|kundservice|podpora zákazn|"
+        r"supporttekniker|first[- ]line|kundbokare|bokningsmedarbetare|kundinformatör",
+        re.I)),
     ("operations", re.compile(
         r"\boperations\b|customer success|supply chain|procurement|office manager|"
         r"provozn|nákupčí|nákupca|inköpare", re.I)),
@@ -177,7 +235,7 @@ PATTERNS: tuple[tuple[str, "re.Pattern[str]"], ...] = (
     # Deliberately last of the business group and much narrower than it was.
     ("other_tech_function", re.compile(
         r"business analyst|\bcontent\b|community|partnerships|strategy|"
-        r"ekonom(?!ick)|administrativ|asistent|assistent|koordinátor|koordinator", re.I)),
+        r"administrativ|asistent|assistent|koordinátor|koordinator", re.I)),
 )
 
 UNCATEGORISED = "uncategorised"
@@ -231,7 +289,8 @@ SHORTLIST_KEYWORDS: dict[str, list[str]] = {
     "machine_learning": ["machine learning", "ml engineer", "data scientist", "ai engineer",
                          "strojové učení"],
     "engineering": ["mechanical engineer", "electrical engineer", "civil engineer",
-                    "process engineer", "ingenjör", "konstruktér", "strojní inženýr"],
+                    "process engineer", "ingenjör", "konstruktér", "konstruktör",
+                    "strojní inženýr"],
     "software_engineering": ["software engineer", "developer", "vývojář", "programátor",
                              "backend", "frontend", "fullstack"],
     "devops_platform": ["devops", "sre", "platform engineer", "cloud engineer",
@@ -243,29 +302,33 @@ SHORTLIST_KEYWORDS: dict[str, list[str]] = {
                      "instagram", "tiktok"],
     "marketing": ["marketing", "marketingový", "seo", "brand", "copywriter", "kampaň"],
     "sales": ["sales", "obchodní", "obchodník", "prodejce", "säljare", "account manager",
-              "business development"],
+              "business development", "butik"],
     "finance_accounting": ["finance", "účetní", "účetnictví", "controller", "audit",
                            "redovisning", "ekonomiassistent"],
     "hr_recruiting": ["recruiter", "personalista", "nábor", "human resources", "hr",
                       "rekryterare"],
     "legal": ["legal", "právník", "advokát", "counsel", "compliance", "jurist"],
     "customer_support": ["customer support", "zákaznická podpora", "help desk", "it support",
-                         "kundtjänst"],
+                         "kundtjänst", "supporttekniker"],
     "operations": ["operations", "provozní", "supply chain", "nákup", "customer success"],
+    # The Swedish terms here are stems and plurals as the register writes them, for the same
+    # reason the patterns above are: retrieval that only knows the singular does not find the
+    # ad. Recall-first — the AI matcher does the precision afterwards.
     "healthcare": ["nurse", "sestra", "zdravotní sestra", "lékař", "sjuksköterska", "läkare",
+                   "undersköterska", "fysioterapeut", "psykolog", "hemtjänst",
                    "fyzioterapeut", "pečovatelka"],
     "education": ["teacher", "učitel", "učitelka", "lärare", "pedagog", "lektor",
-                  "förskollärare"],
+                  "förskollärare", "förskola", "elevassistent"],
     "hospitality": ["kuchař", "číšník", "recepční", "kock", "servitör", "barista",
-                    "restaurant"],
+                    "restaurant", "restaurang", "servering"],
     "skilled_trades": ["elektrikář", "svářeč", "instalatér", "zámečník", "elektriker",
-                       "svetsare", "mekaniker", "electrician", "welder"],
+                       "svetsare", "mekaniker", "electrician", "welder", "servicetekniker"],
     "construction": ["stavbyvedoucí", "stavební", "construction", "byggledare", "snickare",
-                     "zedník"],
+                     "zedník", "träarbetare", "målare"],
     "logistics_transport": ["skladník", "řidič", "logistika", "warehouse", "lagerarbetare",
-                            "truckförare", "chaufför"],
+                            "truckförare", "chaufför", "lager", "förare"],
     "manufacturing_production": ["výrobní", "operátor výroby", "produktionstekniker",
-                                 "maskinoperatör", "cnc", "montážní"],
+                                 "maskinoperatör", "cnc", "montážní", "operatör", "montör"],
     "other_tech_function": ["business analyst", "koordinátor", "asistent", "administrativa"],
 }
 
