@@ -61,6 +61,26 @@ OPAQUE = "Något Oklassificerbart"
     ("Produktionstekniker", "manufacturing_production"),
     ("Restaurangchef", "hospitality"),         # SE: "chef" here means manager, not cook
     ("IT-chef", "uncategorised"),              # ...and the same word must NOT mean hospitality
+
+    # Swedish terms, written from the titles the scorer showed being declined (2026-08-09).
+    # The register is the largest non-English source and every one of these was landing in
+    # `uncategorised` — an honest answer, but a needlessly common one.
+    ("Systemutvecklare", "software_engineering"),
+    ("Senior testare", "software_engineering"),
+    ("Servicetekniker", "skilled_trades"),
+    ("Pizzabagare", "hospitality"),
+    ("Restaurangbiträde", "hospitality"),
+    ("Köksbiträde", "hospitality"),
+    ("Anläggningsarbetare", "construction"),
+    ("Plattsättare", "construction"),
+    ("Orderplockare", "logistics_transport"),
+    ("Lagermedarbetare", "logistics_transport"),
+    # SSYK files welders under industrial manufacturing, not trades, and the boundary it
+    # draws is coherent: factory production is manufacturing, install/repair/service is a
+    # trade. Following it costs nothing and stops the scorer reporting a definitional
+    # disagreement as a classifier error (41 confusions on 2026-08-09).
+    ("Svetsare", "manufacturing_production"),
+    ("Verkstadsmontör", "manufacturing_production"),
     ("Backend Engineer", "software_engineering"),
     ("Social Media Manager", "social_media"),
     ("Specialista sociálních sítí", "social_media"),          # CZ

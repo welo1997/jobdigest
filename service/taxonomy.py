@@ -59,26 +59,35 @@ PATTERNS: tuple[tuple[str, "re.Pattern[str]"], ...] = (
         r"chef de cuisine|\bbarista\b|waiter|waitress|bartender|receptionist|housekeep|"
         r"restaurant manager|hotel manager|"
         r"kuchař|kuchařk|číšník|servírk|recepční|"
-        r"\bkock\b|servitör|servitris|restaurangchef|hotellchef|bartender", re.I)),
+        r"\bkock\b|servitör|servitris|restaurangchef|hotellchef|bartender|"
+        r"pizzabagare|köksbiträde|restaurangbiträde|köksmästare|kökschef|"
+        r"\bbagare\b|konditor|cafébiträde", re.I)),
     ("skilled_trades", re.compile(
         r"electrician|welder|plumber|\bmechanic\b|locksmith|\bfitter\b|hvac|"
         r"maintenance technician|"
         r"elektrikář|elektrikár|svářeč|zámečník|instalatér|montér|údržbář|automechanik|"
-        r"elektriker|svetsare|rörmokare|mekaniker|montör|elkonstruktör", re.I)),
+        r"elektriker|rörmokare|mekaniker|elkonstruktör|"
+        r"servicetekniker|underhållstekniker|driftstekniker|fastighetsskötare", re.I)),
     ("construction", re.compile(
         r"construction|site manager|bricklayer|carpenter|surveyor|"
         r"stavbyvedoucí|stavební|zedník|tesař|"
-        r"byggledare|byggnadsarbetare|snickare|murare|platschef", re.I)),
+        r"byggledare|byggnadsarbetare|snickare|murare|platschef|"
+        r"anläggningsarbetare|anläggare|rörläggare|byggarbetare|byggprojektledare|"
+        r"stensättare|plattsättare|betongarbetare|takläggare", re.I)),
     ("logistics_transport", re.compile(
         r"warehouse|forklift|truck driver|delivery driver|courier|dispatcher|"
         r"logistics coordinator|freight|"
         r"skladník|řidič|kurýr|spediter|logistik(?:a|y)?\b|"
-        r"lagerarbetare|truckförare|chaufför|lastbilsförare", re.I)),
+        r"lagerarbetare|truckförare|chaufför|lastbilsförare|"
+        r"orderplockare|lagermedarbetare|terminalarbetare|budbilsförare|"
+        r"distributionsförare|godsmottag", re.I)),
     ("manufacturing_production", re.compile(
         r"production (?:operator|technician|planner|manager)|machine operator|"
         r"assembly|quality (?:inspector|technician)|cnc|"
         r"operátor výroby|seřizovač|výrobní|montážní|"
-        r"produktionstekniker|processoperatör|montör i produktion|maskinoperatör", re.I)),
+        r"produktionstekniker|processoperatör|maskinoperatör|"
+        r"svetsare|\bsvets\b|verkstadsmontör|\bmontör\b|montörer|"
+        r"produktionsledare|industriarbetare", re.I)),
     # --- tech --------------------------------------------------------------------------
     ("data_engineering", re.compile(
         r"data engineer|analytics engineer|dataops|data platform|data warehouse|\betl\b|"
@@ -113,7 +122,9 @@ PATTERNS: tuple[tuple[str, "re.Pattern[str]"], ...] = (
         r"software engineer|software developer|back[- ]?end|front[- ]?end|full[- ]?stack|"
         r"web developer|mobile developer|\bios\b|android|\bdeveloper\b|programmer|"
         r"\bengineer(?:ing)?\b|qa engineer|\bsdet\b|"
-        r"vývojá[řr]|vývojárk|programátor|programátork|softwarov|softvérov", re.I)),
+        r"vývojá[řr]|vývojárk|programátor|programátork|softwarov|softvérov|"
+        r"systemutvecklare|mjukvaruutvecklare|apputvecklare|webbutvecklare|"
+        r"\btestare\b|testledare|systemtestare", re.I)),
     # Must precede other_tech_function: nearly every social title also says "marketing" or
     # "content", so without this it lands in the catch-all and a subscriber who asked for
     # social media gets the whole marketing/sales/finance/HR bucket instead.
