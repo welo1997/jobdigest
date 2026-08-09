@@ -582,6 +582,16 @@ payload will pick a different string and that *shape* is the thing to watch.
   `arbeidsplassen.nav.no/stillinger/api/search` is a live keyless Elasticsearch endpoint that
   would make the cursor question vanish; it is the site's internal search, outside the document
   that grants us anything, and taking it is the Bundesagentur pattern. **Measurement only.**
+  **Re-probed 2026-08-09: the terms still permit us and the endpoints have moved.**
+  `/vilkar-api` is unchanged and still carries the three clauses above, verbatim. But
+  `/api/publicToken`, `/api/v1/feed` and the legacy `/public-feed/api/v1/ads` **all return the
+  site's 404 page now**, so the paths recorded on 2026-08-07 are stale and whoever builds this
+  must re-derive the current ones from the Datasettbeskrivelse in Felles datakatalog, which is
+  where `/vilkar-api`'s own "Slik får du tilgang" section points. Nothing about the verdict
+  changes — permitted, self-service, still the best unbuilt source left — but **do not start
+  from the URLs in this file or in `notes/2026-08-07-norway.md`; verify them first.** The token
+  endpoint is the one to find, and it is still not `nav.team.arbeidsplassen@nav.no`: mailing for
+  the stable token is correspondence and remains refused.
 - **Norway's other sources are all closed, and one of them corroborates the NAV gap** (checked
   2026-08-07). **FINN.no refuses in its own `robots.txt`**, which is the only source here to put
   the refusal in that file as prose: *"Crawling FINN.no is prohibited unless you have written
