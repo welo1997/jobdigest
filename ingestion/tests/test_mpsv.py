@@ -237,3 +237,47 @@ def test_remote_signal_is_never_invented():
             "upresnujiciInformace": {"cs": "Možnost občasné práce z domova."},
             "profeseCzIsco": {"id": "CzIsco/25120"}}
     assert MpsvSource().normalize([item])[0].remote_signal is None
+
+
+from ingestion.sources import mpsv  # noqa: E402  (module handle for the ISCO tests below)
+
+
+# ---------------------------------------------------------------- ISCO → category ---
+# Added 2026-08-09. The register publishes an occupation code per vacancy; `taxonomy.classify`
+# infers from a Czech title using patterns that are mostly English and left 81% of this source
+# `uncategorised`. Mapping the code and passing it as `source_category` recovered 1 534 of
+# 3 228 uncategorised vacancies (47.5%) on the live dump.
+
+
+def test_every_mapped_isco_value_is_a_real_category():
+    """`classify` discards a hint that is not a canonical category (the 2026-08-08 guard), so
+    a typo here does not raise — it silently means `uncategorised` for every vacancy in that
+    ISCO group, which looks like the mapping simply not working."""
+    from service import taxonomy
+
+    unknown = {v for v in mpsv.ISCO_CATEGORIES.values() if v not in taxonomy.CATEGORIES}
+    assert not unknown, f"ISCO map names categories that do not exist: {sorted(unknown)}"
+
+
+def test_a_longer_isco_prefix_wins():
+    """25 is ICT professionals, but 251 is software development and 252 is networks. A
+    2-digit-only lookup would file every database and network specialist as a developer."""
+    assert mpsv._isco_category({"profeseCzIsco": {"id": "CzIsco/25131"}}) == "software_engineering"
+    assert mpsv._isco_category({"profeseCzIsco": {"id": "CzIsco/25221"}}) == "devops_platform"
+
+
+def test_an_unmapped_group_returns_none_rather_than_a_guess():
+    """ISCO 21 and 31 are engineering professionals and technicians — 1 654 of the 7 298 kept
+    vacancies, and no category in this taxonomy models them. Returning the nearest thing would
+    file mechanical engineers as software engineers."""
+    assert mpsv._isco_category({"profeseCzIsco": {"id": "CzIsco/21441"}}) is None
+    assert mpsv._isco_category({"profeseCzIsco": {"id": "CzIsco/31151"}}) is None
+    assert mpsv._isco_category({"profeseCzIsco": {}}) is None
+
+
+def test_the_title_still_wins_over_the_code():
+    """The hint is a fallback, not an override. An ad titled in English must classify from the
+    title exactly as it did before this map existed."""
+    from service import taxonomy
+
+    assert taxonomy.classify("Data Engineer", "healthcare") == "data_engineering"

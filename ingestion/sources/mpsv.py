@@ -108,6 +108,50 @@ ID_URL = "https://up.gov.cz/volna-mista-v-cr?id={portal_id}"
 #: docstring — this is a dilution guard, not a judgement about which work matters.
 ISCO_MAJOR_KEEP = frozenset("123")
 
+#: CZ-ISCO → `role_category`, keyed on the ISCO-08 prefix (3 digits where a 2-digit group
+#: spans several categories, 2 where it does not). Added 2026-08-09.
+#:
+#: **This is the authoritative answer and the title is a guess**, which is the opposite of the
+#: usual situation here. The publisher assigns the code; `taxonomy.classify` infers from a
+#: Czech title with English regexes and gets 81% of this source wrong (uncategorised). Passing
+#: the mapped value as `source_category` lets `classify` use it as the fallback it already has
+#: — title patterns still win, so an English-titled Czech ad is unaffected.
+#:
+#: **Every value must be a real `taxonomy.CATEGORIES` member**; `classify` discards anything
+#: else (the 2026-08-08 hint guard), so a typo here silently means "uncategorised" rather than
+#: an error. `test_mpsv.py` pins it.
+#:
+#: Deliberately incomplete. ISCO 21 (engineering professionals) and 31 (engineering
+#: technicians) are **1 654 of the 7 298 kept vacancies and have no category in this
+#: taxonomy** — they are mechanical, electrical and civil engineers, distinct from
+#: `software_engineering`. Mapping them anywhere would be a guess; they stay unmapped and the
+#: gap is recorded in notes/categorization/PLAN.md as evidence for a future category.
+ISCO_CATEGORIES: dict[str, str] = {
+    # 1 managers
+    "121": "operations", "122": "sales", "132": "manufacturing_production",
+    "133": "devops_platform", "141": "hospitality", "142": "sales",
+    # 2 professionals
+    "22": "healthcare", "23": "education",
+    "241": "finance_accounting", "242": "operations", "243": "marketing",
+    "251": "software_engineering", "252": "devops_platform",
+    "261": "legal",
+    # 3 associate professionals
+    "32": "healthcare",
+    "331": "finance_accounting", "332": "sales", "333": "operations",
+    "334": "other_tech_function",
+    "351": "customer_support", "352": "devops_platform",
+}
+
+
+def _isco_category(item: dict) -> Optional[str]:
+    """The publisher's occupation code as a `role_category`, longest prefix first."""
+    code = str((item.get("profeseCzIsco") or {}).get("id") or "").split("/")[-1]
+    for n in (3, 2):
+        hit = ISCO_CATEGORIES.get(code[:n])
+        if hit:
+            return hit
+    return None
+
 #: Monthly pay in CZK is mandatory in this register — 100% of records carry `mesicniMzdaOd`,
 #: against ~30–40% salary coverage everywhere else in the repo.
 CURRENCY = "CZK"
@@ -369,6 +413,10 @@ class MpsvSource(BaseSource):
                 posting_id=make_posting_id(ID_URL.format(portal_id=portal_id)),
                 source=self.source_name,
                 title=title.strip(),
+                # The publisher's own occupation code, mapped. `classify` prefers title
+                # patterns and falls back to this, so it only fires where the regexes miss —
+                # which for a Czech-titled register is most of the time.
+                source_category=_isco_category(item),
                 company=(item.get("zamestnavatel") or {}).get("nazev"),
                 url=JOB_URL.format(portal_id=portal_id),
                 # Contact details are stripped here and the `prvniKontaktSeZamestnavatelem`
