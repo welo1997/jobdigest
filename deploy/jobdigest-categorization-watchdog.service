@@ -1,0 +1,34 @@
+# JobDigest categorisation watchdog — alerts when the corpus stops being classified.
+#
+# The third watchdog, one stage apart from the other two. jobdigest-watchdog asks whether a
+# subscriber got a digest; jobdigest-source-watchdog asks whether each source still delivers;
+# this asks whether what they deliver is still being *understood*.
+#
+# `role_category` decides what enters a shortlist. When it degrades nothing raises: no
+# exception, no failed timer, no changed row count — the subscriber's shortlist just gets
+# thinner, which is indistinguishable from a quiet week.
+#
+# Both obvious metrics were measured against production and rejected before this was written
+# (see service/categorization_watchdog.py): per-source day-over-day swings 47 points on
+# healthy sources, and corpus-wide-over-new-rows swings 14.9% -> 59.7% on source mix alone.
+# Drift is therefore judged over the whole active corpus against stored history
+# (migration 017), and it stays silent until it has 4 days of it.
+#
+# Install:
+#   sudo cp deploy/jobdigest-categorization-watchdog.* /etc/systemd/system/
+#   sudo systemctl daemon-reload && sudo systemctl enable --now jobdigest-categorization-watchdog.timer
+[Unit]
+Description=JobDigest categorisation watchdog (the corpus is still being classified)
+After=docker.service
+Requires=docker.service
+# The alert IS the non-zero exit: jobdigest-alert.py mails the last journal lines. Same
+# single notification path as the other two watchdogs.
+OnFailure=jobdigest-alert@%n.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/jobdigest/deploy
+# Not --quiet: unlike the source watchdog, this one records a daily snapshot as a side effect,
+# so the one-line corpus summary is the receipt that the snapshot was taken. Without it a
+# silently failing recorder looks identical to a healthy day.
+ExecStart=/usr/bin/docker compose run --rm pipeline python -m service.categorization_watchdog

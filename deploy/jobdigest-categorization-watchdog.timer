@@ -1,0 +1,18 @@
+# Runs at 08:30 UTC — after the 03:00 export has finished rewriting role_category for every
+# active posting, and between the source watchdog (08:00) and the subscriber watchdog (09:00),
+# so the mailbox reads cause-then-symptom: source died, then corpus stopped being understood,
+# then subscriber got nothing.
+#
+# Deliberately not during the export. `upsert_postings` rewrites role_category on conflict
+# throughout the run, so a corpus measured mid-ingest is half old classifier and half new —
+# which would read as drift on every deploy day.
+[Unit]
+Description=JobDigest categorisation watchdog daily at 08:30
+
+[Timer]
+OnCalendar=*-*-* 08:30:00
+Persistent=true
+Unit=jobdigest-categorization-watchdog.service
+
+[Install]
+WantedBy=timers.target
