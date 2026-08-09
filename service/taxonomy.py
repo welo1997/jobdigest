@@ -71,7 +71,7 @@ PATTERNS: tuple[tuple[str, "re.Pattern[str]"], ...] = (
     ("hospitality", re.compile(
         r"chef de cuisine|\bbarista\b|waiter|waitress|bartender|receptionist|housekeep|"
         r"restaurant manager|hotel manager|"
-        r"kuchař|kuchařk|číšník|servírk|recepční|"
+        r"kuchař|kuchařk|číšník|servírk|recepční|barman|pokojsk|občerstven|"
         # `kock` with its Swedish suffixes and no others: "Sushikock", "Eventkockar" and
         # "Lunchkock" are cooks, and the shipyard "Kockums" is not.
         r"kock(?:ar|en|arna|erska)?\b|servitör|servitris|restaurang|hotellchef|bartender|"
@@ -79,24 +79,19 @@ PATTERNS: tuple[tuple[str, "re.Pattern[str]"], ...] = (
         r"servering|servis\b|servispersonal|diskare|barpersonal|"
         r"måltidsbiträde|måltidsservice|kostchef|gatukök|värdinna|"
         r"\bbagare\b|konditor|cafébiträde|\bcafé|\bkafé|\bcafe\b", re.I)),
-    # `elkonstruktör` left this pattern on 2026-08-09: an electrical *designer* is an engineer,
-    # and it only lived here because `engineering` did not exist yet. `konstruktör` picks it up.
-    ("skilled_trades", re.compile(
-        r"electrician|welder|plumber|\bmechanic\b|locksmith|\bfitter\b|hvac|"
-        r"maintenance technician|"
-        r"elektrikář|elektrikár|svářeč|zámečník|instalatér|montér|údržbář|automechanik|"
-        r"elektriker|rörmokare|mekaniker|"
-        r"servicetekniker|underhållstekniker|driftstekniker|fastighetsskötare|"
-        # Named trades only. A bare `tekniker` is NOT here on purpose: the register spreads it
-        # across trades, manufacturing, construction, IT support and networks, and taking it
-        # first would cost more rows than it wins (measured 2026-08-09: +12, −17).
-        r"låstekniker|vitvaru|hjälpmedelstekniker|stationstekniker|teletekniker|"
-        r"lastbilstekniker|industritekniker|installatör|vaktmästare|sömmersk|sömmare", re.I)),
-    # Before logistics_transport, so the machine *drivers* of a building site (grävmaskinist,
-    # hjullastarförare) are read here rather than by that pattern's `förare`.
+    # Construction comes BEFORE skilled_trades, and that ordering was measured rather than
+    # assumed (2026-08-09-c: +4.4 points on the Czech key, Swedish unchanged). A building-site
+    # title routinely carries both a trade word and a domain word — "Montér ve stavebnictví",
+    # "Údržbář budov" — and the domain is the more specific of the two: a fitter on a site is
+    # doing construction, while a fitter in a plant is not. It also has to precede
+    # logistics_transport, so a site's machine drivers (grävmaskinist, hjullastarförare) are
+    # read here rather than by that pattern's `förare`.
     ("construction", re.compile(
         r"construction|site manager|bricklayer|carpenter|surveyor|"
-        r"stavbyvedoucí|stavební|zedník|tesař|"
+        # Czech. Stems, because the register writes the plural: "Zedníci", "Dělníci". The
+        # nominative singular this pattern used to require matched almost none of them.
+        r"stavbyvedoucí|stavebn|výstavb|zedn|tesař|dlaždič|kamnář|potrubář|"
+        r"natěrač|lakýrník|pokrývač|obkladač|izolatér|lešenář|betonář|"
         r"byggledare|byggnadsarbetare|snickare|snickeri|murare|platschef|"
         r"anläggningsarbetare|anläggare|rörläggare|byggarbetare|byggprojektledare|"
         r"stensättare|plattsättare|betongarbetare|betonghåltagare|takläggare|"
@@ -104,10 +99,31 @@ PATTERNS: tuple[tuple[str, "re.Pattern[str]"], ...] = (
         r"ventilationsmontör|ventilationstekniker|kyltekniker|isoleringsmontör|"
         r"ställningsmontör|ställningsbyggare|putsare|golvläggare|målar|"
         r"hantverkare|rivning|\brivare\b", re.I)),
+    # `elkonstruktör` left this pattern on 2026-08-09: an electrical *designer* is an engineer,
+    # and it only lived here because `engineering` did not exist yet. `konstruktör` picks it up.
+    ("skilled_trades", re.compile(
+        r"electrician|welder|plumber|\bmechanic\b|locksmith|\bfitter\b|hvac|"
+        r"maintenance technician|"
+        # Czech, added 2026-08-09-c from the ISCO key. The stem, minus one word: `zámečna` is
+        # the metalworking *shop floor*, which the register files as manufacturing, not the
+        # trade. Written as a lookahead rather than as a list of inflections because Czech
+        # declines the í as well ("zámečník" → "zámečníci"), and a hand-listed plural is
+        # exactly the kind of near-miss that looks correct and matches nothing.
+        r"elektrikář|elektrikár|svářeč|zámečn(?!a\b)|instalatér|montér|údržbář|"
+        r"automechanik|mechanik|opravář|údržb|"
+        r"elektriker|rörmokare|mekaniker|"
+        r"servicetekniker|underhållstekniker|driftstekniker|fastighetsskötare|"
+        # Named trades only. A bare `tekniker` is NOT here on purpose: the register spreads it
+        # across trades, manufacturing, construction, IT support and networks, and taking it
+        # first would cost more rows than it wins (measured 2026-08-09: +12, −17).
+        r"låstekniker|vitvaru|hjälpmedelstekniker|stationstekniker|teletekniker|"
+        r"lastbilstekniker|industritekniker|installatör|vaktmästare|sömmersk|sömmare", re.I)),
     ("logistics_transport", re.compile(
         r"warehouse|forklift|truck driver|delivery driver|courier|dispatcher|"
         r"logistics coordinator|freight|"
-        r"skladník|řidič|kurýr|spediter|logistik|"
+        r"skladník|skladnic|řidič|kurýr|spediter|logistik|závozník|"
+        # Before manufacturing's `obsluha`: a forklift is materials handling, not production.
+        r"manipulačn|vysokozdvižn|"
         r"\blager|truckkort|chaufför|orderplockare|terminalarbetare|godsmottag|"
         # `förare` as a suffix: buss-, taxi-, lastbils-, skjutstativ-, motvikts-, båt-.
         # Everything a building site drives was claimed by `construction` one pattern up.
@@ -116,7 +132,13 @@ PATTERNS: tuple[tuple[str, "re.Pattern[str]"], ...] = (
     ("manufacturing_production", re.compile(
         r"production (?:operator|technician|planner|manager)|machine operator|"
         r"assembly|quality (?:inspector|technician)|cnc|"
-        r"operátor výroby|seřizovač|výrobní|montážní|"
+        # Czech. `dělní` and `výrob` are stems for the same reason the Swedish half is:
+        # "Dělníci", "Dělnice", "v kovovýrobě". `obsluha` (machine tending) sits here only
+        # because hospitality's `občerstven` and logistics' `manipulačn` read their own
+        # senses of it first — this is the ordering rule doing real work.
+        r"operátor výroby|seřizovač|výrob|montážní|dělní|obsluha|"
+        r"obráběč|frézař|soustružník|brusič|lisař|balič|"
+        r"truhlář|řezník|karosář|strojírensk|"
         r"produktionstekniker|produktionsmedarbetare|produktionspersonal|"
         r"produktionsarbetare|operatör|ställare|"
         r"svetsare|\bsvets\b|montör|montering|montage|"
@@ -178,6 +200,11 @@ PATTERNS: tuple[tuple[str, "re.Pattern[str]"], ...] = (
         # are the single largest group inside the register's technical field, and until
         # 2026-08-09 the Swedish spelling was the one missing.
         r"strojní inžen|strojní inžinier|elektroinžen|konstruktér|konštruktér|konstruktör|"
+        # Bare `inženýr` (CZ), which only ever appeared with a discipline in front of it —
+        # "Inženýr kvality" and "Průmyslový inženýr" were the common shapes and both missed.
+        # `data_engineering` reads `datový inžen` several patterns earlier, so it keeps those.
+        # `technolog\b` is bounded on purpose: "informačních technologií" is not an engineer.
+        r"inženýr|inžinier|projektant|technolog\b|"
         r"kvalitetstekniker", re.I)),
     ("software_engineering", re.compile(
         r"software engineer|software developer|back[- ]?end|front[- ]?end|full[- ]?stack|"
@@ -210,7 +237,7 @@ PATTERNS: tuple[tuple[str, "re.Pattern[str]"], ...] = (
         r"marknad|kommunikatör|kommunikationsansvarig|kommunikationschef", re.I)),
     ("sales", re.compile(
         r"\bsales\b|account executive|account manager|key account|business development|"
-        r"obchodní zástupce|obchodní manaž|obchodník|prodejce|predajca|"
+        r"obchodn|prodejce|predajca|prodava|prodejn|pokladní|maloobchod|"
         # `sälj` as a stem, because the register writes "säljarjobb", "säljteam" and "Sälj på
         # förbokade möten" far more often than the bare "säljare" this used to require.
         r"sälj|försäljning|butik|kundansvarig|kundrådgivare|\bprovision\b|"

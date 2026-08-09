@@ -121,6 +121,29 @@ OPAQUE = "Något Oklassificerbart"
     ("Senior ekonom", "finance_accounting"),   # moved out of the other_tech_function residual
     ("Grafisk Formgivare till Newport", "design"),
     ("Kommunikatör vid Kunskapscentrum", "marketing"),
+    # The Czech vocabulary pass of 2026-08-09-c, written after the ISCO answer key showed
+    # Czech at 42.6% against Swedish 80.8%. Same lesson as the Swedish pass and the same
+    # discipline: measured on the disjoint half of the register (43.5% -> 66.6%), which is
+    # where these titles are NOT from.
+    ("Zedníci", "construction"),                          # plural: the stem, not the word
+    ("Zámečníci", "skilled_trades"),                      # ...and Czech declines the í too
+    ("Dělník / dělnice v kovovýrobě - zámečna", "manufacturing_production"),
+                                                          # `zámečna` is the shop floor, not
+                                                          # the locksmith
+    # Three ordering cases, each a title that carries two categories' words at once.
+    ("Montér ve stavebnictví (m/ž)", "construction"),     # site domain beats trade role
+    ("Dělníci v oblasti výstavby a údržby budov", "construction"),
+    ("Obsluha v zařízeních rychlého občerstvení", "hospitality"),   # not machine tending
+    ("Skladníci, obsluha manipulačních vozíků", "logistics_transport"),
+    ("Obsluha strojů na výrobu výrobků z plastu", "manufacturing_production"),
+    ("Prodavač/ka ovoce", "sales"),
+    ("Vedoucí prodejny", "sales"),
+    ("Inženýr/ka kvality", "engineering"),                # bare `inženýr`, no discipline word
+    ("Datový inženýr", "data_engineering"),               # ...which data work still outranks
+    ("Projektant měřících systémů", "engineering"),
+    ("Specialista informačních technologií", "uncategorised"),  # `technolog\b` is bounded:
+                                                          # IT is not an engineering technolog
+    ("Mechanici a opraváři osobních automobilů", "skilled_trades"),
     ("Social Media Manager", "social_media"),
     ("Specialista sociálních sítí", "social_media"),          # CZ
     ("Náborár pre projekty, Marketing | Sociálne siete", "social_media"),  # SK
