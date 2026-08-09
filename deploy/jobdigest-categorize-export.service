@@ -1,0 +1,22 @@
+# JobDigest title classification — Phase 1: export uncategorised titles to Google Drive.
+# Install (once):
+#   sudo cp deploy/jobdigest-categorize-*.{service,timer} /etc/systemd/system/
+#   sudo chmod +x deploy/jobdigest-categorize.sh
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now jobdigest-categorize-export.timer jobdigest-categorize-import.timer
+# Requires: rclone configured (default gdrive:JobDigest) — see deploy/categorize-routine.md.
+[Unit]
+Description=JobDigest title classification export (uncategorised titles -> Drive)
+After=docker.service
+Requires=docker.service
+# A failure here is invisible otherwise: the residue simply stops shrinking, which looks
+# exactly like a taxonomy that has already caught everything it can.
+OnFailure=jobdigest-alert@%n.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/jobdigest/deploy
+# systemd runs this as root, but rclone was authorised as `deploy` — without this the push
+# to Drive fails with 'didn't find section in config file' (the 2026-07-19 matcher outage).
+Environment=RCLONE_CONFIG=/home/deploy/.config/rclone/rclone.conf
+ExecStart=/opt/jobdigest/deploy/jobdigest-categorize.sh export

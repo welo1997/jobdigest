@@ -68,6 +68,10 @@ you touch that rule.
 08:00 UTC  sources  per-source freshness + churn → alert if a source silently died
 09:00 UTC  watchdog digest_runs → alert if any subscriber has had nothing for 3 days
 01:30 UTC  backup   pg_dump → encrypt → off-box
+
+Sun 09:30  categorize export  uncategorised titles → titles.json → Drive
+Mon 09:30  categorize import  validated answers → title_categories  (weekly, off the digest
+                              path on purpose — see deploy/categorize-routine.md)
 ```
 
 Retrieve-then-rerank: a cheap full-text prefilter builds a ~120-posting shortlist per
@@ -134,6 +138,14 @@ Each of these has been broken in production at least once. Reasoning and measure
 - **`postings.eligibility` is a subscriber-specific judgement in a posting-level column**, so
   a constant allowlist over it is always wrong for somebody. `store.eligibility_allowlist`
   derives from `profile["countries"]`, shared by both call sites.
+- **There are two file exchanges and both are trust boundaries.** The second one
+  (`titles.json` → `categories.json`, weekly) classifies the titles no pattern or occupation
+  code could read; `import_categories` drops an answer for a title it never asked about and
+  any category not in `taxonomy.CATEGORIES`, stores `uncategorised` as a *recorded decline*
+  so the same unreadable titles are not re-exported forever, and is keyed on
+  `categorize_exchange.normalise_title` — the one definition, deliberately never re-expressed
+  in SQL. The cache is consulted **only where patterns and codes both decline**, so it can
+  add a category but never change one. Its export carries **titles and integer indices only**.
 - **The file exchange is a trust boundary.** Nothing in `picks.json` is trusted:
   `import_picks` validates both sides of every match against the DB, clamps scores, and skips
   a malformed record rather than aborting everyone's digest. **`shortlists.json` must never

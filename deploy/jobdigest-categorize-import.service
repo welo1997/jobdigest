@@ -1,0 +1,13 @@
+# JobDigest title classification — Phase 2: pull the routine's answers and validate them.
+# Installed together with jobdigest-categorize-export.service (see its header).
+[Unit]
+Description=JobDigest title classification import (categories.json -> title_categories)
+After=docker.service
+Requires=docker.service
+OnFailure=jobdigest-alert@%n.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/jobdigest/deploy
+Environment=RCLONE_CONFIG=/home/deploy/.config/rclone/rclone.conf
+ExecStart=/opt/jobdigest/deploy/jobdigest-categorize.sh import

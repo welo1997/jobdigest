@@ -341,3 +341,73 @@ create table if not exists shortlist_shadow (
 
 create index if not exists idx_shortlist_shadow_profile_day
     on shortlist_shadow (profile_id, day desc);
+
+-- ---------------------------------------------------------------------------
+-- categorization_daily (migration 017): how much of the corpus carries a category,
+-- one row per source per day plus a synthetic `__all__` row for the corpus total.
+-- ---------------------------------------------------------------------------
+-- Read by `service/categorization_watchdog.py`, which compares today against a trailing
+-- median — categorisation rots silently and no timer, exception or existing check moves when
+-- it does. The full reasoning (and the two obvious metrics that were measured and rejected)
+-- is in `migration_017_categorization_daily.sql`.
+--
+-- **This section was missing until 2026-08-09 and that is the bug it now fixes**, not a
+-- tidy-up: 017 was applied by hand on the box and never folded in here, so every database
+-- built from this file — CI's throwaway Postgres, `dev/db.ps1 reset` — lacked a table
+-- production has. The symptom is not a missing table, it is a test that cannot run.
+create table if not exists categorization_daily (
+    day            date not null,
+    source         text not null,          -- adapter name, or '__all__' for the corpus total
+    total          int  not null,
+    uncategorised  int  not null,
+    recorded_at    timestamptz not null default now(),
+    primary key (day, source)
+);
+
+create index if not exists idx_categorization_daily_source_day
+    on categorization_daily (source, day desc);
+
+-- ---------------------------------------------------------------------------
+-- title_categories (migration 019): what the claude.ai routine answered about a title
+-- neither the patterns nor the publishers' occupation codes could read.
+-- ---------------------------------------------------------------------------
+-- **The cache is not an optimisation, it is the design.** Classification happens at extract
+-- (`service.ingest.build_row`), and ingest re-fetches every active posting every day —
+-- ~101k rows, of which only ~2 400 are genuinely new (measured 2026-08-09). `upsert_postings`
+-- rewrites `role_category` on conflict, which is exactly why a classifier change needs no
+-- backfill; it also means asking the routine about every posting would be 101k titles a day
+-- instead of 2 400. Keyed on the *normalised* title so the answer survives the posting: the
+-- same title is re-advertised by the same employer for months, and by others for years.
+--
+-- Normalisation has ONE definition, `service.categorize_exchange.normalise_title`, and it is
+-- deliberately not expressed in SQL. A `lower(btrim(regexp_replace(...)))` here would be a
+-- second copy of it, and the two would drift the way `geo.py` and `geo.ts` would without the
+-- drift test — except silently, as a cache that stops hitting. The queries stay trivial and
+-- Python does the grouping.
+--
+-- **`category = 'uncategorised'` is a recorded decline, not a failure.** A title the routine
+-- could not read must still be written here, or the export asks about it again every single
+-- run, forever. `title_category_map()` filters those out for the ingest path, where they mean
+-- exactly what no row means; `asked_title_keys()` keeps them, because "have we asked?" and
+-- "do we know?" are different questions.
+--
+-- No personal data: a public job title and a category from a fixed vocabulary. Nothing here
+-- references a subscriber, so nothing here needs erasing under the 30-day promise, and the
+-- privacy policy is unchanged (security rule 4 — this adds no new *category* of stored data,
+-- and the exported file carries job titles and nothing else).
+--
+-- Idempotent, and applied by hand before the code that reads it — the deploy runs no
+-- migrations.
+
+create table if not exists title_categories (
+    title_key    text primary key,                     -- normalise_title(title)
+    category     text not null,                        -- must be a value in taxonomy.CATEGORIES
+    sample_title text not null,                        -- one real title, so a human can audit
+    source       text not null default 'routine',      -- who answered: routine | manual
+    created_at   timestamptz not null default now(),
+    updated_at   timestamptz not null default now()
+);
+
+-- The ingest read is "every key we actually know", so the index that matters is the one that
+-- lets `category <> 'uncategorised'` skip the declines rather than scan them.
+create index if not exists idx_title_categories_category on title_categories (category);

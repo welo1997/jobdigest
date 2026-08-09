@@ -1,0 +1,16 @@
+# Sunday 09:30 UTC — deliberately outside the digest window and after it.
+#
+# The daily pipeline runs 03:00 (export) -> ~06:00 (routine) -> 07:00 (import + send), with
+# the source watchdog at 08:00 and the digest watchdog at 09:00. This is the first slot that
+# cannot contend with any of them for RAM or for Postgres, and its own deadline is a week
+# away rather than an hour.
+[Unit]
+Description=JobDigest title classification export, weekly on Sunday at 09:30
+
+[Timer]
+OnCalendar=Sun *-*-* 09:30:00
+Persistent=true
+Unit=jobdigest-categorize-export.service
+
+[Install]
+WantedBy=timers.target

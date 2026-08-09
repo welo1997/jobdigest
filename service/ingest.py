@@ -35,7 +35,41 @@ logger = logging.getLogger("service.ingest")
 role_category = taxonomy.classify
 
 
-def build_row(p) -> dict:
+def _classify(title, hint, cache: dict[str, str] | None,
+              stats: Counter | None = None) -> str:
+    """Patterns, then the publisher's code, then the routine's memoised answer.
+
+    The cache is consulted **last and only on a decline**, which is what keeps it from
+    overriding anything the repo can reason about: a pattern is reviewable, an occupation
+    code comes from the publisher, and a model's answer is neither. It also keeps the cache
+    honest as a measurement — its hit count is exactly the residue the other two could not
+    read.
+
+    `taxonomy.classify` is not the place for this. It is imported by `ingestion/`, which has
+    no database, and by the CV parser and the digest, which classify a subscriber's words
+    rather than a posting's. A dict passed in from the one caller that has a connection keeps
+    the taxonomy a pure function of its input.
+    """
+    category = role_category(title, hint)
+    if category != taxonomy.UNCATEGORISED:
+        return category
+    # Counted here rather than reconstructed afterwards: "the residue" is defined by what the
+    # patterns and the code declined, and a row's stored category cannot tell you that once
+    # the cache has answered for it.
+    if stats is not None:
+        stats["residue"] += 1
+    if not cache:
+        return category
+    from service.categorize_exchange import normalise_title  # local: ingest has no cycle
+
+    answer = cache.get(normalise_title(title), taxonomy.UNCATEGORISED)
+    if stats is not None and answer != taxonomy.UNCATEGORISED:
+        stats["cache_hit"] += 1
+    return answer
+
+
+def build_row(p, title_cache: dict[str, str] | None = None,
+              stats: Counter | None = None) -> dict:
     # Resolve the free-text location into (country, city) before anything else: most boards
     # send no country_code at all (Greenhouse, Lever, Remotive, LinkedIn all pass None), so
     # the resolved value is what makes country- and city-level preferences possible — and it
@@ -60,7 +94,8 @@ def build_row(p) -> dict:
         "education_min": education.classify_requirement(p.description, p.title),
         "salary_raw": p.salary_raw,
         "currency": p.currency, "posted_at": p.posted_at,
-        "role_category": role_category(p.title, getattr(p, "source_category", None)),
+        "role_category": _classify(p.title, getattr(p, "source_category", None),
+                                   title_cache, stats),
         "region": region,
         "eligibility": eligibility(region, text),
         "seniority": seniority(p.title),
@@ -97,7 +132,18 @@ def run(include_cz: bool, stale_days: int) -> None:
     postings = gather(include_cz=include_cz)
     logger.info("Fetched %d postings", len(postings))
 
+    # One read for the whole run, and non-fatal for the same reason the embedding step is:
+    # this is an enrichment, and a database hiccup in it must cost some rows their category,
+    # never the day's ingest. Without the cache every posting falls back to exactly the
+    # answer it had before the cache existed.
+    try:
+        title_cache = store.title_category_map()
+    except Exception:
+        logger.exception("title cache unavailable — classifying without it")
+        title_cache = {}
+
     rows, seen = [], set()
+    cache_stats: Counter = Counter()
     discarded: dict[str, Counter] = defaultdict(Counter)
     for p in postings:
         # Broad scope: keep every role at a tech company (all sources here are
@@ -110,7 +156,7 @@ def run(include_cz: bool, stale_days: int) -> None:
         hint = getattr(p, "source_category", None)
         if hint and hint not in taxonomy.CATEGORIES:
             discarded[p.source][hint] += 1
-        rows.append(build_row(p))
+        rows.append(build_row(p, title_cache, cache_stats))
 
     n = store.upsert_postings(rows)
     stale = store.deactivate_stale(days=stale_days)
@@ -118,7 +164,27 @@ def run(include_cz: bool, stale_days: int) -> None:
     logger.info("Upserted %d postings; deactivated %d stale; %d active total",
                 n, stale, store.count_active())
     logger.info("By role_category: %s", dict(by_cat.most_common()))
+    _report_title_cache(cache_stats, title_cache)
     _report_discarded_hints(discarded)
+
+
+def _report_title_cache(stats: Counter, cache: dict[str, str]) -> None:
+    """How much of the residue the routine's answers actually covered today.
+
+    `PLAN.md` item 4 sets the test this reports against: **if the hit rate is not >95%, the
+    key is wrong.** The number that matters is not "how many rows did the cache classify" but
+    "of the rows the patterns and codes declined, how many did it have an answer for" — a
+    cache keyed on something too specific (an unnormalised title, or one with the employer
+    left in it) still classifies plenty of rows while missing most of what it was asked
+    about, and only this ratio shows that.
+    """
+    residue = stats.get("residue", 0)
+    if not residue:
+        return
+    hit = stats.get("cache_hit", 0)
+    logger.info("Title cache: %d/%d of the pattern residue had a memoised answer (%.1f%%); "
+                "%d titles cached in total",
+                hit, residue, 100 * hit / residue, len(cache))
 
 
 def main() -> None:

@@ -1689,6 +1689,80 @@ def unmet_demand_terms(min_profiles: int = 1) -> list[dict]:
     return [r for r in rows if r["term"] not in known]
 
 
+# ---------------------------------------------------------------- title_categories --
+# The memoised answers from the claude.ai routine (migration 019). Every query here is
+# deliberately trivial: the *normalisation* that decides what a key is has one definition, in
+# `service.categorize_exchange.normalise_title`, and expressing it a second time in SQL is how
+# the cache would quietly stop hitting. Python groups; SQL stores.
+
+
+def title_category_map() -> dict[str, str]:
+    """Every title key the routine actually answered — declines excluded.
+
+    Read once per ingest run and consulted only where `taxonomy.classify` declines, so it is
+    a dict lookup per posting rather than a query per posting. A row whose category is
+    `uncategorised` means "asked, no answer", which is what an absent key already means to
+    the caller; carrying tens of thousands of them into the ingest would be memory spent to
+    say nothing. `asked_title_keys` is the query that does need them.
+    """
+    with cursor() as cur:
+        cur.execute("select title_key, category from title_categories "
+                    "where category <> %s", (taxonomy.UNCATEGORISED,))
+        return {r["title_key"]: r["category"] for r in cur.fetchall()}
+
+
+def asked_title_keys() -> set[str]:
+    """Every title key the routine has already been asked about, answered or not.
+
+    "Have we asked?" and "do we know?" are different questions and the export needs the first
+    one: without it, a title the model could not read is re-exported every run, forever, and
+    the residue never shrinks no matter how many runs happen.
+    """
+    with cursor() as cur:
+        cur.execute("select title_key from title_categories")
+        return {r["title_key"] for r in cur.fetchall()}
+
+
+def uncategorised_titles() -> list[dict]:
+    """Active postings no classifier could read: `[{title, n}]`, commonest first.
+
+    Raw titles, grouped by the exact string — the normalised grouping happens in Python for
+    the reason at the top of this section. `n` is what makes a truncated export honest: the
+    caller states how many titles it dropped and how many postings they stood for, rather
+    than reporting the residue as covered.
+    """
+    with cursor() as cur:
+        cur.execute("select title, count(*) as n from postings "
+                    "where is_active and role_category = %s and title is not null "
+                    "group by title order by n desc, title",
+                    (taxonomy.UNCATEGORISED,))
+        return [dict(r) for r in cur.fetchall()]
+
+
+def upsert_title_categories(rows: Iterable[tuple[str, str, str]],
+                            source: str = "routine") -> int:
+    """Store `(title_key, category, sample_title)` answers. Returns rows written.
+
+    Last answer wins, and `updated_at` moves with it, so re-asking a title after a taxonomy
+    change is a re-import rather than a manual delete. The category is NOT validated here:
+    `categorize_exchange.import_categories` is the trust boundary and drops anything that is
+    not in `taxonomy.CATEGORIES` before it reaches this call — the same shape as
+    `import_picks`, where validation lives at the boundary rather than in the writer.
+    """
+    values = [(k, c, (t or "")[:300], source) for k, c, t in rows if k and c]
+    if not values:
+        return 0
+    with cursor(commit=True) as cur:
+        psycopg2.extras.execute_values(
+            cur,
+            "insert into title_categories (title_key, category, sample_title, source) values %s "
+            "on conflict (title_key) do update set category = excluded.category, "
+            "sample_title = excluded.sample_title, source = excluded.source, "
+            "updated_at = now()",
+            values, page_size=500)
+    return len(values)
+
+
 def prune_unsubscribed(days: int = 30) -> int:
     """Delete profiles unsubscribed more than `days` ago. Returns rows removed.
 
