@@ -45,6 +45,8 @@ def _ad(**over) -> dict:
                               "region": "Stockholms län", "country": "Sverige",
                               "country_code": "199"},
         "occupation": {"label": "Data scientist"},
+        "occupation_group": {"label": "Mjukvaru- och systemutvecklare m.fl."},
+        "occupation_field": {"label": "Data/IT"},
         "salary_description": None,
     }
     base.update(over)
@@ -144,15 +146,19 @@ def test_ads_without_url_or_headline_are_skipped():
 
 
 def test_company_location_and_category_are_carried():
-    # `source_category` is the raw Swedish SSYK leaf label, one of ~954. It is NOT a
-    # role_category, so `taxonomy.classify` discards it — this asserts the adapter carries the
-    # field, not that the value is usable. Making it usable means a curated SSYK map here, the
-    # shape `smartrecruiters.FUNCTION_HINTS` uses; deliberately not written while the vector
-    # path may replace the recall predicate that would consume it.
+    # `source_category` used to be the raw Swedish SSYK leaf label, one of ~954, which is NOT
+    # a role_category — so `taxonomy.classify` discarded it and the register's own answer was
+    # fetched every run and thrown away, leaving 74% of this source `uncategorised`.
+    #
+    # The curated map this comment used to defer is now written (SSYK_FIELD_CATEGORIES /
+    # SSYK_GROUP_CATEGORIES, 2026-08-09). The deferral was conditional on the vector path
+    # possibly replacing the recall predicate that consumes a category; that gate was measured
+    # on 2026-08-08 and came back negative, so the predicate stays and the map pays for itself
+    # — 50.1% of this source's uncategorised ads recovered on a 2 000-ad live sample.
     p = PlatsbankenSource().normalize([_ad()])[0]
     assert p.company == "Toca Boca AB"
     assert p.location == "Stockholm, Stockholms län"
-    assert p.source_category == "Data scientist"
+    assert p.source_category == "software_engineering"   # mapped, not the raw SSYK leaf
     assert p.posted_at == date(2026, 8, 1)
 
 
@@ -333,3 +339,48 @@ def test_a_dead_api_yields_nothing_rather_than_raising(monkeypatch):
     monkeypatch.setattr("ingestion.sources.platsbanken.requests.get",
                         lambda *a, **k: _Dead())
     assert PlatsbankenSource(fields=[("F1", "Data/IT")]).fetch() == []
+
+
+from ingestion.sources import platsbanken  # noqa: E402  (module handle for the SSYK tests)
+
+
+# ---------------------------------------------------------------- SSYK → category ---
+# Added 2026-08-09. Until then `source_category` carried `occupation.label` — the finest SSYK
+# leaf, 954 distinct Swedish strings — which `classify` discards as non-canonical, so the
+# register's own answer was fetched every run and thrown away. Mapping it recovered 50.1% of
+# the source's uncategorised ads on a 2 000-ad live sample.
+
+
+def test_every_mapped_ssyk_value_is_a_real_category():
+    """A non-canonical value is discarded by `classify` rather than raising, so a typo here
+    means the whole occupation group silently stays `uncategorised` — indistinguishable from
+    the mapping not being wired up at all."""
+    from service import taxonomy
+
+    mapped = {**platsbanken.SSYK_FIELD_CATEGORIES, **platsbanken.SSYK_GROUP_CATEGORIES}
+    unknown = {v for v in mapped.values() if v not in taxonomy.CATEGORIES}
+    assert not unknown, f"SSYK map names categories that do not exist: {sorted(unknown)}"
+
+
+def test_the_group_beats_the_field():
+    """"Data/IT" defaults to software, but an IT support technician inside it is
+    `customer_support`. Field-only would file every one of them as a developer and put them in
+    the wrong subscriber's digest."""
+    ad = {"occupation_field": {"label": "Data/IT"},
+          "occupation_group": {"label": "Supporttekniker, IT"}}
+    assert platsbanken._ssyk_category(ad) == "customer_support"
+
+
+def test_an_unknown_field_returns_none_rather_than_a_guess():
+    assert platsbanken._ssyk_category({"occupation_field": {"label": "Militära yrken"},
+                                       "occupation_group": {}}) is None
+    assert platsbanken._ssyk_category({}) is None
+
+
+def test_the_map_covers_fields_that_are_not_ingested_yet():
+    """`OCCUPATION_FIELDS` excludes healthcare, pedagogy, restaurant, transport, construction
+    and manufacturing — an exclusion made when the taxonomy had no category for them. It now
+    does, so the map covers them and lifting the exclusion needs no second change."""
+    ingested = {name for _, name in platsbanken.OCCUPATION_FIELDS}
+    assert "Hälso- och sjukvård" not in ingested
+    assert platsbanken.SSYK_FIELD_CATEGORIES["Hälso- och sjukvård"] == "healthcare"

@@ -189,10 +189,28 @@ def score(rows: list[dict]) -> dict:
     }
 
 
-def coverage_of(titles: list[str]) -> tuple[int, int]:
-    """(uncategorised, total) for a corpus dump — coverage needs no answer key."""
-    uncat = sum(1 for t in titles if taxonomy.classify(t) == taxonomy.UNCATEGORISED)
-    return uncat, len(titles)
+def coverage_of(rows: list) -> tuple[int, int]:
+    """(uncategorised, total) for a corpus dump — coverage needs no answer key.
+
+    Accepts bare titles or ``(title, hint)`` pairs. **The hint matters and accuracy
+    deliberately ignores it.** A `source_category` from a publisher's occupation code
+    (`mpsv.ISCO_CATEGORIES`, `platsbanken.SSYK_CATEGORIES`) is how the register sources get
+    classified at all, so a title-only coverage number under-reports them — measured on
+    2026-08-09, it missed 1 534 recovered Czech vacancies entirely and reported the change as
+    doing nothing.
+
+    Accuracy stays title-only, and that is not an oversight. Grading a hint-classified row
+    against the same occupation code that produced the hint is circular: it would score 100%
+    by construction and the gate would be decorative for exactly the sources it matters most
+    for. Coverage asks "did we assign anything"; accuracy asks "is the title classifier
+    right". Only the first can honestly see a hint.
+    """
+    uncat = 0
+    for row in rows:
+        title, hint = row if isinstance(row, (tuple, list)) else (row, None)
+        if taxonomy.classify(title, hint) == taxonomy.UNCATEGORISED:
+            uncat += 1
+    return uncat, len(rows)
 
 
 def main(argv: list[str] | None = None) -> int:

@@ -115,3 +115,29 @@ def test_accuracy_is_reported_per_category():
 def test_coverage_needs_no_answer_key():
     uncat, total = cs.coverage_of(["Sjuksköterska", "zzzz", "Data Engineer"])
     assert total == 3 and uncat == 1
+
+
+# --- coverage sees hints, accuracy must not -----------------------------------------------
+
+
+def test_coverage_counts_a_hint_classified_row_as_covered():
+    """The register sources are classified by the publisher's occupation code, not the title.
+    A title-only coverage number reported the 1 534 Czech vacancies recovered on 2026-08-09 as
+    zero improvement — the change looked worthless and the loop would have moved on."""
+    uncat, total = cs.coverage_of([("Neklasifikovatelný název", "healthcare")])
+    assert (uncat, total) == (0, 1)
+
+
+def test_accuracy_never_reads_the_hint():
+    """Grading a hint-classified row against the code that produced the hint is circular —
+    100% by construction, and the gate becomes decorative for the sources it matters most for.
+
+    `score` takes rows of {title, field, group} and must classify from the title alone.
+    """
+    import inspect
+
+    src = inspect.getsource(cs.score)
+    assert "classify(row.get(\"title\"))" in src, (
+        "score() must call classify with the title only; passing a hint here would make "
+        "accuracy circular for every register source"
+    )

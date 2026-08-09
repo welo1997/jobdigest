@@ -108,6 +108,75 @@ OCCUPATION_FIELDS: list[tuple[str, str]] = [
 
 #: The API's own maximum. Asking for more is a 400, not a silent truncation — but page by the
 #: count received anyway, because that is the rule that survives the API changing its mind.
+#: SSYK occupation *field* → `role_category`, for fields that mean exactly one thing.
+#: Added 2026-08-09. Until then `source_category` carried `occupation.label` — the finest SSYK
+#: leaf, 954 distinct Swedish strings — which `taxonomy.classify` discards because it is not a
+#: canonical category (the 2026-08-08 hint guard). So the register's own answer was fetched
+#: every run and thrown away, and 74% of this source sat in `uncategorised`.
+#:
+#: **Deliberately covers all 21 fields, not the 7 in `OCCUPATION_FIELDS`.** The exclusion of
+#: healthcare, pedagogy, restaurant, transport, construction and manufacturing was made when
+#: the taxonomy had no category for them; it now does. Mapping them here costs nothing and
+#: means no second change is needed if that exclusion is lifted.
+SSYK_FIELD_CATEGORIES: dict[str, str] = {
+    "Hälso- och sjukvård": "healthcare",
+    "Pedagogik": "education",
+    "Pedagogiskt arbete": "education",
+    "Hotell, restaurang, storhushåll": "hospitality",
+    "Industriell tillverkning": "manufacturing_production",
+    "Transport, distribution, lager": "logistics_transport",
+    "Bygg och anläggning": "construction",
+    "Installation, drift, underhåll": "skilled_trades",
+    "Hantverk": "skilled_trades",
+    "Data/IT": "software_engineering",
+}
+
+#: SSYK occupation *group* → category, inside fields that span several categories. Checked
+#: first, so "Data/IT" resolves to support or platform work rather than the field's default.
+SSYK_GROUP_CATEGORIES: dict[str, str] = {
+    "Supporttekniker, IT": "customer_support",
+    "Systemförvaltare m.fl.": "devops_platform",
+    "Nätverks- och systemtekniker m.fl.": "devops_platform",
+    "Systemadministratörer": "devops_platform",
+    "Drifttekniker, IT": "devops_platform",
+    "Företagssäljare": "sales",
+    "Butikssäljare, fackhandel": "sales",
+    "Butikssäljare, dagligvaror": "sales",
+    "Telefonförsäljare m.fl.": "sales",
+    "Torg- och marknadsförsäljare m.fl.": "sales",
+    "Eventsäljare och butiksdemonstratörer m.fl.": "sales",
+    "Säljande butikschefer och avdelningschefer i butik": "sales",
+    "Inköpare och upphandlare": "operations",
+    "Marknadsanalytiker och marknadsförare m.fl.": "marketing",
+    "Informatörer, kommunikatörer och PR-specialister": "marketing",
+    "Kundtjänstpersonal": "customer_support",
+    "Personal- och HR-specialister": "hr_recruiting",
+    "Redovisningsekonomer": "finance_accounting",
+    "Löne- och personaladministratörer": "finance_accounting",
+    "Revisorer m.fl.": "finance_accounting",
+    "Controller": "finance_accounting",
+    "Jurister m.fl.": "legal",
+    "Grafiska formgivare m.fl.": "design",
+    "Restaurang- och kökschefer": "hospitality",
+    "Produktionschefer inom tillverkning": "manufacturing_production",
+    "Driftchefer inom bygg, anläggning och gruva": "construction",
+}
+
+
+def _ssyk_category(ad: dict) -> Optional[str]:
+    """The register's own occupation classification, as a `role_category`.
+
+    Group before field: "Data/IT" defaults to software, but an IT support technician inside
+    it is `customer_support`, and filing every one of them as a developer would put them in
+    the wrong subscriber's digest.
+    """
+    group = ((ad.get("occupation_group") or {}).get("label") or "").strip()
+    if group in SSYK_GROUP_CATEGORIES:
+        return SSYK_GROUP_CATEGORIES[group]
+    field = ((ad.get("occupation_field") or {}).get("label") or "").strip()
+    return SSYK_FIELD_CATEGORIES.get(field)
+
+
 PAGE_SIZE = 100
 
 #: `offset` may not exceed 2 000, so one query reaches 2 100 rows at most. Slices are sized to
@@ -341,7 +410,9 @@ class PlatsbankenSource(BaseSource):
                 salary_raw=(ad.get("salary_description") or "").strip() or None,
                 currency=None,
                 posted_at=_posted(ad.get("publication_date")),
-                source_category=occupation.get("label"),
+                # The register's own classification, mapped. `classify` prefers
+                # title patterns and falls back to this.
+                source_category=_ssyk_category(ad),
             ))
         if removed:
             logger.info("Platsbanken: skipped %d ads flagged removed", removed)
