@@ -234,6 +234,82 @@ def test_tokens_with_symbols_survive_normalisation(text, expected):
     assert expected in skills.extract_skills(text, None)
 
 
+# --------------------------------------------------- office / PC / business tools ---
+# The skills-filter vocabulary. Same discipline as the tech guards: the office everyday-word
+# traps are the whole risk, so most of these assert what is NOT tagged.
+
+
+@pytest.mark.parametrize(
+    "text,expected",
+    [
+        ("Advanced Microsoft Office and Excel", "microsoft_office"),
+        ("MS Office 365 power user", "microsoft_office"),
+        ("Slide decks in PowerPoint", "powerpoint"),
+        ("SharePoint administration", "sharepoint"),
+        ("Collaborate over Microsoft Teams", "microsoft_teams"),
+        ("Reporting in Google Sheets", "google_sheets"),
+        ("Bookkeeping in QuickBooks", "quickbooks"),
+        ("Microsoft Dynamics 365 Finance", "dynamics"),
+        ("Wireframes in AutoCAD", "autocad"),
+        ("Adobe Photoshop and InDesign", "photoshop"),
+    ],
+)
+def test_office_tools_are_tagged(text, expected):
+    assert expected in skills.extract_skills(text, None)
+
+
+@pytest.mark.parametrize(
+    "trap,absent",
+    [
+        # each is a real everyday phrase a job ad would carry
+        ("We offer a positive career outlook", "outlook"),
+        ("Sage advice from experienced mentors", "sage"),
+        ("A confluence of talent and drive", "confluence"),
+        ("Zoom in on the details that matter", "zoom"),
+        ("A passion for the written word", "word"),
+        ("Strong keyword research skills", "word"),  # never bare 'word'
+        ("Manage access to the facility", "ms_access"),
+        ("Lead the project to completion", "ms_project"),
+        ("Yoga asana and mindfulness coach", "asana"),
+        ("Available to start on Monday", "monday"),
+        ("Medical illustrator for a textbook", "illustrator"),
+        ("Join our high-performing teams", "microsoft_teams"),  # never bare 'teams'
+    ],
+)
+def test_office_everyday_words_are_not_tools(trap, absent):
+    assert absent not in skills.extract_skills("Coordinator", trap)
+
+
+def test_ms_office_words_need_the_microsoft_qualifier():
+    """`word`/`access`/`project`/`teams` are matched only as the unambiguous multiword — the
+    bare tokens are hopeless as tool names, so removing the multiword restriction (adding a
+    bare variant) makes the trap tests above fire."""
+    assert "word" in skills.extract_skills("Editor", "Microsoft Word and Excel")
+    assert "ms_access" in skills.extract_skills("Analyst", "MS Access databases")
+    assert "ms_project" in skills.extract_skills("PM", "Planning in Microsoft Project")
+
+
+def test_guarded_office_tools_fire_with_their_anchor():
+    assert "outlook" in skills.extract_skills(
+        "Admin", "Microsoft Outlook and calendar management"
+    )
+    assert "sage" in skills.extract_skills(
+        "Bookkeeper", "Sage 50 payroll and accounting"
+    )
+    assert "confluence" in skills.extract_skills(
+        "Analyst", "Documentation in Jira and Confluence"
+    )
+    assert "zoom" in skills.extract_skills(
+        "CSM", "Client onboarding via Zoom video calls"
+    )
+    assert "asana" in skills.extract_skills(
+        "PM", "Task and project management in Asana"
+    )
+    assert "illustrator" in skills.extract_skills(
+        "Designer", "Adobe Illustrator for vector graphics"
+    )
+
+
 # --------------------------------------------------------------- shape guarantees ---
 
 

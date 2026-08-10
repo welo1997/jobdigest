@@ -397,6 +397,109 @@ _GAZETTEER: tuple[Skill, ...] = (
     _skill("hubspot", "crm", ("hubspot",)),
     _skill("servicenow", "tool", ("servicenow",)),
     _skill("figma", "design_tool", ("figma",)),
+    # --- office / productivity / business tools ------------------------------------------
+    # Added for the skills *filter*: the PC/office tools ordinary (non-developer) roles list —
+    # where a subscriber filtering "Excel" or "MS Office" actually lives. The everyday-word
+    # traps here are severe, so the rule is strict: `word`/`access`/`project`/`teams`/`monday`
+    # are matched ONLY as an unambiguous multiword ("Microsoft Word"), never bare, and the
+    # ambiguous single tokens (`outlook`, `sage`, `illustrator`, `asana`, `confluence`, `zoom`)
+    # are guarded with an anchor. Same false-positive-is-the-harm discipline as `excel`.
+    _skill(
+        "microsoft_office",
+        "office",
+        (
+            "microsoft office",
+            "ms office",
+            "office 365",
+            "microsoft 365",
+            "o365",
+            "ms-office",
+        ),
+    ),
+    _skill("powerpoint", "office", ("powerpoint", "power point")),
+    # `word` only as the unambiguous multiword — bare "word" is hopeless (keyword, password...).
+    _skill("word", "office", ("microsoft word", "ms word", "ms-word")),
+    _skill("ms_access", "office", ("microsoft access", "ms access")),
+    _skill("ms_project", "office", ("microsoft project", "ms project")),
+    _skill("onenote", "office", ("onenote", "one note")),
+    _skill("sharepoint", "office", ("sharepoint",)),
+    _skill("visio", "office", ("visio",)),
+    _skill("power_platform", "office", ("power automate", "power apps", "power query")),
+    _skill("microsoft_teams", "productivity", ("microsoft teams", "ms teams")),
+    # `Outlook` the mail client, not "career/financial/growth outlook" — strict MS/Exchange anchor.
+    _skill(
+        "outlook",
+        "office",
+        (),
+        guarded=("outlook",),
+        anchor=r"microsoft|exchange|office 365|\bo365\b|\bms office\b|outlook calendar",
+    ),
+    _skill("google_workspace", "office", ("google workspace", "g suite", "gsuite")),
+    _skill("google_sheets", "office", ("google sheets",)),
+    _skill("google_docs", "office", ("google docs",)),
+    # --- accounting / ERP software ---
+    _skill("quickbooks", "accounting_tool", ("quickbooks", "quick books")),
+    _skill("xero", "accounting_tool", ("xero",)),
+    _skill("netsuite", "accounting_tool", ("netsuite",)),
+    _skill(
+        "dynamics",
+        "erp",
+        ("dynamics 365", "microsoft dynamics", "dynamics nav", "dynamics ax"),
+    ),
+    # `Sage` the accounting suite, not "sage advice".
+    _skill(
+        "sage",
+        "accounting_tool",
+        (),
+        guarded=("sage",),
+        anchor=r"accounting|payroll|bookkeep|\berp\b|sage 50|sage 200|sage x3|finance",
+    ),
+    # --- collaboration / productivity ---
+    _skill("trello", "productivity", ("trello",)),
+    _skill("airtable", "productivity", ("airtable",)),
+    _skill("monday", "productivity", ("monday.com",)),  # bare "monday" is a weekday
+    # `Asana` the tool, not the yoga posture.
+    _skill(
+        "asana",
+        "productivity",
+        (),
+        guarded=("asana",),
+        anchor=r"project|task|kanban|management|workflow|jira|trello",
+    ),
+    # `Confluence` the wiki, not "a confluence of factors".
+    _skill(
+        "confluence",
+        "productivity",
+        (),
+        guarded=("confluence",),
+        anchor=r"jira|atlassian|wiki|documentation|knowledge base",
+    ),
+    # `Zoom` the video tool, not "zoom in".
+    _skill(
+        "zoom",
+        "productivity",
+        (),
+        guarded=("zoom",),
+        anchor=r"video|\bcall\b|meeting|webinar|conferenc|remote",
+    ),
+    # --- creative / CAD ---
+    _skill("photoshop", "design_tool", ("photoshop",)),
+    _skill("indesign", "design_tool", ("indesign",)),
+    _skill("adobe", "design_tool", ("adobe",)),
+    _skill("canva", "design_tool", ("canva",)),
+    # `Illustrator` the Adobe app, not a person who illustrates.
+    _skill(
+        "illustrator",
+        "design_tool",
+        (),
+        guarded=("illustrator",),
+        anchor=r"adobe|photoshop|indesign|design|graphic|vector|creative suite",
+    ),
+    _skill("autocad", "cad", ("autocad",)),
+    _skill("solidworks", "cad", ("solidworks",)),
+    _skill("revit", "cad", ("revit",)),
+    _skill("catia", "cad", ("catia",)),
+    _skill("sketchup", "cad", ("sketchup",)),
 )
 
 #: How much of a description to scan. Descriptions are HTML soup and occasionally enormous;
