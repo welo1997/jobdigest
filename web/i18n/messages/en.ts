@@ -44,6 +44,9 @@ const en: Messages = {
   },
 
   roles: {
+    cybersecurity: "Cybersecurity",
+    science_research: "Science & Research",
+    social_care: "Social Care",
     product_manager: "Product Manager",
     marketing: "Marketing",
     social_media: "Social Media",

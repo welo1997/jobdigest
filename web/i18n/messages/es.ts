@@ -36,6 +36,9 @@ const es: Messages = {
   },
 
   roles: {
+    cybersecurity: "Ciberseguridad",
+    science_research: "Ciencia e investigación",
+    social_care: "Trabajo social",
     product_manager: "Product Manager",
     marketing: "Marketing",
     social_media: "Redes sociales",

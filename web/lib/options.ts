@@ -53,6 +53,10 @@ export const ROLE_OPTIONS: RoleOption[] = [
   { id: "logistics", category: "logistics_transport", keyword: "warehouse" },
   { id: "manufacturing", category: "manufacturing_production", keyword: "production operator" },
   { id: "engineering", category: "engineering", keyword: "mechanical engineer" },
+  // Added 2026-08-10 — three sectors the taxonomy now models. Opt-in tail, like the row above.
+  { id: "cybersecurity", category: "cybersecurity", keyword: "security engineer" },
+  { id: "science_research", category: "science_research", keyword: "research scientist" },
+  { id: "social_care", category: "social_care", keyword: "social worker" },
   // Offered only when a CV asks for it (never in the default chip row), and modelled by no
   // category — so it rides the keyword path, exactly as the old "ML Engineer" label did.
   { id: "ml_engineer", category: null, keyword: "ml engineer" },
@@ -107,9 +111,9 @@ export const normalizeRoleText = (text: string): string =>
  * Three spellings are accepted, and the `keyword` one matters most: it is the English word
  * regardless of what the UI is showing, so "data engineer" resolves on the Polish site too.
  *
- * Returning null is a normal answer, not a failure — Sales, Cybersecurity and IT Support are
- * genuinely modelled by nothing, and the caller must go on routing those to `stack` as a
- * keyword. This narrows *what counts as* unmodelled; it does not change what happens to it.
+ * Returning null is a normal answer, not a failure — a typed "IT Support" or a niche role the
+ * taxonomy does not model resolves to nothing, and the caller must go on routing those to
+ * `stack` as a keyword. This narrows *what counts as* unmodelled; it does not change its fate.
  */
 export function resolveRoleId(
   text: string,
@@ -219,6 +223,9 @@ export const SKILLS_BY_ROLE: Record<string, string[]> = {
   finance: ["Excel", "Controlling", "SAP", "IFRS", "Forecasting", "Power BI"],
   ml_engineer: ["Python", "PyTorch", "TensorFlow", "MLOps", "NLP", "scikit-learn"],
   engineering: ["AutoCAD", "SolidWorks", "MATLAB", "CAD", "PLC", "Six Sigma"],
+  cybersecurity: ["SIEM", "Penetration testing", "Incident response", "Python", "Firewalls", "SOC"],
+  science_research: ["Python", "Statistics", "Laboratory", "Data analysis", "Clinical trials", "GLP"],
+  social_care: ["Case management", "Safeguarding", "Care planning", "Counselling", "Mental health", "Documentation"],
 };
 
 // Three roles at six skills each is eighteen chips above an input box — a wall to read rather

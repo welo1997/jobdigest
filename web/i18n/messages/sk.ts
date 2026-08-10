@@ -42,6 +42,9 @@ const sk: Messages = {
   },
 
   roles: {
+    cybersecurity: "Kybernetická bezpečnosť",
+    science_research: "Veda a výskum",
+    social_care: "Sociálna práca",
     product_manager: "Produktový manažér",
     marketing: "Marketing",
     social_media: "Sociálne siete",

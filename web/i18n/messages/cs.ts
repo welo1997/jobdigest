@@ -43,6 +43,9 @@ const cs: Messages = {
   },
 
   roles: {
+    cybersecurity: "Kybernetická bezpečnost",
+    science_research: "Věda a výzkum",
+    social_care: "Sociální práce",
     product_manager: "Produktový manažer",
     marketing: "Marketing",
     social_media: "Sociální sítě",
