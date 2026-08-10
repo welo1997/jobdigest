@@ -182,6 +182,14 @@ OPAQUE = "Något Oklassificerbart"
     # is one employer's internal vocabulary, not a profession.
     ("Quantitative Trader", "uncategorised"),
     ("Specialist, Client Processing", "uncategorised"),
+    # A second extension pass from mining the uncategorised corpus for recurring role words:
+    # each generalises across the noisy tail (one pattern catches every spelling variant).
+    ("Sr Estimator", "construction"),
+    ("Equipment Technician", "skilled_trades"),
+    ("Service Technician", "skilled_trades"),
+    ("Data Entry Clerk", "other_tech_function"),
+    ("Sr Strategic Sourcing Spec", "operations"),
+    ("Technician", "uncategorised"),                      # ...but a *bare* technician still is
     # A deliberate decline, kept as a test so it is a decision rather than an oversight: a
     # bare "Project Manager" is construction, IT, marketing or events depending on the
     # employer, and `uncategorised` is the honest answer for 50 postings rather than a guess

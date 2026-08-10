@@ -87,7 +87,9 @@ PATTERNS: tuple[tuple[str, "re.Pattern[str]"], ...] = (
     # logistics_transport, so a site's machine drivers (grävmaskinist, hjullastarförare) are
     # read here rather than by that pattern's `förare`.
     ("construction", re.compile(
-        r"construction|site manager|bricklayer|carpenter|surveyor|"
+        # `estimator` is a construction cost estimator ("Estimator I/II", "Sr Estimator",
+        # 2026-08-10) — the register writes it with a seniority word and nothing else.
+        r"construction|site manager|bricklayer|carpenter|surveyor|estimator|"
         # Czech. Stems, because the register writes the plural: "Zedníci", "Dělníci". The
         # nominative singular this pattern used to require matched almost none of them.
         r"stavbyvedoucí|stavebn|výstavb|zedn|tesař|dlaždič|kamnář|potrubář|"
@@ -104,6 +106,10 @@ PATTERNS: tuple[tuple[str, "re.Pattern[str]"], ...] = (
     ("skilled_trades", re.compile(
         r"electrician|welder|plumber|\bmechanic\b|locksmith|\bfitter\b|hvac|"
         r"maintenance technician|field service (?:technician|engineer|engr)|"
+        # A *qualified* technician is a trade; a bare "Technician" is still declined (it spreads
+        # across trades, manufacturing, IT support and labs — 2026-08-10). These four qualifiers
+        # are unambiguously service/field maintenance work.
+        r"(?:equipment|controls|facilities|service) technician|"
         # Czech, added 2026-08-09-c from the ISCO key. The stem, minus one word: `zámečna` is
         # the metalworking *shop floor*, which the register files as manufacturing, not the
         # trade. Written as a lookahead rather than as a list of inflections because Czech
@@ -297,12 +303,17 @@ PATTERNS: tuple[tuple[str, "re.Pattern[str]"], ...] = (
         r"supporttekniker|first[- ]line|kundbokare|bokningsmedarbetare|kundinformatör",
         re.I)),
     ("operations", re.compile(
-        r"\boperations\b|customer success|supply chain|procurement|office manager|"
+        r"\boperations\b|customer success|supply chain|procurement|strategic sourcing|"
+        r"office manager|"
         r"provozn|nákupčí|nákupca|inköpare", re.I)),
     # Residual for a business function at a tech company that none of the above names.
     # Deliberately last of the business group and much narrower than it was.
     ("other_tech_function", re.compile(
         r"business analyst|\bcontent\b|community|partnerships|strategy|"
+        # Clerical data entry ("Data Entry Clerk", "Remote Data Entry", ~226 postings): no data
+        # pattern above reads it (they all want engineer/analyst/scientist/science), so it falls
+        # here to the admin residual, which is what it is.
+        r"data entry|"
         r"administrativ|asistent|assistent|koordinátor|koordinator|"
         # English admin titles: the CZ/SE spellings above never matched "Executive Assistant".
         r"(?:executive|administrative|office|personal) assistant", re.I)),
