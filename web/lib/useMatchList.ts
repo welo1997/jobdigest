@@ -41,14 +41,19 @@ export interface MatchList {
 export function useMatchList(
   /** Which half to read, and the page it is rendered on — the path is where the URL is
    *  rewritten to after the one-time `?token=` is spent. */
-  { hidden, path, onLoaded }: {
+  { hidden, path, skills = [], onLoaded }: {
     hidden: boolean;
     path: string;
+    /** The active skill filter. Changing it refetches from page 0 (paging cannot be carried
+     *  across a different filter) — see the effect deps. */
+    skills?: string[];
     /** Called once the first page lands. The token is passed along because it is only
      *  settled here — by the time the caller renders, it may already have been spent. */
     onLoaded?: (d: MatchesResponse, token: string) => void;
   }
 ): MatchList {
+  // A stable primitive dep for the effect: two arrays with the same members must not refetch.
+  const skillsKey = [...skills].sort().join(",");
   const urlToken = useSearchParams().get("token") || "";
   // Same login model on both pages: trade the one-time token for a session cookie, then ride
   // the cookie. Stays set only in the cookie-refused fallback.
@@ -67,6 +72,10 @@ export function useMatchList(
       setData(d);
       onLoaded?.(d, tokenRef.current);
     };
+    // A new filter (or view) starts a fresh list: drop any extra pages already appended, or
+    // they would sit below the first page under the *new* filter and show stale rows.
+    setMore([]);
+    setMoreErr(false);
     const load = async () => {
       try {
         if (urlToken) {
@@ -77,13 +86,13 @@ export function useMatchList(
               window.history.replaceState(null, "", href(path));
               window.dispatchEvent(new Event("jd-auth-changed"));   // nav: re-check, we're in
             }
-            done(await getMatches(undefined, 0, hidden));
+            done(await getMatches(undefined, 0, hidden, skills));
           } catch {
-            done(await getMatches(urlToken, 0, hidden));
+            done(await getMatches(urlToken, 0, hidden, skills));
           }
           return;
         }
-        done(await getMatches(undefined, 0, hidden));
+        done(await getMatches(undefined, 0, hidden, skills));
       } catch (e) {
         if (cancelled) return;
         setErr(
@@ -96,7 +105,7 @@ export function useMatchList(
     load();
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [urlToken, hidden]);
+  }, [urlToken, hidden, skillsKey]);
 
   const jobs = data ? [...data.jobs, ...more] : [];
   const hasMore = !!data && jobs.length < data.count;
@@ -108,7 +117,7 @@ export function useMatchList(
     try {
       // Offset by what is on screen, not by page number — `data.limit` is the server's cap
       // and the client must not assume it stays the same between requests.
-      const next = await getMatches(tokenRef.current || undefined, jobs.length, hidden);
+      const next = await getMatches(tokenRef.current || undefined, jobs.length, hidden, skills);
       setMore((prev) => [...prev, ...next.jobs]);
       // Re-read the totals from the fresh response. If a posting went inactive between
       // requests the count shrinks, and an empty page then settles `hasMore` to false on the

@@ -271,6 +271,10 @@ export interface Messages {
     hideFailed: string;
     /** Link to the hidden page, shown only when something is hidden. */
     hiddenLink: PluralForms;
+    /** Skill-filter chip row: heading, and the "clear" that drops the filter. Chip labels
+     *  themselves are the skill names (data), never translated. */
+    filterBySkill: string;
+    clearFilter: string;
   };
 
   /** `/hidden` — the jobs the subscriber hid. Errors, paging and the tick-box strings are

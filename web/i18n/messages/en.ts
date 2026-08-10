@@ -314,6 +314,8 @@ const en: Messages = {
     hiding: "Hiding…",
     hideFailed: "Couldn't hide those — try again.",
     hiddenLink: { one: "{n} hidden job →", other: "{n} hidden jobs →" },
+    filterBySkill: "Filter by skill",
+    clearFilter: "Clear",
   },
 
   hidden: {

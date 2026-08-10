@@ -320,6 +320,8 @@ const fr: Messages = {
     hiding: "Masquage…",
     hideFailed: "Impossible de les masquer — réessayez.",
     hiddenLink: { one: "{n} offre masquée →", other: "{n} offres masquées →" },
+    filterBySkill: "Filtrer par compétence",
+    clearFilter: "Effacer",
   },
 
   hidden: {

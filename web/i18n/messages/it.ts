@@ -319,6 +319,8 @@ const it: Messages = {
     hiding: "Nascondo…",
     hideFailed: "Non è stato possibile nasconderle — riprova.",
     hiddenLink: { one: "{n} offerta nascosta →", other: "{n} offerte nascoste →" },
+    filterBySkill: "Filtra per competenza",
+    clearFilter: "Cancella",
   },
 
   hidden: {

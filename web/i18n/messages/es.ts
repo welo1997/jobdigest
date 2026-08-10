@@ -318,6 +318,8 @@ const es: Messages = {
     hiding: "Ocultando…",
     hideFailed: "No se pudieron ocultar — inténtalo de nuevo.",
     hiddenLink: { one: "{n} oferta oculta →", other: "{n} ofertas ocultas →" },
+    filterBySkill: "Filtrar por habilidad",
+    clearFilter: "Borrar",
   },
 
   hidden: {

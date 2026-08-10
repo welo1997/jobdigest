@@ -299,6 +299,17 @@ button.nav-link{background:none;border:0;padding:0;cursor:pointer;font-family:in
 .skill{font-family:var(--font-mono);font-size:10px;letter-spacing:.02em;color:var(--brand-deep);
   background:var(--brand-tint);border:1px solid color-mix(in srgb,var(--brand-deep) 22%,var(--line));
   border-radius:var(--r-pill);padding:2px 8px;}
+/* Interactive filter chips on /matches (`.skill.sel`): a togglable button, neutral when off
+   and brand-filled when on. Distinct from the read-only display `.skill` chips on cards. */
+.skill-filter{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:16px 0 2px;}
+.skill-filter .sf-lbl{font-size:var(--fs-sm);color:var(--muted);font-weight:600;}
+.skill-filter .chips{display:flex;flex-wrap:wrap;gap:6px;}
+.skill.sel{cursor:pointer;font-family:var(--font-sans);font-size:11px;letter-spacing:0;
+  text-transform:none;color:var(--fg);background:var(--surface-2);border:1px solid var(--line);}
+.skill.sel:hover{border-color:color-mix(in srgb,var(--brand-deep) 40%,var(--line));}
+.skill.sel .c{color:var(--muted);margin-left:3px;}
+.skill.sel.on{color:var(--brand-deep);background:var(--brand-tint);border-color:var(--brand-deep);}
+.skill.sel.on .c{color:var(--brand-deep);}
 .reason{font-size:var(--fs-sm);color:var(--muted);}
 .reason mark{background:var(--brand-tint);color:var(--brand-deep);padding:0 3px;border-radius:3px;font-weight:600;}
 .job .apply{font-size:var(--fs-xs);font-weight:700;margin-top:5px;display:inline-block;}

@@ -56,8 +56,11 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, RedirectResponse
 from pydantic import BaseModel, EmailStr, Field, field_validator
 
-from service import (cvparse, education, geo, i18n, links, mailer, skills, store, taxonomy,
+from service import (cvparse, education, geo, i18n, links, mailer, store, taxonomy,
                      transactional)
+# Aliased because the /matches endpoint has a `skills` query parameter that would otherwise
+# shadow the module inside that function.
+from service import skills as skill_gazetteer
 from service.digest import C, SANS, SERIF
 
 # Where users land back (frontend). Used for the "homepage" links on API-served pages.
@@ -594,7 +597,7 @@ def _preview_view(j: dict, terms: list[str]) -> dict:
         # Extracted from the description on the fly here (the preview query returns it) rather
         # than from stored `skills` — avoids touching the shared matcher shortlist query. Same
         # gazetteer, so the result matches the stored value on /matches.
-        "skills": skills.extract_skills(j.get("title"), j.get("description")),
+        "skills": skill_gazetteer.extract_skills(j.get("title"), j.get("description")),
         "why": why,
     }
 
@@ -1018,7 +1021,7 @@ def _match_view(j: dict) -> dict:
 
 @app.get("/matches")
 def get_matches(request: Request, token: Optional[str] = None, offset: int = 0,
-                hidden: bool = False) -> dict:
+                hidden: bool = False, skills: Optional[str] = None) -> dict:
     """One page of everything the matcher found for this subscriber (not just the emailed
     few), ranked best-first. Authenticated by the private magic-link token or the session
     cookie.
@@ -1033,6 +1036,13 @@ def get_matches(request: Request, token: Optional[str] = None, offset: int = 0,
     `hidden=true` returns the other half of the same record: the jobs the subscriber hid
     (already applied, not interested). Both counts come back either way, so the visible page
     can link to "Hidden (n)" without a second round trip and the hidden page can link back.
+
+    `skills` is an optional comma-separated display filter (the skill chips): it narrows both
+    the rows and `count` (they must agree), array-overlap so any selected skill matches. Values
+    not in the controlled vocabulary are dropped rather than 422'd — a hand-edited param should
+    show fewer results, never break the page (same forgiving rule as `offset`). `skill_facets`
+    is always the *unfiltered* set of chips (respecting only `hidden`), so the filter never
+    hides its own controls.
     """
     profile = _resolve_subscriber(request, token, mutating=False)
     if not profile:
@@ -1040,16 +1050,22 @@ def get_matches(request: Request, token: Optional[str] = None, offset: int = 0,
     # Clamp rather than 422: a hand-edited offset should show an empty last page, not break
     # someone's match list.
     offset = max(0, offset)
+    # Validate the filter against the controlled vocabulary; drop anything else silently.
+    valid = set(skill_gazetteer.canonical_skills())
+    picked = [t for t in (s.strip().lower() for s in (skills or "").split(",")) if t in valid]
+    skills_filter = picked or None
     jobs = store.matched_jobs(profile["id"], limit=MATCHES_PAGE_LIMIT, offset=offset,
-                              hidden=hidden)
+                              hidden=hidden, skills_filter=skills_filter)
     return {
         "email": profile.get("email"),
         "label": profile.get("label"),
-        "count": store.match_count(profile["id"], hidden=hidden),
+        "count": store.match_count(profile["id"], hidden=hidden, skills_filter=skills_filter),
         "hidden_count": store.match_count(profile["id"], hidden=True),
         "offset": offset,
         "limit": MATCHES_PAGE_LIMIT,
         "hidden": hidden,
+        "skills": picked,
+        "skill_facets": store.match_skill_facets(profile["id"], hidden=hidden),
         "jobs": [_match_view(j) for j in jobs],
     }
 

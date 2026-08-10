@@ -329,6 +329,8 @@ const de: Messages = {
       one: "{n} ausgeblendeter Treffer →",
       other: "{n} ausgeblendete Treffer →",
     },
+    filterBySkill: "Nach Skill filtern",
+    clearFilter: "Zurücksetzen",
   },
 
   hidden: {

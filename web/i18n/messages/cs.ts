@@ -351,6 +351,8 @@ const cs: Messages = {
       few: "{n} skryté nabídky →",
       other: "{n} skrytých nabídek →",
     },
+    filterBySkill: "Filtrovat podle dovednosti",
+    clearFilter: "Zrušit",
   },
 
   hidden: {

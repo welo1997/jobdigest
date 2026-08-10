@@ -783,7 +783,8 @@ resurrect something the subscriber hid."""
 
 
 def matched_jobs(profile_id: str, limit: int = 50, offset: int = 0,
-                 hidden: bool = False, exclude_sent: bool = False) -> list[dict]:
+                 hidden: bool = False, exclude_sent: bool = False,
+                 skills_filter: list[str] | None = None) -> list[dict]:
     """AI-picked jobs for a profile (matches join postings), best fit first.
 
     Read side for the digest: returns only active postings the matcher selected
@@ -822,6 +823,15 @@ def matched_jobs(profile_id: str, limit: int = 50, offset: int = 0,
     hide stamps one `now()` across the batch, so `posting_id` breaks the tie and keeps the
     ordering total for paging here too.
     """
+    # `skills_filter` is a web-path display filter (the /matches skill chips): array-overlap,
+    # so a job matches if it names ANY of the selected skills. Its param is inserted positionally
+    # right after the status param — and `match_count` must apply the SAME clause, or the header
+    # count drifts from the list (the lockstep rule the docstring and test_hidden_sql pin).
+    skill_clause = "and p.skills && %s" if skills_filter else ""
+    params: list = [profile_id, HIDDEN_STATUS]
+    if skills_filter:
+        params.append(list(skills_filter))
+    params += [limit, offset]
     with cursor() as cur:
         cur.execute(
             f"""
@@ -834,6 +844,7 @@ def matched_jobs(profile_id: str, limit: int = 50, offset: int = 0,
             join postings p on p.posting_id = m.posting_id
             where m.profile_id = %s and p.is_active and m.score is not null
               and m.status {'=' if hidden else '<>'} %s
+              {skill_clause}
               {'''and not exists (select 1 from digest_sends d
                                   where d.profile_id = m.profile_id
                                     and d.posting_id = m.posting_id)'''
@@ -843,27 +854,57 @@ def matched_jobs(profile_id: str, limit: int = 50, offset: int = 0,
                       'm.score desc, p.posted_at desc nulls last, p.posting_id'}
             limit %s offset %s
             """,
-            (profile_id, HIDDEN_STATUS, limit, offset),
+            params,
         )
         return [dict(r) for r in cur.fetchall()]
 
 
-def match_count(profile_id: str, hidden: bool = False) -> int:
+def match_count(profile_id: str, hidden: bool = False,
+                skills_filter: list[str] | None = None) -> int:
     """How many active matches this profile has (same filter as matched_jobs) — used to
     show 'see all N matches' in the email and the page header.
 
     Must stay in lockstep with `matched_jobs`: the header is built from this and the rows
     from that, so a filter added to one and not the other reads as "127 matches" above a
-    list that can only ever reach 124."""
+    list that can only ever reach 124. `skills_filter` carries the same `&&` clause for
+    exactly that reason."""
+    skill_clause = "and p.skills && %s" if skills_filter else ""
+    params: list = [profile_id, HIDDEN_STATUS]
+    if skills_filter:
+        params.append(list(skills_filter))
     with cursor() as cur:
         cur.execute(
             f"""select count(*) as n
                from matches m join postings p on p.posting_id = m.posting_id
                where m.profile_id = %s and p.is_active and m.score is not null
-                 and m.status {'=' if hidden else '<>'} %s""",
-            (profile_id, HIDDEN_STATUS),
+                 and m.status {'=' if hidden else '<>'} %s
+                 {skill_clause}""",
+            params,
         )
         return int(cur.fetchone()["n"])
+
+
+def match_skill_facets(profile_id: str, hidden: bool = False) -> list[dict]:
+    """Skills present across this profile's matches, with counts — the chip options the
+    /matches filter is built from.
+
+    Deliberately computed over the profile's **unfiltered** match set (respecting only
+    `hidden`), so selecting one skill never removes the others from the chip row: a facet's
+    job is to show what you *could* narrow to, which is the full set, not the already-narrowed
+    one. Ordered most-common first, then by name for a stable tie-break. Null/empty `skills`
+    contribute nothing (`unnest` of NULL yields no rows), so this only ever lists real chips."""
+    with cursor() as cur:
+        cur.execute(
+            f"""select s as skill, count(*) as n
+               from matches m
+               join postings p on p.posting_id = m.posting_id,
+                    unnest(p.skills) as s
+               where m.profile_id = %s and p.is_active and m.score is not null
+                 and m.status {'=' if hidden else '<>'} %s
+               group by s order by n desc, s""",
+            (profile_id, HIDDEN_STATUS),
+        )
+        return [{"skill": r["skill"], "count": int(r["n"])} for r in cur.fetchall()]
 
 
 # --- profiles ------------------------------------------------------------------

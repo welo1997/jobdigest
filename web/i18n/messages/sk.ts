@@ -350,6 +350,8 @@ const sk: Messages = {
       few: "{n} skryté ponuky →",
       other: "{n} skrytých ponúk →",
     },
+    filterBySkill: "Filtrovať podľa zručnosti",
+    clearFilter: "Zrušiť",
   },
 
   hidden: {

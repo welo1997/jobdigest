@@ -177,13 +177,25 @@ class _FakeStore:
             for i in range(n)
         ]
 
-    def matched_jobs(self, profile_id, limit=50, offset=0, hidden=False):
+    def matched_jobs(self, profile_id, limit=50, offset=0, hidden=False,
+                     skills_filter=None):
         rows = [j for j in self.matches if (j["posting_id"] in self.hidden) == hidden]
+        if skills_filter:
+            rows = [j for j in rows
+                    if set(j.get("skills") or []) & set(skills_filter)]
         return rows[offset:offset + limit]
 
-    def match_count(self, profile_id, hidden=False):
-        return len([j for j in self.matches
-                    if (j["posting_id"] in self.hidden) == hidden])
+    def match_count(self, profile_id, hidden=False, skills_filter=None):
+        return len(self.matched_jobs(profile_id, limit=10 ** 9, hidden=hidden,
+                                     skills_filter=skills_filter))
+
+    def match_skill_facets(self, profile_id, hidden=False):
+        counts = {}
+        for j in self.matched_jobs(profile_id, limit=10 ** 9, hidden=hidden):
+            for s in j.get("skills") or []:
+                counts[s] = counts.get(s, 0) + 1
+        return [{"skill": s, "count": n}
+                for s, n in sorted(counts.items(), key=lambda kv: (-kv[1], kv[0]))]
 
     def set_matches_hidden(self, profile_id, posting_ids, hidden):
         """Mirrors the real query's shape: ids that aren't this profile's live matches change

@@ -25,6 +25,10 @@ pytestmark = pytest.mark.skipif(not TEST_DSN, reason="TEST_DATABASE_URL is not s
 
 PREFIX = "hidetest-"
 POSTINGS = [f"{PREFIX}{i}" for i in range(5)]
+# Skills per fixture posting, for the /matches skill-filter tests. Index 4 is NULL on purpose
+# (a posting the classifier named no skill in) — it must never match a positive skill filter
+# but must count under no filter.
+POSTING_SKILLS = {0: ["excel"], 1: ["excel"], 2: ["excel", "sql"], 3: ["python"], 4: None}
 
 
 @pytest.fixture(scope="module", autouse=True)
@@ -37,14 +41,15 @@ def db():
     # scaffolding for the `matches` queries under test, and going through the ingest path
     # would couple this file to every future column added to it.
     with store.cursor(commit=True) as cur:
-        for pid in POSTINGS:
+        for i, pid in enumerate(POSTINGS):
             cur.execute(
                 "insert into postings (posting_id, source, url, title, company, region, "
-                "  eligibility, seniority, work_type, role_category, dedup_key, is_active) "
+                "  eligibility, seniority, work_type, role_category, dedup_key, skills, "
+                "  is_active) "
                 "values (%s,'test',%s,'Data Analyst','Test','cz','eligible','mid',"
-                "  'permanent','data_analysis',%s,true) "
+                "  'permanent','data_analysis',%s,%s,true) "
                 "on conflict (posting_id) do nothing",
-                (pid, f"https://x.test/{pid}", pid),
+                (pid, f"https://x.test/{pid}", pid, POSTING_SKILLS[i]),
             )
     try:
         yield
@@ -144,3 +149,56 @@ def test_hidden_paging_is_deterministic_across_a_bulk_hide(profile):
     third = [j["posting_id"] for j in store.matched_jobs(profile, limit=2, offset=4, hidden=True)]
     walked = first + second + third
     assert len(set(walked)) == 5 and sorted(walked) == sorted(POSTINGS)
+
+
+# --------------------------------------------------------- the skill filter ---
+# Same failure the hidden tests guard: `matched_jobs` and `match_count` carry the filter
+# separately, so one drifting from the other means the header count contradicts the list.
+
+
+def _filtered(pid: str, skills: list[str]) -> list[str]:
+    return [j["posting_id"]
+            for j in store.matched_jobs(pid, limit=50, skills_filter=skills)]
+
+
+def test_a_skill_filter_narrows_rows_and_count_together(profile):
+    """excel is on postings 0,1,2 → the list and the header must both be 3."""
+    assert _filtered(profile, ["excel"]) == [POSTINGS[0], POSTINGS[1], POSTINGS[2]]
+    assert store.match_count(profile, skills_filter=["excel"]) == 3
+    # python is on posting 3 alone.
+    assert _filtered(profile, ["python"]) == [POSTINGS[3]]
+    assert store.match_count(profile, skills_filter=["python"]) == 1
+
+
+def test_selecting_several_skills_is_an_or(profile):
+    """Array-overlap: a match surfaces if it names ANY selected skill (excel:0,1,2 + python:3)."""
+    assert _filtered(profile, ["excel", "python"]) == POSTINGS[:4]
+    assert store.match_count(profile, skills_filter=["excel", "python"]) == 4
+
+
+def test_null_skills_never_match_a_filter_but_still_count_unfiltered(profile):
+    """Posting 4 has NULL skills — it must never surface for a chosen skill, yet it is part of
+    the complete record when no filter is applied (the null-passes rule on the read side)."""
+    for skill in ("excel", "python", "sql"):
+        assert POSTINGS[4] not in _filtered(profile, [skill])
+    assert POSTINGS[4] in visible(profile)
+    assert store.match_count(profile) == 5
+
+
+def test_facets_are_computed_over_the_unfiltered_set(profile):
+    """The chip options must show every skill available, with honest counts, so a selection
+    never removes the other chips. NULL skills contribute nothing."""
+    facets = store.match_skill_facets(profile)
+    assert facets == [
+        {"skill": "excel", "count": 3},
+        {"skill": "python", "count": 1},
+        {"skill": "sql", "count": 1},
+    ]
+
+
+def test_facets_and_filter_respect_hidden(profile):
+    """A hidden job leaves both the filtered list and the facet counts."""
+    store.set_matches_hidden(profile, [POSTINGS[0]], True)          # one of the excel jobs
+    assert _filtered(profile, ["excel"]) == [POSTINGS[1], POSTINGS[2]]
+    assert store.match_count(profile, skills_filter=["excel"]) == 2
+    assert store.match_skill_facets(profile)[0] == {"skill": "excel", "count": 2}

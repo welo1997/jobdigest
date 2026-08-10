@@ -9,11 +9,27 @@ import { track } from "@/lib/analytics";
 import { useMatchList } from "@/lib/useMatchList";
 import { rich, useI18n } from "@/i18n/context";
 
+// Chip label for a canonical skill id: "microsoft_office" → "Microsoft Office", keeping a
+// small set of acronyms upper-cased. Cosmetic only — the stored/filtered value is the id, so
+// this never has to agree with anything server-side.
+const SKILL_ACRONYMS = new Set([
+  "sql", "aws", "gcp", "php", "css", "html", "api", "sap", "bi", "ux", "ui", "qa",
+  "ml", "ai", "sre", "dba", "crm", "erp", "ios", "k8s", "nlp", "llm", "cad",
+]);
+function skillLabel(id: string): string {
+  return id
+    .split(/[_-]/)
+    .map((w) => (SKILL_ACRONYMS.has(w) ? w.toUpperCase() : w.charAt(0).toUpperCase() + w.slice(1)))
+    .join(" ");
+}
+
 function Inner() {
   const { t, href, count } = useI18n();
+  const [skills, setSkills] = useState<string[]>([]);
   const list = useMatchList({
     hidden: false,
     path: "/matches",
+    skills,
     // How many matches the page actually had — a page that routinely shows 0 or 1 is
     // a product problem, not a UI one.
     onLoaded: (d, token) => track("matches_viewed", { count: d.count }, token || undefined),
@@ -29,6 +45,10 @@ function Inner() {
       if (!next.delete(id)) next.add(id);
       return next;
     });
+
+  // Toggling a skill refetches (via useMatchList's deps) with the new filter, resetting paging.
+  const toggleSkill = (s: string) =>
+    setSkills((prev) => (prev.includes(s) ? prev.filter((x) => x !== s) : [...prev, s]));
 
   const hide = async () => {
     const ids = [...picked];
@@ -77,6 +97,37 @@ function Inner() {
     </Link>
   );
 
+  const facets = data.skill_facets ?? [];
+  const filtering = skills.length > 0;
+  // Shown whenever there is anything to filter by (or a filter is already on, so it can always
+  // be cleared). Facets are the *unfiltered* set, so the chips never vanish as you narrow.
+  const filterRow = (facets.length > 0 || filtering) && (
+    <div className="wrap skill-filter">
+      <span className="sf-lbl">{t.matches.filterBySkill}</span>
+      <div className="chips">
+        {facets.map((f) => {
+          const on = skills.includes(f.skill);
+          return (
+            <button
+              type="button"
+              key={f.skill}
+              className={`skill sel${on ? " on" : ""}`}
+              aria-pressed={on}
+              onClick={() => toggleSkill(f.skill)}
+            >
+              {skillLabel(f.skill)} <span className="c">{f.count}</span>
+            </button>
+          );
+        })}
+      </div>
+      {filtering && (
+        <button type="button" className="lnk" onClick={() => setSkills([])}>
+          {t.matches.clearFilter}
+        </button>
+      )}
+    </div>
+  );
+
   return (
     <>
       <div className="wrap page-head">
@@ -85,7 +136,7 @@ function Inner() {
         <p>{rich(t.matches.intro, [<b key="e">{data.email}</b>])}</p>
       </div>
 
-      {data.count === 0 ? (
+      {data.count === 0 && !filtering ? (
         <div className="state-wrap">
           <div className="state-card">
             <h1>{t.matches.nothingTitle}</h1>
@@ -98,6 +149,13 @@ function Inner() {
         </div>
       ) : (
         <>
+          {filterRow}
+          {data.count === 0 ? (
+            <div className="wrap" style={{ marginTop: 8 }}>
+              <p className="hint">{t.matches.nothingTitle}</p>
+            </div>
+          ) : (
+            <>
           <div className="wrap list-tools">
             <p className="hint">{t.matches.hideHint}</p>
             <div className="row">
@@ -146,6 +204,8 @@ function Inner() {
               </Link>
             </p>
           </div>
+            </>
+          )}
 
           <SelectionBar
             n={picked.size}

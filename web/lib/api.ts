@@ -112,6 +112,12 @@ export interface MatchesResponse {
   limit: number;
   /** Which half this response is: false = the matches page, true = the hidden page. */
   hidden: boolean;
+  /** The skill filter currently applied (validated server-side; junk is dropped). `count`
+   *  and `jobs` already reflect it. */
+  skills: string[];
+  /** All skills present across this view's matches (ignoring the filter) with counts — the
+   *  chip options. Most-common first. */
+  skill_facets: { skill: string; count: number }[];
   jobs: MatchJob[];
 }
 
@@ -244,11 +250,12 @@ export function getPreferences(token?: string) {
   return req<Preferences>(`/preferences${tokenQuery(token)}`);
 }
 
-export function getMatches(token?: string, offset = 0, hidden = false) {
+export function getMatches(token?: string, offset = 0, hidden = false, skills: string[] = []) {
   const q = new URLSearchParams();
   if (token) q.set("token", token);
   if (offset) q.set("offset", String(offset));
   if (hidden) q.set("hidden", "true");
+  if (skills.length) q.set("skills", skills.join(","));
   const s = q.toString();
   return req<MatchesResponse>(`/matches${s ? `?${s}` : ""}`);
 }

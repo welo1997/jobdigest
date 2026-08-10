@@ -356,6 +356,8 @@ const pl: Messages = {
       many: "{n} ukrytych ofert →",
       other: "{n} ukrytej oferty →",
     },
+    filterBySkill: "Filtruj według umiejętności",
+    clearFilter: "Wyczyść",
   },
 
   hidden: {
