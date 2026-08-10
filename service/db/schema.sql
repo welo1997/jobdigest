@@ -43,7 +43,12 @@ create table if not exists postings (
     seniority      text,                            -- junior | mid | senior
     work_type      text,                            -- permanent | freelance/contract
     is_part_time   boolean default false,
-    skills         jsonb default '[]'::jsonb,       -- Haiku-extracted, phase 2
+    -- Structured skills facet (migration 020): canonical tech/tool names the ad mentions,
+    -- from service/skills.extract_skills (a deterministic gazetteer, not AI). Null/empty means
+    -- "none named / not classified" and passes every gate — a facet only narrows on a positive
+    -- selection. See service/skills.py. (Was jsonb for the decommissioned Haiku plan; never
+    -- written, repurposed to text[] for array-containment filtering + unnest facet counts.)
+    skills         text[],
     dedup_key      text,                            -- normalised title+company, for near-dup collapse
 
     -- lifecycle / freshness (solves the stale-posting problem at service scale)
@@ -84,6 +89,10 @@ create index if not exists idx_postings_eligibility on postings (eligibility);
 create index if not exists idx_postings_dedup       on postings (dedup_key);
 -- Partial: only ~3% of rows carry a requirement, and the null-majority path never needs it.
 create index if not exists idx_postings_education   on postings (education_min) where education_min is not null;
+-- GIN over skill array elements (migration 020): index-backs `skills && array['python']` and
+-- unnest facet counts. Null/empty arrays add no entries, so it stays proportional to postings
+-- that name a skill.
+create index if not exists idx_postings_skills      on postings using gin (skills);
 create index if not exists idx_postings_title_trgm  on postings using gin (title gin_trgm_ops);
 create index if not exists idx_postings_search_tsv  on postings using gin (search_tsv);
 -- The embed backfill's own work queue: active rows still missing a vector. Partial, so it

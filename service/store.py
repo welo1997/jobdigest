@@ -67,7 +67,7 @@ _UPSERT_SQL = """
 insert into postings (
     posting_id, source, title, company, url, description, location, country_code, city,
     remote_signal, work_mode, education_min, salary_raw, currency, posted_at,
-    role_category, region, eligibility, seniority, work_type, is_part_time, dedup_key,
+    role_category, region, eligibility, seniority, work_type, is_part_time, dedup_key, skills,
     last_seen_at, is_active
 ) values %s
 on conflict (posting_id) do update set
@@ -98,6 +98,7 @@ on conflict (posting_id) do update set
     work_type = excluded.work_type,
     is_part_time = excluded.is_part_time,
     dedup_key = excluded.dedup_key,
+    skills = excluded.skills,
     last_seen_at = now(),
     is_active = true;
 """
@@ -115,16 +116,19 @@ def upsert_postings(rows: Iterable[dict]) -> int:
             r.get("role_category"), r.get("region"), r.get("eligibility"),
             r.get("seniority"), r.get("work_type"), r.get("is_part_time", False),
             r.get("dedup_key"),
+            # Empty skills list -> NULL, not ARRAY[]: psycopg2 renders `[]` as an untyped empty
+            # array Postgres cannot coerce, and null/empty are equivalent for the facet anyway.
+            r.get("skills") or None,
         )
         for r in rows
     ]
     if not values:
         return 0
-    # 22 placeholders for the 22 columns above `last_seen_at`. Counted, not eyeballed: these
+    # 23 placeholders for the 23 columns above `last_seen_at`. Counted, not eyeballed: these
     # bind by position, so one missing %s shifts every column after it by one and psycopg2
-    # cannot tell — it would write `dedup_key` into `is_part_time` and fail on the type, or
+    # cannot tell — it would write `skills` into `dedup_key` and fail on the type, or
     # worse, not fail at all. The assert below is cheap and turns that into a loud error.
-    template = ("(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,"
+    template = ("(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,"
                 "now(), true)")
     assert template.count("%s") == len(values[0]), (
         f"upsert template has {template.count('%s')} placeholders "

@@ -24,7 +24,7 @@ from search_jobs import (  # noqa: E402
     dedup_key, eligibility, gather, is_part_time,
     seniority, work_region, work_type,
 )
-from service import education, geo, store, taxonomy  # noqa: E402
+from service import education, geo, skills, store, taxonomy  # noqa: E402
 
 logger = logging.getLogger("service.ingest")
 
@@ -101,6 +101,10 @@ def build_row(p, title_cache: dict[str, str] | None = None,
         "seniority": seniority(p.title),
         "work_type": work_type(p.title, p.description),
         "is_part_time": is_part_time(p.title, p.description),
+        # Canonical skills the ad names (migration 020), deterministic gazetteer match. An empty
+        # list is stored as null by `upsert_postings` — null/empty passes every facet, the same
+        # rule as education_min above. See service/skills.py.
+        "skills": skills.extract_skills(p.title, p.description),
         "dedup_key": dedup_key(p),
     }
 
