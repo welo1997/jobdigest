@@ -79,9 +79,13 @@ PATTERNS: tuple[tuple[str, "re.Pattern[str]"], ...] = (
     # Ekonomichef), so a bare match would misfile every Swedish leadership title into
     # hospitality. Only the French-derived "chef de cuisine" is unambiguous.
     ("hospitality", re.compile(
-        r"chef de cuisine|\bbarista\b|waiter|waitress|bartender|receptionist|housekeep|"
+        r"chef de cuisine|barist|waiter|waitress|bartender|receptionist|housekeep|"
         r"restaurant manager|hotel manager|"
-        r"kuchař|kuchařk|číšník|servírk|recepční|barman|pokojsk|občerstven|"
+        # `kuchyn` (kitchen) is the single largest Czech gap in the key: "Pomocná síla do
+        # kuchyně", "Pomocník v kuchyni", "studená kuchyně" — kitchen-helper ads the -ař cook
+        # words never read (kuchyni appeared 38× among the misses). `barista` widened to
+        # `barist` for the plural "baristé". `pizzař` is the pizza cook.
+        r"kuchař|kuchařk|kuchyn|pizzař|číšník|servírk|recepční|barman|pokojsk|občerstven|"
         # `kock` with its Swedish suffixes and no others: "Sushikock", "Eventkockar" and
         # "Lunchkock" are cooks, and the shipyard "Kockums" is not.
         r"kock(?:ar|en|arna|erska)?\b|servitör|servitris|restaurang|hotellchef|bartender|"
@@ -103,13 +107,18 @@ PATTERNS: tuple[tuple[str, "re.Pattern[str]"], ...] = (
         # Czech. Stems, because the register writes the plural: "Zedníci", "Dělníci". The
         # nominative singular this pattern used to require matched almost none of them.
         r"stavbyvedoucí|stavebn|výstavb|zedn|tesař|dlaždič|kamnář|potrubář|"
-        r"natěrač|lakýrník|pokrývač|obkladač|izolatér|lešenář|betonář|"
+        # `štukatér`/`omítkář` (plasterers) and `malíř` (painter) — recurring in the ISCO key's
+        # construction misses; the register files a house painter as construction, not a trade.
+        r"natěrač|lakýrník|pokrývač|obkladač|izolatér|lešenář|betonář|štukatér|omítkář|malíř|"
         r"byggledare|byggnadsarbetare|snickare|snickeri|murare|platschef|"
         r"anläggningsarbetare|anläggare|rörläggare|byggarbetare|byggprojektledare|"
         r"stensättare|plattsättare|betongarbetare|betonghåltagare|takläggare|"
         r"träarbetare|markarbet|grävmaskinist|hjullastar|maskinförare|"
         r"ventilationsmontör|ventilationstekniker|kyltekniker|isoleringsmontör|"
-        r"ställningsmontör|ställningsbyggare|putsare|golvläggare|målar|"
+        # `betong` (concrete) and `måleri` (painting) — the bare stems the SSYK misses needed:
+        # "Renovering av betong", "Måleri", "Projektledare inom betong". `målar` already read
+        # "målare" but not the noun "måleri".
+        r"ställningsmontör|ställningsbyggare|putsare|golvläggare|målar|måleri|betong|"
         r"hantverkare|rivning|\brivare\b", re.I)),
     # `elkonstruktör` left this pattern on 2026-08-09: an electrical *designer* is an engineer,
     # and it only lived here because `engineering` did not exist yet. `konstruktör` picks it up.
@@ -125,8 +134,13 @@ PATTERNS: tuple[tuple[str, "re.Pattern[str]"], ...] = (
         # trade. Written as a lookahead rather than as a list of inflections because Czech
         # declines the í as well ("zámečník" → "zámečníci"), and a hand-listed plural is
         # exactly the kind of near-miss that looks correct and matches nothing.
-        r"elektrikář|elektrikár|svářeč|zámečn(?!a\b)|instalatér|montér|údržbář|"
-        r"automechanik|mechanik|opravář|údržb|"
+        r"elektrikář|elektrikár|elektrotechni|svářeč|zámečn(?!a\b)|instalatér|montér|údržbář|"
+        # `mechani[kc](?!al)` replaces `automechanik|mechanik`: the register writes the plural
+        # "Mechanici"/"Automechanici"/"Elektromechanici", where k→c dodged the -k singulars.
+        # The `(?!al)` lookahead is load-bearing — it keeps English "mechanical engineer" out
+        # (that stays `engineering`, which runs later) while still reading "mechanic(s)".
+        # `servisní technik` is the Czech service technician (bare `technik` stays declined).
+        r"mechani[kc](?!al)|opravář|údržb|servisní technik|"
         r"elektriker|rörmokare|mekaniker|"
         r"servicetekniker|underhållstekniker|driftstekniker|fastighetsskötare|"
         # Named trades only. A bare `tekniker` is NOT here on purpose: the register spreads it
@@ -137,7 +151,14 @@ PATTERNS: tuple[tuple[str, "re.Pattern[str]"], ...] = (
     ("logistics_transport", re.compile(
         r"warehouse|forklift|truck driver|delivery driver|courier|dispatcher|"
         r"logistics coordinator|freight|"
-        r"skladník|skladnic|řidič|kurýr|spediter|logistik|závozník|"
+        # `sklad(?!atel)` is the warehouse stem, and it replaces the singular-only
+        # `skladník|skladnic`: the register writes the plural "Skladníci", where the k→c
+        # declension dodged both (the same trap the comments above keep meeting). It covers
+        # skladník/skladu/skladový; the lookahead keeps out `skladatel` (a composer). Then
+        # dispatch/delivery: `expedic`/`expedien` (NOT bare `expedi`, which would eat the
+        # Swedish retail "Expedit"), `rozvoz`, `dispečer`, `doplňovač`, customs `deklarant`.
+        r"sklad(?!atel)|řidič|kurýr|spediter|logistik|závozník|"
+        r"expedic|expedien|rozvoz|dispečer|doplňovač|deklarant|"
         # Before manufacturing's `obsluha`: a forklift is materials handling, not production.
         r"manipulačn|vysokozdvižn|"
         r"\blager|truckkort|chaufför|orderplockare|terminalarbetare|godsmottag|"
@@ -153,7 +174,13 @@ PATTERNS: tuple[tuple[str, "re.Pattern[str]"], ...] = (
         # "Dělníci", "Dělnice", "v kovovýrobě". `obsluha` (machine tending) sits here only
         # because hospitality's `občerstven` and logistics' `manipulačn` read their own
         # senses of it first — this is the ordering rule doing real work.
-        r"operátor výroby|seřizovač|výrob|montážní|dělní|obsluha|"
+        # Bare `operátor` (was `operátor výroby`) is the single biggest ISCO-key gap — the
+        # register writes "Operátor", "OPERÁTOR / OPERÁTORKA", "Operátor/ka" with no domain
+        # word (22× among the misses). Safe here only because logistics runs first and takes
+        # "operátor skladu" via its `sklad` stem. `švadlen`/`šičk` (seamstress/sewer),
+        # `nástroja` (toolmaker), `tiskař` (printer), `lakovn` (paint shop) are the other
+        # recurring production nouns the -ař/-ič list missed.
+        r"operátor|seřizovač|výrob|montážní|dělní|obsluha|švadlen|šičk|nástroja|tiskař|lakovn|"
         r"obráběč|frézař|soustružník|brusič|lisař|balič|"
         r"truhlář|řezník|karosář|strojírensk|"
         r"produktionstekniker|produktionsmedarbetare|produktionspersonal|"
