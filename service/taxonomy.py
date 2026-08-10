@@ -155,6 +155,12 @@ PATTERNS: tuple[tuple[str, "re.Pattern[str]"], ...] = (
         r"data architect|data modell?er", re.I)),
     ("machine_learning", re.compile(
         r"machine learning|\bml engineer|\bai engineer|data scientist|mlops|"
+        # `data science` as a phrase, not only `data scientist`: "Data Science Manager" and
+        # "Data Science Trainee" were the two commonest ML titles left uncategorised
+        # (2026-08-10, 73 rows). The register advertises the *field* with a seniority word
+        # attached, which the -ist form never matched. `data_engineering` runs earlier and
+        # keeps "data engineer"; nothing there reads a bare "data science", so it lands here.
+        r"data science|"
         r"deep learning|computer vision|\bnlp\b|strojové uč|"
         # The vocabulary the field actually advertises in now. "Large Language Model
         # Architect" was the single commonest uncategorised English title in production
@@ -177,7 +183,8 @@ PATTERNS: tuple[tuple[str, "re.Pattern[str]"], ...] = (
         r"löne(?:administratör|assistent|konsult)", re.I)),
     ("data_analysis", re.compile(
         r"data analyst|bi analyst|business intelligence|power bi|\btableau\b|\banalyst\b|"
-        r"quantitative (?:researcher|analyst)|"
+        # `analist` is the Dutch/loan spelling that arrives via the NL boards ("Data Analist").
+        r"quantitative (?:researcher|analyst)|\banalist\b|"
         r"analytics|analytik|analytičk|analytičc", re.I)),
     ("devops_platform", re.compile(
         r"devops|platform engineer|site reliability|\bsre\b|cloud engineer|"
@@ -218,6 +225,9 @@ PATTERNS: tuple[tuple[str, "re.Pattern[str]"], ...] = (
     ("software_engineering", re.compile(
         r"software engineer|software developer|back[- ]?end|front[- ]?end|full[- ]?stack|"
         r"web developer|mobile developer|\bios\b|android|\bdeveloper\b|programmer|"
+        # "Software Development Manager/Lead" — `software developer` does not match "software
+        # development", so the manager or lead of a dev team read as uncategorised (2026-08-10).
+        r"software development (?:manager|lead|director)|"
         # `engr` because Workday and Oracle tenants abbreviate it in the title itself
         # ("Software Engr I", "Application Engr II") — 25 postings in one production sample,
         # invisible to `\bengineer\b`. `solutions?` because the plural is the commoner form
@@ -257,8 +267,13 @@ PATTERNS: tuple[tuple[str, "re.Pattern[str]"], ...] = (
         # support/service/care, all of which this pattern leaves to `customer_support`.
         r"store (?:manager|associate|assistant)|retail associate|grocery associate|"
         r"shop assistant|sales assistant|customer assistant|"
-        # IT/FR field-sales titles that arrive through adzuna and arbeitnow.
-        r"agente di commercio|commercial(?:e)?\s+terrain|"
+        # IT/FR field-sales titles that arrive through adzuna and arbeitnow. `commercial\S*`
+        # rather than `commercial(?:e)?`: the ads write "Commercial(e) terrain" with a literal
+        # "(e)", and the old `\s+` after an optional bare "e" could not cross it (2026-08-10, 31
+        # rows). `\bsdr\b`/`\bbdr\b`/`sales development`/`account development` are the standard US
+        # pipeline titles ("Sales Development Representative"), none of which contained "sales".
+        r"agente di commercio|commercial\S*\s+terrain|"
+        r"\bsdr\b|\bbdr\b|sales development|account development|"
         r"obchodn|prodejce|predajca|prodava|prodejn|pokladní|maloobchod|"
         # `sälj` as a stem, because the register writes "säljarjobb", "säljteam" and "Sälj på
         # förbokade möten" far more often than the bare "säljare" this used to require.
@@ -271,7 +286,10 @@ PATTERNS: tuple[tuple[str, "re.Pattern[str]"], ...] = (
         r"human resources|\bhr\b|rekryter|"
         r"personalist|nábor|náborář|mzdov[áý] účetní", re.I)),
     ("legal", re.compile(
-        r"\blegal\b|counsel|paralegal|compliance officer|"
+        # `lawyer` and `attorney` — the plain English words were both absent, so "Immigration
+        # Lawyer" (2026-08-10, 21 rows) and every US-style "... Attorney" title fell through to
+        # uncategorised while the Czech `advokát` and the Latinate `counsel` were already read.
+        r"\blegal\b|\blawyer\b|\battorney\b|counsel|paralegal|compliance officer|"
         r"právník|právnik|advokát|jurist|koncipient", re.I)),
     ("customer_support", re.compile(
         r"customer (?:support|service|care)|help ?desk|technical support|support specialist|"
@@ -338,8 +356,8 @@ def classify(title: str | None, hint: str | None = None) -> str:
 SHORTLIST_KEYWORDS: dict[str, list[str]] = {
     "data_engineering": ["data engineer", "analytics engineer", "datový inženýr", "etl", "dbt"],
     "data_analysis": ["data analyst", "bi analyst", "analytik", "power bi", "reporting"],
-    "machine_learning": ["machine learning", "ml engineer", "data scientist", "ai engineer",
-                         "strojové učení"],
+    "machine_learning": ["machine learning", "ml engineer", "data scientist", "data science",
+                         "ai engineer", "strojové učení"],
     "engineering": ["mechanical engineer", "electrical engineer", "civil engineer",
                     "process engineer", "ingenjör", "konstruktér", "konstruktör",
                     "strojní inženýr"],
@@ -359,7 +377,7 @@ SHORTLIST_KEYWORDS: dict[str, list[str]] = {
                            "redovisning", "ekonomiassistent"],
     "hr_recruiting": ["recruiter", "personalista", "nábor", "human resources", "hr",
                       "rekryterare"],
-    "legal": ["legal", "právník", "advokát", "counsel", "compliance", "jurist"],
+    "legal": ["legal", "lawyer", "právník", "advokát", "counsel", "compliance", "jurist"],
     "customer_support": ["customer support", "zákaznická podpora", "help desk", "it support",
                          "kundtjänst", "supporttekniker"],
     "operations": ["operations", "provozní", "supply chain", "nákup", "customer success"],

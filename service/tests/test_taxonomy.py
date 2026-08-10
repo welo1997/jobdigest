@@ -165,6 +165,23 @@ OPAQUE = "Något Oklassificerbart"
     ("Customer Assistant - Food - Malvern", "sales"),     # UK retail shop floor
     ("Customer Support Specialist", "customer_support"),  # ...and support is not retail
     ("Agente di commercio", "sales"),                     # IT field sales, via adzuna
+    # The 2026-08-10 pass: the head of the still-uncategorised English tail, each an existing
+    # category missing a surface form the register actually writes. SE/CZ accuracy unchanged
+    # (80.9% / 65.9%), so these are pure coverage on the English residue.
+    ("Data Science Manager", "machine_learning"),         # the field + a seniority word, not
+    ("Data Science Trainee", "machine_learning"),         # ...the -ist form the pattern had
+    ("Immigration Lawyer", "legal"),                      # `lawyer`/`attorney` were both absent
+    ("Senior Attorney", "legal"),
+    ("Software Development Manager", "software_engineering"),  # "development" != "developer"
+    ("Commercial(e) terrain - indépendant", "sales"),     # the literal "(e)" broke the old \s+
+    ("Sales Development Representative", "sales"),         # US pipeline titles that never said
+    ("SDR - EMEA", "sales"),                               # ...the word "sales"
+    ("Data Analist", "data_analysis"),                    # the Dutch/loan spelling, via NL
+    # Deliberate declines held from the same pass, kept as tests so they stay decisions: a
+    # bare "Quantitative Trader" has no trading category, and "Specialist, Client Processing"
+    # is one employer's internal vocabulary, not a profession.
+    ("Quantitative Trader", "uncategorised"),
+    ("Specialist, Client Processing", "uncategorised"),
     # A deliberate decline, kept as a test so it is a decision rather than an oversight: a
     # bare "Project Manager" is construction, IT, marketing or events depending on the
     # employer, and `uncategorised` is the honest answer for 50 postings rather than a guess
