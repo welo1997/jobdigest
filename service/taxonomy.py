@@ -56,6 +56,16 @@ PATTERNS: tuple[tuple[str, "re.Pattern[str]"], ...] = (
         r"terapeut|sjukgymnast|psykolog(?!i)|farmaceut|apotekare|tandhygienist|tandvård|"
         r"logoped|audionom|veterinär|djursjukskötare|hemtjänst|äldreomsorg|sjukvård|"
         r"omsorgsassistent|stödassistent", re.I)),
+    # Social work, added 2026-08-10 — the register's "Yrken med social inriktning" and Czech
+    # ISCO 2635/3412, ~130+ postings the answer keys used to mark out of scope. AFTER healthcare
+    # so a title carrying both a medical and a social word files as care; kept to social-work
+    # nouns that do not collide with healthcare's `omsorg`/`stödassistent`. Czech `kurátor`
+    # (a museum curator) is deliberately absent; Swedish `kurator` (a welfare counsellor) is not.
+    ("social_care", re.compile(
+        r"social worker|social work|caseworker|youth worker|support worker|child protection|"
+        r"sociální pracovn|sociáln[íy] prác|"
+        r"socialsekreterare|socialarbetare|socialpedagog|\bkurator\b|behandlingsassistent|"
+        r"boendestödjare|biståndshandläggare|socionom", re.I)),
     ("education", re.compile(
         r"teacher|lecturer|professor|educator|\btutor\b|kindergarten|preschool|"
         r"teaching assistant|"
@@ -174,6 +184,31 @@ PATTERNS: tuple[tuple[str, "re.Pattern[str]"], ...] = (
         r"large language model|\bllms?\b|generative ai|\bgen ?ai\b|"
         r"\bai\b[^|]{0,20}(?:architect|scientist)|prompt engineer|"
         r"umělá inteligence|umelá inteligencia|datov[ýá] v[ěe]dec", re.I)),
+    # Cybersecurity is a fourth tech axis, added 2026-08-10 (~306 uncategorised postings and
+    # named as unmet demand in CLAUDE.md). It MUST precede data_analysis (whose bare
+    # `\banalyst\b` would take "Security Analyst"), software_engineering (`\bengineer\b` ->
+    # "Security Engineer") and devops_platform ("cloud architect" -> "Cloud Security
+    # Architect"). Anchored to the discipline word: bare "security" is a physical guard or a
+    # safety role, so only the named security professions are read, and the Swedish half is the
+    # compound ("informationssäkerhet"), never bare "säkerhet".
+    ("cybersecurity", re.compile(
+        r"cyber ?security|information security|infosec|\bappsec\b|application security|"
+        r"security (?:engineer|analyst|architect|specialist|consultant|operations|engineering)|"
+        r"penetration test|pentest|red team|blue team|\bsoc analyst\b|"
+        r"threat (?:intelligence|hunting|detection)|vulnerability (?:management|analyst)|"
+        r"\bsiem\b|security operations cent|"
+        r"it-säkerhet|informationssäkerhet|cybersäkerhet|säkerhetsanalytiker|"
+        r"kybernetick[áé] bezpečnost|informační bezpečnost|bezpečnostní analytik", re.I)),
+    # Science / R&D — the applied, industry science the ATS boards carry (pharma, life sciences,
+    # labs), added 2026-08-10 (~300 uncategorised). AFTER machine_learning so "Data Scientist"
+    # stays ML; academic research (`forskare`, `doktorand`) stays in education on purpose — this
+    # is the industry bench, not the university. `\bscientist\b` is safe here because every
+    # data/ML sense of it was already claimed above.
+    ("science_research", re.compile(
+        r"\bscientist\b|research scientist|clinical research (?:associate|scientist|coordinator)|"
+        r"\bbiologist\b|\bchemist\b|physicist|microbiolog|biochemist|pharmacolog|toxicolog|"
+        r"bioinformatic|laboratory scientist|lab scientist|"
+        r"vědecký pracovník|výzkumný pracovník", re.I)),
     # Before `data_analysis` on purpose: that pattern ends in a bare `\banalyst\b`, so
     # "Financial Analyst" and "Credit Analyst" were landing in data analysis — a subscriber
     # asking for data work got finance roles, and one asking for finance got nothing.
@@ -369,6 +404,11 @@ SHORTLIST_KEYWORDS: dict[str, list[str]] = {
     "data_analysis": ["data analyst", "bi analyst", "analytik", "power bi", "reporting"],
     "machine_learning": ["machine learning", "ml engineer", "data scientist", "data science",
                          "ai engineer", "strojové učení"],
+    "cybersecurity": ["security engineer", "security analyst", "cybersecurity", "infosec",
+                      "penetration test", "soc analyst", "informationssäkerhet",
+                      "kybernetická bezpečnost"],
+    "science_research": ["research scientist", "scientist", "laboratory", "clinical research",
+                         "biologist", "chemist", "r&d", "vědecký pracovník"],
     "engineering": ["mechanical engineer", "electrical engineer", "civil engineer",
                     "process engineer", "ingenjör", "konstruktér", "konstruktör",
                     "strojní inženýr"],
@@ -398,6 +438,8 @@ SHORTLIST_KEYWORDS: dict[str, list[str]] = {
     "healthcare": ["nurse", "sestra", "zdravotní sestra", "lékař", "sjuksköterska", "läkare",
                    "undersköterska", "fysioterapeut", "psykolog", "hemtjänst",
                    "fyzioterapeut", "pečovatelka"],
+    "social_care": ["social worker", "social work", "sociální pracovník", "socialsekreterare",
+                    "socionom", "youth worker", "support worker"],
     "education": ["teacher", "učitel", "učitelka", "lärare", "pedagog", "lektor",
                   "förskollärare", "förskola", "elevassistent"],
     "hospitality": ["kuchař", "číšník", "recepční", "kock", "servitör", "barista",
@@ -419,6 +461,8 @@ SUBJECT_WORDS: dict[str, str] = {
     "data_engineering": "data engineering",
     "data_analysis": "data",
     "machine_learning": "ML",
+    "cybersecurity": "security",
+    "science_research": "science",
     "engineering": "engineering",
     "software_engineering": "engineering",
     "devops_platform": "platform",
@@ -433,6 +477,7 @@ SUBJECT_WORDS: dict[str, str] = {
     "customer_support": "support",
     "operations": "operations",
     "healthcare": "healthcare",
+    "social_care": "social care",
     "education": "education",
     "hospitality": "hospitality",
     "skilled_trades": "trades",

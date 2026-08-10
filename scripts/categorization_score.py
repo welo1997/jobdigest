@@ -120,6 +120,11 @@ OUT_OF_SCOPE: frozenset[str] = frozenset({
     "Säkerhet och bevakning", "Kropps- och skönhetsvård", "Naturvetenskap",
     "Militära yrken", "Chefer och verksamhetsledare", "Kultur, media, design",
     # "Yrken med teknisk inriktning" left this set on 2026-08-09 — it now maps to engineering.
+    # `social_care` (2026-08-10) is graded on the CZ key (ISCO 2635/3412), NOT here: the SSYK
+    # "social inriktning" field is dominated by personal-care assistants the taxonomy files under
+    # healthcare, so grading it as social_care would measure an unmade healthcare/social boundary
+    # decision, not the classifier. `cybersecurity` and `science_research` are likewise
+    # English/CZ-measured — SSYK does not isolate them.
 })
 
 #: The same exclusion one level down: *groups* inside an in-scope field that the field's
@@ -159,17 +164,19 @@ ISCO_MAP: dict[str, str] = {
     "1341": "education", "1346": "finance_accounting",
     "141": "hospitality", "142": "sales",
     # 2 professionals
+    "211": "science_research", "213": "science_research",   # physical/earth + life scientists
     "214": "engineering", "215": "engineering",       # engineering, incl. electrotechnology
     "22": "healthcare", "23": "education",
     "241": "finance_accounting", "2423": "hr_recruiting", "2424": "hr_recruiting",
     "2431": "marketing", "2432": "marketing", "2433": "sales", "2434": "sales",
     "251": "software_engineering", "252": "devops_platform",
-    "261": "legal",
+    "261": "legal", "2635": "social_care",            # social work and counselling professionals
     # 3 technicians and associate professionals
     "311": "engineering", "3122": "manufacturing_production", "3123": "construction",
     "313": "manufacturing_production",
     "32": "healthcare",
     "331": "finance_accounting", "332": "sales",
+    "3412": "social_care",                             # social work associate professionals
     "3331": "logistics_transport", "3333": "hr_recruiting",
     "3432": "design", "3434": "hospitality",
     "351": "customer_support",                        # ICT operations and user support
@@ -209,9 +216,10 @@ ISCO_MAP: dict[str, str] = {
 ISCO_OUT_OF_SCOPE: frozenset[str] = frozenset({
     "0",                          # armed forces
     "11", "131", "1322", "133", "1344", "1349", "143",   # managers with no category here
-    "211", "212", "213", "216",   # physical/life science, statisticians, architects
+    "212", "216",                 # statisticians/mathematicians, architects (211/213 now science)
     "2421", "2422",               # management analysts, policy administration
     "262", "263", "264", "265",   # librarians, social/religious, journalists, artists
+                                  #   (263 stays out; 2635 social work opts back in via ISCO_MAP)
     "3121", "314", "315",         # mining supervisors, life science techs, ship/air control
     "3332", "3334", "3339", "334", "335",   # events, real estate, secretaries, regulatory
     "341", "342", "343",          # legal/social associates, sports coaches, arts
