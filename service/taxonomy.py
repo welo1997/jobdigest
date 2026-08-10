@@ -52,6 +52,8 @@ PATTERNS: tuple[tuple[str, "re.Pattern[str]"], ...] = (
         r"caregiver|midwife|\bgp\b|surgeon|radiolog|"
         r"sestra|sestry|zdravotn|lékař|lékárn|zubní|ošetřovatel|pečovat|"
         r"skötersk|läkare|tandläkare|barnmorska|vårdbiträde|\bvårdare\b|vårdsamordnare|"
+        # Norwegian/Danish nurse (SE `skötersk` does not read these): sykepleier / sygeplejer(ske).
+        r"sykepleier|sjukepleier|sygeplejer|"
         # `terapeut` covers fysio-, arbets-, psyko- and samtalsterapeut in both languages.
         r"terapeut|sjukgymnast|psykolog(?!i)|farmaceut|apotekare|tandhygienist|tandvård|"
         r"logoped|audionom|veterinär|djursjukskötare|hemtjänst|äldreomsorg|sjukvård|"
@@ -112,6 +114,8 @@ PATTERNS: tuple[tuple[str, "re.Pattern[str]"], ...] = (
         r"natěrač|lakýrník|pokrývač|obkladač|izolatér|lešenář|betonář|štukatér|omítkář|malíř|"
         r"byggledare|byggnadsarbetare|snickare|snickeri|murare|platschef|"
         r"anläggningsarbetare|anläggare|rörläggare|byggarbetare|byggprojektledare|"
+        # Norwegian: `anlegg` (civil works) compounds — "Anleggsleder", "Anleggsarbeider".
+        r"anleggsleder|anleggsarbeider|"
         r"stensättare|plattsättare|betongarbetare|betonghåltagare|takläggare|"
         r"träarbetare|markarbet|grävmaskinist|hjullastar|maskinförare|"
         r"ventilationsmontör|ventilationstekniker|kyltekniker|isoleringsmontör|"
@@ -185,7 +189,7 @@ PATTERNS: tuple[tuple[str, "re.Pattern[str]"], ...] = (
         r"truhlář|řezník|karosář|strojírensk|"
         r"produktionstekniker|produktionsmedarbetare|produktionspersonal|"
         r"produktionsarbetare|operatör|ställare|"
-        r"svetsare|\bsvets\b|montör|montering|montage|"
+        r"svetsare|\bsvets\b|montör|montør|montering|montage|"  # montør: Norwegian fitter
         # Vehicle body repair: the register files it as manufacturing, not as a trade.
         r"plåtslagare|skadetekniker|bilskade|däcktekniker|tryckeri|"
         r"produktionsledare|industriarbetare", re.I)),
@@ -279,7 +283,7 @@ PATTERNS: tuple[tuple[str, "re.Pattern[str]"], ...] = (
         r"process engineer|chemical engineer|automotive engineer|aerospace engineer|"
         r"industrial engineer|manufacturing engineer|mechatronic|electronics engineer|"
         r"hardware engineer|electrical\b.{0,40}engineer|"
-        r"ingenjör|ingeniör|"                     # any Swedish -ingenjör compound
+        r"ingenjör|ingeniör|ingeniør|"            # SE -ingenjör / -ingeniör and NO -ingeniør
         # `konstruktör` (SE) as well as `konstruktér` (CZ): mechanical and electrical designers
         # are the single largest group inside the register's technical field, and until
         # 2026-08-09 the Swedish spelling was the one missing.
@@ -342,7 +346,9 @@ PATTERNS: tuple[tuple[str, "re.Pattern[str]"], ...] = (
         # pipeline titles ("Sales Development Representative"), none of which contained "sales".
         r"agente di commercio|commercial\S*\s+terrain|"
         r"\bsdr\b|\bbdr\b|sales development|account development|"
-        r"obchodn|prodejce|predajca|prodava|prodejn|pokladní|maloobchod|"
+        # `prodejc`/`predajc` (was `prodejce`/`predajca`): the plural "Prodejci"/"Predajcovia"
+        # dodged the singular via the e→i/-a declension, the same trap fixed elsewhere.
+        r"obchodn|prodejc|predajc|prodava|prodejn|pokladní|maloobchod|"
         # `sälj` as a stem, because the register writes "säljarjobb", "säljteam" and "Sälj på
         # förbokade möten" far more often than the bare "säljare" this used to require.
         r"sälj|försäljning|butik|kundansvarig|kundrådgivare|\bprovision\b|"
