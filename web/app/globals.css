@@ -292,6 +292,13 @@ button.nav-link{background:none;border:0;padding:0;cursor:pointer;font-family:in
 .tag{font-family:var(--font-mono);font-size:10px;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);
   background:var(--surface-2);border:1px solid var(--line);border-radius:var(--r-pill);padding:2px 8px;}
 .tag.fl{color:var(--gold);border-color:color-mix(in srgb,var(--gold) 40%,var(--line));background:var(--gold-soft);}
+/* Skill chips (migration 020). Deliberately distinct from meta `.tag`s: canonical tool names
+   are proper nouns, so no uppercasing, and a brand tint sets the tech facet apart from
+   region/seniority/salary meta. */
+.skills{display:flex;flex-wrap:wrap;gap:5px;margin:6px 0;}
+.skill{font-family:var(--font-mono);font-size:10px;letter-spacing:.02em;color:var(--brand-deep);
+  background:var(--brand-tint);border:1px solid color-mix(in srgb,var(--brand-deep) 22%,var(--line));
+  border-radius:var(--r-pill);padding:2px 8px;}
 .reason{font-size:var(--fs-sm);color:var(--muted);}
 .reason mark{background:var(--brand-tint);color:var(--brand-deep);padding:0 3px;border-radius:3px;font-weight:600;}
 .job .apply{font-size:var(--fs-xs);font-weight:700;margin-top:5px;display:inline-block;}

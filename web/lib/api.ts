@@ -94,6 +94,9 @@ export interface MatchJob {
   salary: string | null;
   score: number | null;
   summary: string | null;
+  /** Extracted tech/tool facet (migration 020). Canonical names, rendered as read-only chips
+   *  untranslated (they are proper nouns). Always an array — empty when the ad named none. */
+  skills: string[];
   posted_at: string | null;
 }
 
@@ -133,6 +136,8 @@ export interface PreviewJobCard {
   seniority: string | null;
   work_type: string | null;
   tags: string[];
+  /** Same skills facet as MatchJob, extracted from the description for the preview. */
+  skills: string[];
   why: string;
 }
 

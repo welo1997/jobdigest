@@ -56,7 +56,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, RedirectResponse
 from pydantic import BaseModel, EmailStr, Field, field_validator
 
-from service import (cvparse, education, geo, i18n, links, mailer, store, taxonomy,
+from service import (cvparse, education, geo, i18n, links, mailer, skills, store, taxonomy,
                      transactional)
 from service.digest import C, SANS, SERIF
 
@@ -591,6 +591,10 @@ def _preview_view(j: dict, terms: list[str]) -> dict:
         "seniority": j.get("seniority"),
         "work_type": j.get("work_type"),
         "tags": dedup[:5],
+        # Extracted from the description on the fly here (the preview query returns it) rather
+        # than from stored `skills` — avoids touching the shared matcher shortlist query. Same
+        # gazetteer, so the result matches the stored value on /matches.
+        "skills": skills.extract_skills(j.get("title"), j.get("description")),
         "why": why,
     }
 
@@ -1005,6 +1009,9 @@ def _match_view(j: dict) -> dict:
         "salary": j.get("salary_raw"),
         "score": j.get("score"),
         "summary": j.get("summary"),
+        # Extracted tech/tool facet (migration 020), read-only chips. Null/empty -> [] so the
+        # web can always `.map` it. Canonical names are proper nouns, rendered untranslated.
+        "skills": j.get("skills") or [],
         "posted_at": posted.isoformat() if hasattr(posted, "isoformat") else posted,
     }
 

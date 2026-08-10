@@ -828,7 +828,7 @@ def matched_jobs(profile_id: str, limit: int = 50, offset: int = 0,
             select p.posting_id, p.source, p.title, p.company, p.url, p.location,
                    p.region, p.city, p.eligibility, p.seniority, p.work_type, p.is_part_time,
                    p.remote_signal, p.work_mode,
-                   p.role_category, p.salary_raw, p.currency, p.posted_at,
+                   p.role_category, p.salary_raw, p.currency, p.posted_at, p.skills,
                    m.score, m.summary
             from matches m
             join postings p on p.posting_id = m.posting_id

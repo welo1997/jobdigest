@@ -76,6 +76,15 @@ export function MatchCard(
             <span key={i} className={`tag${tag.fl ? " fl" : ""}`}>{tag.text}</span>
           ))}
         </div>
+        {/* Skill chips: canonical tool names (data, not translated copy), read-only. Capped so
+            a keyword-stuffed ad cannot blow out the card. */}
+        {j.skills && j.skills.length > 0 && (
+          <div className="skills">
+            {j.skills.slice(0, 10).map((s) => (
+              <span key={s} className="skill">{s}</span>
+            ))}
+          </div>
+        )}
         {j.summary && <div className="why">{j.summary}</div>}
         {href && (
           <a

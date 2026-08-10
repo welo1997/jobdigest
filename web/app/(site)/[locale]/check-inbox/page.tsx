@@ -21,6 +21,14 @@ function PreviewRow({ j }: { j: PreviewJobCard }) {
             <span key={i} className={`tag${/free|contract/i.test(tag) ? " fl" : ""}`}>{tag}</span>
           ))}
         </div>
+        {/* Skill chips: canonical tool names (data, not translated copy), read-only. */}
+        {j.skills && j.skills.length > 0 && (
+          <div className="skills">
+            {j.skills.slice(0, 10).map((s) => (
+              <span key={s} className="skill">{s}</span>
+            ))}
+          </div>
+        )}
         {j.why && <div className="why">{j.why}</div>}
         {href && (
           <a className="apply" href={href} target="_blank" rel="noopener noreferrer">
