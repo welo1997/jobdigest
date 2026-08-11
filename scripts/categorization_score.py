@@ -66,6 +66,8 @@ CACHE = Path(os.environ.get("CATEGORIZATION_TRUTH", ROOT / "notes" / "categoriza
                             "ssyk_truth.json"))
 CZ_CACHE = Path(os.environ.get("CATEGORIZATION_TRUTH_CZ", ROOT / "notes" / "categorization" /
                                "isco_truth.json"))
+NO_CACHE = Path(os.environ.get("CATEGORIZATION_TRUTH_NO", ROOT / "notes" / "categorization" /
+                               "styrk_truth.json"))
 BASE_URL = "https://jobsearch.api.jobtechdev.se/search"
 
 #: SSYK occupation *field* → category, for the fields that mean exactly one thing.
@@ -381,6 +383,177 @@ def fetch_cz(limit: int = 2000, bucket: int = 0, seed: int = 0) -> list[dict]:
     return rows
 
 
+#: NAV's feed, re-derived from the granting document on 2026-08-11 rather than copied from
+#: any note. **The URLs recorded in `docs/sources.md` and `notes/2026-08-07-norway.md` are
+#: dead** — `arbeidsplassen.nav.no/api/*` 404s. The live chain is `/vilkar-api` -> its "Slik
+#: får du tilgang" section -> the Felles datakatalog dataset -> `navikt.github.io/pam-stilling-feed`.
+NO_BASE = "https://pam-stilling-feed.nav.no"
+NO_TOKEN_URL = f"{NO_BASE}/api/publicToken"
+NO_FEED_URL = f"{NO_BASE}/api/v1/feed"
+
+
+def fetch_no(limit: int = 2000, bucket: int = 0, days: int = 6) -> list[dict]:
+    """Build the Norwegian answer key from NAV's public job feed.
+
+    **Why Norwegian is worth a key even though Norway is ~0.1% of the corpus:** the key
+    measures the *classifier*, not the inventory. `CLAUDE.md` names Norwegian as one of three
+    languages whose role words "mostly arrive `uncategorised`", and six of the nine languages
+    the taxonomy now carries are unfalsifiable — no coded register exists for them and none is
+    permitted. This closes one of those for the price of one function, and it does so *before*
+    any Norwegian vocabulary is written, which is the right order: the key is what says whether
+    the teaching worked.
+
+    Permission is a positive grant, not a disclaimer: `arbeidsplassen.nav.no/vilkar-api` says
+    *"Alle kan bruke tenesta"* and gives consumers *"rett til å republisere og vise mottekne
+    jobbannonsar på sine tenester, **og/eller bruke dei til statistiske/analytiske formål**"* —
+    an answer key is the second named use, and a strictly lighter one than the republication
+    the same sentence already allows. The token comes from `GET /api/publicToken` with no
+    account, no form and no email, so the skip rule does not apply; it rotates, so it is
+    fetched every run and never stored.
+
+    **`STYRK08` is assigned by the publisher, not derived from the title**, which is what makes
+    grading `taxonomy.classify` against it non-circular. Three independent signs: ads whose
+    title contains no occupation word at all still carry a specific code ("Vikariat" ->
+    5246 *Gatekjøkken- og kafémedarbeidere*); every score is exactly 1.0, a picked value rather
+    than a ranked match; and a separate `jobtitle` field exists alongside the free-text `title`.
+
+    STYRK-08 is Norway's ISCO-08, so `ISCO_MAP` is reused unchanged — but **verified key by key,
+    not assumed**. The two schemes do diverge: STYRK minor group 222 has four unit groups where
+    ISCO-08 has two, and there is no ISCO-08 2223 at all (it is *Sykepleiere*, the commonest
+    professional code in the corpus). All 32 four-digit keys `ISCO_MAP` actually uses exist in
+    STYRK-08 with the same meaning, and the national subdivisions sit inside minor groups the
+    map keys at two digits, so `truth_for_isco`'s longest-prefix walk still lands right.
+    Anyone adding a four-digit key to `ISCO_MAP` must re-check it against STYRK-08.
+
+    Three traps, each verified live on 2026-08-11 rather than taken on trust:
+
+    - **`If-Modified-Since` must be built with `email.utils.format_datetime`.** A weekday that
+      does not match the date is *silently ignored* and the feed falls back to its 2023-06-14
+      head. Measured, same date and host, one second apart: `Sun, 09 Aug 2026` -> the 2026
+      window; `Mon, 09 Aug 2026` -> 2023. The assertion below is what turns that silent
+      failure into a loud one, and it is the reason the function has an assert at all.
+    - **The feed is an append-only change log**, so the last entry for a uuid wins and an ad
+      that goes INACTIVE mid-walk must not enter the key. Hence a dict keyed by uuid.
+    - **~9% of ads carry more than one STYRK08 code, every one scored 1.0.** Taking the first
+      would grade the classifier against an arbitrary pick, so a row whose codes disagree about
+      the category is dropped and counted — the same principle as the map's standing rule never
+      to map to something close.
+
+    Personal data: NAV ads name a contact in the large majority of cases, so `contactList`,
+    `employer` and `description` are **never read**. The key holds a public job title and an
+    occupation code, which adds no personal-data category and leaves the privacy policy
+    untouched (security rule 4).
+
+    `bucket` is a partition on the ad's own immutable `uuid`, exactly as `fetch_cz` partitions
+    on `portalId` — applied *before* the detail fetch, so it also halves the network cost.
+    """
+    import email.utils
+    import hashlib
+    import re as _re
+    from datetime import datetime, timedelta, timezone
+
+    import requests
+
+    from ingestion import politeness
+
+    def _token() -> str:
+        politeness.throttle(NO_TOKEN_URL)
+        resp = requests.get(NO_TOKEN_URL, headers=politeness.HEADERS, timeout=30)
+        resp.raise_for_status()
+        # The body is a human-readable blurb with the JWT inside it, NOT a bare token —
+        # `resp.text.strip()` would send the whole sentence as a bearer credential.
+        found = _re.search(r"[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+", resp.text)
+        if not found:
+            raise RuntimeError("no JWT in NAV's public token response")
+        return found.group(0)
+
+    try:
+        auth = {**politeness.HEADERS, "Authorization": f"Bearer {_token()}"}
+    except Exception as exc:                                             # noqa: BLE001
+        print(f"  NAV token unavailable ({exc})", file=sys.stderr)
+        return []
+
+    since = email.utils.format_datetime(datetime.now(timezone.utc) - timedelta(days=days))
+    politeness.throttle(NO_FEED_URL)
+    resp = requests.get(NO_FEED_URL, headers={**auth, "If-Modified-Since": since}, timeout=60)
+    if resp.status_code != 200:
+        print(f"  NAV feed returned {resp.status_code}", file=sys.stderr)
+        return []
+    page = resp.json()
+
+    items = page.get("items") or []
+    if not items:
+        print("  NAV feed returned no items", file=sys.stderr)
+        return []
+    # The weekday trap, made loud. Without this a mis-built header reads as a successful run
+    # over three-year-old ads, and every number computed from it would be quietly wrong.
+    if (items[0].get("date_modified") or "")[:4] == "2023":
+        raise RuntimeError(
+            "NAV feed fell back to its 2023-06-14 head — the If-Modified-Since weekday trap. "
+            "Build the header with email.utils.format_datetime, never by hand.")
+
+    active: dict[str, str] = {}
+    seen = pages = 0
+    while page and pages < 40:
+        for item in page.get("items", []):
+            entry = item.get("_feed_entry") or {}
+            uuid = entry.get("uuid")
+            if not uuid:
+                continue
+            seen += 1
+            if entry.get("status") == "ACTIVE":
+                active[uuid] = uuid
+            else:
+                active.pop(uuid, None)          # the last entry for a uuid wins
+        pages += 1
+        nxt = page.get("next_url")
+        if not nxt or not page.get("items"):
+            break
+        politeness.throttle(NO_FEED_URL)
+        nxt_resp = requests.get(NO_BASE + nxt if nxt.startswith("/") else nxt,
+                                headers=auth, timeout=60)
+        if nxt_resp.status_code != 200:
+            break
+        page = nxt_resp.json()
+
+    # Partition BEFORE the detail fetch: which half an ad belongs to is a property of the ad.
+    wanted = [u for u in active
+              if hashlib.md5(u.encode()).digest()[0] % 2 == bucket % 2][:limit]
+
+    rows: list[dict] = []
+    no_code = disagreed = failed = 0
+    for uuid in wanted:
+        politeness.throttle(NO_BASE)
+        try:
+            detail = requests.get(f"{NO_BASE}/api/v1/feedentry/{uuid}", headers=auth, timeout=30)
+            if detail.status_code != 200:
+                failed += 1
+                continue
+            content = detail.json().get("ad_content") or {}
+        except (requests.RequestException, ValueError):
+            failed += 1
+            continue
+        codes = [c.get("code") for c in (content.get("categoryList") or [])
+                 if c.get("categoryType") == "STYRK08" and c.get("code")]
+        if not codes:
+            no_code += 1
+            continue
+        if len({truth_for_isco(c)[0] for c in codes}) > 1:
+            disagreed += 1                       # never grade against an arbitrary pick
+            continue
+        title = (content.get("title") or "").strip()
+        if not title:
+            continue
+        # Title and code only. Nothing else is read, by design.
+        rows.append({"title": title, "isco": codes[0]})
+
+    print(f"  NAV: {seen} feed entries over {pages} pages -> {len(active)} active, "
+          f"{len(wanted)} in bucket {bucket} -> {len(rows)} keyed "
+          f"({no_code} no STYRK08, {disagreed} multi-code disagreement, {failed} fetch failed)",
+          file=sys.stderr)
+    return rows
+
+
 def score(rows: list[dict]) -> dict:
     graded = 0
     correct = 0
@@ -498,6 +671,15 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--cz-bucket", type=int, default=0, choices=(0, 1),
                     help="which half of the register to sample: 0 is the working key, 1 is "
                          "the disjoint holdout. Score Czech pattern work on bucket 1")
+    ap.add_argument("--fetch-no", action="store_true",
+                    help="build the Norwegian (STYRK-08) answer key from NAV's public feed")
+    ap.add_argument("--no-limit", type=int, default=2000,
+                    help="how many Norwegian ads to key (default 2000)")
+    ap.add_argument("--no-bucket", type=int, default=0, choices=(0, 1),
+                    help="which half of the feed to key: 0 is the working key, 1 is the "
+                         "disjoint holdout. Score Norwegian pattern work on bucket 1")
+    ap.add_argument("--no-days", type=int, default=6,
+                    help="how far back to walk NAV's change log (default 6 days)")
     ap.add_argument("--titles", type=Path,
                     help="a file of production titles (one per line) to report coverage on")
     args = ap.parse_args(argv)
@@ -512,10 +694,16 @@ def main(argv: list[str] | None = None) -> int:
         CZ_CACHE.parent.mkdir(parents=True, exist_ok=True)
         CZ_CACHE.write_text(json.dumps(rows, ensure_ascii=False, indent=1), encoding="utf-8")
         print(f"answer key (CZ): {len(rows)} vacancies -> {CZ_CACHE}")
+    if args.fetch_no:
+        rows = fetch_no(args.no_limit, args.no_bucket, args.no_days)
+        NO_CACHE.parent.mkdir(parents=True, exist_ok=True)
+        NO_CACHE.write_text(json.dumps(rows, ensure_ascii=False, indent=1), encoding="utf-8")
+        print(f"answer key (NO): {len(rows)} ads -> {NO_CACHE}")
 
-    # Both slices, separately. Averaging them would hide the trade this gate exists to catch:
+    # Every slice separately. Averaging them would hide the trade this gate exists to catch:
     # a change that lifts one language while sinking another.
-    keys = [("Swedish register (SSYK)", CACHE), ("Czech register (ISCO-08)", CZ_CACHE)]
+    keys = [("Swedish register (SSYK)", CACHE), ("Czech register (ISCO-08)", CZ_CACHE),
+            ("Norwegian register (STYRK-08)", NO_CACHE)]
     found = [(label, path) for label, path in keys if path.exists()]
     if not found:
         print(f"no answer key at {CACHE} or {CZ_CACHE}; run --fetch / --fetch-cz first",
@@ -524,15 +712,18 @@ def main(argv: list[str] | None = None) -> int:
     for label, path in found:
         rows = json.loads(path.read_text(encoding="utf-8"))
         report(label, rows, args.titles)
-        # The Czech key covers the whole labour market on purpose (see `fetch_cz`), but
-        # `mpsv.ISCO_MAJOR_KEEP` ingests majors 1-3 only. Reporting one number would answer
-        # neither question honestly: the whole-register figure says how well Czech titles are
-        # read, and the ingested slice says what a subscriber is affected by *today*. A gap
-        # between them is information, not noise.
+        # The code-based keys cover the whole labour market on purpose (see `fetch_cz` and
+        # `fetch_no`), while the adapters keep majors 1-3 only. Reporting one number would
+        # answer neither question honestly: the whole-register figure says how well that
+        # language's titles are *read*, and the majors 1-3 slice says what a subscriber is
+        # affected by *today*. A gap between them is information, not noise.
+        #
+        # The label names the slice rather than the adapter, because two registers now feed
+        # this branch and only one of them is MPSV. For Norway the 1-3 slice is what a future
+        # `nav` adapter would ingest, not what it ingests today — it is not built yet.
         ingested = [r for r in rows if str(r.get("isco", ""))[:1] in "123"]
         if ingested and len(ingested) != len(rows):
-            report(f"{label} — the slice MPSV actually ingests (majors 1-3)",
-                   ingested, args.titles)
+            report(f"{label} — majors 1-3, the slice an adapter keeps", ingested, args.titles)
     if len(found) < len(keys):
         missing = [str(p) for label, p in keys if not p.exists()]
         print(f"  (not scored: {', '.join(missing)} — that language is unmeasured, which is "
