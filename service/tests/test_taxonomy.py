@@ -127,6 +127,11 @@ OPAQUE = "Något Oklassificerbart"
     # where these titles are NOT from.
     ("Zedníci", "construction"),                          # plural: the stem, not the word
     ("Zámečníci", "skilled_trades"),                      # ...and Czech declines the í too
+    # `svářeč` (welder) follows `svetsare` into manufacturing, not trades — the SSYK/ISCO
+    # boundary applied to Czech at last (2026-08-10, 43 rows the classifier had called trades).
+    # `zámečník` (fitter) above stays a trade: this is the welder alone, not the whole stem list.
+    ("Svářeč", "manufacturing_production"),
+    ("Svářeči kovů", "manufacturing_production"),          # plural, the register's own spelling
     ("Dělník / dělnice v kovovýrobě - zámečna", "manufacturing_production"),
                                                           # `zámečna` is the shop floor, not
                                                           # the locksmith
@@ -220,6 +225,205 @@ def test_social_media_beats_the_catch_all():
     assert taxonomy.classify("Marketing Specialist") == "marketing"
     # ...but a designer who also runs the socials is still a designer.
     assert taxonomy.classify("Grafik a správa sociálních sítí") == "design"
+
+
+def test_monteur_is_a_trade_by_decision_not_by_ordering():
+    """`monteur` was wanted by three languages in two different categories.
+
+    The German and French vocabulary passes both proposed it for `manufacturing_production`;
+    the Dutch pass proposed `skilled_trades`. Because skilled_trades runs first, shipping all
+    three would have resolved the disagreement *by ordering accident* — and the next person to
+    reorder the file would silently reclassify three languages without knowing they had.
+
+    It is a trade because the repo already splits the cognates that way (Czech `montér` is a
+    trade; Swedish/Norwegian `montör|montør` is manufacturing, on the SSYK boundary) and
+    because every collected instance is a field fitter. This test pins the decision, and the
+    two cognates on either side of it so the split cannot quietly collapse into one answer."""
+    assert taxonomy.classify("Servicemonteur Havenkranen") == "skilled_trades"
+    assert taxonomy.classify("Reifenmonteur (m/w/d)") == "skilled_trades"
+    assert taxonomy.classify("Monteur-Câbleur Electronique") == "skilled_trades"
+    # The two neighbours the decision is defined against.
+    assert taxonomy.classify("Montér ve výrobě") == "skilled_trades"        # CZ, unchanged
+    assert taxonomy.classify("Montör till fabriken") == "manufacturing_production"  # SE
+
+
+def test_polish_projektant_never_becomes_design():
+    """Polish *projektant* is a designer; Czech *projektant* is a design engineer — and the
+    Czech sense is already in `engineering`.
+
+    Filing the string under `design` (which runs earlier) to serve Polish costs the Czech
+    answer key 14 rows, 77.70% -> 77.01%. No ordering resolves it, because the two languages
+    disagree about what the word means. It was cut for that reason, and this test exists so
+    that a future Polish pass re-adding it fails here rather than in the CZ accuracy number,
+    where it would read as an unexplained regression."""
+    assert taxonomy.classify("Projektant elektro") == "engineering"
+    # The category that claims the bare word must be engineering, and it must be the FIRST
+    # pattern that matches — an added `design` entry would win on order without changing the
+    # line above if `design` ever moved.
+    claimants = [c for c, p in taxonomy.PATTERNS if p.search("projektant")]
+    assert claimants and claimants[0] == "engineering", claimants
+
+
+@pytest.mark.parametrize("title,expected,trap", [
+    # Each of these is a real production/answer-key string that a bare stem read wrongly.
+    ("Przedstawiciel handlowy - branża farmaceutyczna", "sales",
+     "PL *farmaceutyczny* is a pharma sales adjective, not a pharmacist"),
+    ("Inżynier mechaniczny", "engineering",
+     "PL *mechaniczny* is an adjective; bare mechani[kc] filed it as a trade"),
+    ("ADDETTO/A VENDITA KIABI PARMA", "sales",
+     "IT ads write the gender slash inline; addett\\w+ vendit matches 0 of these without it"),
+    ("Addetto/a Assistenza Clienti per Azienda Commerciale", "customer_support",
+     "bare IT `commerciale` is a sector adjective in 21 of 28 titles"),
+    # Declining is the correct answer here — the point is only that it must NOT be read as a
+    # driver. Unbounded, `autist` makes this `logistics_transport`.
+    ("Assistenza Autistica - Operatore", "uncategorised",
+     "IT `autist` unbounded reads autistic/autism, not a driver"),
+    ("Sales Manager Bangkok", "sales",
+     "NL `kok` unbounded matches bangkok"),
+    ("Adviseur Utrecht", "uncategorised",
+     "NL `recht` is inside Utrecht — the georgia rule in Dutch"),
+    ("Magazine Content Editor", "other_tech_function",
+     "IT `magazzin` has a double z and must not reach English magazine"),
+    # --- 2026-08-11 wave 2. Each of these misfiled during the JOINT measurement, and none
+    # of them was visible to the single-language pass that proposed the term: the offending
+    # title is written in a language that pass never looked at.
+    ("Délégué Médico-Technique Respiratoire", "sales",
+     "ES `médico` is an adjective; a medical-DEVICE sales rep is not a clinician"),
+    ("ALTERNANT DELEGUE MEDICO TECHNIQUE RESPIRATOIRE H/F", "sales",
+     "the same title unaccented and in caps, which is how the ATS actually writes it"),
+    ("Técnico de Mantenimiento en dispositivos médicos", "skilled_trades",
+     "ES `médico` on a maintenance role names the DEVICE, not the profession"),
+    ("Ejecutivo de Cuentas (Licencia Medica)", "uncategorised",
+     "a trailing `(Licencia Médica)` is LEAVE COVER — declining is the right answer"),
+    ("Marketing Director - Dental Professionals", "marketing",
+     "ES `dental` — selling TO dentists is not practising dentistry"),
+    ("Recepcionista clínica dental", "hospitality",
+     "the `recepcionista` guard: a clinic receptionist stayed where wave 1 put it"),
+    ("Sr. Product Cybersecurity Architect for Advanced Hearing Aid Platform", "cybersecurity",
+     "the hearing-aid INDUSTRY employs engineers; the term is for the audiology PROFESSION"),
+])
+def test_multilingual_stems_stay_inside_their_own_language(title, expected, trap):
+    """The cross-language collisions the 2026-08-10 pass had to defuse, one case each.
+
+    `PATTERNS` is a single ordered list shared by ten languages, so a stem added for one of
+    them reads every other language's titles too. Every string here classified *wrongly*
+    before its guard existed — these are not hypotheticals, they are the measured failures,
+    and each one is a lookahead, a word boundary or a binding that a later simplification
+    would remove without any other test noticing."""
+    assert taxonomy.classify(title) == expected, trap
+
+
+@pytest.mark.parametrize("category,title,trap", [
+    ("sales", "Setra Skinnskatteberg söker sågverkoperatörer",
+     "NL `verkoper` unbounded reaches inside the Swedish sågverk|operatörer"),
+    # The register's own spelling, WITHOUT the á — that is the row `obra` collides with, and
+    # using the accented form here would have made this assertion vacuous.
+    ("construction", "Obraběč/ka kovů",
+     "ES `obra` unbounded reaches the Czech machinist"),
+    # --- 2026-08-11 wave 2. Place names and one foreign profession, all of them the
+    # `georgia` rule: a role word that is also somewhere on a map.
+    ("hospitality", "Site Lead Kochi India",
+     "DE `koch` unbounded reaches KOCHI, an Indian city"),
+    ("healthcare", "Delegado de Ventas Andalucia Occidental",
+     "ES `dental` unbounded sits inside OCCIDENTAL — a Spanish region"),
+    ("healthcare", "Profesor de Higiene Bucodental",
+     "ES `dental` unbounded sits inside BUCODENTAL, and this is a TEACHER"),
+    ("manufacturing_production", "Projektleiter Infrastruktur",
+     "DE `fräs` unbounded sits inside INFRASTRUKTUR"),
+    ("engineering", "Laborant/ka",
+     "DE `laborant` must be compound-prefix-bound: the Czech key writes it standalone, "
+     "and the bare term took both of those rows in wave 1"),
+    ("cybersecurity", "Specjalista ds. bezpieczeństwa i higieny pracy",
+     "PL bare `bezpiecze` eats BHP — occupational health & safety, which has NO category, "
+     "so a safety officer would file as a security engineer"),
+])
+def test_a_bounded_stem_does_not_reach_into_another_language(category, title, trap):
+    """Asserted on the PATTERN, not through `classify()`, and that distinction is the point.
+
+    Both of these titles are claimed by `manufacturing_production`, which runs earlier than
+    either category here — so routing them through `classify()` yields the right answer whether
+    the boundary is present or not. Mutation-checking the obvious version of this test showed
+    exactly that: remove `\\b` and it still passed. It would have been a guard that documents
+    nothing, of the precise kind CLAUDE.md warns about, and it would have read as protection.
+
+    What is actually guaranteed is narrower and worth stating on its own: **the category's own
+    pattern must not match the foreign title at all.** That holds regardless of ordering, so it
+    survives someone reordering `PATTERNS` — which is when the masked version would have
+    started silently misfiling."""
+    pattern = dict(taxonomy.PATTERNS)[category]
+    assert not pattern.search(title), trap
+
+
+
+def test_quality_work_splits_three_ways_and_is_not_one_category():
+    """Quality is the biggest uncategorised cluster in the corpus and deliberately has no
+    category of its own.
+
+    199 non-software quality titles across six languages make a `quality` category look
+    obviously right. It was measured both ways (`notes/proposals/category-gaps.md`): a separate
+    category scores *negative* at every position in the order, while folding the engineer half
+    into `engineering` scores positive — SE 81.1896% -> 81.3383%, CZ flat, both moved
+    answer-key rows gains. Both keys already file quality work under engineering (ISCO
+    3119/2149) and SSYK has no quality occupation at all.
+
+    What must survive is the three-way split, because no single category is honest across it:
+    a quality *engineer* is engineering, a quality *inspector* on a line is production, and
+    software QA is software. Collapsing any two of these is the tempting simplification, and
+    the middle case is the one that silently regresses — `quality (inspector|technician)` lives
+    in `manufacturing_production`, which runs *earlier* than engineering."""
+    # These two are the assertions that actually carry the fold: mutation-checking showed that
+    # removing it sends "Senior Quality Engineer" to `software_engineering` and drops
+    # "Supplier Quality Manager" to `uncategorised`.
+    assert taxonomy.classify("Senior Quality Engineer") == "engineering"
+    assert taxonomy.classify("Supplier Quality Manager till försvarsindustri") == "engineering"
+    # The three below are documentation, not coverage, and it is worth saying so: each is
+    # already claimed by its own language's `ingenieur` / `ingénieur` / `inżynier` term from the
+    # first multi-language pass, so they pass with or without the quality fold. They are kept
+    # because they record what the fold is *for* — the same title in four languages — but a
+    # future editor must not read them as protecting it.
+    assert taxonomy.classify("Qualitätsingenieur (w/m/d) Defence") == "engineering"
+    assert taxonomy.classify("Ingénieur qualité fournisseurs H/F") == "engineering"
+    assert taxonomy.classify("Inżynier Jakości") == "engineering"
+    # The line roles stay production — this is the assertion a careless merge would break.
+    assert taxonomy.classify("Quality Inspector") == "manufacturing_production"
+    assert taxonomy.classify("Quality Technician") == "manufacturing_production"
+    # ...and software QA stays software.
+    assert taxonomy.classify("QA Engineer") == "software_engineering"
+
+
+def test_french_bound_roles_depend_on_pattern_order():
+    """The French bindings are order-dependent by design, and one of them is *only* correct
+    because another runs first.
+
+    `(?:chef|responsable) de secteur` -> `sales` is 60% right on its own: a "Chef de secteur"
+    can be a territory sales manager or a production area manager. It reaches 100% here only
+    because the `_FR_ROLE … production` binding in `manufacturing_production` runs **fourteen
+    patterns earlier** and takes the production sense first. Reordering the file, or dropping
+    the production binding, silently turns every French production area manager into a
+    salesperson — with no other test noticing.
+
+    The `production` lookahead is the same lesson pointing the other way: "Chargé de production
+    marketing" is not factory work, and that exclusion came from a real corpus title."""
+    assert taxonomy.classify("Chef de secteur") == "sales"
+    assert taxonomy.classify("Chef de secteur production") == "manufacturing_production"
+    assert taxonomy.classify("Chargé de production H/F") == "manufacturing_production"
+    assert taxonomy.classify("Chargé de production marketing") == "marketing"
+    # Inclusive-form spellings the bounded gap has to read, all real corpus shapes.
+    assert taxonomy.classify("Technicien(ne) de maintenance industriel") == "skilled_trades"
+    assert taxonomy.classify("Technicien.ne maintenance") == "skilled_trades"
+
+
+def test_payroll_is_bound_so_it_cannot_take_an_analyst():
+    """`finance_accounting` runs one pattern before `data_analysis`, so a bare payroll term
+    outranks every analyst title that happens to name the payroll team.
+
+    The French proposal offered a bare `\\bpaie\\b`. Measured across every corpus it claimed
+    five payroll titles correctly and took "Data Analyst H/F - Equipe Paie / Facturation" off
+    `data_analysis`. Binding it to a role noun keeps all five and releases the analyst, because
+    a data analyst on the payroll team is a data analyst."""
+    assert taxonomy.classify("Gestionnaire de Paie F/H") == "finance_accounting"
+    assert taxonomy.classify("Responsable Paie et ADP H/F") == "finance_accounting"
+    assert taxonomy.classify("Data Analyst H/F - Equipe Paie / Facturation") == "data_analysis"
 
 
 def test_specificity_order_holds():
