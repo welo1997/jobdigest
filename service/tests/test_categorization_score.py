@@ -80,6 +80,17 @@ def test_a_group_mapping_beats_its_field():
                          "group": "Systemadministratörer"}) == "devops_platform"
 
 
+def test_forklift_operators_are_logistics_not_construction():
+    """ISCO 834 is 'mobile plant operators' — earthmoving and crane work, which is construction,
+    EXCEPT 8344 (lifting-truck/forklift operators), which is warehouse logistics. The classifier
+    reads "Skladník, obsluha manipulačních vozíků" as logistics and is right; before the 8344
+    override the '834' prefix graded that correct answer as a construction miss (82 rows)."""
+    assert cs.truth_for_isco("83443") == ("logistics_transport", True)   # longest prefix wins
+    assert cs.truth_for_isco("8344") == ("logistics_transport", True)
+    assert cs.truth_for_isco("8342") == ("construction", True)           # earthmoving, unchanged
+    assert cs.truth_for_isco("83432") == ("construction", True)          # crane, unchanged
+
+
 # --- scoring arithmetic --------------------------------------------------------------------
 
 

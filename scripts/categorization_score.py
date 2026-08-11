@@ -203,6 +203,11 @@ ISCO_MAP: dict[str, str] = {
     "81": "manufacturing_production", "82": "manufacturing_production",
     "831": "logistics_transport", "832": "logistics_transport", "833": "logistics_transport",
     "834": "construction",                             # earthmoving and crane operators
+    "8344": "logistics_transport",                     # lifting-truck (forklift) operators are
+                                                       # warehouse work — the classifier reads
+                                                       # "Skladník" as logistics and is right; the
+                                                       # "834" construction prefix would grade that
+                                                       # correct answer as wrong (82 rows, 2026-08-10)
     # 9 elementary occupations
     "931": "construction", "932": "manufacturing_production", "933": "logistics_transport",
     "94": "hospitality",
