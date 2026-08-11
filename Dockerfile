@@ -51,6 +51,15 @@ RUN python -c "from service import embed; embed._load(); print('baked', embed.EM
 # Run as non-root. The chown covers .fastembed_cache above, so the app user can read the
 # weights without being able to replace them.
 RUN useradd -m app && chown -R app /app
+# `/state` is NAV's persisted mirror (compose mounts the `nav_state` named volume here).
+# **It must exist in the IMAGE, owned by app, or the volume is unwritable.** Docker
+# initialises a fresh named volume from the image's directory — including its ownership — but
+# if the path does not exist in the image it creates the mountpoint root-owned 0755 instead,
+# and this container runs non-root. The failure is silent by construction: `nav._save` catches
+# OSError, logs a warning and carries on, so the adapter would cold-start ~1 200 detail calls
+# every single night, never converge, and never alert. Verified on the box before this line
+# existed: `os.access("/state", os.W_OK)` was False.
+RUN mkdir -p /state && chown app /state
 USER app
 
 EXPOSE 8000
