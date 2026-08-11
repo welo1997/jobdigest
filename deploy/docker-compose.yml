@@ -96,6 +96,12 @@ services:
       # File exchange for the no-API matcher: export writes shortlists.json here, import
       # reads picks.json. The host copies these to/from Google Drive (see matcher-routine.md).
       - ../exchange:/exchange
+      # NAV's local mirror. A NAMED volume, not a bind mount under the shipped tree: deploy.sh
+      # replaces that tree wholesale via `git archive | tar -x`, so a mirror living there would
+      # be destroyed on every deploy and each one would trigger a cold start. See
+      # `ingestion/sources/nav.py` — the feed is an append-only change log, so the mirror is
+      # what lets `deactivate_stale` work unchanged for this source.
+      - nav_state:/state
     depends_on:
       db:
         condition: service_healthy
@@ -120,6 +126,7 @@ services:
 
 volumes:
   pgdata:
+  nav_state:
   caddy_data:
   caddy_config:
   n8n_data:

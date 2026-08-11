@@ -596,8 +596,36 @@ payload will pick a different string and that *shape* is the thing to watch.
   Personal data is handled as in MPSV: `application_contacts` (29% of ads), `employer.email`
   and `employer.phone_number` are **never read**, and free text is scrubbed — verified at
   0 leaks across 15 201 live descriptions.
-- **Norway's NAV is permitted in writing, self-service, and the best unbuilt source left**
-  (checked 2026-08-07, full workings in `notes/2026-08-07-norway.md`). `arbeidsplassen.nav.no`'s
+- **NAV (Norway) is BUILT — `ingestion/sources/nav.py`, 2026-08-11.** It is the third national
+  register after `mpsv` and `platsbanken`, and the only one whose terms *grant* republication
+  rather than merely disclaiming a database right. Everything below is the verdict as it stood
+  before the build and is kept because the reasoning is the spec; what changed on the day:
+  **the endpoints recorded here were dead and were re-derived** (the live base is
+  `pam-stilling-feed.nav.no`, not `arbeidsplassen.nav.no/api/*`), **`workLocations` is the
+  location field** (not `locationList`), and **`applicationUrl` is empty on every ad sampled** —
+  the real permalink is `link`. Measured over 2 000 live ads rather than the 86-ad sample below:
+  **majors 1-3 are 51.2%**, **95.5% carry a structured contact**, **0% carry an email in the
+  description** and **13.6% carry more than one STYRK08 code** (the 86-ad figures of 59%/9% and
+  "70 with an email" were sample artefacts; the email figure was counting the contact block, not
+  the text).
+  **It is the first and only source that keeps persisted state, and the reason is
+  `deactivate_stale`.** The feed is an append-only change log: an ad created a month ago and
+  never edited appears in no recent window, while `store.deactivate_stale(days=7)` deactivates
+  anything not re-seen in seven days and has no per-source exemption. Without a mirror,
+  Norwegian inventory would decay to nothing within a week of each ad's last edit — silently,
+  with no error and no failed timer. So the adapter mirrors `uuid -> ad` in a **named Docker
+  volume** (`nav_state:/state`; a bind mount under the shipped tree would be destroyed by
+  `deploy.sh`'s `git archive | tar -x` and cold-start on every deploy), walks the feed forward
+  from a persisted cursor, applies INACTIVE and `expires`, and **re-emits the whole active set
+  every run** — so from the pipeline's point of view it is an ordinary adapter.
+  **Two traps worth carrying to any future NAV work.** `If-Modified-Since` must be built with
+  `email.utils.format_datetime`: a weekday that does not match its date is *silently ignored*
+  and the feed serves its 2023-06-14 head, a 200 full of real three-year-old ads (reproduced
+  live, one second apart). And **HTML tags must be stripped BEFORE unescaping** — Norwegian
+  employers write quotation marks as escaped angle brackets (`&lt;løsninger&gt;`), so unescaping
+  first turns them into markup the stripper then eats, silently deleting the quoted word.
+- **The pre-build verdict, kept for the reasoning** (checked 2026-08-07, full workings in
+  `notes/2026-08-07-norway.md`). `arbeidsplassen.nav.no`'s
   feed API is governed by `/vilkar-api`, which says *"Alle kan bruke tenesta. Tenesta er
   kostnadsfri"* and grants consumers *"rett til å **republisere og vise** mottekne jobbannonsar
   på sine tenester"* — a positive grant naming the act this product performs, stronger than
@@ -632,10 +660,14 @@ payload will pick a different string and that *shape* is the thing to watch.
   site's 404 page now**, so the paths recorded on 2026-08-07 are stale and whoever builds this
   must re-derive the current ones from the Datasettbeskrivelse in Felles datakatalog, which is
   where `/vilkar-api`'s own "Slik får du tilgang" section points. Nothing about the verdict
-  changes — permitted, self-service, still the best unbuilt source left — but **do not start
-  from the URLs in this file or in `notes/2026-08-07-norway.md`; verify them first.** The token
-  endpoint is the one to find, and it is still not `nav.team.arbeidsplassen@nav.no`: mailing for
-  the stable token is correspondence and remains refused.
+  changes — permitted, self-service — but **do not start from the URLs in this file or in
+  `notes/2026-08-07-norway.md`; verify them first.** The token endpoint is the one to find, and
+  it is still not `nav.team.arbeidsplassen@nav.no`: mailing for the stable token is
+  correspondence and remains refused.
+  **That warning paid for itself on 2026-08-11**: the paths were re-derived from the
+  Datasettbeskrivelse exactly as instructed and landed on `pam-stilling-feed.nav.no`, which is
+  what `nav.py` now uses. The lesson generalises — **a recorded endpoint is a dated observation,
+  not a fact**, and this one went stale twice in four days.
 - **Norway's other sources are all closed, and one of them corroborates the NAV gap** (checked
   2026-08-07). **FINN.no refuses in its own `robots.txt`**, which is the only source here to put
   the refusal in that file as prose: *"Crawling FINN.no is prohibited unless you have written

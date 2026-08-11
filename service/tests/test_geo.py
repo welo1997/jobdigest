@@ -695,3 +695,35 @@ def test_swiss_cities_resolve_from_every_national_language():
     """A Swiss advert names the city in whichever language the employer writes in."""
     for text in ("Genève, Suisse", "Genf, Schweiz", "Ginevra, Svizzera"):
         assert geo.resolve_location(text)[:2] == ("CH", "geneva"), text
+
+
+def test_search_jobs_eu_codes_does_not_drift_from_the_eea_definition():
+    """`search_jobs._EU_CODES` is a copy of `geo.EEA_COUNTRIES`, and copies rot.
+
+    It exists because `search_jobs` sits UPSTREAM of `service` in the import graph —
+    `service.ingest` imports `work_region` from it — so it cannot import geo without a cycle.
+    That is the same reason `web/lib/geo.ts` is a drift-tested mirror rather than an import,
+    and it gets the same treatment.
+
+    **It had already rotted when this test was written.** The set held 15 countries; NO, CH,
+    IS, LI, GR, HU, RO, BG, HR, SI, LT, LV, EE, LU, MT and CY were all missing, so a posting
+    in any of them resolved to `region="other"` and `eligibility="unknown"`. Nothing broke —
+    `unknown` is admitted unconditionally — which is exactly why it went unnoticed for months.
+    The only visible effect was `_RANK` sorting genuinely-eligible EEA roles below Czech and
+    German ones. It surfaced only because Norway was the sixteenth missing country and `nav`
+    made it concrete.
+
+    A no-permit-required set is the right definition for an eligibility heuristic, so this
+    asserts equality with EEA_COUNTRIES rather than with the selectable `COUNTRIES` (which
+    also carries GB, US and CA, where a permit very much is required).
+    """
+    import search_jobs
+
+    missing = set(geo.EEA_COUNTRIES) - search_jobs._EU_CODES
+    extra = search_jobs._EU_CODES - set(geo.EEA_COUNTRIES)
+    assert not missing, (
+        f"search_jobs._EU_CODES is missing {sorted(missing)} — a posting there resolves to "
+        "region='other' and is ranked below genuinely-eligible work")
+    assert not extra, (
+        f"search_jobs._EU_CODES claims {sorted(extra)} are free-movement countries and "
+        "geo.EEA_COUNTRIES does not. GB, US and CA are selectable but need a permit")

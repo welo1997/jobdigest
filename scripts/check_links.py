@@ -209,6 +209,14 @@ SAMPLING: dict[str, Sample] = {
     "oraclecloud": Sample(module={"SITES": Spread(1), "MAX_PAGES": 1}),
     "platsbanken": Sample(module={"OCCUPATION_FIELDS": Trim(1), "MAX_WINDOWS": 1,
                                   "MAX_PAGES_PER_WINDOW": 1}),
+    # `nav` bounds the DETAIL fan-out, not a board list: its feed walk is ~11 requests and the
+    # cost is one call per changed ad. `max_details` is a constructor argument rather than a
+    # module constant because the module constant bounds production, and a check-links run must
+    # be able to shrink it without editing what ships. It also gets its own state directory —
+    # a sampled run must never write the production mirror, which would persist a cursor past
+    # ads it never fetched details for and leave them permanently missing.
+    "nav": Sample(instance={"_max_details": 5},
+                  note="walks ~11 feed pages; writes a throwaway mirror"),
     # `smartrecruiters` was here until 2026-08-11 and is gone for the same reason `jobscz` and
     # `profesia` never appear: a source `search_jobs.source_classes()` does not run has no link
     # to check, and `self_check()` reports the leftover row as DRIFT — correctly. That is the

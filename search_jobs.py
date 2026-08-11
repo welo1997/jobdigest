@@ -37,6 +37,7 @@ from ingestion.sources.greenhouse import GreenhouseSource
 from ingestion.sources.himalayas import HimalayasSource
 from ingestion.sources.jobicy import JobicySource
 from ingestion.sources.lever import LeverSource
+from ingestion.sources.nav import NavSource
 from ingestion.sources.oraclecloud import OracleCloudSource
 from ingestion.sources.platsbanken import PlatsbankenSource
 from ingestion.sources.remoteok import RemoteOKSource
@@ -140,7 +141,26 @@ def is_part_time(title: Optional[str], description: Optional[str]) -> bool:
 
 
 # --- Region + EU-eligibility heuristics ---
-_EU_CODES = {"DE", "NL", "FR", "ES", "PL", "AT", "IE", "PT", "SK", "IT", "BE", "SE", "DK", "FI", "CZ"}
+#: Where an EU/EEA citizen may work without a permit. **This is the EEA, not the EU**, and it
+#: must stay in step with `service.geo.EEA_COUNTRIES`, which is the one definition — a drift
+#: test in `service/tests/test_geo.py` fails if it does not. The copy exists because
+#: `search_jobs` sits upstream of `service` in the import graph (`service.ingest` imports
+#: `work_region` from here), which is the same reason `web/lib/geo.ts` is a drift-tested
+#: mirror rather than an import.
+#:
+#: **It was 15 countries until 2026-08-11 and had been quietly stale for months.** NO, CH, IS,
+#: LI, GR, HU, RO, BG, HR, SI, LT, LV, EE, LU, MT and CY were all missing, so a posting in any
+#: of them resolved to `region="other"` and `eligibility="unknown"`. That never blocked
+#: anything — `unknown` is admitted unconditionally — which is exactly why nobody noticed: the
+#: only visible effect was `_RANK` sorting genuinely-eligible EEA roles below Czech and German
+#: ones. Found while adding `nav`, because Norway was the sixteenth missing country.
+_EU_CODES = {
+    # EU-27
+    "AT", "BE", "BG", "HR", "CY", "CZ", "DK", "EE", "FI", "FR", "DE", "GR", "HU", "IE", "IT",
+    "LV", "LT", "LU", "MT", "NL", "PL", "PT", "RO", "SK", "SI", "ES", "SE",
+    # EEA-EFTA and Switzerland — free movement, so eligibility is the same
+    "CH", "IS", "LI", "NO",
+}
 
 
 def work_region(location: Optional[str], country_code: Optional[str]) -> str:
@@ -231,6 +251,13 @@ def _source_classes(include_cz: bool) -> list[type]:
                # forbid automated reading of the portal, which is the Alma Career situation
                # again. See the README before reaching for it.
                PlatsbankenSource,
+               # NAV is Norway's statutory register and the third of that shape after `mpsv`
+               # and `platsbanken` — and the only one whose terms *grant* republication rather
+               # than merely disclaiming a database right. It is the one source that keeps a
+               # local mirror: its feed is an append-only change log, so an ad unchanged for a
+               # month appears in no recent window, and `deactivate_stale` would otherwise take
+               # Norwegian inventory to zero within a week. See the module docstring.
+               NavSource,
                # Workday is last on purpose — it must fetch each posting's description with
                # its own request, so it is by far the slowest, and a failure there should not
                # cost everything that runs before it.

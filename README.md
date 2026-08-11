@@ -222,7 +222,7 @@ logins, no Playwright, no domain-wide crawls.
 | Group | Sources |
 |---|---|
 | Remote boards | Remotive, WeWorkRemotely, RemoteOK, Himalayas, Jobicy, WorkingNomads, Arbeitnow |
-| National registers | **MPSV** (CZ Úřad práce open data), **Platsbanken** (SE Arbetsförmedlingen open data) |
+| National registers | **MPSV** (CZ Úřad práce open data), **Platsbanken** (SE Arbetsförmedlingen open data), **NAV** (NO arbeidsplassen.no feed — the only one whose terms *grant* republication rather than disclaiming a database right; keeps a local mirror because its feed is an append-only change log) |
 | Czech | StartupJobs, Cocuma |
 | Aggregators | The Muse, Adzuna (AT/BE/CA/DE/ES/FR/GB/IT/NL/PL/US) |
 | ATS boards | Greenhouse, Lever, Ashby, SmartRecruiters, Workday, **Oracle Recruiting Cloud**, Recruitee, Workable — curated company list only |
