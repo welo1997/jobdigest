@@ -299,8 +299,18 @@ def test_polish_projektant_never_becomes_design():
      "ES `dental` — selling TO dentists is not practising dentistry"),
     ("Recepcionista clínica dental", "hospitality",
      "the `recepcionista` guard: a clinic receptionist stayed where wave 1 put it"),
+    ("Flexmedewerker gehandicaptenzorg", "social_care",
+     "disability care is social care — and the word had to LAND there, not just leave "
+     "healthcare, or titles whose only signal is that word fall to uncategorised"),
     ("Sr. Product Cybersecurity Architect for Advanced Hearing Aid Platform", "cybersecurity",
      "the hearing-aid INDUSTRY employs engineers; the term is for the audiology PROFESSION"),
+    # The German bound-role construction has to read BOTH compound directions.
+    ("Leitung (w/m/d) Produktion", "manufacturing_production",
+     "German writes the role OPEN as well as closed; reading one halves the coverage"),
+    ("Fertigungstechniker", "manufacturing_production",
+     "the closed half of the same binding"),
+    ("Chemielaborant (m/w/d)", "engineering",
+     "a >=4-letter compound prefix is what makes `laborant` safe against the Czech key"),
 ])
 def test_multilingual_stems_stay_inside_their_own_language(title, expected, trap):
     """The cross-language collisions the 2026-08-10 pass had to defuse, one case each.
@@ -353,6 +363,58 @@ def test_a_bounded_stem_does_not_reach_into_another_language(category, title, tr
     pattern = dict(taxonomy.PATTERNS)[category]
     assert not pattern.search(title), trap
 
+
+@pytest.mark.parametrize("title,expected", [
+    # Italian: reparto = DEPARTMENT. These must keep their category.
+    ("TECNICO/A REPARTO ELETTRICO", "manufacturing_production"),
+    ("Addetto/a Programmazione di reparto", "manufacturing_production"),
+    ("Tecnico Trasfertista Reparto BEND", "manufacturing_production"),
+    # Spanish: reparto = DELIVERY ROUND. Declining is correct; factory work is not.
+    ("Tecnico de reparto", "uncategorised"),
+    ("TECNICO DE REPARTO", "uncategorised"),
+    ("Responsable de reparto", "uncategorised"),
+])
+def test_italian_reparto_is_a_department_and_spanish_reparto_is_a_delivery_round(
+        title, expected):
+    """One word, two languages, two jobs — and the two proposals could not see each other.
+
+    `_IT_ROLE` contains `tecnic\\w+`, so the Italian binding `_IT_ROLE … reparto` reads the
+    Spanish *Técnico de reparto* — a DELIVERY technician — and files it as factory work,
+    because `manufacturing_production` runs long before `logistics_transport`. The accented
+    `Técnico` is safe on its own (é is not e), but ATS boards write titles unaccented and in
+    caps, which is exactly the form that misfires.
+
+    The separator is the fix and it is a real difference in the two languages, not a hack:
+    **Italian writes `di reparto`, Spanish writes `de reparto`**, so a `(?<!de )` lookbehind
+    drops the Spanish sense and costs no Italian title.
+
+    The Italian pass flagged this collision and could not check it — it had only Italian
+    text. It is here because the *joint* measurement is the only place a cross-proposal
+    conflict is visible, and because a later simplification of that lookbehind would
+    silently start misfiling every Spanish delivery ad."""
+    assert taxonomy.classify(title) == expected
+
+
+def test_a_german_role_head_never_ships_bare():
+    """`produktion`/`fertigung` bound to a role head, never loose — measured, not stylistic.
+
+    Bare `produktion|fertigung` FAILS the answer-key gate: it takes 6 SSYK rows, 2 of them
+    out of a correct answer, because the words appear as a DOMAIN on titles belonging to
+    other categories. Bound to a role head it holds both keys row-for-row and still wins on
+    both halves of the board holdout.
+
+    The assertion is on the pattern rather than through `classify()` so it cannot be
+    satisfied by pattern ordering: `manufacturing_production` must not claim a bare domain
+    word at all."""
+    manufacturing = dict(taxonomy.PATTERNS)["manufacturing_production"]
+
+    # the binding fires on a real role, in both compound directions
+    assert manufacturing.search("Leitung (w/m/d) Produktion")
+    assert manufacturing.search("Fertigungstechniker")
+
+    # ...and not on the bare domain word carrying somebody else's profession
+    assert not manufacturing.search("Praktikum Produktion")
+    assert not manufacturing.search("Werkstudent Fertigung")
 
 
 def test_quality_work_splits_three_ways_and_is_not_one_category():
