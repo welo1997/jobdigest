@@ -464,3 +464,33 @@ def test_an_unchanged_ad_costs_no_detail_call_on_the_next_run(tmp_path, monkeypa
     counting(monkeypatch)
     _src(tmp_path).run()
     assert len(calls) == first + 1, "a changed stamp must be re-read"
+
+
+def test_a_bounded_cold_start_carries_its_backlog_instead_of_losing_it(tmp_path, monkeypatch):
+    """**The bug this file did not catch until it was found on the box.**
+
+    The walk advances the cursor past every entry it reads, but only `max_details` of them can
+    be fetched in one run. A cold start reports ~7 471 changed ads against a budget of 1 200 —
+    so without carrying the remainder forward, the cursor moves past ~6 200 ads that were never
+    mirrored and they become invisible until an employer happens to edit one. Norway would
+    stall at one batch instead of climbing to the full register, and nothing would say so: the
+    run succeeds, the mirror is written, the log looks healthy.
+
+    The second run below reports NO new feed entries at all, which is the case that separates a
+    persisted backlog from a lost one."""
+    items = [_item(f"u{n}") for n in range(10)]
+    entries = {f"u{n}": _content(link=f"https://arbeidsplassen.nav.no/stillinger/stilling/u{n}")
+               for n in range(10)}
+    _fake_nav(monkeypatch, [items], entries)
+    assert len(_src(tmp_path, max_details=4).run()) == 4
+
+    state = json.loads((tmp_path / "nav_mirror.json").read_text(encoding="utf-8"))
+    assert len(state["pending"]) == 6, "the un-fetched remainder must be persisted"
+
+    # second run: the feed has nothing new to say, and the backlog must still drain
+    _fake_nav(monkeypatch, [[]], entries)
+    assert len(_src(tmp_path, max_details=4).run()) == 8, "the backlog must be drained"
+    _fake_nav(monkeypatch, [[]], entries)
+    assert len(_src(tmp_path, max_details=4).run()) == 10, "and drained to completion"
+    state = json.loads((tmp_path / "nav_mirror.json").read_text(encoding="utf-8"))
+    assert state["pending"] == []

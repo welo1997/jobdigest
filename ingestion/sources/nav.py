@@ -263,11 +263,12 @@ class NavSource(BaseSource):
         try:
             data = json.loads(self._state_path.read_text(encoding="utf-8"))
         except (OSError, ValueError):
-            return {"cursor": None, "ads": {}}
+            return {"cursor": None, "ads": {}, "pending": []}
         if not isinstance(data, dict) or not isinstance(data.get("ads"), dict):
             logger.warning("nav: mirror unreadable, starting cold")
-            return {"cursor": None, "ads": {}}
-        return {"cursor": data.get("cursor"), "ads": data["ads"]}
+            return {"cursor": None, "ads": {}, "pending": []}
+        return {"cursor": data.get("cursor"), "ads": data["ads"],
+                "pending": list(data.get("pending") or [])}
 
     def _save(self, state: dict) -> None:
         try:
@@ -364,7 +365,13 @@ class NavSource(BaseSource):
         cold = not ads
         cursor = state["cursor"]
 
-        changed: list[str] = []
+        # **The backlog is persisted, and that is what makes a bounded cold start correct.**
+        # The walk advances the cursor past every entry it reads, but only `max_details` of
+        # them can be fetched in one run. Without carrying the remainder forward the cursor
+        # would move past ~7 400 ads that were never mirrored, and they would be invisible
+        # until an employer happened to edit one. Measured on the box: a cold start reports
+        # 7 471 changed and fetches 1 200.
+        changed: list[str] = list(state["pending"])
         stamps: dict[str, str] = {}
         dropped = unchanged = 0
         for page, nxt in self._walk(headers, cursor):
@@ -398,7 +405,8 @@ class NavSource(BaseSource):
             cursor = nxt or cursor
 
         fetched = 0
-        for uuid in changed[:self._max_details]:
+        todo, backlog = changed[:self._max_details], changed[self._max_details:]
+        for uuid in todo:
             detail = self._get(ENTRY_URL.format(uuid=uuid), headers)
             if not detail:
                 continue
@@ -435,15 +443,16 @@ class NavSource(BaseSource):
         for uuid in expired:
             del ads[uuid]
 
-        state = {"cursor": cursor, "ads": ads}
+        state = {"cursor": cursor, "ads": ads, "pending": backlog}
         self._save(state)
         logger.info("nav: %s%d changed, %d unchanged (no call), %d detail calls, %d withdrawn, "
                     "%d expired -> %d mirrored",
                     "COLD START, " if cold else "", len(changed), unchanged, fetched,
                     dropped, len(expired), len(ads))
-        if cold and len(changed) > self._max_details:
-            logger.info("nav: cold start capped at %d details; the mirror fills over the next "
-                        "%d runs", self._max_details, -(-len(changed) // self._max_details))
+        if backlog:
+            logger.info("nav: %d ads still queued for a detail call; they are carried to the "
+                        "next run (~%d more runs at this budget)", len(backlog),
+                        -(-len(backlog) // max(self._max_details, 1)))
         return list(ads.values())
 
     def normalize(self, raw_items: list[dict]) -> list[JobPosting]:
