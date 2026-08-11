@@ -278,10 +278,21 @@ These are not style preferences. Breaking one has consequences outside this repo
   postings in categories no query could name. There is deliberately **no backfill** (the
   column drains over the staleness window). `service.ingest._report_discarded_hints` logs what
   was discarded per source, in the shape of `unmet_demand_terms()`.
-  **`taxonomy.py` reads English and three feeding sources do not** — Swedish, Czech and
-  Norwegian role words mostly arrive `uncategorised` and survive on the keyword half of the
-  recall predicate. Teaching it those words is worth more than a fourth national source, but
-  do it **after** the vector gate, not before.
+  **`taxonomy.py` used to read only English, and that is now largely fixed** — Swedish and
+  Czech were taught first (they are the two *graded* slices), then fr/de/nl/es/it/pl/pt in
+  waves 1–2, then **Norwegian on 2026-08-11**. What survives is the honest limit: only SE
+  (SSYK), CZ (ISCO) and now **NO (STYRK-08)** have a publisher-assigned occupation code, so
+  the other six languages are **coverage-only and their correctness is unproven**. Never
+  quote a coverage number as accuracy.
+  **Norwegian is the model to copy for any further language work**: the answer key
+  (`scripts/categorization_score.py --fetch-no`) was built *before* the vocabulary, so the
+  boundary calls were settled by the publisher's own coding rather than by argument — which
+  is how `miljøarbeider` came to be **declined** (NAV splits it healthcare 5 / social_care 4 /
+  education 3 even on titles naming no other profession, so any single answer is a coin
+  flip). Norwegian went 68.5% → 42.7% uncategorised on a held-out half of a live NAV corpus.
+  **The remaining languages are sourcing-limited, not vocabulary-limited** — Italian's
+  residual is ~50% English titles on Italian boards, Polish's permitted corpus is the
+  English-writing SSC/BPO layer. More permitted inventory is now worth more than more words.
 - User-facing copy has **one** definition per language: `web/i18n/messages/*.ts`, shaped by
   `web/i18n/schema.ts`. Never inline a user-visible string in a component under
   `app/(site)/`. Adding one means: a key in the schema, a value in all eight catalogues.

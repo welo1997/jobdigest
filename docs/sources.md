@@ -872,16 +872,22 @@ payload will pick a different string and that *shape* is the thing to watch.
   `work_region("Toronto","CA")` returns `"other"` → `unknown`** — luck, not design, which is why
   `test_eligibility_sql.py` pins it: if a `CA` branch is ever added to `work_region`, that test
   fails instead of 1 946 postings silently vanishing.
-- **`taxonomy.py` reads English, and three of the sources feeding it do not.** Measured
-  2026-08-07 against `classify()`: `Systemutvikler`, `Dataingeniør`, `Produktsjef`, `IT-arkitekt`
-  and `Testleder` all return `uncategorised`; `Backend utvikler` and `Fullstack-utvikler` classify
-  only because *Backend* and *Fullstack* are English; and `Sikkerhetsanalytiker` classifies as
-  **`data_analysis`, which is wrong** — it is a security analyst matched on "analytiker". So a
-  Norwegian source would arrive mostly `uncategorised` and reach a subscriber only through the
-  keyword half of the `category OR keyword` recall predicate. **This is already the condition of
-  `platsbanken` (Swedish) and `mpsv` (Czech)**, our two largest non-English sources, so it is
-  accepted rather than broken — but it means **the marginal value of a fourth national source may
-  be lower than teaching the taxonomy Norwegian, Swedish and Czech role words.**
+- **`taxonomy.py` read only English, and the Norwegian half of that was CLOSED on 2026-08-11.**
+  The 2026-08-07 measurement recorded here — `Systemutvikler`, `Dataingeniør`, `Produktsjef`,
+  `IT-arkitekt` and `Testleder` all `uncategorised`, and `Sikkerhetsanalytiker` misfiled as
+  `data_analysis` because "analytiker" matched — is **no longer true of any of the six**. All
+  are pinned by `test_the_documented_norwegian_failures_are_fixed`; the security analyst now
+  reads `cybersecurity`, and `Dataingeniør` reads `data_engineering` (it had been filing as
+  generic `engineering`, because that pattern carries a broad `ingeniør` and
+  `data_engineering` knew only the Swedish `dataingenjör` — the same defect one vowel away).
+  Measured on a live 2 673-ad NAV corpus: **68.5% → 42.7% uncategorised on a held-out half**,
+  with both graded slices holding row for row.
+  **The order is the transferable part.** The answer key was built *first*
+  (`--fetch-no`, STYRK-08), so boundary calls were settled by the publisher's own coding
+  instead of by argument — which is why `miljøarbeider` was **declined**: NAV splits it
+  healthcare 5 / social_care 4 / education 3 even after dropping every title that also names
+  another profession, so any single answer is a coin flip and the only safe error is a miss.
+  Do the same for any further language: **key before vocabulary.**
   **That measurement was taken on 2026-08-08 and it found something worse than blindness.**
   `select source, role_category, count(*)` over the non-English sources did not return
   `uncategorised` for platsbanken — it returned **954 distinct Swedish SSYK labels**, because

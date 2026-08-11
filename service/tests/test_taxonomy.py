@@ -792,3 +792,106 @@ def test_a_typed_role_is_never_silently_dropped(form):
     assert re.search(r"stack:[^\n]*(freeRoles|\[\.\.\.roles\]\.filter)", text), (
         f"{form.name} computes the unmapped chips but does not send them as search keywords."
     )
+
+
+# --- Norwegian, 2026-08-11 -----------------------------------------------------------------
+#
+# The first language taught AFTER its answer key existed rather than before, which is why the
+# boundary calls below cite STYRK-08 counts rather than an argument.
+
+
+@pytest.mark.parametrize("title,expected", [
+    # The six failures CLAUDE.md and docs/sources.md name by name. Five were uncategorised and
+    # one was a live MISFILE; all six now resolve, and this test is what stops them regressing.
+    ("Systemutvikler", "software_engineering"),
+    ("Produktsjef", "product"),
+    ("Testleder", "software_engineering"),
+    ("IT-arkitekt", "software_engineering"),
+    # THE misfile: a security analyst matched on "analytiker" and filed as data_analysis, so a
+    # Norwegian security role landed in data subscribers' shortlists and in no security one.
+    # cybersecurity runs before data_analysis, which is what makes this work.
+    ("Sikkerhetsanalytiker", "cybersecurity"),
+    ("Overvåknings- og sikkerhetsanalytikere", "cybersecurity"),
+    # A Norwegian data engineer used to file as generic `engineering`, because that pattern
+    # carries a broad `ingeniør` and data_engineering knew only the Swedish `dataingenjör`.
+    ("Dataingeniør", "data_engineering"),
+])
+def test_the_documented_norwegian_failures_are_fixed(title, expected):
+    """Every string here is quoted in CLAUDE.md or docs/sources.md as a known Norwegian
+    failure. They are pinned rather than merely fixed because a note saying "this is broken"
+    is the kind of thing a future pass re-solves from scratch, and because five of the six
+    were fixed by vocabulary that a later simplification could remove without any other test
+    noticing."""
+    assert taxonomy.classify(title) == expected
+
+
+@pytest.mark.parametrize("title,expected", [
+    ("Helsefagarbeider", "healthcare"),
+    ("Sjukepleiar", "healthcare"),               # nynorsk; `s[yj]ukeplei` reads both forms
+    ("Barnehagelærer", "education"),
+    ("Barne- og ungdomsarbeider", "education"),
+    ("Sjåfør klasse C", "logistics_transport"),
+    ("Selger til vår butikk", "sales"),
+    ("Tømrer søkes", "construction"),
+    ("Rørlegger/VVS-Montør", "skilled_trades"),  # a plumber is a trade, not a production line
+    ("Overlege", "healthcare"),
+    ("Tannlege", "healthcare"),
+])
+def test_norwegian_occupation_nouns_classify(title, expected):
+    """The high-frequency national occupation nouns. Norwegian was the worst-served language
+    in the file — 68.5% of a live 2 673-ad NAV corpus uncategorised, against ~38% for Polish
+    and ~37% for Dutch — because the whole *sector* vocabulary was missing, not just the tech
+    vocabulary."""
+    assert taxonomy.classify(title) == expected
+
+
+def test_lege_is_enumerated_because_nynorsk_builds_adjectives_on_it():
+    """`lege` is Norwegian for *doctor* and also the nynorsk adjective ending in `-lege`
+    (`faglege`, `offentlege`, `kommunale`). A bare `lege` stem is the georgia rule in
+    Norwegian, so the fragment enumerates the real compounds instead.
+
+    Asserted on healthcare's own pattern, not through `classify()`, so it holds regardless of
+    where healthcare sits in the order — which is what keeps it meaningful after a reorder."""
+    healthcare = dict(taxonomy.PATTERNS)["healthcare"]
+    for doctor in ("Overlege", "Tannlege", "Fastlege", "Kommunelege", "Sykehjemslege"):
+        assert healthcare.search(doctor), f"{doctor} is a doctor"
+    for adjective in ("faglege ledere", "offentlege tenester", "generelle vilkår"):
+        assert not healthcare.search(adjective), f"{adjective!r} is not a doctor"
+
+
+def test_miljoarbeider_is_declined_because_the_publisher_itself_splits_three_ways():
+    """**A decline settled by ground truth rather than by argument, and the reason it is worth
+    a test.**
+
+    `miljøarbeider` / `miljøveileder` was proposed for `social_care` and is NOT taken. NAV's
+    own STYRK-08 coding of 2 000 live ads splits it three ways, and it stays split even after
+    dropping every title that also names another profession: **healthcare 5, social_care 4,
+    education 3.** The identical title "Miljøveileder" is coded 3412 (*Miljøarbeidere innen
+    sosiale fagfelt*) by one employer and 5329 (*Andre pleiemedarbeidere*) by another, and the
+    corpus has it in schools, in disability services and in patient transport.
+
+    Taking it would have been worth 1.19 pp of holdout coverage and wrong for roughly 58% of
+    the rows it claims. The only safe error is a miss: an uncategorised posting still reaches
+    the AI matcher through the keyword half of the recall predicate, while a misfiled one is
+    filtered out of the right subscriber's digest. Same call as wave 2's `bid manager`.
+
+    If a later pass wants this category, the evidence to beat is the STYRK distribution, not
+    an intuition about what the word means."""
+    for title in ("Miljøveileder", "Miljøarbeider fast hver 3. helg",
+                  "Miljøarbeider- Syketransport."):
+        assert taxonomy.classify(title) == "uncategorised", (
+            f"{title!r} must stay declined — NAV's own coding splits this occupation across "
+            "healthcare, social_care and education, so any single answer is a coin flip")
+
+
+def test_kitchen_work_in_a_kindergarten_is_education_and_that_is_a_known_loss():
+    """The one genuine loss in the Norwegian pass, recorded rather than hidden.
+
+    `barnehage` (education) runs before the `kjøkken…` hospitality binding, so a kitchen
+    assistant *in a kindergarten* files as education. Two rows in a 2 673-ad corpus. The
+    ordering is right for the far larger set of kindergarten roles and no reordering fixes
+    both — the same shape as the accepted `Responsable Contrôle Qualité (FinTech)` residual."""
+    assert taxonomy.classify("Kjøkkenassistent søkes til Klokkergaarden Naturbarnehage") == \
+        "education"
+    # ...while kitchen work anywhere else still reads as hospitality.
+    assert taxonomy.classify("Kjøkkenassistent deltidsvikar") == "hospitality"
