@@ -373,10 +373,13 @@ it.
   *permissive* robots is evidence of nothing; a **refusing** robots is dispositive on its own
   and the terms never need to be reached. `api.smartrecruiters.com/robots.txt` is `Disallow: /`
   for `*` while granting the exact path we used to LinkedInBot alone —
-  **removed from `gather()` 2026-08-11**, at a cost of ~7 700 postings, and pinned by
-  `test_source_exclusions.py`. Do not re-add it because a country looks thin. The wider lesson
-  is the guard, not the source: **an adapter that leaves the machine must call
-  `robots_allows()` and `throttle()`**, and nothing currently checks that it does.
+  **removed from `gather()` 2026-08-11**, and pinned by `test_source_exclusions.py`. Do not
+  re-add it because a country looks thin. **The cost was argued as ~7 700 postings and measured
+  at ~1 690 reachable ones** (3 286 stored active, half in countries nobody can select, led by
+  India at 445) — board-held, stored-active and subscriber-reachable are three different
+  numbers and only the last is the price. The wider lesson is the guard, not the source: **an
+  adapter that leaves the machine must call `robots_allows()` and `throttle()`**, and nothing
+  currently checks that it does.
 - **jobs.cz and profesia are excluded on Alma Career's terms** (2026-08-03), at a deliberate
   cost of 92% of Czech and 99% of Slovak inventory. `test_source_exclusions.py` fails if
   either returns to `gather()`. **Do not re-add them because the digest looks thin.**

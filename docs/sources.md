@@ -486,10 +486,23 @@ payload will pick a different string and that *shape* is the thing to watch.
   **This inverts the rule above, which is why it is worth stating separately.** Ten sources
   permit in robots what they refuse in their terms, so the rule reads "never settle on robots
   alone" — but that is about *permissive* robots being weak evidence. A refusing robots is
-  strong evidence on its own. The cost is deliberate and severe: **~7 700 postings from one of
-  the widest European sources in the stack**, and the adapter worked. Kept as tested code on the
-  `jobscz`/`profesia` footing so reversing it is a decision rather than a rewrite;
-  `test_source_exclusions.py` fails if it returns to `gather()`.
+  strong evidence on its own. Kept as tested code on the `jobscz`/`profesia` footing so
+  reversing it is a decision rather than a rewrite; `test_source_exclusions.py` fails if it
+  returns to `gather()`.
+  **The cost is real but was first stated 4.5× too high, and the error is instructive.** The
+  removal was argued as "~7 700 postings", taken from `probe_boards.py`'s
+  `smartrecruiters 9/7 692` — which is **what the boards hold**, not what we stored, and not
+  what a subscriber could reach. Measured on production the evening of the removal: **3 286
+  active rows, of which only 1 690 are in a selectable country** (plus 59 with a null country,
+  which are kept and left to the AI matcher). The largest single country was **India at 445**,
+  ahead of US 335, DE 258, GB 202, CN 202, VN 158 — roughly half the adapter's stored output
+  was inventory the geo gate already dropped. So the honest price is **~1 690 reachable
+  postings**, and the decision is easier than it looked, not harder.
+  That is this file's own recurring lesson arriving through this file: **a number measured at
+  one stage does not describe another.** Board-held, stored-active and subscriber-reachable are
+  three different quantities, and the first is the one most often to hand. No backfill is needed
+  or wanted — `store.deactivate_stale` runs each ingest at `--stale-days 7`, so the rows drain
+  on their own within a week of the source ceasing to be fetched.
   **The finding that outlives the source:** the adapter imported `politeness` and took only
   `HEADERS` from it — so it sent the honest agent and then made the request anyway, up to
   ~6 150 times a night at 8-way concurrency with **no throttle at all**. Nothing checked that an
