@@ -364,11 +364,19 @@ it.
   the thing standing between us and the data is correspondence, and we do not do
   correspondence. Do not draft a letter, do not open a "pending a conversation" state, and do
   not record a source as *waiting* on anyone. What remains open without asking is **curated
-  employers on Greenhouse/Lever/Ashby/Recruitee/Workable/SmartRecruiters/Workday/Oracle/
-  Teamtailor** via `scripts/discover_ats.py`.
+  employers on Greenhouse/Lever/Ashby/Recruitee/Workable/Workday/Oracle/Teamtailor** via
+  `scripts/discover_ats.py`.
 - **Settle a source on the narrowest applicable clause, never on robots.txt alone.** Ten
   sources so far permit in robots what they refuse in their terms. Check robots.txt at the
   **host root**, and quote the clause that would refuse you.
+- **But that rule cuts one way only, and SmartRecruiters is the case that showed it.** A
+  *permissive* robots is evidence of nothing; a **refusing** robots is dispositive on its own
+  and the terms never need to be reached. `api.smartrecruiters.com/robots.txt` is `Disallow: /`
+  for `*` while granting the exact path we used to LinkedInBot alone —
+  **removed from `gather()` 2026-08-11**, at a cost of ~7 700 postings, and pinned by
+  `test_source_exclusions.py`. Do not re-add it because a country looks thin. The wider lesson
+  is the guard, not the source: **an adapter that leaves the machine must call
+  `robots_allows()` and `throttle()`**, and nothing currently checks that it does.
 - **jobs.cz and profesia are excluded on Alma Career's terms** (2026-08-03), at a deliberate
   cost of 92% of Czech and 99% of Slovak inventory. `test_source_exclusions.py` fails if
   either returns to `gather()`. **Do not re-add them because the digest looks thin.**
@@ -400,9 +408,11 @@ it.
   busts `DAILY_REQUEST_BUDGET`. Its credentials are literal values in `deploy/.env` — an
   unresolved `op://` reference travels verbatim and 401s. Copy with `op read`, never
   `op run` (which masks the value).
-- **SmartRecruiters and Workday are the N+1 adapters** and run last in `gather()`. Their
-  ceilings (`MAX_DETAILS`, `MAX_PAGES_PER_QUERY`, paging) are what decide coverage, and the
-  failure mode is silent — re-measure against the export window after changing them.
+- **Workday is the N+1 adapter** and runs last in `gather()`. Its ceilings (`MAX_DETAILS`,
+  `MAX_PAGES_PER_QUERY`, paging) are what decide coverage, and the failure mode is silent —
+  re-measure against the export window after changing them. (SmartRecruiters was the other
+  one until it was removed on terms — see above. ~38 Workday sites are still
+  found-and-not-added behind that same export-window measurement.)
 - **Haiku for both enrichment passes** — well-calibrated at ~10× lower cost than Sonnet.
 - Salary coverage is ~30–40%; no row is dropped for a missing salary.
 - Metabase is local Docker only; portfolio evidence is screenshots + dbt docs.

@@ -41,7 +41,6 @@ from ingestion.sources.oraclecloud import OracleCloudSource
 from ingestion.sources.platsbanken import PlatsbankenSource
 from ingestion.sources.remoteok import RemoteOKSource
 from ingestion.sources.remotive import RemotiveSource
-from ingestion.sources.smartrecruiters import SmartRecruitersSource
 from ingestion.sources.themuse import TheMuseSource
 from ingestion.sources.weworkremotely import WeWorkRemotelySource
 from ingestion.sources.workday import WorkdaySource
@@ -232,10 +231,15 @@ def _source_classes(include_cz: bool) -> list[type]:
                # forbid automated reading of the portal, which is the Alma Career situation
                # again. See the README before reaching for it.
                PlatsbankenSource,
-               # The last two are last on purpose — both must fetch each posting's
-               # description with its own request, so they are by far the slowest, and a
-               # failure in either should not cost everything that runs before it.
-               SmartRecruitersSource, WorkdaySource]
+               # Workday is last on purpose — it must fetch each posting's description with
+               # its own request, so it is by far the slowest, and a failure there should not
+               # cost everything that runs before it.
+               #
+               # `SmartRecruitersSource` USED to sit here beside it and was removed
+               # 2026-08-11: `api.smartrecruiters.com/robots.txt` is `Disallow: /` for `*`
+               # and grants our exact path (`/v1/companies/`) to LinkedInBot alone. See
+               # `ingestion/tests/test_source_exclusions.py` before re-adding it.
+               WorkdaySource]
     # Adzuna only if keys are present.
     try:
         from ingestion.sources.adzuna import AdzunaSource

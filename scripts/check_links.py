@@ -209,8 +209,10 @@ SAMPLING: dict[str, Sample] = {
     "oraclecloud": Sample(module={"SITES": Spread(1), "MAX_PAGES": 1}),
     "platsbanken": Sample(module={"OCCUPATION_FIELDS": Trim(1), "MAX_WINDOWS": 1,
                                   "MAX_PAGES_PER_WINDOW": 1}),
-    "smartrecruiters": Sample(module={"TENANTS": Spread(1), "MAX_LIST_PAGES": 1,
-                                      "MAX_DETAILS": 5}),
+    # `smartrecruiters` was here until 2026-08-11 and is gone for the same reason `jobscz` and
+    # `profesia` never appear: a source `search_jobs.source_classes()` does not run has no link
+    # to check, and `self_check()` reports the leftover row as DRIFT — correctly. That is the
+    # table's whole purpose, and it caught this removal within the same commit.
     "workday": Sample(module={"SITES": Spread(1), "SEARCH_TERMS": Trim(1),
                               "MAX_PAGES_PER_QUERY": 1, "MAX_DETAILS": 5}),
     "adzuna": Sample(module={"COUNTRY_CONFIG": Trim(1), "SEARCH_TERMS": Trim(1)},
@@ -244,8 +246,6 @@ BROWSER_CONFIRMED = {
              "while its API still lists 12 jobs) and removed from ORGS",
     "recruitee": "2026-08-08 — `payconiq` was found dead (all offers redirect to "
                  "recruitee.com's marketing page) and removed; mailerlite renders correctly",
-    "smartrecruiters": "2026-08-08 — Playtech QA Engineer renders in full; the WEAK verdict "
-                       "was a short-title matching gap, since fixed",
     "greenhouse": "2026-08-08 — full 178-board sweep. form3 (404 to every HTTP client) and "
                   "roblox (times out) both render their postings in a browser; trivago's "
                   "apply page loads 510 characters of nav and no job, and is unresolved",
@@ -681,7 +681,7 @@ def main() -> int:
                          "without exercising any new URL construction, which is the thing "
                          "being tested.")
     ap.add_argument("--details", type=int,
-                    help="override MAX_DETAILS on the N+1 adapters (workday, smartrecruiters). "
+                    help="override MAX_DETAILS on the N+1 adapter (workday). "
                          "Required with --boards 0: that budget is global, so the default 5 "
                          "would leave most boards with no posting to probe.")
     ap.add_argument("--json", help="write the full result table here")

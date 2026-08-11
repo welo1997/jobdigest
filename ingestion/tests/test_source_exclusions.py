@@ -70,10 +70,51 @@ def test_linkedin_and_eurojobs_are_not_ingested():
         assert name not in ingested, f"{name} must not be ingested — see CLAUDE.md"
 
 
+def test_smartrecruiters_is_not_ingested():
+    """SmartRecruiters refuses us at the host root, and it named our path to say so.
+
+    `api.smartrecruiters.com/robots.txt` is, in full::
+
+        User-agent: LinkedInBot
+        Allow: /v1/companies/
+
+        User-agent: *
+        Disallow: /
+
+    That is not a blanket rule we happen to fall under. It names **the exact path this
+    adapter used** and grants it to one crawler that is not us. `dev.smartrecruiters.com`
+    serves the byte-identical file, so their own developer documentation is refused too.
+
+    Checked 2026-08-11 for a published grant that could sit above robots, because a
+    documented self-service term would have outranked it: `www.smartrecruiters.com/legal/`
+    lists **no API Terms of Use and no Developer Terms**, and the visitor-facing Terms of
+    Use prohibit *"Use automatic means to access content or data from other users"* while
+    granting no republication right. Nothing published permits this, and the only remaining
+    route to permission is correspondence, which this repo does not do.
+
+    **This is the inverse of the shape `docs/sources.md` warns about.** Ten sources permit
+    in robots what they refuse in their terms, so the rule reads "never settle on robots
+    alone" — but that cuts one way only. A *permissive* robots is evidence of nothing; a
+    *refusing* one is dispositive on its own and the terms never need to be reached.
+
+    The cost is deliberate and large: ~7 700 postings from one of the widest European
+    sources in the stack, and the adapter worked. Re-add it only against a published
+    permission, never because a country looks thin.
+    """
+    assert "SmartRecruitersSource" not in _ingested(), (
+        "SmartRecruitersSource is back in gather(). It was removed 2026-08-11 because "
+        "api.smartrecruiters.com/robots.txt refuses `*` at the root while granting our "
+        "exact path to LinkedInBot, and no published API terms grant it back. This test "
+        "failing means either a mistake or a decision that needs recording here."
+    )
+
+
 def test_the_excluded_adapters_still_import():
     """Kept as code, so an exclusion can be reversed by a decision rather than a rewrite."""
     from ingestion.sources.jobscz import JobsCzSource
     from ingestion.sources.profesia import ProfesiaSource
+    from ingestion.sources.smartrecruiters import SmartRecruitersSource
 
     assert JobsCzSource().source_name == "jobscz"
     assert ProfesiaSource().source_name == "profesia"
+    assert SmartRecruitersSource().source_name == "smartrecruiters"

@@ -468,11 +468,42 @@ payload will pick a different string and that *shape* is the thing to watch.
   `clickhouse` and `qonto` are live on Ashby *and* on Greenhouse/Lever respectively, and the
   duplicate would occupy two rows and two shortlist slots even though `digest.dedupe_key`
   collapses it in the email.
-- **SmartRecruiters and Workday are the N+1 adapters, and the sources of large-EU-employer
-  inventory.** Neither list endpoint carries a description, so each posting needs its own
-  detail call, so both need a way to decide which postings are worth one. Both run last in
-  `gather()` because they are by far the slowest and a failure there should not cost
-  everything before it.
+- **SmartRecruiters is REMOVED (2026-08-11), and it is the first source settled on robots
+  alone in the *refusing* direction.** `api.smartrecruiters.com/robots.txt` is, in full:
+  `User-agent: LinkedInBot` / `Allow: /v1/companies/` / `User-agent: *` / `Disallow: /`. That
+  is not a blanket rule we happen to fall under — it names **the exact path the adapter used**
+  and grants it to one crawler that is not us, so whoever wrote it considered precisely this
+  access and decided who may have it. `dev.smartrecruiters.com` serves the byte-identical file,
+  so their own developer documentation is refused too.
+  **Checked for a published grant that could outrank robots, because one would have:**
+  `www.smartrecruiters.com/legal/` is a complete legal index listing **no API Terms of Use and
+  no Developer Terms**; the visitor-facing Terms of Use prohibit *"Use automatic means to
+  access content or data from other users"* and *"Harvest, collect, gather or assemble
+  information or data"*, and grant no republication right. Stated honestly: that clause is
+  scoped to *"other users"* and a job ad is arguably the employer's public advertisement, so it
+  is suggestive rather than squarely on point — **the robots file is what decides this**, and
+  the only remaining route to permission is correspondence.
+  **This inverts the rule above, which is why it is worth stating separately.** Ten sources
+  permit in robots what they refuse in their terms, so the rule reads "never settle on robots
+  alone" — but that is about *permissive* robots being weak evidence. A refusing robots is
+  strong evidence on its own. The cost is deliberate and severe: **~7 700 postings from one of
+  the widest European sources in the stack**, and the adapter worked. Kept as tested code on the
+  `jobscz`/`profesia` footing so reversing it is a decision rather than a rewrite;
+  `test_source_exclusions.py` fails if it returns to `gather()`.
+  **The finding that outlives the source:** the adapter imported `politeness` and took only
+  `HEADERS` from it — so it sent the honest agent and then made the request anyway, up to
+  ~6 150 times a night at 8-way concurrency with **no throttle at all**. Nothing checked that an
+  adapter which leaves the machine actually *calls* `robots_allows()` and `throttle()`;
+  `test_politeness.py` only checks the user-agent, which is the failure that had already
+  happened. **That guard is still unwritten, and it will go red for roughly eight adapters when
+  it lands** — that is the finding, not a reason to weaken it. Full workings in
+  `notes/2026-08-10-smartrecruiters-robots.md`.
+- **Workday is the N+1 adapter, and the source of large-EU-employer inventory** (SmartRecruiters
+  was the other until the entry above). Its list endpoint carries no description, so each posting
+  needs its own detail call, so it needs a way to decide which postings are worth one. It runs
+  last in `gather()` because it is by far the slowest and a failure there should not cost
+  everything before it. **The SmartRecruiters measurements below are kept as the record of what
+  was learned** — the paging lesson is general and the next N+1 adapter will meet it again.
   **Both were bounded by an ATS keyword parameter, and on 2026-08-04 both bounds turned out
   to be wrong in ways nothing could see.** The shared lesson: *a search parameter belonging
   to somebody else's ATS is not a filter you control, and a ceiling you never watch is a
