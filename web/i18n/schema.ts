@@ -279,6 +279,12 @@ export interface Messages {
      *  arrives in the response, so it is never written into a catalogue. */
     filterBySkill: string;
     filterByWorkMode: string;
+    /** The free-text box over this subscriber's own matches (2026-08-12). The submit button
+     *  is shared with `jobs.searchButton` — it is the same word doing the same job, and the
+     *  Field / Country / City / Level triggers are borrowed from `jobs` for the same reason:
+     *  the two pages now offer the same axes and must not name them differently. */
+    searchLabel: string;
+    searchPlaceholder: string;
     greatFitsOnly: string;
     clearFilter: string;
   };
@@ -334,6 +340,9 @@ export interface Messages {
      *  — and "no cities" would be the wrong thing to say. */
     cityNeedsCountry: string;
     filterSeniority: string;
+    /** Work setup. Its option labels come from `geo.workModeLabel`, not from here — one
+     *  definition per language, shared with the signup form and /matches. */
+    filterWorkMode: string;
     remoteOnly: string;
     clearFilters: string;
     loadMore: string;

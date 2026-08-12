@@ -33,7 +33,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Nav, Footer } from "@/components/SiteChrome";
 import { searchJobs, searchQuery, type SearchFacet, type SearchJob, type SearchResponse } from "@/lib/api";
 import { categoryLabel } from "@/lib/options";
-import { cityLabel, splitCity } from "@/lib/geo";
+import { cityLabel, splitCity, WORK_MODES } from "@/lib/geo";
 import { SENIORITY_IDS } from "@/lib/options";
 import { safeHref } from "@/lib/url";
 import { track } from "@/lib/analytics";
@@ -187,7 +187,7 @@ function FacetMenu({
                 >
                   <span className="box" aria-hidden>{on ? "✓" : ""}</span>
                   <span className="nm">{render(f.value)}</span>
-                  <span className="c">{f.count}</span>
+                  {f.count !== undefined && <span className="c">{f.count}</span>}
                 </button>
               );
             })}
@@ -210,6 +210,7 @@ function Inner() {
   const cities = params.getAll("city");
   const categories = params.getAll("category");
   const seniorities = params.getAll("seniority");
+  const workModes = params.getAll("work_mode");
   const remote = params.get("remote") === "true";
 
   const [text, setText] = useState(q);
@@ -224,7 +225,7 @@ function Inner() {
   // dependencies without refetching forever. The serialised query is stable for an unchanged
   // search, which is exactly the identity we want.
   const key = useMemo(
-    () => searchQuery({ q, countries, cities, categories, seniorities, remote }).toString(),
+    () => searchQuery({ q, countries, cities, categories, seniorities, workModes, remote }).toString(),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [params.toString()]
   );
@@ -233,7 +234,7 @@ function Inner() {
   // what decides whether this page answers at all.
   const filtering =
     Boolean(q) || countries.length > 0 || cities.length > 0 || categories.length > 0 ||
-    seniorities.length > 0 || remote;
+    seniorities.length > 0 || workModes.length > 0 || remote;
 
   useEffect(() => {
     let cancelled = false;
@@ -249,7 +250,7 @@ function Inner() {
     // (`SEARCH_LIMIT_MAX` guards the other end), so one row is the cheapest legal request and
     // it is discarded below. Facets are computed on `offset == 0` regardless, which is the
     // part we are actually here for.
-    searchJobs({ q, countries, cities, categories, seniorities, remote,
+    searchJobs({ q, countries, cities, categories, seniorities, workModes, remote,
                  limit: filtering ? PAGE : 1 })
       .then((d) => {
         if (cancelled) return;
@@ -277,7 +278,7 @@ function Inner() {
   /** Rewrite the URL, which is what actually triggers a refetch. `scroll: false` because a
    *  filter change should leave the reader where they were. */
   const apply = useCallback(
-    (next: Partial<{ q: string; countries: string[]; cities: string[]; categories: string[]; seniorities: string[]; remote: boolean }>) => {
+    (next: Partial<{ q: string; countries: string[]; cities: string[]; categories: string[]; seniorities: string[]; workModes: string[]; remote: boolean }>) => {
       const nextCountries = next.countries ?? countries;
       // **A city cannot outlive the country it belongs to.** Unticking Czechia has to take
       // `cz:prague` with it: the server already refuses such a pair (`geo.clean_cities`
@@ -294,6 +295,7 @@ function Inner() {
         cities: nextCities,
         categories: next.categories ?? categories,
         seniorities: next.seniorities ?? seniorities,
+        workModes: next.workModes ?? workModes,
         remote: next.remote ?? remote,
       }).toString();
       router.replace(`?${s}`, { scroll: false });
@@ -416,10 +418,22 @@ function Inner() {
           label={t.jobs.filterSeniority}
           // Seniority has a fixed, tiny vocabulary, so it is offered in full rather than
           // faceted — a level with no results today is still a level someone means to pick.
-          facets={SENIORITY_IDS.map((id) => ({ value: id, count: 0 }))}
+          facets={SENIORITY_IDS.map((id) => ({ value: id }))}
           selected={seniorities}
           render={(v) => t.seniorities[v] ?? v}
           onToggle={(v) => apply({ seniorities: toggle(seniorities, v) })}
+        />
+        <FacetMenu
+          label={t.jobs.filterWorkMode}
+          // Fixed three-value vocabulary, offered in full for the same reason Level is. The
+          // API has validated `work_mode` since this endpoint shipped; only the control was
+          // missing, which is why /matches could filter on work setup and this page could not.
+          facets={WORK_MODES.map((m) => ({ value: m }))}
+          selected={workModes}
+          // Reused from the signup form's labels rather than restated: one definition per
+          // language, and "Fully remote" must not mean two different things on two pages.
+          render={(v) => t.geo.workModeLabel[v] ?? v}
+          onToggle={(v) => apply({ workModes: toggle(workModes, v) })}
         />
         <button
           type="button"

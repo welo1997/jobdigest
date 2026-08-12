@@ -90,6 +90,9 @@ export interface MatchJob {
   seniority: string | null;
   work_type: string | null;
   work_mode: string | null;   // remote | hybrid | onsite | null = the ad never said
+  /** Carried since /matches gained Country and City filters (2026-08-12). */
+  country_code: string | null;
+  city: string | null;
   role_category: string | null;
   salary: string | null;
   score: number | null;
@@ -118,6 +121,14 @@ export interface MatchesResponse {
   /** The work-setup filter currently applied. Same server-side validation and the same
    *  effect on `count` and `jobs`. */
   work_modes: string[];
+  /** The four filters this page gained on 2026-08-12, aligning it with the public feed.
+   *  Echoed back as *applied*, not as asked for — a city naming an unselected country is
+   *  dropped server-side, and the UI must light up what is actually narrowing the list. */
+  q: string;
+  categories: string[];
+  countries: string[];
+  cities: string[];
+  seniorities: string[];
   /** Whether the "great fits only" toggle is on, and the score it means. The threshold is
    *  server-owned (it is policy, alongside the match floor and the email bar) — the UI
    *  renders it but must never decide it. */
@@ -129,6 +140,12 @@ export interface MatchesResponse {
   facets: {
     skills: { skill: string; count: number }[];
     work_modes: { work_mode: string; count: number }[];
+    categories: SearchFacet[];
+    countries: SearchFacet[];
+    seniorities: SearchFacet[];
+    /** Present only when a country is filtered on — absent, never empty, so "no country
+     *  picked yet" and "this country has no cities" stay different statements. */
+    cities?: SearchFacet[];
     great_fit_count: number | null;
   };
   /** @deprecated Alias of `facets.skills`, kept so a cached bundle keeps working. */
@@ -267,15 +284,34 @@ export function getPreferences(token?: string) {
 
 // The extra filters ride in a trailing object rather than as two more positional args: six
 // positionals is where a call site starts passing `undefined, 0, false` to reach the last one.
-export function getMatches(token?: string, offset = 0, hidden = false, skills: string[] = [],
-                           filters: { workModes?: string[]; greatFits?: boolean } = {}) {
+/** Everything that narrows the /matches list. One object rather than a growing argument
+ *  list: the page passes the same value to the first request and to every "load more", and
+ *  two of those drifting apart is how page 2 arrives under a different filter than page 1. */
+export interface MatchFilters {
+  skills?: string[];
+  workModes?: string[];
+  greatFits?: boolean;
+  q?: string;
+  categories?: string[];
+  countries?: string[];
+  cities?: string[];
+  seniorities?: string[];
+}
+
+export function getMatches(token?: string, offset = 0, hidden = false,
+                           filters: MatchFilters = {}) {
   const q = new URLSearchParams();
   if (token) q.set("token", token);
   if (offset) q.set("offset", String(offset));
   if (hidden) q.set("hidden", "true");
-  if (skills.length) q.set("skills", skills.join(","));
+  if (filters.skills?.length) q.set("skills", filters.skills.join(","));
   if (filters.workModes?.length) q.set("work_modes", filters.workModes.join(","));
   if (filters.greatFits) q.set("great_fits", "true");
+  if (filters.q?.trim()) q.set("q", filters.q.trim());
+  if (filters.categories?.length) q.set("categories", filters.categories.join(","));
+  if (filters.countries?.length) q.set("countries", filters.countries.join(","));
+  if (filters.cities?.length) q.set("cities", filters.cities.join(","));
+  if (filters.seniorities?.length) q.set("seniorities", filters.seniorities.join(","));
   const s = q.toString();
   return req<MatchesResponse>(`/matches${s ? `?${s}` : ""}`);
 }
@@ -385,7 +421,11 @@ export interface SearchJob {
 
 export interface SearchFacet {
   value: string;
-  count: number;
+  /** Absent for a menu built from a fixed vocabulary rather than from counts (Level, Work
+   *  setup). Those are offered in full — a level with no results today is still a level
+   *  someone means to pick — and rendering a `0` beside every option would state a count
+   *  nobody computed. */
+  count?: number;
 }
 
 export interface SearchResponse {
@@ -415,6 +455,9 @@ export interface SearchParams {
   cities?: string[];
   categories?: string[];
   seniorities?: string[];
+  /** `onsite` / `hybrid` / `remote`. Accepted and validated by `/jobs` since it shipped;
+   *  the control arrived 2026-08-12. */
+  workModes?: string[];
   remote?: boolean;
   limit?: number;
   offset?: number;
@@ -430,6 +473,7 @@ export function searchQuery(p: SearchParams): URLSearchParams {
   for (const c of p.cities ?? []) q.append("city", c);
   for (const c of p.categories ?? []) q.append("category", c);
   for (const s of p.seniorities ?? []) q.append("seniority", s);
+  for (const m of p.workModes ?? []) q.append("work_mode", m);
   if (p.remote) q.set("remote", "true");
   if (p.offset) q.set("offset", String(p.offset));
   if (p.limit) q.set("limit", String(p.limit));

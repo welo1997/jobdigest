@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { establishSession, getMatches, MatchesResponse, MatchJob } from "./api";
+import { establishSession, getMatches, MatchFilters, MatchesResponse, MatchJob } from "./api";
 import { useI18n } from "@/i18n/context";
 
 /**
@@ -41,27 +41,27 @@ export interface MatchList {
 export function useMatchList(
   /** Which half to read, and the page it is rendered on — the path is where the URL is
    *  rewritten to after the one-time `?token=` is spent. */
-  { hidden, path, skills = [], workModes = [], greatFits = false, onLoaded }: {
+  { hidden, path, filters = {}, onLoaded }: {
     hidden: boolean;
     path: string;
-    /** The active skill filter. Changing it refetches from page 0 (paging cannot be carried
-     *  across a different filter) — see the effect deps. */
-    skills?: string[];
-    /** The active work-setup filter, and the "great fits only" toggle. Both behave exactly
-     *  like `skills`: changing either restarts the list from page 0, because an offset is
-     *  only meaningful against the filter it was counted under. */
-    workModes?: string[];
-    greatFits?: boolean;
+    /** Everything narrowing the list. Changing any of it restarts from page 0, because an
+     *  offset is only meaningful against the filter it was counted under — see the effect
+     *  deps, which watch a serialisation of this whole object rather than a field list. A
+     *  field added here therefore restarts paging without anyone remembering to add it. */
+    filters?: MatchFilters;
     /** Called once the first page lands. The token is passed along because it is only
      *  settled here — by the time the caller renders, it may already have been spent. */
     onLoaded?: (d: MatchesResponse, token: string) => void;
   }
 ): MatchList {
-  // A stable primitive dep for the effect: two arrays with the same members must not refetch.
-  const skillsKey = [...skills].sort().join(",");
-  const modesKey = [...workModes].sort().join(",");
-  // Passed on every request, so it has to be one object the calls can share.
-  const filters = { workModes, greatFits };
+  // A stable primitive dep for the effect: two filter sets with the same members must not
+  // refetch. Arrays are sorted so tick order cannot masquerade as a different filter, and
+  // the keys are sorted so object literal order cannot either.
+  const filterKey = JSON.stringify(
+    Object.entries(filters)
+      .map(([k, v]) => [k, Array.isArray(v) ? [...v].sort() : v] as const)
+      .sort((a, b) => a[0].localeCompare(b[0]))
+  );
   const urlToken = useSearchParams().get("token") || "";
   // Same login model on both pages: trade the one-time token for a session cookie, then ride
   // the cookie. Stays set only in the cookie-refused fallback.
@@ -94,13 +94,13 @@ export function useMatchList(
               window.history.replaceState(null, "", href(path));
               window.dispatchEvent(new Event("jd-auth-changed"));   // nav: re-check, we're in
             }
-            done(await getMatches(undefined, 0, hidden, skills, filters));
+            done(await getMatches(undefined, 0, hidden, filters));
           } catch {
-            done(await getMatches(urlToken, 0, hidden, skills, filters));
+            done(await getMatches(urlToken, 0, hidden, filters));
           }
           return;
         }
-        done(await getMatches(undefined, 0, hidden, skills, filters));
+        done(await getMatches(undefined, 0, hidden, filters));
       } catch (e) {
         if (cancelled) return;
         setErr(
@@ -113,7 +113,7 @@ export function useMatchList(
     load();
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [urlToken, hidden, skillsKey, modesKey, greatFits]);
+  }, [urlToken, hidden, filterKey]);
 
   const jobs = data ? [...data.jobs, ...more] : [];
   const hasMore = !!data && jobs.length < data.count;
@@ -126,7 +126,7 @@ export function useMatchList(
       // Offset by what is on screen, not by page number — `data.limit` is the server's cap
       // and the client must not assume it stays the same between requests.
       const next = await getMatches(tokenRef.current || undefined, jobs.length, hidden,
-                                    skills, filters);
+                                    filters);
       setMore((prev) => [...prev, ...next.jobs]);
       // Re-read the totals from the fresh response. If a posting went inactive between
       // requests the count shrinks, and an empty page then settles `hasMore` to false on the

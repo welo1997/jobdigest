@@ -785,7 +785,13 @@ resurrect something the subscriber hid."""
 
 def _match_filters(skills_filter: list[str] | None = None,
                    work_modes: list[str] | None = None,
-                   min_score: Optional[int] = None) -> tuple[str, list]:
+                   min_score: Optional[int] = None,
+                   q: Optional[str] = None,
+                   categories: list[str] | None = None,
+                   countries: list[str] | None = None,
+                   cities: list[str] | None = None,
+                   seniorities: list[str] | None = None,
+                   *, skip: str = "") -> tuple[str, list]:
     """The /matches display filters, as one SQL fragment and its params.
 
     **One builder because the lockstep rule is structural, not a matter of discipline.**
@@ -797,24 +803,61 @@ def _match_filters(skills_filter: list[str] | None = None,
     These are **display** filters over an existing match set, not matching criteria:
     `min_score` here is what the subscriber is looking at right now, and is unrelated to
     `profiles.min_score`, which is a stored preference that gates what gets matched at all.
+    The same is true of every filter here — narrowing this page never changes what the
+    matcher picks or what tomorrow's email contains.
+
+    **`skip` names one filter to leave out, and every arm must honour it.** `match_facets`
+    computes each menu with the other filters applied but never its own, which used to be
+    expressed by passing `None` in that argument's position. That worked for three filters
+    and does not scale to eight: the caller had to remember which positional argument to
+    blank, and blanking the wrong one is a silently wrong count. Now every facet passes the
+    *whole* filter set and names what to drop. A new filter therefore participates in every
+    facet automatically — the failure this replaces was `_search_where`'s missing `cities`
+    arm on 2026-08-12, which let the city menu narrow to the city already ticked.
 
     Params are positional, so the order returned here is the order the caller must splice
     them in — after `profile_id` and the status param, before `limit`/`offset`.
     """
     clauses: list[str] = []
     params: list = []
-    if skills_filter:
+    if q and skip != "q":
+        # `simple`, matching the generated column, and `plainto_tsquery` because it ANDs the
+        # words and cannot raise on punctuation — the same reasoning as the public search,
+        # and the same length cap, because this box is just as free-form.
+        clauses.append("and p.search_tsv @@ plainto_tsquery('simple', %s)")
+        params.append(str(q).strip()[:SEARCH_TERM_MAX])
+    if skills_filter and skip != "skills":
         # Array overlap: a job matches if it names ANY selected skill (OR, the settled
         # multi-select behaviour).
         clauses.append("and p.skills && %s")
         params.append(list(skills_filter))
-    if work_modes:
+    if work_modes and skip != "work_modes":
         # A null `work_mode` (the ad never said) is excluded by design here: this is an
         # explicit request for a named setup, not the matcher's keep-unknown rule. The facet
         # never offers null as an option, so the menu cannot promise rows this drops.
         clauses.append("and p.work_mode = any(%s)")
         params.append(list(work_modes))
-    if min_score is not None:
+    if categories and skip != "categories":
+        clauses.append("and p.role_category = any(%s)")
+        params.append(list(categories))
+    if countries and skip != "countries":
+        clauses.append("and p.country_code = any(%s)")
+        params.append(list(countries))
+    if cities and skip != "cities":
+        # Explicit (country, city) pairs, never a bare slug — the same rule and the same
+        # reason as `_search_where`: a slug alone matches the same-named city in another
+        # country's table.
+        good = [(cc, slug) for cc, slug in (geo.split_city(c) for c in cities) if cc and slug]
+        if good:
+            ors = []
+            for cc, slug in good:
+                ors.append("(p.country_code = %s and p.city = %s)")
+                params.extend([cc, slug])
+            clauses.append("and (" + " or ".join(ors) + ")")
+    if seniorities and skip != "seniorities":
+        clauses.append("and p.seniority = any(%s)")
+        params.append(list(seniorities))
+    if min_score is not None and skip != "min_score":
         clauses.append("and m.score >= %s")
         params.append(int(min_score))
     return "\n              ".join(clauses), params
@@ -824,7 +867,12 @@ def matched_jobs(profile_id: str, limit: int = 50, offset: int = 0,
                  hidden: bool = False, exclude_sent: bool = False,
                  skills_filter: list[str] | None = None,
                  work_modes: list[str] | None = None,
-                 min_score: Optional[int] = None) -> list[dict]:
+                 min_score: Optional[int] = None,
+                 q: Optional[str] = None,
+                 categories: list[str] | None = None,
+                 countries: list[str] | None = None,
+                 cities: list[str] | None = None,
+                 seniorities: list[str] | None = None) -> list[dict]:
     """AI-picked jobs for a profile (matches join postings), best fit first.
 
     Read side for the digest: returns only active postings the matcher selected
@@ -866,13 +914,15 @@ def matched_jobs(profile_id: str, limit: int = 50, offset: int = 0,
     # The web-path display filters (skill chips, work-setup menu, "great fits only"), built
     # once in `_match_filters` and applied identically by `match_count` — see that docstring
     # for why they cannot be two hand-built strings.
-    filt, filt_params = _match_filters(skills_filter, work_modes, min_score)
+    filt, filt_params = _match_filters(skills_filter, work_modes, min_score, q,
+                                       categories, countries, cities, seniorities)
     params: list = [profile_id, HIDDEN_STATUS] + filt_params + [limit, offset]
     with cursor() as cur:
         cur.execute(
             f"""
             select p.posting_id, p.source, p.title, p.company, p.url, p.location,
-                   p.region, p.city, p.eligibility, p.seniority, p.work_type, p.is_part_time,
+                   p.region, p.city, p.country_code,
+                   p.eligibility, p.seniority, p.work_type, p.is_part_time,
                    p.remote_signal, p.work_mode,
                    p.role_category, p.salary_raw, p.currency, p.posted_at, p.skills,
                    m.score, m.summary
@@ -898,7 +948,12 @@ def matched_jobs(profile_id: str, limit: int = 50, offset: int = 0,
 def match_count(profile_id: str, hidden: bool = False,
                 skills_filter: list[str] | None = None,
                 work_modes: list[str] | None = None,
-                min_score: Optional[int] = None) -> int:
+                min_score: Optional[int] = None,
+                q: Optional[str] = None,
+                categories: list[str] | None = None,
+                countries: list[str] | None = None,
+                cities: list[str] | None = None,
+                seniorities: list[str] | None = None) -> int:
     """How many active matches this profile has (same filter as matched_jobs) — used to
     show 'see all N matches' in the email and the page header.
 
@@ -906,7 +961,8 @@ def match_count(profile_id: str, hidden: bool = False,
     from that, so a filter added to one and not the other reads as "127 matches" above a
     list that can only ever reach 124. Both now route through `_match_filters`, so the two
     cannot disagree by construction rather than by remembering to edit both."""
-    filt, filt_params = _match_filters(skills_filter, work_modes, min_score)
+    filt, filt_params = _match_filters(skills_filter, work_modes, min_score, q,
+                                       categories, countries, cities, seniorities)
     params: list = [profile_id, HIDDEN_STATUS] + filt_params
     with cursor() as cur:
         cur.execute(
@@ -924,7 +980,12 @@ def match_facets(profile_id: str, hidden: bool = False,
                  skills_filter: list[str] | None = None,
                  work_modes: list[str] | None = None,
                  min_score: Optional[int] = None,
-                 great_fit_score: Optional[int] = None) -> dict:
+                 great_fit_score: Optional[int] = None,
+                 q: Optional[str] = None,
+                 categories: list[str] | None = None,
+                 countries: list[str] | None = None,
+                 cities: list[str] | None = None,
+                 seniorities: list[str] | None = None) -> dict:
     """The options each /matches filter menu offers, with counts.
 
     **Every facet is computed with the other filters applied but never its own.** That is
@@ -949,10 +1010,20 @@ def match_facets(profile_id: str, hidden: bool = False,
     nothing to offer rather than render "Great fits (0)".
     """
     status_op = '=' if hidden else '<>'
+    # The whole active filter set, passed to every facet below with one name skipped. Built
+    # once so a filter cannot be left out of a menu by being forgotten at a call site — see
+    # `_match_filters`' `skip` note for the bug this shape replaces.
+    active = dict(skills_filter=skills_filter, work_modes=work_modes, min_score=min_score,
+                  q=q, categories=categories, countries=countries, cities=cities,
+                  seniorities=seniorities)
+
+    def where(skip: str) -> tuple[str, list]:
+        return _match_filters(**active, skip=skip)
+
     out: dict = {}
     with cursor() as cur:
         # --- skills: every filter except the skill one -----------------------------------
-        filt, filt_params = _match_filters(None, work_modes, min_score)
+        filt, filt_params = where("skills")
         cur.execute(
             f"""select s as skill, count(*) as n
                from matches m
@@ -967,7 +1038,7 @@ def match_facets(profile_id: str, hidden: bool = False,
         out["skills"] = [{"skill": r["skill"], "count": int(r["n"])} for r in cur.fetchall()]
 
         # --- work setup: every filter except the work-mode one ----------------------------
-        filt, filt_params = _match_filters(skills_filter, None, min_score)
+        filt, filt_params = where("work_modes")
         cur.execute(
             f"""select p.work_mode as value, count(*) as n
                from matches m join postings p on p.posting_id = m.posting_id
@@ -982,11 +1053,37 @@ def match_facets(profile_id: str, hidden: bool = False,
         out["work_modes"] = [{"work_mode": m, "count": by_mode[m]}
                              for m in geo.WORK_MODES if m in by_mode]
 
+        # --- field / country / city / level ----------------------------------------------
+        #
+        # Same shape as the public feed's facets and the same rule: each computed with the
+        # other filters applied but never its own. `cities` is offered only once a country is
+        # chosen — a city list spanning every country a subscriber selected is a menu nobody
+        # can read, and it is absent rather than empty so "you have not picked a country" and
+        # "this country has no cities" stay different statements.
+        simple = [("categories", "p.role_category", "categories"),
+                  ("countries", "p.country_code", "countries"),
+                  ("seniorities", "p.seniority", "seniorities")]
+        if countries:
+            simple.append(("cities", "lower(p.country_code) || ':' || p.city", "cities"))
+        for key, expr, skip in simple:
+            filt, filt_params = where(skip)
+            cur.execute(
+                f"""select {expr} as value, count(*) as n
+                   from matches m join postings p on p.posting_id = m.posting_id
+                   where m.profile_id = %s and p.is_active and m.score is not null
+                     and m.status {status_op} %s
+                     and {expr} is not null
+                     {filt}
+                   group by 1 order by n desc, 1""",
+                [profile_id, HIDDEN_STATUS] + filt_params,
+            )
+            out[key] = [{"value": r["value"], "count": int(r["n"])} for r in cur.fetchall()]
+
         # --- great fits: every filter except the score one --------------------------------
         if great_fit_score is None:
             out["great_fit_count"] = None
         else:
-            filt, filt_params = _match_filters(skills_filter, work_modes, great_fit_score)
+            filt, filt_params = _match_filters(**{**active, "min_score": great_fit_score})
             cur.execute(
                 f"""select count(*) as n
                    from matches m join postings p on p.posting_id = m.posting_id

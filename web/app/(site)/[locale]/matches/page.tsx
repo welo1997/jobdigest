@@ -7,6 +7,8 @@ import { MatchCard, SelectionBar } from "@/components/MatchCard";
 import { setMatchesHidden } from "@/lib/api";
 import { track } from "@/lib/analytics";
 import { useMatchList } from "@/lib/useMatchList";
+import { categoryLabel } from "@/lib/options";
+import { cityLabel, splitCity } from "@/lib/geo";
 import { rich, useI18n } from "@/i18n/context";
 
 // Chip label for a canonical skill id: "microsoft_office" → "Microsoft Office", keeping a
@@ -120,16 +122,23 @@ function FilterMenu({
 }
 
 function Inner() {
-  const { t, href, count } = useI18n();
+  const { t, href, count, country } = useI18n();
   const [skills, setSkills] = useState<string[]>([]);
   const [workModes, setWorkModes] = useState<string[]>([]);
   const [greatFits, setGreatFits] = useState(false);
+  // The four axes this page gained on 2026-08-12, so it filters on the same things the
+  // public feed does. `text` is what is typed; `q` is what has been submitted — a keystroke
+  // must not refetch a subscriber's whole match list.
+  const [q, setQ] = useState("");
+  const [text, setText] = useState("");
+  const [categories, setCategories] = useState<string[]>([]);
+  const [countries, setCountries] = useState<string[]>([]);
+  const [cities, setCities] = useState<string[]>([]);
+  const [seniorities, setSeniorities] = useState<string[]>([]);
   const list = useMatchList({
     hidden: false,
     path: "/matches",
-    skills,
-    workModes,
-    greatFits,
+    filters: { skills, workModes, greatFits, q, categories, countries, cities, seniorities },
     // How many matches the page actually had — a page that routinely shows 0 or 1 is
     // a product problem, not a UI one.
     onLoaded: (d, token) => track("matches_viewed", { count: d.count }, token || undefined),
@@ -152,6 +161,29 @@ function Inner() {
     set((prev) => (prev.includes(v) ? prev.filter((x) => x !== v) : [...prev, v]));
   const toggleSkill = toggleIn(setSkills);
   const toggleWorkMode = toggleIn(setWorkModes);
+  const toggleCategory = toggleIn(setCategories);
+  const toggleCity = toggleIn(setCities);
+  const toggleSeniority = toggleIn(setSeniorities);
+
+  // **Unticking a country takes its cities with it.** The server already refuses a pair whose
+  // country is not selected (`geo.clean_cities`), so leaving one in state would light a City
+  // chip counting a filter that is not being applied — a filter the subscriber can see and we
+  // are not honouring, which is worse than either alone. Same rule as `/jobs`.
+  const toggleCountry = (v: string) =>
+    setCountries((prev) => {
+      const next = prev.includes(v) ? prev.filter((x) => x !== v) : [...prev, v];
+      setCities((cs) => cs.filter((c) => next.includes(c.split(":")[0]?.toUpperCase() ?? "")));
+      return next;
+    });
+
+  // `cz:prague` -> "Prague", with the country appended when more than one is ticked: city
+  // names are not unique across the table (`cambridge` is curated under GB and US).
+  const cityFilterLabel = (value: string) => {
+    const pair = splitCity(value);
+    if (!pair) return value;
+    const name = cityLabel(pair.country, pair.slug);
+    return countries.length > 1 ? `${name} · ${country(pair.country)}` : name;
+  };
 
   const hide = async () => {
     const ids = [...picked];
@@ -209,7 +241,17 @@ function Inner() {
   const modeOpts = (data.facets?.work_modes ?? [])
     .map((f) => ({ id: f.work_mode, count: f.count }));
   const greatFitCount = data.facets?.great_fit_count ?? null;
-  const filtering = skills.length > 0 || workModes.length > 0 || greatFits;
+  // The new menus read their options straight off the response's facets, which the server
+  // computes with the other filters applied but never their own.
+  const asOpts = (fs?: { value: string; count?: number }[]) =>
+    (fs ?? []).map((f) => ({ id: f.value, count: f.count ?? 0 }));
+  const categoryOpts = asOpts(data.facets?.categories);
+  const countryOpts = asOpts(data.facets?.countries);
+  const cityOpts = asOpts(data.facets?.cities);
+  const levelOpts = asOpts(data.facets?.seniorities);
+  const filtering = skills.length > 0 || workModes.length > 0 || greatFits ||
+    Boolean(q) || categories.length > 0 || countries.length > 0 || cities.length > 0 ||
+    seniorities.length > 0;
 
   // Each control appears only when it can actually discriminate. A subscriber's own
   // preferences already pin most of these axes — someone who asked for remote-only work has
@@ -218,7 +260,16 @@ function Inner() {
   // choice to make, or when it is already on and must stay clearable.
   const showModes = modeOpts.length > 1 || workModes.length > 0;
   const showGreatFits = (greatFitCount !== null && greatFitCount > 0) || greatFits;
-  const showRow = skillOpts.length > 0 || showModes || showGreatFits || filtering;
+  // Same "only when it can discriminate" rule the work-setup menu already follows: a
+  // subscriber who chose one country has one country across every match, and a menu with a
+  // single option is furniture. City is the exception — it is meaningful with one country
+  // ticked, which is exactly when the server starts counting it.
+  const showCats = categoryOpts.length > 1 || categories.length > 0;
+  const showCountries = countryOpts.length > 1 || countries.length > 0;
+  const showCities = cityOpts.length > 0 || cities.length > 0;
+  const showLevels = levelOpts.length > 1 || seniorities.length > 0;
+  const showRow = skillOpts.length > 0 || showModes || showGreatFits || showCats ||
+    showCountries || showCities || showLevels || filtering;
 
   const filterRow = showRow && (
     <div className="wrap skill-filter">
@@ -243,6 +294,52 @@ function Inner() {
           // per language, and "Fully remote" must not mean two different things on two pages.
           label={(m) => t.geo.workModeLabel[m] ?? m}
           triggerLabel={t.matches.filterByWorkMode}
+          clearLabel={t.matches.clearFilter}
+        />
+      )}
+      {showCats && (
+        <FilterMenu
+          options={categoryOpts}
+          selected={categories}
+          onToggle={toggleCategory}
+          onClear={() => setCategories([])}
+          // Same derivation as the public feed: the label comes from the signup chip that
+          // already names this category, in all eight languages. No second table.
+          label={(c) => categoryLabel(c, t.roles, t.jobs.categories)}
+          triggerLabel={t.jobs.filterCategory}
+          clearLabel={t.matches.clearFilter}
+        />
+      )}
+      {showCountries && (
+        <FilterMenu
+          options={countryOpts}
+          selected={countries}
+          onToggle={toggleCountry}
+          onClear={() => { setCountries([]); setCities([]); }}
+          label={(c) => country(c)}
+          triggerLabel={t.jobs.filterCountry}
+          clearLabel={t.matches.clearFilter}
+        />
+      )}
+      {showCities && (
+        <FilterMenu
+          options={cityOpts}
+          selected={cities}
+          onToggle={toggleCity}
+          onClear={() => setCities([])}
+          label={cityFilterLabel}
+          triggerLabel={t.jobs.filterCity}
+          clearLabel={t.matches.clearFilter}
+        />
+      )}
+      {showLevels && (
+        <FilterMenu
+          options={levelOpts}
+          selected={seniorities}
+          onToggle={toggleSeniority}
+          onClear={() => setSeniorities([])}
+          label={(v) => t.seniorities[v] ?? v}
+          triggerLabel={t.jobs.filterSeniority}
           clearLabel={t.matches.clearFilter}
         />
       )}
@@ -282,6 +379,55 @@ function Inner() {
           {t.geo.workModeLabel[m] ?? m} <span className="x" aria-hidden>×</span>
         </button>
       ))}
+      {categories.map((c) => (
+        <button type="button" key={c} className="skill sel on" aria-pressed={true}
+          onClick={() => toggleCategory(c)}>
+          {categoryLabel(c, t.roles, t.jobs.categories)} <span className="x" aria-hidden>×</span>
+        </button>
+      ))}
+      {countries.map((c) => (
+        <button type="button" key={c} className="skill sel on" aria-pressed={true}
+          onClick={() => toggleCountry(c)}>
+          {country(c)} <span className="x" aria-hidden>×</span>
+        </button>
+      ))}
+      {cities.map((c) => (
+        <button type="button" key={c} className="skill sel on" aria-pressed={true}
+          onClick={() => toggleCity(c)}>
+          {cityFilterLabel(c)} <span className="x" aria-hidden>×</span>
+        </button>
+      ))}
+      {seniorities.map((v) => (
+        <button type="button" key={v} className="skill sel on" aria-pressed={true}
+          onClick={() => toggleSeniority(v)}>
+          {t.seniorities[v] ?? v} <span className="x" aria-hidden>×</span>
+        </button>
+      ))}
+      {q && (
+        <button type="button" className="skill sel on" aria-pressed={true}
+          onClick={() => { setQ(""); setText(""); }}>
+          {q} <span className="x" aria-hidden>×</span>
+        </button>
+      )}
+    </div>
+  );
+
+  // The same box as the public feed, over this subscriber's own matches. Submitted rather
+  // than live: each keystroke would be a request against a list that is already narrowed.
+  const searchBox = (
+    <div className="wrap feed-search">
+      <form role="search" onSubmit={(e) => { e.preventDefault(); setQ(text); }}>
+        <label className="sr-only" htmlFor="match-q">{t.matches.searchLabel}</label>
+        <input
+          id="match-q"
+          type="search"
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          placeholder={t.matches.searchPlaceholder}
+          autoComplete="off"
+        />
+        <button type="submit" className="btn">{t.jobs.searchButton}</button>
+      </form>
     </div>
   );
 
@@ -306,6 +452,7 @@ function Inner() {
         </div>
       ) : (
         <>
+          {searchBox}
           {filterRow}
           {data.count === 0 ? (
             <div className="wrap" style={{ marginTop: 8 }}>

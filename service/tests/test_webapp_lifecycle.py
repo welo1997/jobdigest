@@ -177,50 +177,93 @@ class _FakeStore:
             for i in range(n)
         ]
 
-    def matched_jobs(self, profile_id, limit=50, offset=0, hidden=False,
-                     skills_filter=None, work_modes=None, min_score=None):
-        rows = [j for j in self.matches if (j["posting_id"] in self.hidden) == hidden]
-        if skills_filter:
+    # The display filters, mirroring `store._match_filters` — including the four the page
+    # gained on 2026-08-12. Kept as one dict so a facet skips by *name* rather than by
+    # blanking the right positional argument, which is the same reason the real builder took
+    # a `skip` parameter instead of growing to eight positions.
+    _MATCH_FILTERS = ("skills_filter", "work_modes", "min_score", "q", "categories",
+                      "countries", "cities", "seniorities")
+
+    def _apply_match_filters(self, rows, skip="", **f):
+        def on(name):
+            return f.get(name) and skip != name
+
+        if on("skills_filter"):
             rows = [j for j in rows
-                    if set(j.get("skills") or []) & set(skills_filter)]
-        if work_modes:
+                    if set(j.get("skills") or []) & set(f["skills_filter"])]
+        if on("work_modes"):
             # Null work_mode drops out, exactly as the real `= any(...)` does.
-            rows = [j for j in rows if j.get("work_mode") in set(work_modes)]
-        if min_score is not None:
-            rows = [j for j in rows if (j.get("score") or 0) >= min_score]
-        return rows[offset:offset + limit]
+            rows = [j for j in rows if j.get("work_mode") in set(f["work_modes"])]
+        if on("q"):
+            needle = str(f["q"]).lower()
+            rows = [j for j in rows
+                    if needle in f"{j.get('title') or ''} {j.get('company') or ''}".lower()]
+        if on("categories"):
+            rows = [j for j in rows if j.get("role_category") in set(f["categories"])]
+        if on("countries"):
+            rows = [j for j in rows if j.get("country_code") in set(f["countries"])]
+        if on("cities"):
+            pairs = {(cc, slug) for cc, slug in
+                     (geo.split_city(c) for c in f["cities"]) if cc and slug}
+            rows = [j for j in rows if (j.get("country_code"), j.get("city")) in pairs]
+        if on("seniorities"):
+            rows = [j for j in rows if j.get("seniority") in set(f["seniorities"])]
+        if f.get("min_score") is not None and skip != "min_score":
+            rows = [j for j in rows if (j.get("score") or 0) >= f["min_score"]]
+        return rows
 
-    def match_count(self, profile_id, hidden=False, skills_filter=None,
-                    work_modes=None, min_score=None):
-        return len(self.matched_jobs(profile_id, limit=10 ** 9, hidden=hidden,
-                                     skills_filter=skills_filter, work_modes=work_modes,
-                                     min_score=min_score))
+    def matched_jobs(self, profile_id, limit=50, offset=0, hidden=False, **f):
+        rows = [j for j in self.matches if (j["posting_id"] in self.hidden) == hidden]
+        return self._apply_match_filters(rows, **f)[offset:offset + limit]
 
-    def match_facets(self, profile_id, hidden=False, skills_filter=None, work_modes=None,
-                     min_score=None, great_fit_score=None):
+    def match_count(self, profile_id, hidden=False, **f):
+        return len(self.matched_jobs(profile_id, limit=10 ** 9, hidden=hidden, **f))
+
+    def match_facets(self, profile_id, hidden=False, great_fit_score=None, **f):
         # Each facet skips its own filter and applies the others, mirroring the real query.
+        def rows(skip):
+            base = [j for j in self.matches if (j["posting_id"] in self.hidden) == hidden]
+            return self._apply_match_filters(base, skip=skip, **f)
+
         counts = {}
-        for j in self.matched_jobs(profile_id, limit=10 ** 9, hidden=hidden,
-                                   work_modes=work_modes, min_score=min_score):
+        for j in rows("skills_filter"):
             for s in j.get("skills") or []:
                 counts[s] = counts.get(s, 0) + 1
         modes = {}
-        for j in self.matched_jobs(profile_id, limit=10 ** 9, hidden=hidden,
-                                   skills_filter=skills_filter, min_score=min_score):
+        for j in rows("work_modes"):
             if j.get("work_mode"):
                 modes[j["work_mode"]] = modes.get(j["work_mode"], 0) + 1
+
+        def tally(skip, field):
+            out = {}
+            for j in rows(skip):
+                v = j.get(field)
+                if v:
+                    out[v] = out.get(v, 0) + 1
+            return [{"value": v, "count": n}
+                    for v, n in sorted(out.items(), key=lambda kv: (-kv[1], kv[0]))]
+
         great = None
         if great_fit_score is not None:
             great = len(self.matched_jobs(profile_id, limit=10 ** 9, hidden=hidden,
-                                          skills_filter=skills_filter, work_modes=work_modes,
-                                          min_score=great_fit_score))
-        return {
+                                          **{**f, "min_score": great_fit_score}))
+        out = {
             "skills": [{"skill": s, "count": n}
                        for s, n in sorted(counts.items(), key=lambda kv: (-kv[1], kv[0]))],
             "work_modes": [{"work_mode": m, "count": modes[m]}
                            for m in geo.WORK_MODES if m in modes],
+            "categories": tally("categories", "role_category"),
+            "countries": tally("countries", "country_code"),
+            "seniorities": tally("seniorities", "seniority"),
             "great_fit_count": great,
         }
+        # Absent, not empty, until a country is chosen — the real query does the same.
+        if f.get("countries"):
+            out["cities"] = [
+                {"value": f"{(j.get('country_code') or '').lower()}:{j.get('city')}",
+                 "count": 1}
+                for j in rows("cities") if j.get("country_code") and j.get("city")]
+        return out
 
     def set_matches_hidden(self, profile_id, posting_ids, hidden):
         """Mirrors the real query's shape: ids that aren't this profile's live matches change
@@ -813,6 +856,60 @@ def test_negative_offset_is_clamped_to_the_first_page(client, store):
     body = client.get("/matches", params={"token": TOKEN, "offset": -5}).json()
     assert body["offset"] == 0
     assert [j["posting_id"] for j in body["jobs"]][:3] == ["p000", "p001", "p002"]
+
+
+def test_matches_drops_an_unknown_filter_rather_than_refusing_the_page(client, store):
+    """The deliberate opposite of `/jobs`, and the docstring says why: there the filters are
+    the whole page, so a silently-ignored one renders an unfiltered corpus under a heading
+    claiming otherwise and must 400. Here the subscriber's own matches are the page — a
+    dropped filter merely shows more of them, and breaking someone's match list over a
+    hand-edited URL would be the worse answer."""
+    store.seed_matches(5)
+    r = client.get("/matches", params={
+        "token": TOKEN, "categories": "softwar", "countries": "ZZ",
+        "seniorities": "principal", "cities": "nonsense",
+    })
+    assert r.status_code == 200
+    body = r.json()
+    # Nothing survived validation, so nothing narrowed and the full list comes back.
+    assert body["count"] == 5
+    # ...and the response says so: what is echoed is what was *applied*, never what was asked
+    # for, so the UI cannot light a chip for a filter the server threw away.
+    assert body["categories"] == [] and body["countries"] == []
+    assert body["seniorities"] == [] and body["cities"] == []
+
+
+def test_a_matches_city_cannot_outlive_the_country_it_belongs_to(client, store):
+    """`geo.clean_cities` drops a pair whose country is not also selected. Echoed back as
+    dropped, because a City chip counting a filter the server is not applying is a filter the
+    subscriber can see and we are not honouring."""
+    store.seed_matches(3)
+    kept = client.get("/matches", params={
+        "token": TOKEN, "countries": "CZ", "cities": "cz:prague"}).json()
+    assert kept["cities"] == ["cz:prague"]
+
+    orphan = client.get("/matches", params={
+        "token": TOKEN, "countries": "DE", "cities": "cz:prague"}).json()
+    assert orphan["cities"] == [], "a city survived without its country"
+
+
+def test_the_matches_filters_narrow_the_count_and_the_rows_together(client, store):
+    """The lockstep rule, read through the endpoint rather than the store: `count` is the
+    header and `jobs` is the list, and a filter that reached one but not the other reads as
+    "12 matches" above a list that stops at 8."""
+    store.seed_matches(4)
+    store.matches[0]["country_code"] = "CZ"
+    store.matches[1]["country_code"] = "CZ"
+    store.matches[2]["country_code"] = "DE"
+    store.matches[3]["country_code"] = "DE"
+
+    body = client.get("/matches", params={"token": TOKEN, "countries": "CZ"}).json()
+    assert body["count"] == 2
+    assert len(body["jobs"]) == 2
+    assert body["countries"] == ["CZ"]
+    # The country menu skips its own filter, so DE stays reachable and the subscriber can
+    # widen again without knowing to clear anything first.
+    assert {f["value"] for f in body["facets"]["countries"]} == {"CZ", "DE"}
 
 
 def test_matches_still_requires_a_valid_token(client, store):

@@ -41,13 +41,18 @@ PREFIX = "matchfilt-"
 #   - index 4 has a NULL work_mode  — the ad never said (must drop under a work-setup filter)
 #   - index 5 has NULL skills       — contributes to no skill facet but is still a match
 #   - the score ladder straddles 8  — three at or above, three below
+#
+# The last five columns arrived with the 2026-08-12 filter alignment (country, city, field,
+# level, title). They are varied across the same six rows rather than added as new ones, so
+# every assertion written before that date still counts what it counted.
 FIXTURES = [
-    ("remote", 10, ["excel"]),
-    ("remote", 9, ["excel"]),
-    ("hybrid", 8, ["excel", "sql"]),
-    ("onsite", 5, ["python"]),
-    (None, 4, ["excel"]),
-    ("remote", 3, None),
+    # mode,      score, skills,           country, city,        category,               level,    title
+    ("remote", 10, ["excel"], "CZ", "prague", "data_analysis", "mid", "Data Analyst"),
+    ("remote", 9, ["excel"], "CZ", "brno", "data_analysis", "senior", "Senior Data Analyst"),
+    ("hybrid", 8, ["excel", "sql"], "DE", "berlin", "software_engineering", "mid", "Backend Engineer"),
+    ("onsite", 5, ["python"], "DE", "berlin", "software_engineering", "junior", "Junior Backend Engineer"),
+    (None, 4, ["excel"], "CZ", "prague", "design", "mid", "Product Designer"),
+    ("remote", 3, None, "SE", "stockholm", "data_analysis", "mid", "Analytics Lead"),
 ]
 POSTINGS = [f"{PREFIX}{i}" for i in range(len(FIXTURES))]
 GREAT = 8          # the threshold under test; the endpoint's own lives in webapp
@@ -60,15 +65,15 @@ def db():
     store._POOL = None
 
     with store.cursor(commit=True) as cur:
-        for pid, (mode, _score, skills) in zip(POSTINGS, FIXTURES):
+        for pid, (mode, _score, skills, cc, city, cat, level, title) in zip(POSTINGS, FIXTURES):
             cur.execute(
                 "insert into postings (posting_id, source, url, title, company, region, "
-                "  eligibility, seniority, work_type, role_category, dedup_key, skills, "
-                "  work_mode, is_active) "
-                "values (%s,'test',%s,'Data Analyst','Test','cz','eligible','mid',"
-                "  'permanent','data_analysis',%s,%s,%s,true) "
+                "  country_code, city, eligibility, seniority, work_type, role_category, "
+                "  dedup_key, skills, work_mode, is_active) "
+                "values (%s,'test',%s,%s,'Test','cz',%s,%s,'eligible',%s,"
+                "  'permanent',%s,%s,%s,%s,true) "
                 "on conflict (posting_id) do nothing",
-                (pid, f"https://x.test/{pid}", pid, skills, mode),
+                (pid, f"https://x.test/{pid}", title, cc, city, level, cat, pid, skills, mode),
             )
     try:
         yield
@@ -91,7 +96,7 @@ def profile():
         cur.execute("insert into profiles (email, label) values (%s, 'filter test') "
                     "returning id::text as id", (email,))
         pid = cur.fetchone()["id"]
-    for posting, (_mode, score, _skills) in zip(POSTINGS, FIXTURES):
+    for posting, (_mode, score, *_rest) in zip(POSTINGS, FIXTURES):
         store.upsert_match(pid, posting, score, "why")
     return pid
 
@@ -211,3 +216,87 @@ def test_facets_and_filters_respect_hidden(profile):
     assert store.match_facets(profile, great_fit_score=GREAT)["great_fit_count"] == 2
     # The hidden view is the same query read the other way, and the filters apply there too.
     assert _ids(profile, hidden=True, work_modes=["remote"]) == {POSTINGS[0]}
+
+
+# --- the four filters added on 2026-08-12, aligning this page with the public feed -----
+
+def test_the_new_filters_each_narrow_to_their_own_axis(profile):
+    """Field, Country, City and Level, plus the free-text box. One assertion per axis, each
+    naming rows the others would not exclude, so a clause wired to the wrong column fails
+    rather than coincidentally passing."""
+    assert _ids(profile, categories=["design"]) == {POSTINGS[4]}
+    assert _ids(profile, countries=["SE"]) == {POSTINGS[5]}
+    assert _ids(profile, seniorities=["junior"]) == {POSTINGS[3]}
+    assert _ids(profile, cities=["cz:brno"]) == {POSTINGS[1]}
+    # Free text runs over `search_tsv`, which is title + company + description.
+    assert _ids(profile, q="analytics") == {POSTINGS[5]}
+    # `plainto_tsquery` ANDs the words, so this is an intersection and not a phrase match.
+    assert _ids(profile, q="senior data analyst") == {POSTINGS[1]}
+
+
+def test_a_city_filter_on_matches_cannot_escape_its_country(profile):
+    """Same rule and the same reason as the public feed: cities are matched as (country,
+    city) pairs, never a bare slug, because two countries can curate the same city name."""
+    assert _ids(profile, countries=["CZ"], cities=["cz:prague"]) == {POSTINGS[0], POSTINGS[4]}
+    # A pair naming a country that is not selected narrows to nothing rather than widening.
+    assert _ids(profile, countries=["DE"], cities=["cz:prague"]) == set()
+    # A malformed pair is dropped, not treated as a filter that matches everything.
+    assert _ids(profile, cities=["not-a-city"]) == _ids(profile)
+
+
+@pytest.mark.parametrize("filters", [
+    {"categories": ["data_analysis"]},
+    {"countries": ["CZ"]},
+    {"countries": ["CZ"], "cities": ["cz:prague"]},
+    {"seniorities": ["mid"]},
+    {"q": "analyst"},
+    {"q": "analyst", "countries": ["CZ"], "seniorities": ["mid"]},
+    {"categories": ["data_analysis"], "work_modes": ["remote"], "min_score": GREAT},
+    {"q": "engineer", "categories": ["software_engineering"], "seniorities": ["junior"],
+     "countries": ["DE"], "cities": ["de:berlin"], "work_modes": ["onsite"]},
+])
+def test_the_new_filters_keep_the_header_and_the_list_in_lockstep(profile, filters):
+    """The property this whole file exists for, extended to the new axes. `match_count` and
+    `matched_jobs` are separate queries; a filter wired into one only reads as "12 matches"
+    above a list that stops at 8."""
+    assert store.match_count(profile, **filters) == len(_ids(profile, **filters))
+
+
+def test_each_new_facet_skips_its_own_filter_and_applies_the_others(profile):
+    """A menu that applied its own filter would collapse to the option already ticked, and
+    the subscriber could narrow once and never widen again."""
+    facets = store.match_facets(profile, countries=["CZ"])
+    # Its own filter is skipped, so every country stays reachable...
+    assert {f["value"] for f in facets["countries"]} == {"CZ", "DE", "SE"}
+    # ...while the others do narrow, which is what makes the counts honest.
+    assert {f["value"] for f in facets["categories"]} == {"data_analysis", "design"}
+    assert {f["value"] for f in facets["seniorities"]} == {"mid", "senior"}
+
+    # And the same holds the other way round: a field filter re-counts the countries.
+    by_field = store.match_facets(profile, categories=["software_engineering"])
+    assert {f["value"] for f in by_field["countries"]} == {"DE"}
+    assert {f["value"] for f in by_field["categories"]} == {"data_analysis", "design",
+                                                            "software_engineering"}
+
+
+def test_the_city_facet_appears_only_once_a_country_is_chosen(profile):
+    """Absent, not empty — the same distinction the public feed makes, for the same reason:
+    "you have not picked a country" is a different statement from "no cities here"."""
+    assert "cities" not in store.match_facets(profile)
+    facets = store.match_facets(profile, countries=["CZ"])
+    assert {f["value"] for f in facets["cities"]} == {"cz:prague", "cz:brno"}
+    # Scoped to the chosen country, and skipping its own filter so it stays widenable.
+    assert "de:berlin" not in {f["value"] for f in facets["cities"]}
+    picked = store.match_facets(profile, countries=["CZ"], cities=["cz:brno"])
+    assert {f["value"] for f in picked["cities"]} == {"cz:prague", "cz:brno"}
+
+
+def test_the_new_filters_respect_hidden(profile):
+    """Hiding is a move, not a delete — it has to hold for every filter, not just the ones
+    that existed when the rule was written."""
+    store.set_matches_hidden(profile, [POSTINGS[0]], True)
+    assert _ids(profile, countries=["CZ"]) == {POSTINGS[1], POSTINGS[4]}
+    assert store.match_count(profile, countries=["CZ"]) == 2
+    assert {f["value"] for f in store.match_facets(profile, countries=["CZ"])["cities"]} == \
+        {"cz:brno", "cz:prague"}
+    assert _ids(profile, hidden=True, countries=["CZ"]) == {POSTINGS[0]}

@@ -63,6 +63,11 @@ from service import (cvparse, education, geo, i18n, links, mailer, store, taxono
 # Aliased because the /matches endpoint has a `skills` query parameter that would otherwise
 # shadow the module inside that function.
 from service import skills as skill_gazetteer
+# Bound at import rather than read as `store.SEARCH_TERM_MAX` at call time: the lifecycle
+# tests swap `webapp.store` for a fake that implements the query functions and no constants,
+# and reaching through the module for a value would make this endpoint depend on that double
+# carrying one. Still a single definition — `store` owns it, this only borrows the name.
+from service.store import SEARCH_TERM_MAX
 from service.digest import C, SANS, SERIF
 
 # Where users land back (frontend). Used for the "homepage" links on API-served pages.
@@ -690,6 +695,30 @@ def _is_offered_city(value: str) -> bool:
     return bool(country and slug and slug in geo.CITIES.get(country, {}))
 
 
+def _drop_unknown(raw: Optional[str], allowed: frozenset[str] | set[str],
+                  *, lower: bool = True) -> list[str]:
+    """Parse a comma-separated `/matches` filter, keeping only known values.
+
+    The forgiving twin of `_pick`, and the difference is deliberate rather than an
+    inconsistency. On `/jobs` the filters *are* the page, so a silently-ignored one renders
+    an unfiltered corpus under a heading claiming otherwise and must 400. Here the
+    subscriber's own matches are the page and a dropped filter merely shows more of them —
+    breaking someone's match list over a hand-edited URL would be the worse answer.
+
+    The kept values are echoed back in the response, so the UI lights up what was applied
+    rather than what was asked for.
+    """
+    out: list[str] = []
+    for token in (raw or "").split(","):
+        v = token.strip()
+        if not v:
+            continue
+        v = v.lower() if lower else v.upper()
+        if v in allowed and v not in out:
+            out.append(v)
+    return out
+
+
 def _pick(values: list[str], allowed: frozenset[str] | set[str], field: str,
           *, lower: bool = True) -> list[str]:
     """Validate one repeatable query parameter against its canonical vocabulary.
@@ -1197,6 +1226,10 @@ def _match_view(j: dict) -> dict:
         "url": j.get("url"),
         "location": j.get("location"),
         "region": j.get("region"),
+        # Carried since the page gained Country and City filters: a card the visitor narrowed
+        # to Brno should be able to say so, and `_job_view` on the public feed already does.
+        "country_code": j.get("country_code"),
+        "city": j.get("city"),
         "seniority": j.get("seniority"),
         "work_type": j.get("work_type"),
         "work_mode": j.get("work_mode"),
@@ -1214,7 +1247,10 @@ def _match_view(j: dict) -> dict:
 @app.get("/matches")
 def get_matches(request: Request, token: Optional[str] = None, offset: int = 0,
                 hidden: bool = False, skills: Optional[str] = None,
-                work_modes: Optional[str] = None, great_fits: bool = False) -> dict:
+                work_modes: Optional[str] = None, great_fits: bool = False,
+                q: Optional[str] = None, categories: Optional[str] = None,
+                countries: Optional[str] = None, cities: Optional[str] = None,
+                seniorities: Optional[str] = None) -> dict:
     """One page of everything the matcher found for this subscriber (not just the emailed
     few), ranked best-first. Authenticated by the private magic-link token or the session
     cookie.
@@ -1267,17 +1303,41 @@ def get_matches(request: Request, token: Optional[str] = None, offset: int = 0,
     modes_filter = picked_modes or None
     min_score = GREAT_FIT_MIN_SCORE if great_fits else None
 
+    # The four filters this page gained on 2026-08-12, so it offers the same axes as the
+    # public feed. Dropped rather than 400'd when unknown, like every other filter here and
+    # unlike `/jobs` — see the docstring: there the filters are the whole page, here they
+    # narrow a record the subscriber already owns.
+    picked_cats = _drop_unknown(categories, _SEARCH_CATEGORIES)
+    picked_countries = _drop_unknown(countries, frozenset(geo.COUNTRIES), lower=False)
+    picked_levels = _drop_unknown(seniorities, _SEARCH_SENIORITIES)
+    # `clean_cities` drops a city whose country is not also selected, so a city filter cannot
+    # outlive the country it belongs to — the same guarantee `/jobs` relies on.
+    picked_cities = geo.clean_cities(
+        [c for c in (cities or "").split(",") if c.strip()], picked_countries or None)
+    term = (q or "").strip()[:SEARCH_TERM_MAX] or None
+
+    narrowing = dict(skills_filter=skills_filter, work_modes=modes_filter,
+                     min_score=min_score, q=term, categories=picked_cats or None,
+                     countries=picked_countries or None, cities=picked_cities or None,
+                     seniorities=picked_levels or None)
+
     jobs = store.matched_jobs(profile["id"], limit=MATCHES_PAGE_LIMIT, offset=offset,
-                              hidden=hidden, skills_filter=skills_filter,
-                              work_modes=modes_filter, min_score=min_score)
-    facets = store.match_facets(profile["id"], hidden=hidden, skills_filter=skills_filter,
-                                work_modes=modes_filter, min_score=min_score,
-                                great_fit_score=GREAT_FIT_MIN_SCORE)
+                              hidden=hidden, **narrowing)
+    facets = store.match_facets(profile["id"], hidden=hidden,
+                                great_fit_score=GREAT_FIT_MIN_SCORE, **narrowing)
+    # The category menu is filtered to the canonical vocabulary here for the same reason the
+    # public one is: production still holds rows whose `role_category` is a raw SSYK label,
+    # and a matched posting carrying one would offer it as a filter. Cities likewise.
+    facets["categories"] = [f for f in facets.get("categories", [])
+                            if f["value"] in _SEARCH_CATEGORIES]
+    facets["countries"] = [f for f in facets.get("countries", [])
+                           if f["value"] in geo.COUNTRIES]
+    if "cities" in facets:
+        facets["cities"] = [f for f in facets["cities"] if _is_offered_city(f["value"])]
     return {
         "email": profile.get("email"),
         "label": profile.get("label"),
-        "count": store.match_count(profile["id"], hidden=hidden, skills_filter=skills_filter,
-                                   work_modes=modes_filter, min_score=min_score),
+        "count": store.match_count(profile["id"], hidden=hidden, **narrowing),
         # The other half's total is deliberately unfiltered: it labels a link to a different
         # view, and "Hidden (3)" that changes as you narrow *this* page would be describing
         # a list the subscriber has not opened.
@@ -1287,6 +1347,14 @@ def get_matches(request: Request, token: Optional[str] = None, offset: int = 0,
         "hidden": hidden,
         "skills": picked,
         "work_modes": picked_modes,
+        # Echoed back so the client renders the filters that were actually applied rather
+        # than the ones it asked for — a city dropped for naming an unselected country must
+        # not stay lit in the UI, which is the same rule `/jobs` follows by pruning the URL.
+        "q": term or "",
+        "categories": picked_cats,
+        "countries": picked_countries,
+        "cities": picked_cities,
+        "seniorities": picked_levels,
         "great_fits": great_fits,
         "great_fit_score": GREAT_FIT_MIN_SCORE,
         "facets": facets,
