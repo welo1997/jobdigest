@@ -360,6 +360,8 @@ const en: Messages = {
     noneBody: "Try a broader search, or clear a filter or two.",
     filterCategory: "Field",
     filterCountry: "Country",
+    filterCity: "City",
+    cityNeedsCountry: "Pick a country first",
     filterSeniority: "Level",
     remoteOnly: "Remote only",
     clearFilters: "Clear filters",

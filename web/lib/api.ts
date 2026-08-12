@@ -401,12 +401,18 @@ export interface SearchResponse {
   facets?: {
     categories: SearchFacet[];
     countries: SearchFacet[];
+    /** `cz:prague` pairs, present only when a country is filtered on — absent, never empty,
+     *  so "no country picked yet" and "this country has no cities" stay distinguishable. */
+    cities?: SearchFacet[];
   };
 }
 
 export interface SearchParams {
   q?: string;
   countries?: string[];
+  /** `cz:prague` pairs. The server drops any whose country is not also selected, so a city
+   *  can never outlive the country it belongs to — see `geo.clean_cities`. */
+  cities?: string[];
   categories?: string[];
   seniorities?: string[];
   remote?: boolean;
@@ -421,6 +427,7 @@ export function searchQuery(p: SearchParams): URLSearchParams {
   const q = new URLSearchParams();
   if (p.q?.trim()) q.set("q", p.q.trim());
   for (const c of p.countries ?? []) q.append("country", c);
+  for (const c of p.cities ?? []) q.append("city", c);
   for (const c of p.categories ?? []) q.append("category", c);
   for (const s of p.seniorities ?? []) q.append("seniority", s);
   if (p.remote) q.set("remote", "true");

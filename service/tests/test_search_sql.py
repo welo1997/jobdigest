@@ -237,6 +237,52 @@ def test_a_facet_does_not_collapse_the_menu_it_came_from():
     assert "design" not in cats, "a DE-only category was counted under a CZ filter"
 
 
+def test_the_city_menu_appears_only_once_a_country_is_chosen():
+    """Absent, not empty — the same distinction `facets` itself makes on later pages.
+
+    An empty list reads as "this country has no cities", which is a different statement from
+    "you have not told me which country yet". It is also a third scan of the corpus, and the
+    no-country case is the landing page, the one path that has to stay fast.
+    """
+    store.clear_facet_cache()
+    assert "cities" not in store.search_facets(**scoped())
+    assert "cities" in store.search_facets(countries=["CZ"], **scoped())
+
+
+def test_the_city_counts_are_scoped_to_the_chosen_country():
+    """The whole point of hanging the city menu off the country one: Berlin has no business
+    in a menu opened under Czechia."""
+    got = {f["value"] for f in store.search_facets(countries=["CZ"], **scoped())["cities"]}
+    assert {"cz:prague", "cz:brno"} <= got
+    assert "de:berlin" not in got, "a city outside the chosen country was offered"
+
+
+def test_ticking_a_city_does_not_empty_the_city_menu():
+    """Same rule the country menu already follows. A facet computed with its own filter
+    applied collapses to the option already chosen, and the visitor can narrow once and never
+    widen again without knowing to clear the filter first."""
+    facets = store.search_facets(countries=["CZ"], cities=["cz:prague"], **scoped())
+    assert "cz:brno" in {f["value"] for f in facets["cities"]}
+    # The *other* menu does narrow, which is the half that makes the counts mean anything:
+    # `data_analysis` lives only on the Brno row.
+    assert "data_analysis" not in {f["value"] for f in facets["categories"]}
+
+
+def test_a_city_facet_value_round_trips_into_the_filter():
+    """The menu emits exactly what the filter takes — the `geo.qualify` pair, not a bare slug.
+
+    A slug would look right in the dropdown and either match nothing or, the day two curated
+    countries share a city name, match the wrong country's rows. Every value offered is fed
+    back in here, so the menu cannot drift from the predicate behind it.
+    """
+    offered = store.search_facets(countries=["CZ"], **scoped())["cities"]
+    assert offered, "no cities to round-trip — the fixture corpus changed"
+    for facet in offered:
+        rows, _, _ = store.search_postings(countries=["CZ"], cities=[facet["value"]],
+                                           limit=store.SEARCH_LIMIT_MAX, **scoped())
+        assert ids_of(rows), f"{facet['value']} came from the menu and filters to nothing"
+
+
 # ----------------------------------------------------------------------- the API ----
 
 @pytest.fixture()
@@ -263,6 +309,46 @@ def test_the_category_menu_offers_only_real_categories(client):
     assert "Butikssäljare, fackhandel" not in offered
     assert taxonomy.UNCATEGORISED not in offered
     assert offered <= set(taxonomy.CATEGORIES)
+
+
+def test_the_city_menu_offers_only_cities_the_picker_knows(client):
+    """The guard the category facet needed, applied to this column before it is needed.
+
+    `geo.resolve_location` can only return a slug already in `CITIES`, so nothing writes an
+    unknown city today. Nothing wrote a raw SSYK label into `role_category` either — until a
+    source hint went straight past the classifier, and 1 058 rows of it reached a public
+    dropdown. So the menu checks the vocabulary rather than trusting the column, and this
+    plants the row that proves it.
+    """
+    pid = PREFIX + "bogus-city"
+    with store.cursor(commit=True) as cur:
+        cur.execute(
+            """insert into postings (posting_id, source, title, company, url, description,
+                                     country_code, city, is_active)
+               values (%s, 'mpsv', 'Atlantean Analyst', 'Theta',
+                       'https://example.invalid/bogus', %s, 'CZ', 'atlantis', true)
+               on conflict (posting_id) do nothing""",
+            (pid, f"{MARKER} A job description mentioning Atlantis."))
+    try:
+        store.clear_facet_cache()
+        body = client.get("/jobs", params={"q": MARKER, "country": "CZ"}).json()
+        offered = {f["value"] for f in body["facets"]["cities"]}
+        assert "cz:prague" in offered
+        assert "cz:atlantis" not in offered, "a city the picker cannot offer reached the menu"
+        # ...and the posting itself is still returned. A filter nobody applied narrows
+        # nothing — the same rule that keeps `uncategorised` rows reachable.
+        assert pid in {j["posting_id"] for j in body["jobs"]}
+    finally:
+        with store.cursor(commit=True) as cur:
+            cur.execute("delete from postings where posting_id = %s", (pid,))
+
+
+def test_the_city_facet_is_absent_from_the_api_until_a_country_is_picked(client):
+    """The client renders the City menu inert on `cities` being absent. An empty list would
+    make it look like a country with no cities."""
+    assert "cities" not in client.get("/jobs", params={"q": MARKER}).json()["facets"]
+    assert "cities" in client.get(
+        "/jobs", params={"q": MARKER, "country": "CZ"}).json()["facets"]
 
 
 def test_an_unknown_filter_is_refused_not_ignored(client):

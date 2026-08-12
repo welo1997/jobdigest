@@ -33,6 +33,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Nav, Footer } from "@/components/SiteChrome";
 import { searchJobs, searchQuery, type SearchFacet, type SearchJob, type SearchResponse } from "@/lib/api";
 import { categoryLabel } from "@/lib/options";
+import { cityLabel, splitCity } from "@/lib/geo";
 import { SENIORITY_IDS } from "@/lib/options";
 import { safeHref } from "@/lib/url";
 import { track } from "@/lib/analytics";
@@ -112,12 +113,16 @@ function FacetMenu({
   selected,
   render,
   onToggle,
+  emptyHint,
 }: {
   label: string;
   facets: SearchFacet[];
   selected: string[];
   render: (value: string) => string;
   onToggle: (v: string) => void;
+  /** What the popover says when it has no options. Defaults to "loading", which is true for
+   *  a menu whose counts are in flight and wrong for one that is waiting on another filter. */
+  emptyHint?: string;
 }) {
   const { t } = useI18n();
   const [open, setOpen] = useState(false);
@@ -162,7 +167,7 @@ function FacetMenu({
       {open && (
         <div className="skill-menu-pop">
           {facets.length === 0 && (
-            <div className="skill-menu-empty">{t.common.loading}</div>
+            <div className="skill-menu-empty">{emptyHint ?? t.common.loading}</div>
           )}
           <div className="skill-menu-list" role="group">
             {facets.map((f) => {
@@ -202,6 +207,7 @@ function Inner() {
   // button all reproduce the same page. State below is only what the URL does not hold.
   const q = params.get("q") ?? "";
   const countries = params.getAll("country");
+  const cities = params.getAll("city");
   const categories = params.getAll("category");
   const seniorities = params.getAll("seniority");
   const remote = params.get("remote") === "true";
@@ -218,7 +224,7 @@ function Inner() {
   // dependencies without refetching forever. The serialised query is stable for an unchanged
   // search, which is exactly the identity we want.
   const key = useMemo(
-    () => searchQuery({ q, countries, categories, seniorities, remote }).toString(),
+    () => searchQuery({ q, countries, cities, categories, seniorities, remote }).toString(),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [params.toString()]
   );
@@ -226,7 +232,7 @@ function Inner() {
   // Whether anything has actually been asked for. Read before the fetch, not after it: it is
   // what decides whether this page answers at all.
   const filtering =
-    Boolean(q) || countries.length > 0 || categories.length > 0 ||
+    Boolean(q) || countries.length > 0 || cities.length > 0 || categories.length > 0 ||
     seniorities.length > 0 || remote;
 
   useEffect(() => {
@@ -243,7 +249,8 @@ function Inner() {
     // (`SEARCH_LIMIT_MAX` guards the other end), so one row is the cheapest legal request and
     // it is discarded below. Facets are computed on `offset == 0` regardless, which is the
     // part we are actually here for.
-    searchJobs({ q, countries, categories, seniorities, remote, limit: filtering ? PAGE : 1 })
+    searchJobs({ q, countries, cities, categories, seniorities, remote,
+                 limit: filtering ? PAGE : 1 })
       .then((d) => {
         if (cancelled) return;
         // Kept rather than read from `data` on every render: later pages omit `facets`, and
@@ -270,10 +277,21 @@ function Inner() {
   /** Rewrite the URL, which is what actually triggers a refetch. `scroll: false` because a
    *  filter change should leave the reader where they were. */
   const apply = useCallback(
-    (next: Partial<{ q: string; countries: string[]; categories: string[]; seniorities: string[]; remote: boolean }>) => {
+    (next: Partial<{ q: string; countries: string[]; cities: string[]; categories: string[]; seniorities: string[]; remote: boolean }>) => {
+      const nextCountries = next.countries ?? countries;
+      // **A city cannot outlive the country it belongs to.** Unticking Czechia has to take
+      // `cz:prague` with it: the server already refuses such a pair (`geo.clean_cities`
+      // drops a city whose country is not selected), so leaving it in the URL would show a
+      // City chip counting a filter that is not being applied — a filter the visitor can see
+      // and we are not honouring, which is worse than either alone.
+      const nextCities = (next.cities ?? cities).filter((c) => {
+        const cc = c.split(":")[0]?.toUpperCase();
+        return cc && nextCountries.includes(cc);
+      });
       const s = searchQuery({
         q: next.q ?? q,
-        countries: next.countries ?? countries,
+        countries: nextCountries,
+        cities: nextCities,
         categories: next.categories ?? categories,
         seniorities: next.seniorities ?? seniorities,
         remote: next.remote ?? remote,
@@ -286,6 +304,20 @@ function Inner() {
 
   const toggle = (list: string[], v: string) =>
     list.includes(v) ? list.filter((x) => x !== v) : [...list, v];
+
+  // `cz:prague` -> "Prague". With more than one country ticked the country is appended,
+  // because a city name is not unique across the table: `cambridge` is curated under both GB
+  // and US, and two rows reading "Cambridge" would be a filter you cannot choose between.
+  const cityFilterLabel = useCallback(
+    (value: string) => {
+      const pair = splitCity(value);
+      if (!pair) return value;
+      const name = cityLabel(pair.country, pair.slug);
+      return countries.length > 1 ? `${name} · ${country(pair.country)}` : name;
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [countries.length, country]
+  );
 
   const loadMore = async () => {
     if (loadingMore || !data) return;
@@ -368,6 +400,17 @@ function Inner() {
           selected={countries}
           render={(v) => country(v)}
           onToggle={(v) => apply({ countries: toggle(countries, v) })}
+        />
+        <FacetMenu
+          label={t.jobs.filterCity}
+          // Present from first paint like every other control, but inert until a country is
+          // chosen — the server only counts cities within the selected countries, because a
+          // list spanning all of Europe is a menu nobody can read.
+          facets={countries.length ? facets?.cities ?? [] : []}
+          selected={cities}
+          render={cityFilterLabel}
+          emptyHint={countries.length ? undefined : t.jobs.cityNeedsCountry}
+          onToggle={(v) => apply({ cities: toggle(cities, v) })}
         />
         <FacetMenu
           label={t.jobs.filterSeniority}

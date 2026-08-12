@@ -371,6 +371,8 @@ const fr: Messages = {
     noneBody: "Essayez une recherche plus large, ou retirez un filtre.",
     filterCategory: "Domaine",
     filterCountry: "Pays",
+    filterCity: "Ville",
+    cityNeedsCountry: "Choisissez d'abord un pays",
     filterSeniority: "Niveau",
     remoteOnly: "Télétravail uniquement",
     clearFilters: "Effacer les filtres",

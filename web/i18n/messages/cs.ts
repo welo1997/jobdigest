@@ -407,6 +407,8 @@ const cs: Messages = {
     noneBody: "Zkuste obecnější dotaz nebo zrušte některý filtr.",
     filterCategory: "Obor",
     filterCountry: "Země",
+    filterCity: "Město",
+    cityNeedsCountry: "Nejprve vyberte zemi",
     filterSeniority: "Úroveň",
     remoteOnly: "Jen na dálku",
     clearFilters: "Zrušit filtry",

@@ -406,6 +406,8 @@ const sk: Messages = {
     noneBody: "Skúste všeobecnejší dotaz alebo zrušte niektorý filter.",
     filterCategory: "Odbor",
     filterCountry: "Krajina",
+    filterCity: "Mesto",
+    cityNeedsCountry: "Najprv vyberte krajinu",
     filterSeniority: "Úroveň",
     remoteOnly: "Len na diaľku",
     clearFilters: "Zrušiť filtre",

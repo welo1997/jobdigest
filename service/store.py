@@ -1125,10 +1125,15 @@ def _search_where(q: Optional[str] = None,
                   skip: str = "") -> tuple[list[str], list[Any]]:
     """The filter set, as SQL fragments and params. One definition, four callers.
 
-    `skip` names a facet to leave out ("categories" | "countries"), which is what makes the
-    facet counts mean "how many would you get if you ticked this" rather than "how many you
-    have already". Without it a facet's own filter zeroes every other option in its group and
-    the menu collapses to the one thing already selected.
+    `skip` names a facet to leave out ("categories" | "countries" | "cities"), which is what
+    makes the facet counts mean "how many would you get if you ticked this" rather than "how
+    many you have already". Without it a facet's own filter zeroes every other option in its
+    group and the menu collapses to the one thing already selected.
+
+    **Every faceted filter needs its own `skip` arm here.** `cities` was added to the facet
+    list on 2026-08-12 and read this function's `skip` argument without it being wired up —
+    so the city menu narrowed to the city already ticked and could not be widened again.
+    Silent, and invisible to every test that did not open the menu twice.
     """
     where = ["p.is_active"]
     params: list[Any] = []
@@ -1147,7 +1152,7 @@ def _search_where(q: Optional[str] = None,
         where.append("p.country_code = any(%s)")
         params.append(list(countries))
 
-    if cities:
+    if cities and skip != "cities":
         # Stored as `cz:prague` and validated by `split_city`, so a malformed one is dropped
         # rather than widening the search. Written as explicit (country, city) pairs rather
         # than a bare `city = any(...)`: the slug alone would match the same-named city in
@@ -1262,8 +1267,12 @@ def search_facets(q: Optional[str] = None,
                   work_modes: Optional[Iterable[str]] = None,
                   seniorities: Optional[Iterable[str]] = None,
                   remote_only: bool = False) -> dict[str, list[dict]]:
-    """Category and country counts for the current search, each computed with every filter
-    *except its own* — so ticking one option never empties the menu it came from.
+    """Category, country and city counts for the current search, each computed with every
+    filter *except its own* — so ticking one option never empties the menu it came from.
+
+    **`cities` is present only when a country is selected**, and is absent (not empty) the
+    rest of the time — the same distinction the API's `facets` key already makes on later
+    pages, and for the same reason: an empty list reads as "this country has no cities".
 
     **The rows are not filtered to `taxonomy.CATEGORIES` here and must be by the caller.**
     Two reasons to leave it to the API layer rather than doing it in SQL: the canonical list
@@ -1287,24 +1296,39 @@ def search_facets(q: Optional[str] = None,
         if time.monotonic() < expires_at:
             return _facet_copy(cached)
 
+    wanted = [("categories", "p.role_category", "categories"),
+              ("countries", "p.country_code", "countries")]
+    if countries:
+        # **The city menu is only computed once a country is chosen**, which is also the only
+        # time the UI offers it. Two reasons, and the second is the load-bearing one: a city
+        # list spanning every country is a menu nobody can read, and this is a third scan of
+        # the corpus — on the landing page, the one path that must stay fast.
+        #
+        # Emitted as `cz:prague`, the same `geo.qualify` pair `_search_where` takes back and
+        # `profiles.cities` stores. A bare slug could not round-trip: several countries have a
+        # city of the same name, which is why the filter matches on the pair.
+        wanted.append(("cities", "lower(p.country_code) || ':' || p.city", "cities"))
+
     out: dict[str, list[dict]] = {}
     with cursor() as cur:
-        for key, column, skip in (("categories", "role_category", "categories"),
-                                  ("countries", "country_code", "countries")):
+        for key, expr, skip in wanted:
             where, params = _search_where(q, countries, cities, categories, work_modes,
                                           seniorities, remote_only, skip=skip)
             # Counted over the same dedup'd set the list shows, or the facet totals and the
             # result count disagree and neither is wrong-looking enough to notice.
+            #
+            # `||` yields NULL if either side is, so the `value is not null` test covers a
+            # posting with a country but no resolved city without a second predicate.
             cur.execute(f"""
-                select d.{column} as value, count(*) as count
+                select d.value, count(*) as count
                 from (
                     select distinct on (coalesce(p.dedup_key, p.posting_id))
-                           p.{column}
+                           {expr} as value
                     from postings p
                     where {' and '.join(where)}
                     order by coalesce(p.dedup_key, p.posting_id), p.last_seen_at desc
                 ) d
-                where d.{column} is not null
+                where d.value is not null
                 group by 1
                 order by 2 desc, 1
             """, params)

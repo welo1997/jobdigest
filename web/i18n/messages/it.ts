@@ -370,6 +370,8 @@ const it: Messages = {
     noneBody: "Prova una ricerca più ampia, o togli qualche filtro.",
     filterCategory: "Ambito",
     filterCountry: "Paese",
+    filterCity: "Città",
+    cityNeedsCountry: "Scegli prima un paese",
     filterSeniority: "Livello",
     remoteOnly: "Solo da remoto",
     clearFilters: "Azzera i filtri",

@@ -679,6 +679,17 @@ _SEARCH_CATEGORIES = frozenset(taxonomy.CATEGORIES) - {taxonomy.UNCATEGORISED}
 _SEARCH_SENIORITIES = frozenset({"junior", "mid", "senior"})
 
 
+def _is_offered_city(value: str) -> bool:
+    """True for a `cz:prague` pair naming a city the location picker actually offers.
+
+    `geo.CITIES` is keyed by uppercase country and the facet emits the stored lowercase form,
+    so this goes through `split_city` rather than comparing strings — one definition of what a
+    city pair is, and the same one `_search_where` filters on.
+    """
+    country, slug = geo.split_city(value)
+    return bool(country and slug and slug in geo.CITIES.get(country, {}))
+
+
 def _pick(values: list[str], allowed: frozenset[str] | set[str], field: str,
           *, lower: bool = True) -> list[str]:
     """Validate one repeatable query parameter against its canonical vocabulary.
@@ -796,6 +807,15 @@ def search_jobs_public(
             "countries": [f for f in facets["countries"]
                           if f["value"] in geo.COUNTRIES],
         }
+        if "cities" in facets:
+            # Filtered to the curated table for the same reason the categories are, though
+            # this one is belt-and-braces rather than a fix: `geo.resolve_location` can only
+            # return a slug that is already in `CITIES`, so the column holds nothing else
+            # today. It held nothing else for `role_category` either, until a source hint
+            # started writing raw SSYK labels straight past the classifier — so the public
+            # dropdown checks the vocabulary rather than trusting the column.
+            out["facets"]["cities"] = [
+                f for f in facets["cities"] if _is_offered_city(f["value"])]
     return out
 
 

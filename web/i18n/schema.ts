@@ -328,6 +328,11 @@ export interface Messages {
     noneBody: string;
     filterCategory: string;
     filterCountry: string;
+    filterCity: string;
+    /** Shown inside the City menu before a country is picked. The server only counts cities
+     *  within the selected countries, so until then the menu genuinely has nothing to offer
+     *  — and "no cities" would be the wrong thing to say. */
+    cityNeedsCountry: string;
     filterSeniority: string;
     remoteOnly: string;
     clearFilters: string;

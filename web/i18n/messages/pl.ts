@@ -420,6 +420,8 @@ const pl: Messages = {
     noneBody: "Spróbuj szerszego zapytania albo usuń jeden z filtrów.",
     filterCategory: "Dziedzina",
     filterCountry: "Kraj",
+    filterCity: "Miasto",
+    cityNeedsCountry: "Najpierw wybierz kraj",
     filterSeniority: "Poziom",
     remoteOnly: "Tylko zdalnie",
     clearFilters: "Wyczyść filtry",
