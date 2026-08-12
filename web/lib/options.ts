@@ -78,6 +78,34 @@ const BY_ID = new Map(ROLE_OPTIONS.map((r) => [r.id, r]));
 export const roleOption = (id: string): RoleOption | undefined => BY_ID.get(id);
 
 /**
+ * `role_category` → the chip id whose label names it, derived from `ROLE_OPTIONS` rather than
+ * written out again.
+ *
+ * The public job feed filters on categories, so it needs a translated label for each one —
+ * and every catalogue already carries those, keyed by chip id. Building the reverse map here
+ * means adding a category with a chip gives the feed its label for free in all eight
+ * languages, and no second table can drift from the first.
+ *
+ * Two categories are deliberately absent because no chip maps to them (`machine_learning`
+ * rides the keyword path as `ml_engineer`, and `other_tech_function` is a residual, not a
+ * role anyone picks). `categoryLabel` falls back to the `jobs` catalogue for those, which is
+ * why it takes both records — a category with no label anywhere would render as a raw id on
+ * a public page, so the fallback is explicit rather than a `??` on the id.
+ */
+export const CATEGORY_TO_ROLE_ID: Record<string, string> = Object.fromEntries(
+  ROLE_OPTIONS.filter((r) => r.category).map((r) => [r.category as string, r.id])
+);
+
+export function categoryLabel(
+  category: string,
+  roleLabels: Record<string, string>,
+  extraLabels: Record<string, string> = {}
+): string {
+  const id = CATEGORY_TO_ROLE_ID[category];
+  return (id && roleLabels[id]) || extraLabels[category] || category;
+}
+
+/**
  * Fold a typed role or skill down to something comparable: case, accents, punctuation and
  * runs of whitespace all removed. "Datový analytik", "datovy analytik" and "Data  Analyst"
  * must not be three different words, and `NFD` + stripping the combining range is what makes

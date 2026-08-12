@@ -271,9 +271,15 @@ export interface Messages {
     hideFailed: string;
     /** Link to the hidden page, shown only when something is hidden. */
     hiddenLink: PluralForms;
-    /** Skill-filter chip row: heading, and the "clear" that drops the filter. Chip labels
-     *  themselves are the skill names (data), never translated. */
+    /** Filter row: the menu triggers, and the "clear" that drops a filter (shared by all of
+     *  them). Skill chip labels are the skill names (data) and are never translated; the work
+     *  setup options reuse `geo.workModeLabel` rather than restating it here — one definition
+     *  per language, and "Fully remote" must not differ between the signup form and this page.
+     *  `greatFitsOnly` is the top of the score ladder; the score itself is server-owned and
+     *  arrives in the response, so it is never written into a catalogue. */
     filterBySkill: string;
+    filterByWorkMode: string;
+    greatFitsOnly: string;
     clearFilter: string;
   };
 
@@ -292,6 +298,46 @@ export interface Messages {
     unhiding: string;
     unhideFailed: string;
     showing: PluralForms;
+  };
+
+  /** `/jobs` — the public, unauthenticated job feed. Nothing here is behind a login, so this
+   *  is the first page most visitors will read: it is marketing copy as much as UI. Tag and
+   *  seniority words are reused from the top-level `seniorities` / `geo.workModeLabel`
+   *  records rather than restated. */
+  jobs: {
+    navLink: string;
+    metaTitle: string;
+    metaDescription: string;
+    label: string;
+    title: string;
+    intro: string;
+    searchLabel: string;
+    searchPlaceholder: string;
+    searchButton: string;
+    countTitle: PluralForms;
+    /** Shown instead of `countTitle` when the server capped the total: "500+ jobs". The cap
+     *  is never rendered as an exact figure. */
+    countCapped: string;
+    showing: PluralForms;
+    noneTitle: string;
+    noneBody: string;
+    filterCategory: string;
+    filterCountry: string;
+    filterSeniority: string;
+    remoteOnly: string;
+    clearFilters: string;
+    loadMore: string;
+    loadMoreFailed: string;
+    errTitle: string;
+    errBody: string;
+    /** Labels for the `role_category` values no signup chip maps to, so the filter menu never
+     *  renders a raw id. Every other category takes its label from `roles` via
+     *  `lib/options.ts` `categoryLabel` — one definition, no drift. */
+    categories: Record<string, string>;
+    /** The upgrade path off the free feed: this page is the hook, the digest is the product. */
+    ctaTitle: string;
+    ctaBody: string;
+    ctaButton: string;
   };
 
   checkInbox: {

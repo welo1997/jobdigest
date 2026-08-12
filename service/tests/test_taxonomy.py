@@ -895,3 +895,47 @@ def test_kitchen_work_in_a_kindergarten_is_education_and_that_is_a_known_loss():
         "education"
     # ...while kitchen work anywhere else still reads as hospitality.
     assert taxonomy.classify("Kjøkkenassistent deltidsvikar") == "hospitality"
+
+
+def test_every_searchable_category_has_a_label_in_every_catalogue():
+    """The public `/jobs` filter menu renders a name for each `role_category` it offers, and a
+    category with no name anywhere renders as a raw id — `logistics_transport` — on a page
+    with no login in front of it.
+
+    Labels come from two places by design, and this test is what keeps that from being a gap:
+    `web/lib/options.ts` maps a category to the signup chip whose label already names it (one
+    definition, translated eight times), and the `jobs.categories` block in each catalogue
+    covers the categories no chip maps to. `categoryLabel` reads the first, then the second.
+    So adding a category without adding a chip *or* a `jobs.categories` entry must fail here
+    rather than on a stranger's screen.
+
+    `uncategorised` is excluded because it is never offered as a filter — `_SEARCH_CATEGORIES`
+    in `service/webapp.py` removes it, and `test_search_sql.py` pins that it stays removed.
+    """
+    options = WEB_OPTIONS.read_text(encoding="utf-8")
+    block = re.search(r"export const ROLE_OPTIONS[^=]*=\s*\[(.*?)\n\];", options, re.S)
+    assert block, f"ROLE_OPTIONS not found in {WEB_OPTIONS.name}"
+    # Categories a chip names, and can therefore borrow that chip's translated label.
+    by_chip = set(re.findall(r'category:\s*"([a-z_]+)"', block.group(1)))
+
+    searchable = set(taxonomy.CATEGORIES) - {taxonomy.UNCATEGORISED}
+    messages = ROOT / "web" / "i18n" / "messages"
+    catalogues = sorted(messages.glob("*.ts"))
+    # A glob, never a list: a ninth language must be covered by adding the file, not by also
+    # remembering to add it here. Same rule as CI's SQL-test skip-check.
+    assert len(catalogues) >= 8, f"only {len(catalogues)} catalogues found — the glob is broken"
+
+    for path in catalogues:
+        text = path.read_text(encoding="utf-8")
+        cats = re.search(r"\n    categories:\s*\{(.*?)\n    \},", text, re.S)
+        extra = set(re.findall(r"^\s*([a-z_]+):", cats.group(1), re.M)) if cats else set()
+        missing = searchable - by_chip - extra
+        assert not missing, (
+            f"{path.name} has no label for {sorted(missing)} — the /jobs filter menu would "
+            f"show the raw category id. Add a chip in options.ts or a jobs.categories entry."
+        )
+        unknown = extra - set(taxonomy.CATEGORIES)
+        assert not unknown, (
+            f"{path.name} labels {sorted(unknown)}, which is not a role_category — a label "
+            "nothing can ever render."
+        )

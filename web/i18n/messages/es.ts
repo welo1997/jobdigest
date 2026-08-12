@@ -319,6 +319,8 @@ const es: Messages = {
     hideFailed: "No se pudieron ocultar — inténtalo de nuevo.",
     hiddenLink: { one: "{n} oferta oculta →", other: "{n} ofertas ocultas →" },
     filterBySkill: "Filtrar por habilidad",
+    filterByWorkMode: "Filtrar por modalidad de trabajo",
+    greatFitsOnly: "Solo las mejores coincidencias",
     clearFilter: "Borrar",
   },
 
@@ -339,6 +341,45 @@ const es: Messages = {
       one: "Mostrando {shown} de {n} oferta oculta",
       other: "Mostrando {shown} de {n} ofertas ocultas",
     },
+  },
+
+  jobs: {
+    navLink: "Explorar empleos",
+    metaTitle: "Explora empleos por toda Europa · JobDigest",
+    metaDescription:
+      "Busca en todas las ofertas que seguimos: registros públicos de empleo y cientos de portales de empleo corporativos en un solo sitio. Gratis y sin cuenta.",
+    label: "Gratis · sin cuenta",
+    title: "Todas las ofertas que seguimos, en un solo sitio",
+    intro:
+      "Registros públicos de empleo y cientos de portales corporativos, consultables a la vez. Lo actualizamos cada mañana y nunca mostramos una oferta que no hayamos visto en la última semana.",
+    searchLabel: "Buscar ofertas",
+    searchPlaceholder: "Puesto, competencia o empresa",
+    searchButton: "Buscar",
+    countTitle: { one: "{n} oferta", other: "{n} ofertas" },
+    countCapped: "{n}+ ofertas",
+    showing: {
+      one: "Mostrando {shown} de {n} oferta",
+      other: "Mostrando {shown} de {n} ofertas",
+    },
+    noneTitle: "No hay nada que coincida",
+    noneBody: "Prueba con una búsqueda más amplia o quita algún filtro.",
+    filterCategory: "Área",
+    filterCountry: "País",
+    filterSeniority: "Nivel",
+    remoteOnly: "Solo en remoto",
+    clearFilters: "Quitar filtros",
+    loadMore: "Cargar más",
+    loadMoreFailed: "No se pudo cargar más: comprueba tu conexión e inténtalo de nuevo.",
+    errTitle: "No se pudieron cargar las ofertas",
+    errBody: "Algo ha fallado por nuestra parte. Inténtalo de nuevo en un momento.",
+    categories: {
+      machine_learning: "Machine Learning",
+      other_tech_function: "Otros perfiles técnicos",
+    },
+    ctaTitle: "¿Prefieres recibirlas por correo?",
+    ctaBody:
+      "Dinos qué buscas: cada mañana leemos todas las ofertas nuevas y te enviamos solo las que encajan, con una línea explicando por qué.",
+    ctaButton: "Quiero el resumen diario",
   },
 
   checkInbox: {

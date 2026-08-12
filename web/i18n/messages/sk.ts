@@ -351,6 +351,8 @@ const sk: Messages = {
       other: "{n} skrytých ponúk →",
     },
     filterBySkill: "Filtrovať podľa zručnosti",
+    filterByWorkMode: "Filtrovať podľa formy práce",
+    greatFitsOnly: "Len najlepšie ponuky",
     clearFilter: "Zrušiť",
   },
 
@@ -376,6 +378,46 @@ const sk: Messages = {
       few: "Zobrazené {shown} z {n} skrytých ponúk",
       other: "Zobrazené {shown} z {n} skrytých ponúk",
     },
+  },
+
+  jobs: {
+    navLink: "Prehliadať ponuky",
+    metaTitle: "Pracovné ponuky v Európe · JobDigest",
+    metaDescription:
+      "Prehľadajte všetky ponuky, ktoré sledujeme — štátne registre voľných miest aj stovky firemných kariérnych stránok na jednom mieste. Zadarmo a bez registrácie.",
+    label: "Zadarmo · bez registrácie",
+    title: "Všetky ponuky, ktoré sledujeme, na jednom mieste",
+    intro:
+      "Štátne registre voľných miest a stovky firemných kariérnych stránok, prehľadateľné naraz. Aktualizujeme každé ráno a nikdy nezobrazíme ponuku, ktorú sme týždeň nevideli.",
+    searchLabel: "Hľadať ponuky",
+    searchPlaceholder: "Pozícia, zručnosť alebo firma",
+    searchButton: "Hľadať",
+    countTitle: { one: "{n} ponuka", few: "{n} ponuky", other: "{n} ponúk" },
+    countCapped: "{n}+ ponúk",
+    showing: {
+      one: "Zobrazená {shown} z {n} ponuky",
+      few: "Zobrazené {shown} z {n} ponúk",
+      other: "Zobrazených {shown} z {n} ponúk",
+    },
+    noneTitle: "Nič tomu nezodpovedá",
+    noneBody: "Skúste všeobecnejší dotaz alebo zrušte niektorý filter.",
+    filterCategory: "Odbor",
+    filterCountry: "Krajina",
+    filterSeniority: "Úroveň",
+    remoteOnly: "Len na diaľku",
+    clearFilters: "Zrušiť filtre",
+    loadMore: "Načítať ďalšie",
+    loadMoreFailed: "Ďalšie sa nepodarilo načítať — skontrolujte pripojenie a skúste to znova.",
+    errTitle: "Ponuky sa nepodarilo načítať",
+    errBody: "Na našej strane sa niečo pokazilo. Skúste to prosím o chvíľu.",
+    categories: {
+      machine_learning: "Strojové učenie",
+      other_tech_function: "Ďalšie technické role",
+    },
+    ctaTitle: "Chcete ich radšej do e-mailu?",
+    ctaBody:
+      "Povedzte nám, čo hľadáte. Každé ráno prejdeme všetky nové ponuky a pošleme vám len tie, ktoré sedia — pri každej aj vetu, prečo prešla.",
+    ctaButton: "Chcem denný prehľad",
   },
 
   checkInbox: {

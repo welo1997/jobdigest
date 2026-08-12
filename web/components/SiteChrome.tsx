@@ -16,7 +16,7 @@ import { legalHref } from "@/i18n/config";
  * negotiator from inside a translated page would be a redirect they did not ask for.
  */
 export function Nav() {
-  const { href } = useI18n();
+  const { t, href } = useI18n();
   return (
     <>
       <div className="dawnbar" />
@@ -27,6 +27,12 @@ export function Nav() {
             Job<em>Digest</em>
           </Link>
           <span className="nav-actions">
+            {/* The public feed, offered to everyone including signed-out visitors — it is the
+                free tier's front door, so it sits before the account links rather than among
+                them. */}
+            <Link className="nav-link" href={href("/jobs")}>
+              {t.jobs.navLink}
+            </Link>
             <AuthNav />
             <LocaleSwitcher />
             <ThemeToggle />

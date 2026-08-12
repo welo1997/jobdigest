@@ -115,8 +115,23 @@ export interface MatchesResponse {
   /** The skill filter currently applied (validated server-side; junk is dropped). `count`
    *  and `jobs` already reflect it. */
   skills: string[];
-  /** All skills present across this view's matches (ignoring the filter) with counts — the
-   *  chip options. Most-common first. */
+  /** The work-setup filter currently applied. Same server-side validation and the same
+   *  effect on `count` and `jobs`. */
+  work_modes: string[];
+  /** Whether the "great fits only" toggle is on, and the score it means. The threshold is
+   *  server-owned (it is policy, alongside the match floor and the email bar) — the UI
+   *  renders it but must never decide it. */
+  great_fits: boolean;
+  great_fit_score: number;
+  /** Each filter menu's options, counted with the *other* filters applied but never its
+   *  own — so no single tick can empty the menu it came from. `great_fit_count` is how many
+   *  the toggle would leave; null when the server was not asked. */
+  facets: {
+    skills: { skill: string; count: number }[];
+    work_modes: { work_mode: string; count: number }[];
+    great_fit_count: number | null;
+  };
+  /** @deprecated Alias of `facets.skills`, kept so a cached bundle keeps working. */
   skill_facets: { skill: string; count: number }[];
   jobs: MatchJob[];
 }
@@ -250,12 +265,17 @@ export function getPreferences(token?: string) {
   return req<Preferences>(`/preferences${tokenQuery(token)}`);
 }
 
-export function getMatches(token?: string, offset = 0, hidden = false, skills: string[] = []) {
+// The extra filters ride in a trailing object rather than as two more positional args: six
+// positionals is where a call site starts passing `undefined, 0, false` to reach the last one.
+export function getMatches(token?: string, offset = 0, hidden = false, skills: string[] = [],
+                           filters: { workModes?: string[]; greatFits?: boolean } = {}) {
   const q = new URLSearchParams();
   if (token) q.set("token", token);
   if (offset) q.set("offset", String(offset));
   if (hidden) q.set("hidden", "true");
   if (skills.length) q.set("skills", skills.join(","));
+  if (filters.workModes?.length) q.set("work_modes", filters.workModes.join(","));
+  if (filters.greatFits) q.set("great_fits", "true");
   const s = q.toString();
   return req<MatchesResponse>(`/matches${s ? `?${s}` : ""}`);
 }
@@ -333,4 +353,91 @@ export function confirmUrl(token: string) {
 
 export function unsubscribeUrl(token: string) {
   return `${API_URL}/unsubscribe?token=${encodeURIComponent(token)}`;
+}
+
+// --- public job search (GET /jobs) ----------------------------------------------
+// The free tier's feed: no auth, no profile, no model. Deliberately does NOT go through
+// `req` — that helper sends `credentials: "include"` and the CSRF header, which are for
+// subscriber calls. This endpoint reads public inventory and must work identically for a
+// visitor with no cookie, so sending one would be the only thing distinguishing them.
+
+export interface SearchJob {
+  posting_id: string;
+  title: string | null;
+  company: string | null;
+  url: string | null;
+  location: string | null;
+  country_code: string | null;
+  city: string | null;
+  region: string | null;
+  seniority: string | null;
+  work_type: string | null;
+  work_mode: string | null;
+  remote_signal: boolean | null;
+  role_category: string | null;
+  salary: string | null;
+  /** Which adapter carried this row. Present because attribution is a terms obligation for
+   *  at least one feed (Remote OK) — see Terms §3. */
+  source: string | null;
+  skills: string[];
+  posted_at: string | null;
+}
+
+export interface SearchFacet {
+  value: string;
+  count: number;
+}
+
+export interface SearchResponse {
+  /** Total matching the current filters, capped — see `count_capped`. Not the length of
+   *  `jobs`, which is one page. */
+  count: number;
+  /** True when the real total is above the server's cap and `count` is that cap. Render
+   *  "500+", never the cap as a fact. */
+  count_capped: boolean;
+  jobs: SearchJob[];
+  /** Present on the first page only; absent (not empty) on later ones, because facets do not
+   *  change as you page and an empty list would blank the menu in use. */
+  facets?: {
+    categories: SearchFacet[];
+    countries: SearchFacet[];
+  };
+}
+
+export interface SearchParams {
+  q?: string;
+  countries?: string[];
+  categories?: string[];
+  seniorities?: string[];
+  remote?: boolean;
+  limit?: number;
+  offset?: number;
+}
+
+/** Build the query string for a search. Exported so the page can also put it in the URL —
+ *  a search worth running is a search worth linking to, and one definition means the link
+ *  and the request cannot disagree about what was asked for. */
+export function searchQuery(p: SearchParams): URLSearchParams {
+  const q = new URLSearchParams();
+  if (p.q?.trim()) q.set("q", p.q.trim());
+  for (const c of p.countries ?? []) q.append("country", c);
+  for (const c of p.categories ?? []) q.append("category", c);
+  for (const s of p.seniorities ?? []) q.append("seniority", s);
+  if (p.remote) q.set("remote", "true");
+  if (p.offset) q.set("offset", String(p.offset));
+  if (p.limit) q.set("limit", String(p.limit));
+  return q;
+}
+
+export async function searchJobs(p: SearchParams): Promise<SearchResponse> {
+  const res = await fetch(`${API_URL}/jobs?${searchQuery(p).toString()}`);
+  if (!res.ok) {
+    let detail = `Request failed (${res.status})`;
+    try {
+      const body = await res.json();
+      if (body?.detail) detail = body.detail;
+    } catch {}
+    throw new Error(detail);
+  }
+  return (await res.json()) as SearchResponse;
 }

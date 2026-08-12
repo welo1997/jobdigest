@@ -782,9 +782,48 @@ migration; `upsert_match` never writes `status`, so a re-score by the matcher ca
 resurrect something the subscriber hid."""
 
 
+def _match_filters(skills_filter: list[str] | None = None,
+                   work_modes: list[str] | None = None,
+                   min_score: Optional[int] = None) -> tuple[str, list]:
+    """The /matches display filters, as one SQL fragment and its params.
+
+    **One builder because the lockstep rule is structural, not a matter of discipline.**
+    `matched_jobs` renders the rows and `match_count` renders the header above them, so a
+    filter added to one and forgotten in the other reads as "127 matches" over a list that
+    can only ever reach 124 — the drift `test_hidden_sql.py` already pins for `hidden`. Two
+    hand-built clause strings is exactly how that happens; a single builder cannot.
+
+    These are **display** filters over an existing match set, not matching criteria:
+    `min_score` here is what the subscriber is looking at right now, and is unrelated to
+    `profiles.min_score`, which is a stored preference that gates what gets matched at all.
+
+    Params are positional, so the order returned here is the order the caller must splice
+    them in — after `profile_id` and the status param, before `limit`/`offset`.
+    """
+    clauses: list[str] = []
+    params: list = []
+    if skills_filter:
+        # Array overlap: a job matches if it names ANY selected skill (OR, the settled
+        # multi-select behaviour).
+        clauses.append("and p.skills && %s")
+        params.append(list(skills_filter))
+    if work_modes:
+        # A null `work_mode` (the ad never said) is excluded by design here: this is an
+        # explicit request for a named setup, not the matcher's keep-unknown rule. The facet
+        # never offers null as an option, so the menu cannot promise rows this drops.
+        clauses.append("and p.work_mode = any(%s)")
+        params.append(list(work_modes))
+    if min_score is not None:
+        clauses.append("and m.score >= %s")
+        params.append(int(min_score))
+    return "\n              ".join(clauses), params
+
+
 def matched_jobs(profile_id: str, limit: int = 50, offset: int = 0,
                  hidden: bool = False, exclude_sent: bool = False,
-                 skills_filter: list[str] | None = None) -> list[dict]:
+                 skills_filter: list[str] | None = None,
+                 work_modes: list[str] | None = None,
+                 min_score: Optional[int] = None) -> list[dict]:
     """AI-picked jobs for a profile (matches join postings), best fit first.
 
     Read side for the digest: returns only active postings the matcher selected
@@ -823,15 +862,11 @@ def matched_jobs(profile_id: str, limit: int = 50, offset: int = 0,
     hide stamps one `now()` across the batch, so `posting_id` breaks the tie and keeps the
     ordering total for paging here too.
     """
-    # `skills_filter` is a web-path display filter (the /matches skill chips): array-overlap,
-    # so a job matches if it names ANY of the selected skills. Its param is inserted positionally
-    # right after the status param — and `match_count` must apply the SAME clause, or the header
-    # count drifts from the list (the lockstep rule the docstring and test_hidden_sql pin).
-    skill_clause = "and p.skills && %s" if skills_filter else ""
-    params: list = [profile_id, HIDDEN_STATUS]
-    if skills_filter:
-        params.append(list(skills_filter))
-    params += [limit, offset]
+    # The web-path display filters (skill chips, work-setup menu, "great fits only"), built
+    # once in `_match_filters` and applied identically by `match_count` — see that docstring
+    # for why they cannot be two hand-built strings.
+    filt, filt_params = _match_filters(skills_filter, work_modes, min_score)
+    params: list = [profile_id, HIDDEN_STATUS] + filt_params + [limit, offset]
     with cursor() as cur:
         cur.execute(
             f"""
@@ -844,7 +879,7 @@ def matched_jobs(profile_id: str, limit: int = 50, offset: int = 0,
             join postings p on p.posting_id = m.posting_id
             where m.profile_id = %s and p.is_active and m.score is not null
               and m.status {'=' if hidden else '<>'} %s
-              {skill_clause}
+              {filt}
               {'''and not exists (select 1 from digest_sends d
                                   where d.profile_id = m.profile_id
                                     and d.posting_id = m.posting_id)'''
@@ -860,51 +895,107 @@ def matched_jobs(profile_id: str, limit: int = 50, offset: int = 0,
 
 
 def match_count(profile_id: str, hidden: bool = False,
-                skills_filter: list[str] | None = None) -> int:
+                skills_filter: list[str] | None = None,
+                work_modes: list[str] | None = None,
+                min_score: Optional[int] = None) -> int:
     """How many active matches this profile has (same filter as matched_jobs) — used to
     show 'see all N matches' in the email and the page header.
 
     Must stay in lockstep with `matched_jobs`: the header is built from this and the rows
     from that, so a filter added to one and not the other reads as "127 matches" above a
-    list that can only ever reach 124. `skills_filter` carries the same `&&` clause for
-    exactly that reason."""
-    skill_clause = "and p.skills && %s" if skills_filter else ""
-    params: list = [profile_id, HIDDEN_STATUS]
-    if skills_filter:
-        params.append(list(skills_filter))
+    list that can only ever reach 124. Both now route through `_match_filters`, so the two
+    cannot disagree by construction rather than by remembering to edit both."""
+    filt, filt_params = _match_filters(skills_filter, work_modes, min_score)
+    params: list = [profile_id, HIDDEN_STATUS] + filt_params
     with cursor() as cur:
         cur.execute(
             f"""select count(*) as n
                from matches m join postings p on p.posting_id = m.posting_id
                where m.profile_id = %s and p.is_active and m.score is not null
                  and m.status {'=' if hidden else '<>'} %s
-                 {skill_clause}""",
+                 {filt}""",
             params,
         )
         return int(cur.fetchone()["n"])
 
 
-def match_skill_facets(profile_id: str, hidden: bool = False) -> list[dict]:
-    """Skills present across this profile's matches, with counts — the chip options the
-    /matches filter is built from.
+def match_facets(profile_id: str, hidden: bool = False,
+                 skills_filter: list[str] | None = None,
+                 work_modes: list[str] | None = None,
+                 min_score: Optional[int] = None,
+                 great_fit_score: Optional[int] = None) -> dict:
+    """The options each /matches filter menu offers, with counts.
 
-    Deliberately computed over the profile's **unfiltered** match set (respecting only
-    `hidden`), so selecting one skill never removes the others from the chip row: a facet's
-    job is to show what you *could* narrow to, which is the full set, not the already-narrowed
-    one. Ordered most-common first, then by name for a stable tie-break. Null/empty `skills`
-    contribute nothing (`unnest` of NULL yields no rows), so this only ever lists real chips."""
+    **Every facet is computed with the other filters applied but never its own.** That is
+    the rule the single-filter version stated as "unfiltered", and it means the same thing
+    for one filter while staying true for three: a facet's job is to show what you *could*
+    narrow to, so hiding its own siblings would let one tick empty the menu it came from.
+    Applying the *other* filters is what keeps a count honest — with a work setup ticked,
+    "Excel 12" must mean twelve remote Excel jobs, or the menu promises rows the list will
+    not contain. A skill already ticked can still fall out of this set; the page renders the
+    active filters as their own chips, so it stays removable either way.
+
+    `work_modes` comes back in the canonical `geo.WORK_MODES` order rather than by count: it
+    is a fixed three-value vocabulary, and a menu that reorders itself under the cursor as
+    counts shift is worse than one whose options sit still. Skills stay most-common-first —
+    with ~80 of them, that ordering *is* the affordance. A null `work_mode` is never offered,
+    so the menu cannot advertise a filter that would drop those rows.
+
+    `great_fit_score` asks "how many would the 'great fits only' toggle leave?" and is the
+    one facet computed against a threshold the caller owns — the score ladder is policy
+    (`MATCH_FLOOR` → `EMAIL_MIN_SCORE` → this), and `store` deliberately holds none of it.
+    Returned as None when no threshold is passed, so the caller can hide a toggle that has
+    nothing to offer rather than render "Great fits (0)".
+    """
+    status_op = '=' if hidden else '<>'
+    out: dict = {}
     with cursor() as cur:
+        # --- skills: every filter except the skill one -----------------------------------
+        filt, filt_params = _match_filters(None, work_modes, min_score)
         cur.execute(
             f"""select s as skill, count(*) as n
                from matches m
                join postings p on p.posting_id = m.posting_id,
                     unnest(p.skills) as s
                where m.profile_id = %s and p.is_active and m.score is not null
-                 and m.status {'=' if hidden else '<>'} %s
+                 and m.status {status_op} %s
+                 {filt}
                group by s order by n desc, s""",
-            (profile_id, HIDDEN_STATUS),
+            [profile_id, HIDDEN_STATUS] + filt_params,
         )
-        return [{"skill": r["skill"], "count": int(r["n"])} for r in cur.fetchall()]
+        out["skills"] = [{"skill": r["skill"], "count": int(r["n"])} for r in cur.fetchall()]
+
+        # --- work setup: every filter except the work-mode one ----------------------------
+        filt, filt_params = _match_filters(skills_filter, None, min_score)
+        cur.execute(
+            f"""select p.work_mode as value, count(*) as n
+               from matches m join postings p on p.posting_id = m.posting_id
+               where m.profile_id = %s and p.is_active and m.score is not null
+                 and m.status {status_op} %s
+                 and p.work_mode is not null
+                 {filt}
+               group by p.work_mode""",
+            [profile_id, HIDDEN_STATUS] + filt_params,
+        )
+        by_mode = {r["value"]: int(r["n"]) for r in cur.fetchall()}
+        out["work_modes"] = [{"work_mode": m, "count": by_mode[m]}
+                             for m in geo.WORK_MODES if m in by_mode]
+
+        # --- great fits: every filter except the score one --------------------------------
+        if great_fit_score is None:
+            out["great_fit_count"] = None
+        else:
+            filt, filt_params = _match_filters(skills_filter, work_modes, great_fit_score)
+            cur.execute(
+                f"""select count(*) as n
+                   from matches m join postings p on p.posting_id = m.posting_id
+                   where m.profile_id = %s and p.is_active and m.score is not null
+                     and m.status {status_op} %s
+                     {filt}""",
+                [profile_id, HIDDEN_STATUS] + filt_params,
+            )
+            out["great_fit_count"] = int(cur.fetchone()["n"])
+    return out
 
 
 # --- profiles ------------------------------------------------------------------
@@ -961,6 +1052,219 @@ def existing_profile_ids(ids: Iterable[str]) -> set[str]:
     with cursor() as cur:
         cur.execute("select id::text as id from profiles where id::text = any(%s)", (wanted,))
         return {r["id"] for r in cur.fetchall()}
+
+
+# --- public job search ---------------------------------------------------------
+#
+# The free tier's feed: one SQL query over the corpus, no model, no tokens, no profile.
+# `notes/scaling/PLAN.md` is why this exists — 128k postings from sources nobody can search
+# in one place is the asset, and reading it costs nothing per user.
+#
+# Three things separate this from `query_shortlist`, and none of them are style:
+#
+#   - **There is no profile**, so there is no `_hard_gate`. Eligibility, education and the
+#     location predicate are all *subscriber-specific judgements* and applying them to an
+#     anonymous visitor would be wrong for everybody (the `postings.eligibility` rule). A
+#     searcher gets what they asked for and nothing is silently withheld.
+#   - **It is unauthenticated**, so every bound here is a real bound. `limit` is capped,
+#     the total is capped, and the text term is length-capped before it reaches
+#     `plainto_tsquery`.
+#   - **Nothing is written.** No query is stored, no event is recorded from here. Storing
+#     what a visitor searched for would be a new personal-data category and the privacy
+#     policy does not cover it (security rule 4). If that ever changes, the policy changes
+#     in the same commit.
+
+SEARCH_LIMIT_MAX = 50
+SEARCH_TERM_MAX = 80
+#: Counting past this is a full scan that no UI reads — "500+" says the same thing as an
+#: exact 11 843 and costs a bounded subquery instead of a sort over the corpus. The flag
+#: comes back with it so the caller can render the "+" rather than quoting a cap as a fact.
+SEARCH_TOTAL_CAP = 500
+
+
+def _search_where(q: Optional[str] = None,
+                  countries: Optional[Iterable[str]] = None,
+                  cities: Optional[Iterable[str]] = None,
+                  categories: Optional[Iterable[str]] = None,
+                  work_modes: Optional[Iterable[str]] = None,
+                  seniorities: Optional[Iterable[str]] = None,
+                  remote_only: bool = False,
+                  skip: str = "") -> tuple[list[str], list[Any]]:
+    """The filter set, as SQL fragments and params. One definition, four callers.
+
+    `skip` names a facet to leave out ("categories" | "countries"), which is what makes the
+    facet counts mean "how many would you get if you ticked this" rather than "how many you
+    have already". Without it a facet's own filter zeroes every other option in its group and
+    the menu collapses to the one thing already selected.
+    """
+    where = ["p.is_active"]
+    params: list[Any] = []
+
+    term = (q or "").strip()[:SEARCH_TERM_MAX]
+    if term:
+        # `simple`, matching the generated column: no stemming and no stopword list, so
+        # Czech, Swedish and Norwegian titles tokenise the same way the index stored them.
+        # `plainto_tsquery` ANDs the words and — unlike `to_tsquery` — cannot raise on
+        # whatever punctuation a visitor types, which is the only reason it is safe to put
+        # in front of an anonymous input box.
+        where.append("p.search_tsv @@ plainto_tsquery('simple', %s)")
+        params.append(term)
+
+    if countries and skip != "countries":
+        where.append("p.country_code = any(%s)")
+        params.append(list(countries))
+
+    if cities:
+        # Stored as `cz:prague` and validated by `split_city`, so a malformed one is dropped
+        # rather than widening the search. Written as explicit (country, city) pairs rather
+        # than a bare `city = any(...)`: the slug alone would match the same-named city in
+        # another country's table, and the pair is exactly what `idx_postings_geo` indexes.
+        good = [(cc, slug) for cc, slug in (geo.split_city(c) for c in cities) if cc and slug]
+        if good:
+            clauses = []
+            for cc, slug in good:
+                clauses.append("(p.country_code = %s and p.city = %s)")
+                params.extend([cc, slug])
+            where.append("(" + " or ".join(clauses) + ")")
+
+    if categories and skip != "categories":
+        where.append("p.role_category = any(%s)")
+        params.append(list(categories))
+
+    if work_modes:
+        where.append("p.work_mode = any(%s)")
+        params.append(list(work_modes))
+
+    if seniorities:
+        where.append("p.seniority = any(%s)")
+        params.append(list(seniorities))
+
+    if remote_only:
+        # The posting's own words, never a source's claim — same rule the digest applies.
+        # `work_mode = 'hybrid'` is deliberately excluded: hybrid is not remote.
+        where.append("(p.remote_signal is true or p.work_mode = 'remote')")
+
+    return where, params
+
+
+#: The columns a public card may show. Deliberately not `select *`: `description`,
+#: `eligibility`, `embedding` and the lifecycle timestamps have no business leaving the box,
+#: and a `*` here would ship the next column somebody adds without anyone deciding to.
+_SEARCH_COLS = ("posting_id", "title", "company", "url", "location", "city", "country_code",
+                "remote_signal", "work_mode", "region", "seniority", "work_type",
+                "is_part_time", "role_category", "salary_raw", "currency", "posted_at",
+                "skills", "source")
+
+
+def search_postings(q: Optional[str] = None,
+                    countries: Optional[Iterable[str]] = None,
+                    cities: Optional[Iterable[str]] = None,
+                    categories: Optional[Iterable[str]] = None,
+                    work_modes: Optional[Iterable[str]] = None,
+                    seniorities: Optional[Iterable[str]] = None,
+                    remote_only: bool = False,
+                    limit: int = 20,
+                    offset: int = 0) -> tuple[list[dict], int, bool]:
+    """One page of the public feed, plus `(total, total_is_capped)`.
+
+    **Collapsed on `dedup_key`, unlike `/matches`.** The two pages are different promises:
+    `/matches` is a subscriber's complete record and shows every row it holds, while this is
+    a stranger browsing inventory, where the same job carried by a national register *and* the
+    employer's own ATS board should read as one job. Same `distinct on (coalesce(dedup_key,
+    posting_id))` the shortlist uses, so the two agree about what a duplicate is.
+
+    **`posting_id` is the last sort key on every path, and that is not cosmetic.** Offset
+    paging over a non-unique order is how a row appears on page 1 and again on page 2 while
+    another is never shown at all — the ordering is resolved by physical scan order, which
+    changes under you as the ingest rewrites rows. Ties on `first_seen_at` are the normal
+    case here (an ingest stamps thousands of rows within the same second), not the rare one.
+    """
+    limit = max(1, min(int(limit or 20), SEARCH_LIMIT_MAX))
+    offset = max(0, int(offset or 0))
+    where, params = _search_where(q, countries, cities, categories, work_modes,
+                                  seniorities, remote_only)
+
+    term = (q or "").strip()[:SEARCH_TERM_MAX]
+    if term:
+        # Rank only when there is something to rank by. `ts_rank_cd` over the same tsvector
+        # the WHERE already matched, so the sort costs no second lookup.
+        rank_sql = "ts_rank_cd(p.search_tsv, plainto_tsquery('simple', %s))"
+        order = "d.rank desc, d.first_seen_at desc, d.posting_id"
+    else:
+        rank_sql = "0::real"
+        order = "d.first_seen_at desc, d.posting_id"
+
+    cols = ", ".join(f"p.{c}" for c in _SEARCH_COLS)
+    out_cols = ", ".join(f"d.{c}" for c in _SEARCH_COLS)
+    inner = f"""
+        select distinct on (coalesce(p.dedup_key, p.posting_id))
+               {cols}, p.first_seen_at, {rank_sql} as rank
+        from postings p
+        where {' and '.join(where)}
+        order by coalesce(p.dedup_key, p.posting_id), p.last_seen_at desc
+    """
+    # The rank param sits in the SELECT list, which psycopg2 binds positionally by where it
+    # appears in the SQL *text* — so it goes ahead of the WHERE params, whatever order the
+    # fragments were built in. Same trap as the shortlist's bucket parameter.
+    inner_params: list[Any] = ([term] if term else []) + params
+
+    with cursor() as cur:
+        cur.execute(f"select {out_cols} from ({inner}) d order by {order} limit %s offset %s",
+                    inner_params + [limit, offset])
+        rows = [dict(r) for r in cur.fetchall()]
+
+        # Bounded count: stop at the cap rather than sorting the whole corpus to learn a
+        # number the UI renders as "500+" anyway.
+        cur.execute(f"select count(*) as n from (select 1 from ({inner}) d limit %s) c",
+                    inner_params + [SEARCH_TOTAL_CAP + 1])
+        n = int(cur.fetchone()["n"])
+
+    return rows, min(n, SEARCH_TOTAL_CAP), n > SEARCH_TOTAL_CAP
+
+
+def search_facets(q: Optional[str] = None,
+                  countries: Optional[Iterable[str]] = None,
+                  cities: Optional[Iterable[str]] = None,
+                  categories: Optional[Iterable[str]] = None,
+                  work_modes: Optional[Iterable[str]] = None,
+                  seniorities: Optional[Iterable[str]] = None,
+                  remote_only: bool = False) -> dict[str, list[dict]]:
+    """Category and country counts for the current search, each computed with every filter
+    *except its own* — so ticking one option never empties the menu it came from.
+
+    **The rows are not filtered to `taxonomy.CATEGORIES` here and must be by the caller.**
+    Two reasons to leave it to the API layer rather than doing it in SQL: the canonical list
+    lives in `service/taxonomy.py` and re-expressing it as a SQL literal is the copy that
+    drifts, and a count that vanished silently in the database would be indistinguishable
+    from a category with no inventory. As of 2026-08-12 production still holds ~1 058 rows
+    whose `role_category` is a raw Swedish SSYK label — residue of the 2026-08-08 hint bug,
+    draining over the staleness window — and a `select distinct role_category` straight into
+    a public dropdown would offer `Butikssäljare, fackhandel` as a filter.
+    """
+    out: dict[str, list[dict]] = {}
+    with cursor() as cur:
+        for key, column, skip in (("categories", "role_category", "categories"),
+                                  ("countries", "country_code", "countries")):
+            where, params = _search_where(q, countries, cities, categories, work_modes,
+                                          seniorities, remote_only, skip=skip)
+            # Counted over the same dedup'd set the list shows, or the facet totals and the
+            # result count disagree and neither is wrong-looking enough to notice.
+            cur.execute(f"""
+                select d.{column} as value, count(*) as count
+                from (
+                    select distinct on (coalesce(p.dedup_key, p.posting_id))
+                           p.{column}
+                    from postings p
+                    where {' and '.join(where)}
+                    order by coalesce(p.dedup_key, p.posting_id), p.last_seen_at desc
+                ) d
+                where d.{column} is not null
+                group by 1
+                order by 2 desc, 1
+            """, params)
+            out[key] = [{"value": r["value"], "count": int(r["count"])}
+                        for r in cur.fetchall()]
+    return out
 
 
 # --- matches -------------------------------------------------------------------

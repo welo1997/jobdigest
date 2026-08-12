@@ -357,6 +357,8 @@ const pl: Messages = {
       other: "{n} ukrytej oferty →",
     },
     filterBySkill: "Filtruj według umiejętności",
+    filterByWorkMode: "Filtruj według formy pracy",
+    greatFitsOnly: "Tylko najlepsze oferty",
     clearFilter: "Wyczyść",
   },
 
@@ -384,6 +386,52 @@ const pl: Messages = {
       many: "Pokazano {shown} z {n} ukrytych ofert",
       other: "Pokazano {shown} z {n} ukrytych ofert",
     },
+  },
+
+  jobs: {
+    navLink: "Przeglądaj oferty",
+    metaTitle: "Oferty pracy w Europie · JobDigest",
+    metaDescription:
+      "Przeszukaj wszystkie oferty, które śledzimy — państwowe rejestry wolnych miejsc pracy i setki firmowych stron karier w jednym miejscu. Za darmo, bez konta.",
+    label: "Za darmo · bez konta",
+    title: "Wszystkie oferty, które śledzimy, w jednym miejscu",
+    intro:
+      "Państwowe rejestry wolnych miejsc pracy i setki firmowych stron karier, przeszukiwane razem. Odświeżamy co rano i nigdy nie pokazujemy ogłoszenia, którego nie widzieliśmy od tygodnia.",
+    searchLabel: "Szukaj ofert",
+    searchPlaceholder: "Stanowisko, umiejętność lub firma",
+    searchButton: "Szukaj",
+    countTitle: {
+      one: "{n} oferta",
+      few: "{n} oferty",
+      many: "{n} ofert",
+      other: "{n} oferty",
+    },
+    countCapped: "{n}+ ofert",
+    showing: {
+      one: "Pokazano {shown} z {n} oferty",
+      few: "Pokazano {shown} z {n} ofert",
+      many: "Pokazano {shown} z {n} ofert",
+      other: "Pokazano {shown} z {n} oferty",
+    },
+    noneTitle: "Nic nie pasuje",
+    noneBody: "Spróbuj szerszego zapytania albo usuń jeden z filtrów.",
+    filterCategory: "Dziedzina",
+    filterCountry: "Kraj",
+    filterSeniority: "Poziom",
+    remoteOnly: "Tylko zdalnie",
+    clearFilters: "Wyczyść filtry",
+    loadMore: "Pokaż więcej",
+    loadMoreFailed: "Nie udało się wczytać więcej — sprawdź połączenie i spróbuj ponownie.",
+    errTitle: "Nie udało się wczytać ofert",
+    errBody: "Coś poszło nie tak po naszej stronie. Spróbuj za chwilę.",
+    categories: {
+      machine_learning: "Uczenie maszynowe",
+      other_tech_function: "Inne role techniczne",
+    },
+    ctaTitle: "Wolisz dostawać je e-mailem?",
+    ctaBody:
+      "Powiedz nam, czego szukasz. Każdego ranka przeczytamy wszystkie nowe oferty i wyślemy tylko te pasujące — z jednym zdaniem, dlaczego każda przeszła.",
+    ctaButton: "Chcę codzienny przegląd",
   },
 
   checkInbox: {

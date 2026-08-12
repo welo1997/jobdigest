@@ -26,6 +26,8 @@ there is never a password.
     GET  /unsubscribe        human one-click unsubscribe (HTML page)
     POST /unsubscribe        RFC 8058 one-click (List-Unsubscribe-Post from mail clients)
     POST /cv/parse           multipart CV -> derived signals JSON (file discarded)
+    GET  /jobs               public job search — no auth, no profile, no model, writes
+                             nothing (the free tier's feed; see notes/scaling/PLAN.md)
     POST /event              cookieless first-party analytics event (whitelisted names)
 
 Bot protection: every mutating public entry point (subscribe, cv/parse) verifies a
@@ -51,7 +53,7 @@ from contextlib import asynccontextmanager
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
-from fastapi import FastAPI, Form, HTTPException, Request, Response, UploadFile
+from fastapi import FastAPI, Form, HTTPException, Query, Request, Response, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, RedirectResponse
 from pydantic import BaseModel, EmailStr, Field, field_validator
@@ -636,6 +638,167 @@ def preview(body: PreviewIn) -> dict:
             "jobs": [_preview_view(c, terms) for c in candidates[:PREVIEW_LIMIT]]}
 
 
+# ------------------------------------------------------------- public search ----
+#
+# The free tier's job feed (`notes/scaling/PLAN.md`): unauthenticated, no profile, no model,
+# no tokens. It is the only endpoint that hands the corpus to somebody who is not a
+# subscriber, so every bound is load-bearing rather than defensive habit.
+
+JOBS_WINDOW_SEC = int(os.environ.get("JOBS_WINDOW_SEC", "60"))
+JOBS_MAX_GLOBAL = int(os.environ.get("JOBS_MAX_GLOBAL", "600"))
+
+_jobs_window_start = 0.0
+_jobs_total = 0
+
+
+def _jobs_allowed() -> bool:
+    """Fixed-window global cap on search queries. Process-local, like `_event_allowed`.
+
+    There is no session id to key on — a search page is browsed before anyone identifies
+    themselves — so this is a global ceiling, not a per-caller one. It exists to stop a
+    scraper turning an indexed query into a full corpus dump at wire speed, and it is the
+    *inner* bound; Cloudflare's edge limiting is the outer one. Deliberately not a 429 with
+    a Retry-After: telling a scraper exactly when to come back is a scheduling hint.
+    """
+    global _jobs_window_start, _jobs_total
+    now = time.monotonic()
+    if now - _jobs_window_start >= JOBS_WINDOW_SEC:
+        _jobs_window_start = now
+        _jobs_total = 0
+    if _jobs_total >= JOBS_MAX_GLOBAL:
+        return False
+    _jobs_total += 1
+    return True
+
+
+#: Selectable in the UI, and the same rule `_check_role_categories` applies to preferences:
+#: `uncategorised` is a real stored value but not something anyone means to search for.
+#: Postings carrying it are still returned whenever no category is ticked, which is the half
+#: that matters — a filter nobody applied must never narrow anything.
+_SEARCH_CATEGORIES = frozenset(taxonomy.CATEGORIES) - {taxonomy.UNCATEGORISED}
+_SEARCH_SENIORITIES = frozenset({"junior", "mid", "senior"})
+
+
+def _pick(values: list[str], allowed: frozenset[str] | set[str], field: str,
+          *, lower: bool = True) -> list[str]:
+    """Validate one repeatable query parameter against its canonical vocabulary.
+
+    **Rejects rather than drops.** These arrive in a shareable URL that a person can hand-edit,
+    and silently ignoring `?category=softwar` would render a full unfiltered page under a
+    heading claiming a filter — the same silence `_check_role_categories` refuses for
+    preferences. A 400 is the only version of this the visitor can see.
+    """
+    out: list[str] = []
+    unknown: list[str] = []
+    for raw in values or []:
+        v = str(raw).strip()
+        v = v.lower() if lower else v.upper()
+        if not v:
+            continue
+        if v not in allowed:
+            unknown.append(v)
+        elif v not in out:
+            out.append(v)
+    if unknown:
+        raise HTTPException(400, f"unknown {field}: {', '.join(sorted(set(unknown)))}")
+    return out
+
+
+def _job_view(j: dict) -> dict:
+    """Public card for one posting in the search feed.
+
+    The same non-sensitive field set as `_match_view`, minus `score` and `summary` — those are
+    the AI's per-job judgement, which is the paid tier's difference and is not withheld by
+    accident. `source` is carried because attribution is a terms obligation for at least one
+    feed (Remote OK), and the card cannot honour it without knowing where a row came from.
+    """
+    posted = j.get("posted_at")
+    return {
+        "posting_id": j.get("posting_id"),
+        "title": j.get("title"),
+        "company": j.get("company"),
+        "url": j.get("url"),
+        "location": j.get("location"),
+        "country_code": j.get("country_code"),
+        "city": j.get("city"),
+        "region": j.get("region"),
+        "seniority": j.get("seniority"),
+        "work_type": j.get("work_type"),
+        "work_mode": j.get("work_mode"),
+        "remote_signal": j.get("remote_signal"),
+        "role_category": j.get("role_category"),
+        "salary": j.get("salary_raw"),
+        "source": j.get("source"),
+        "skills": j.get("skills") or [],
+        "posted_at": posted.isoformat() if hasattr(posted, "isoformat") else posted,
+    }
+
+
+@app.get("/jobs")
+def search_jobs_public(
+    q: Optional[str] = None,
+    country: list[str] = Query(default_factory=list),
+    city: list[str] = Query(default_factory=list),
+    category: list[str] = Query(default_factory=list),
+    work_mode: list[str] = Query(default_factory=list),
+    seniority: list[str] = Query(default_factory=list),
+    remote: bool = False,
+    limit: int = 20,
+    offset: int = 0,
+) -> dict:
+    """One page of the public job feed. Reads only; writes nothing, ever.
+
+    **This is a GET and it must stay side-effect free** — not merely "does no harm", but
+    records nothing about who searched for what. A search term is a statement about
+    somebody's job hunt, and `web/components/legal/PrivacyEn.tsx` makes no promise covering
+    it. Logging queries here would need that page to change in the same commit (security
+    rule 4); the cheaper and better answer is not to.
+
+    **Facets are computed on the first page only.** They do not change as you page, so
+    recomputing them for `offset=20` would be two extra aggregates per scroll for a value the
+    client already holds. `facets` is absent, not empty, on later pages — an empty list would
+    read as "nothing to filter by" and blank the menu the visitor is using.
+    """
+    if not _jobs_allowed():
+        raise HTTPException(503, "busy")
+
+    countries = _pick(country, frozenset(geo.COUNTRIES), "country", lower=False)
+    categories = _pick(category, _SEARCH_CATEGORIES, "category")
+    work_modes = _pick(work_mode, frozenset(geo.WORK_MODES), "work_mode")
+    seniorities = _pick(seniority, _SEARCH_SENIORITIES, "seniority")
+    # Cities are validated by `geo.clean_cities`, which drops a malformed pair and — when
+    # countries are also given — one whose country is not among them. That is the same rule
+    # the subscription form applies, so a city filter cannot outlive the country it belongs to.
+    cities = geo.clean_cities(city, countries or None)
+
+    rows, total, capped = store.search_postings(
+        q=q, countries=countries, cities=cities, categories=categories,
+        work_modes=work_modes, seniorities=seniorities, remote_only=remote,
+        limit=limit, offset=offset)
+
+    out: dict = {
+        "count": total,
+        "count_capped": capped,
+        "jobs": [_job_view(r) for r in rows],
+    }
+    if offset == 0:
+        facets = store.search_facets(
+            q=q, countries=countries, cities=cities, categories=categories,
+            work_modes=work_modes, seniorities=seniorities, remote_only=remote)
+        # The category facet is filtered to the canonical vocabulary *here*, which is the one
+        # place that can import it. Production still holds ~1 058 rows whose `role_category`
+        # is a raw Swedish SSYK label ("Butikssäljare, fackhandel") from the 2026-08-08 hint
+        # bug; without this they would be offered as filter options on a public page, and
+        # `uncategorised` would be offered as a search anyone would regret running.
+        out["facets"] = {
+            "categories": [f for f in facets["categories"]
+                           if f["value"] in _SEARCH_CATEGORIES],
+            "countries": [f for f in facets["countries"]
+                          if f["value"] in geo.COUNTRIES],
+        }
+    return out
+
+
 # --------------------------------------------------------------- confirm -------
 
 @app.get("/confirm", response_class=HTMLResponse)
@@ -994,6 +1157,15 @@ def get_preferences(request: Request, token: Optional[str] = None) -> dict:
 
 MATCHES_PAGE_LIMIT = 25
 
+#: The top rung of the score ladder, and the only one that is purely presentational:
+#: `matcher.MATCH_FLOOR` (4) decides what is stored at all, `digest.EMAIL_MIN_SCORE` (6)
+#: decides what is worth an email, and this decides what the "great fits only" toggle on
+#: /matches leaves on screen. Env-overridable because it is a threshold (the no-hardcoded-
+#: thresholds rule), and deliberately **not** `profiles.min_score` — that is a stored
+#: preference gating what gets matched, while this filters what is already matched. Reading
+#: one off the other would let a display toggle quietly change what the matcher considers.
+GREAT_FIT_MIN_SCORE = int(os.environ.get("GREAT_FIT_MIN_SCORE", "8"))
+
 
 def _match_view(j: dict) -> dict:
     """Public shape for one match on the /matches page (no internal fields)."""
@@ -1021,7 +1193,8 @@ def _match_view(j: dict) -> dict:
 
 @app.get("/matches")
 def get_matches(request: Request, token: Optional[str] = None, offset: int = 0,
-                hidden: bool = False, skills: Optional[str] = None) -> dict:
+                hidden: bool = False, skills: Optional[str] = None,
+                work_modes: Optional[str] = None, great_fits: bool = False) -> dict:
     """One page of everything the matcher found for this subscriber (not just the emailed
     few), ranked best-first. Authenticated by the private magic-link token or the session
     cookie.
@@ -1037,12 +1210,27 @@ def get_matches(request: Request, token: Optional[str] = None, offset: int = 0,
     (already applied, not interested). Both counts come back either way, so the visible page
     can link to "Hidden (n)" without a second round trip and the hidden page can link back.
 
-    `skills` is an optional comma-separated display filter (the skill chips): it narrows both
-    the rows and `count` (they must agree), array-overlap so any selected skill matches. Values
-    not in the controlled vocabulary are dropped rather than 422'd — a hand-edited param should
-    show fewer results, never break the page (same forgiving rule as `offset`). `skill_facets`
-    is always the *unfiltered* set of chips (respecting only `hidden`), so the filter never
-    hides its own controls.
+    Three optional display filters narrow both the rows and `count` — they must agree, which
+    `store._match_filters` now guarantees by construction rather than by both call sites
+    remembering:
+
+      `skills`      comma-separated skill ids; array-overlap, so ANY selected skill matches.
+      `work_modes`  comma-separated `remote` / `hybrid` / `onsite`. A posting whose ad never
+                    said is excluded — this is an explicit request for a named setup, not the
+                    matcher's keep-unknown rule, and the facet never offers null as an option.
+      `great_fits`  keeps only scores >= GREAT_FIT_MIN_SCORE.
+
+    **Values outside the controlled vocabulary are dropped, not 422'd.** A hand-edited param
+    should show fewer results, never break the page (the same forgiving rule as `offset`).
+    That is deliberately the opposite of `/jobs`, which 400s on an unknown value: there the
+    filters are the whole page and a silently-ignored one would render an unfiltered corpus
+    under a heading claiming otherwise, whereas here the subscriber's own matches are the
+    page and a dropped filter merely shows more of them. Both rules are right where they are.
+
+    `facets` carries each menu's options computed with the *other* filters applied but never
+    its own, so no single tick can empty the menu it came from. `skill_facets` remains as a
+    top-level alias of `facets.skills` because it is the shipped shape the deployed frontend
+    reads — removing it would blank the filter row for anyone on a cached bundle.
     """
     profile = _resolve_subscriber(request, token, mutating=False)
     if not profile:
@@ -1050,22 +1238,39 @@ def get_matches(request: Request, token: Optional[str] = None, offset: int = 0,
     # Clamp rather than 422: a hand-edited offset should show an empty last page, not break
     # someone's match list.
     offset = max(0, offset)
-    # Validate the filter against the controlled vocabulary; drop anything else silently.
+    # Validate each filter against its controlled vocabulary; drop anything else silently.
     valid = set(skill_gazetteer.canonical_skills())
     picked = [t for t in (s.strip().lower() for s in (skills or "").split(",")) if t in valid]
     skills_filter = picked or None
+    picked_modes = [m for m in (w.strip().lower() for w in (work_modes or "").split(","))
+                    if m in geo.WORK_MODES]
+    modes_filter = picked_modes or None
+    min_score = GREAT_FIT_MIN_SCORE if great_fits else None
+
     jobs = store.matched_jobs(profile["id"], limit=MATCHES_PAGE_LIMIT, offset=offset,
-                              hidden=hidden, skills_filter=skills_filter)
+                              hidden=hidden, skills_filter=skills_filter,
+                              work_modes=modes_filter, min_score=min_score)
+    facets = store.match_facets(profile["id"], hidden=hidden, skills_filter=skills_filter,
+                                work_modes=modes_filter, min_score=min_score,
+                                great_fit_score=GREAT_FIT_MIN_SCORE)
     return {
         "email": profile.get("email"),
         "label": profile.get("label"),
-        "count": store.match_count(profile["id"], hidden=hidden, skills_filter=skills_filter),
+        "count": store.match_count(profile["id"], hidden=hidden, skills_filter=skills_filter,
+                                   work_modes=modes_filter, min_score=min_score),
+        # The other half's total is deliberately unfiltered: it labels a link to a different
+        # view, and "Hidden (3)" that changes as you narrow *this* page would be describing
+        # a list the subscriber has not opened.
         "hidden_count": store.match_count(profile["id"], hidden=True),
         "offset": offset,
         "limit": MATCHES_PAGE_LIMIT,
         "hidden": hidden,
         "skills": picked,
-        "skill_facets": store.match_skill_facets(profile["id"], hidden=hidden),
+        "work_modes": picked_modes,
+        "great_fits": great_fits,
+        "great_fit_score": GREAT_FIT_MIN_SCORE,
+        "facets": facets,
+        "skill_facets": facets["skills"],   # legacy alias — see the docstring
         "jobs": [_match_view(j) for j in jobs],
     }
 
@@ -1323,6 +1528,14 @@ EVENT_NAMES = {
     "preferences_saved",
     "matches_viewed",
     "match_clicked",
+    # The public feed. `job_search` carries how many results came back and *never the query*
+    # — the whitelist below could not admit it anyway, and `/event` strips the query string
+    # off `path`, so what somebody searched for cannot reach this table by any route. That is
+    # the property the privacy policy depends on; do not add a "term" key to make a funnel
+    # easier to read.
+    "feed_viewed",
+    "job_search",           # props: {"count": <int results>}
+    "feed_job_clicked",
 }
 
 # Only these keys may appear in props, and values are coerced to short scalars — this is

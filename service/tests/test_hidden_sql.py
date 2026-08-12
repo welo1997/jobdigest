@@ -188,7 +188,7 @@ def test_null_skills_never_match_a_filter_but_still_count_unfiltered(profile):
 def test_facets_are_computed_over_the_unfiltered_set(profile):
     """The chip options must show every skill available, with honest counts, so a selection
     never removes the other chips. NULL skills contribute nothing."""
-    facets = store.match_skill_facets(profile)
+    facets = store.match_facets(profile)["skills"]
     assert facets == [
         {"skill": "excel", "count": 3},
         {"skill": "python", "count": 1},
@@ -201,4 +201,4 @@ def test_facets_and_filter_respect_hidden(profile):
     store.set_matches_hidden(profile, [POSTINGS[0]], True)          # one of the excel jobs
     assert _filtered(profile, ["excel"]) == [POSTINGS[1], POSTINGS[2]]
     assert store.match_count(profile, skills_filter=["excel"]) == 2
-    assert store.match_skill_facets(profile)[0] == {"skill": "excel", "count": 2}
+    assert store.match_facets(profile)["skills"][0] == {"skill": "excel", "count": 2}

@@ -315,6 +315,8 @@ const en: Messages = {
     hideFailed: "Couldn't hide those — try again.",
     hiddenLink: { one: "{n} hidden job →", other: "{n} hidden jobs →" },
     filterBySkill: "Filter by skill",
+    filterByWorkMode: "Filter by work setup",
+    greatFitsOnly: "Great fits only",
     clearFilter: "Clear",
   },
 
@@ -334,6 +336,42 @@ const en: Messages = {
       one: "Showing {shown} of {n} hidden job",
       other: "Showing {shown} of {n} hidden jobs",
     },
+  },
+
+  jobs: {
+    navLink: "Browse jobs",
+    metaTitle: "Browse jobs across Europe · JobDigest",
+    metaDescription:
+      "Search every job we track — national employment registers and hundreds of company career boards, in one place. Free, no account needed.",
+    label: "Free · no account needed",
+    title: "Every job we track, in one place",
+    intro:
+      "National employment registers and hundreds of company career boards, searchable together. We refresh it every morning and never show a listing we haven't seen in the last week.",
+    searchLabel: "Search jobs",
+    searchPlaceholder: "Job title, skill or company",
+    searchButton: "Search",
+    countTitle: { one: "{n} job", other: "{n} jobs" },
+    countCapped: "{n}+ jobs",
+    showing: { one: "Showing {shown} of {n} job", other: "Showing {shown} of {n} jobs" },
+    noneTitle: "Nothing matches that",
+    noneBody: "Try a broader search, or clear a filter or two.",
+    filterCategory: "Field",
+    filterCountry: "Country",
+    filterSeniority: "Level",
+    remoteOnly: "Remote only",
+    clearFilters: "Clear filters",
+    loadMore: "Load more",
+    loadMoreFailed: "Couldn't load more — check your connection and try again.",
+    errTitle: "Couldn't load jobs",
+    errBody: "Something went wrong at our end. Try again in a moment.",
+    categories: {
+      machine_learning: "Machine Learning",
+      other_tech_function: "Other Tech Roles",
+    },
+    ctaTitle: "Want these in your inbox instead?",
+    ctaBody:
+      "Tell us what you're after and we'll read every new job each morning and email you only the ones that fit — with a line on why each one made the cut.",
+    ctaButton: "Get the daily digest",
   },
 
   checkInbox: {

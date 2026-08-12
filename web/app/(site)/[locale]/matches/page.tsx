@@ -23,23 +23,31 @@ function skillLabel(id: string): string {
     .join(" ");
 }
 
-// The skill filter as a dropdown of tick boxes, not the ~80-chip inline wall it replaced (five
-// rows deep in production, pushing the matches below the fold). The facets live one click down;
-// the active filters stay on the row as removable chips (rendered by the caller). Multi-select
-// is OR — every ticked skill widens the list — which is the settled behaviour, so this is a
-// presentation change only.
-function SkillMenu({
-  facets,
+// A filter as a dropdown of tick boxes, not an inline chip wall — the skill version replaced
+// ~80 chips five rows deep in production, which pushed the matches themselves below the fold.
+// The options live one click down; the active filters stay on the row as removable chips
+// (rendered by the caller). Multi-select is OR — every tick widens the list — which is the
+// settled behaviour for all of them.
+//
+// Generic over the option id rather than copied per filter: skills and work setups differ only
+// in their vocabulary and how an id is turned into a label, and a second copy of the
+// outside-click/Escape handling is a second copy that can drift.
+function FilterMenu({
+  options,
   selected,
   onToggle,
   onClear,
+  label,
   triggerLabel,
   clearLabel,
 }: {
-  facets: { skill: string; count: number }[];
+  options: { id: string; count: number }[];
   selected: string[];
   onToggle: (s: string) => void;
   onClear: () => void;
+  /** id -> display text. Skills are data (never translated); work setups come from the
+   *  catalogue, which is why this is the caller's job and not this component's. */
+  label: (id: string) => string;
   triggerLabel: string;
   clearLabel: string;
 }) {
@@ -81,19 +89,19 @@ function SkillMenu({
       {open && (
         <div className="skill-menu-pop">
           <div className="skill-menu-list" role="group">
-            {facets.map((f) => {
-              const on = selected.includes(f.skill);
+            {options.map((o) => {
+              const on = selected.includes(o.id);
               return (
                 <button
                   type="button"
-                  key={f.skill}
+                  key={o.id}
                   className={`skill-opt${on ? " on" : ""}`}
                   aria-pressed={on}
-                  onClick={() => onToggle(f.skill)}
+                  onClick={() => onToggle(o.id)}
                 >
                   <span className="box" aria-hidden>{on ? "✓" : ""}</span>
-                  <span className="nm">{skillLabel(f.skill)}</span>
-                  <span className="c">{f.count}</span>
+                  <span className="nm">{label(o.id)}</span>
+                  <span className="c">{o.count}</span>
                 </button>
               );
             })}
@@ -114,10 +122,14 @@ function SkillMenu({
 function Inner() {
   const { t, href, count } = useI18n();
   const [skills, setSkills] = useState<string[]>([]);
+  const [workModes, setWorkModes] = useState<string[]>([]);
+  const [greatFits, setGreatFits] = useState(false);
   const list = useMatchList({
     hidden: false,
     path: "/matches",
     skills,
+    workModes,
+    greatFits,
     // How many matches the page actually had — a page that routinely shows 0 or 1 is
     // a product problem, not a UI one.
     onLoaded: (d, token) => track("matches_viewed", { count: d.count }, token || undefined),
@@ -134,9 +146,12 @@ function Inner() {
       return next;
     });
 
-  // Toggling a skill refetches (via useMatchList's deps) with the new filter, resetting paging.
-  const toggleSkill = (s: string) =>
-    setSkills((prev) => (prev.includes(s) ? prev.filter((x) => x !== s) : [...prev, s]));
+  // Toggling any filter refetches (via useMatchList's deps) with the new filter, resetting
+  // paging — an offset only means anything against the filter it was counted under.
+  const toggleIn = (set: (fn: (p: string[]) => string[]) => void) => (v: string) =>
+    set((prev) => (prev.includes(v) ? prev.filter((x) => x !== v) : [...prev, v]));
+  const toggleSkill = toggleIn(setSkills);
+  const toggleWorkMode = toggleIn(setWorkModes);
 
   const hide = async () => {
     const ids = [...picked];
@@ -185,21 +200,66 @@ function Inner() {
     </Link>
   );
 
-  const facets = data.skill_facets ?? [];
-  const filtering = skills.length > 0;
-  // Shown whenever there is anything to filter by (or a filter is already on, so it can always
-  // be cleared). Facets are the *unfiltered* set, so the options never vanish as you narrow.
-  // The trigger opens a tick-box menu; the ticked skills stay on the row as removable chips.
-  const filterRow = (facets.length > 0 || filtering) && (
+  // `facets` is the server's per-menu option set, each counted with the *other* filters
+  // applied but never its own — so no single tick can empty the menu it came from.
+  // `skill_facets` is the pre-facets shape, read as a fallback so a cached bundle talking to
+  // a new server (or the reverse) still renders a filter row.
+  const skillOpts = (data.facets?.skills ?? data.skill_facets ?? [])
+    .map((f) => ({ id: f.skill, count: f.count }));
+  const modeOpts = (data.facets?.work_modes ?? [])
+    .map((f) => ({ id: f.work_mode, count: f.count }));
+  const greatFitCount = data.facets?.great_fit_count ?? null;
+  const filtering = skills.length > 0 || workModes.length > 0 || greatFits;
+
+  // Each control appears only when it can actually discriminate. A subscriber's own
+  // preferences already pin most of these axes — someone who asked for remote-only work has
+  // one work setup across every match, and a menu offering that single option is furniture,
+  // not a filter. The rule is the same one the row itself follows: render it when there is a
+  // choice to make, or when it is already on and must stay clearable.
+  const showModes = modeOpts.length > 1 || workModes.length > 0;
+  const showGreatFits = (greatFitCount !== null && greatFitCount > 0) || greatFits;
+  const showRow = skillOpts.length > 0 || showModes || showGreatFits || filtering;
+
+  const filterRow = showRow && (
     <div className="wrap skill-filter">
-      <SkillMenu
-        facets={facets}
-        selected={skills}
-        onToggle={toggleSkill}
-        onClear={() => setSkills([])}
-        triggerLabel={t.matches.filterBySkill}
-        clearLabel={t.matches.clearFilter}
-      />
+      {skillOpts.length > 0 && (
+        <FilterMenu
+          options={skillOpts}
+          selected={skills}
+          onToggle={toggleSkill}
+          onClear={() => setSkills([])}
+          label={skillLabel}
+          triggerLabel={t.matches.filterBySkill}
+          clearLabel={t.matches.clearFilter}
+        />
+      )}
+      {showModes && (
+        <FilterMenu
+          options={modeOpts}
+          selected={workModes}
+          onToggle={toggleWorkMode}
+          onClear={() => setWorkModes([])}
+          // Reused from the signup form's own labels rather than restated: one definition
+          // per language, and "Fully remote" must not mean two different things on two pages.
+          label={(m) => t.geo.workModeLabel[m] ?? m}
+          triggerLabel={t.matches.filterByWorkMode}
+          clearLabel={t.matches.clearFilter}
+        />
+      )}
+      {showGreatFits && (
+        <button
+          type="button"
+          className={`skill sel${greatFits ? " on" : ""}`}
+          aria-pressed={greatFits}
+          onClick={() => setGreatFits((v) => !v)}
+        >
+          {t.matches.greatFitsOnly}
+          {greatFitCount !== null && <span className="c"> {greatFitCount}</span>}
+        </button>
+      )}
+      {/* The ticked values stay on the row as removable chips. A tick can fall out of its own
+          menu once the other filters narrow past it, so the chip — not the menu — is what
+          guarantees a filter is always removable. */}
       {skills.map((s) => (
         <button
           type="button"
@@ -209,6 +269,17 @@ function Inner() {
           onClick={() => toggleSkill(s)}
         >
           {skillLabel(s)} <span className="x" aria-hidden>×</span>
+        </button>
+      ))}
+      {workModes.map((m) => (
+        <button
+          type="button"
+          key={m}
+          className="skill sel on"
+          aria-pressed={true}
+          onClick={() => toggleWorkMode(m)}
+        >
+          {t.geo.workModeLabel[m] ?? m} <span className="x" aria-hidden>×</span>
         </button>
       ))}
     </div>

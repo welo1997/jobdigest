@@ -321,6 +321,8 @@ const fr: Messages = {
     hideFailed: "Impossible de les masquer — réessayez.",
     hiddenLink: { one: "{n} offre masquée →", other: "{n} offres masquées →" },
     filterBySkill: "Filtrer par compétence",
+    filterByWorkMode: "Filtrer par mode de travail",
+    greatFitsOnly: "Meilleures offres uniquement",
     clearFilter: "Effacer",
   },
 
@@ -342,6 +344,45 @@ const fr: Messages = {
       one: "Affichage : {shown} sur {n} offre masquée",
       other: "Affichage : {shown} sur {n} offres masquées",
     },
+  },
+
+  jobs: {
+    navLink: "Parcourir les offres",
+    metaTitle: "Parcourir les offres partout en Europe · JobDigest",
+    metaDescription:
+      "Cherchez dans toutes les offres que nous suivons : registres publics de l'emploi et des centaines de sites carrières d'entreprises, au même endroit. Gratuit, sans compte.",
+    label: "Gratuit · sans compte",
+    title: "Toutes les offres que nous suivons, au même endroit",
+    intro:
+      "Registres publics de l'emploi et centaines de sites carrières d'entreprises, interrogeables ensemble. Nous actualisons chaque matin et n'affichons jamais une annonce que nous n'avons pas revue depuis une semaine.",
+    searchLabel: "Rechercher des offres",
+    searchPlaceholder: "Poste, compétence ou entreprise",
+    searchButton: "Rechercher",
+    countTitle: { one: "{n} offre", other: "{n} offres" },
+    countCapped: "{n}+ offres",
+    showing: {
+      one: "Affichage : {shown} sur {n} offre",
+      other: "Affichage : {shown} sur {n} offres",
+    },
+    noneTitle: "Rien ne correspond",
+    noneBody: "Essayez une recherche plus large, ou retirez un filtre.",
+    filterCategory: "Domaine",
+    filterCountry: "Pays",
+    filterSeniority: "Niveau",
+    remoteOnly: "Télétravail uniquement",
+    clearFilters: "Effacer les filtres",
+    loadMore: "Afficher plus",
+    loadMoreFailed: "Impossible d'en charger plus — vérifiez votre connexion et réessayez.",
+    errTitle: "Impossible de charger les offres",
+    errBody: "Un problème est survenu de notre côté. Réessayez dans un instant.",
+    categories: {
+      machine_learning: "Machine Learning",
+      other_tech_function: "Autres métiers tech",
+    },
+    ctaTitle: "Vous préférez les recevoir par e-mail ?",
+    ctaBody:
+      "Dites-nous ce que vous cherchez : chaque matin nous lisons toutes les nouvelles offres et ne vous envoyons que celles qui collent, avec une ligne expliquant pourquoi.",
+    ctaButton: "Recevoir le résumé quotidien",
   },
 
   checkInbox: {

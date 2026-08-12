@@ -330,6 +330,8 @@ const de: Messages = {
       other: "{n} ausgeblendete Treffer →",
     },
     filterBySkill: "Nach Skill filtern",
+    filterByWorkMode: "Nach Arbeitsform filtern",
+    greatFitsOnly: "Nur Top-Treffer",
     clearFilter: "Zurücksetzen",
   },
 
@@ -354,6 +356,45 @@ const de: Messages = {
       one: "{shown} von {n} ausgeblendeten Treffer angezeigt",
       other: "{shown} von {n} ausgeblendeten Treffern angezeigt",
     },
+  },
+
+  jobs: {
+    navLink: "Jobs durchsuchen",
+    metaTitle: "Jobs in ganz Europa durchsuchen · JobDigest",
+    metaDescription:
+      "Durchsuchen Sie alle Stellen, die wir erfassen — staatliche Stellenregister und hunderte Karriereseiten von Unternehmen an einem Ort. Kostenlos, ohne Konto.",
+    label: "Kostenlos · ohne Konto",
+    title: "Alle Stellen, die wir erfassen, an einem Ort",
+    intro:
+      "Staatliche Stellenregister und hunderte Karriereseiten von Unternehmen, gemeinsam durchsuchbar. Wir aktualisieren jeden Morgen und zeigen keine Anzeige, die wir seit einer Woche nicht gesehen haben.",
+    searchLabel: "Stellen suchen",
+    searchPlaceholder: "Position, Kenntnis oder Unternehmen",
+    searchButton: "Suchen",
+    countTitle: { one: "{n} Stelle", other: "{n} Stellen" },
+    countCapped: "{n}+ Stellen",
+    showing: {
+      one: "{shown} von {n} Stelle angezeigt",
+      other: "{shown} von {n} Stellen angezeigt",
+    },
+    noneTitle: "Dazu passt nichts",
+    noneBody: "Versuchen Sie eine breitere Suche oder entfernen Sie einen Filter.",
+    filterCategory: "Bereich",
+    filterCountry: "Land",
+    filterSeniority: "Level",
+    remoteOnly: "Nur Remote",
+    clearFilters: "Filter zurücksetzen",
+    loadMore: "Mehr laden",
+    loadMoreFailed: "Mehr konnte nicht geladen werden — Verbindung prüfen und erneut versuchen.",
+    errTitle: "Stellen konnten nicht geladen werden",
+    errBody: "Bei uns ist etwas schiefgelaufen. Bitte versuchen Sie es gleich noch einmal.",
+    categories: {
+      machine_learning: "Machine Learning",
+      other_tech_function: "Weitere Tech-Rollen",
+    },
+    ctaTitle: "Lieber per E-Mail?",
+    ctaBody:
+      "Sagen Sie uns, wonach Sie suchen. Wir lesen jeden Morgen jede neue Stelle und mailen Ihnen nur die passenden — mit einem Satz, warum sie es geworden ist.",
+    ctaButton: "Tägliches Digest erhalten",
   },
 
   checkInbox: {

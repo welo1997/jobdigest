@@ -19,7 +19,7 @@ rows were the sub-EMAIL_MIN_SCORE picks the page exists to show.
 import pytest
 from fastapi.testclient import TestClient
 
-from service import links, webapp
+from service import geo, links, webapp
 
 TOKEN = "a-valid-manage-token"
 EMAIL = "person@example.com"
@@ -178,24 +178,49 @@ class _FakeStore:
         ]
 
     def matched_jobs(self, profile_id, limit=50, offset=0, hidden=False,
-                     skills_filter=None):
+                     skills_filter=None, work_modes=None, min_score=None):
         rows = [j for j in self.matches if (j["posting_id"] in self.hidden) == hidden]
         if skills_filter:
             rows = [j for j in rows
                     if set(j.get("skills") or []) & set(skills_filter)]
+        if work_modes:
+            # Null work_mode drops out, exactly as the real `= any(...)` does.
+            rows = [j for j in rows if j.get("work_mode") in set(work_modes)]
+        if min_score is not None:
+            rows = [j for j in rows if (j.get("score") or 0) >= min_score]
         return rows[offset:offset + limit]
 
-    def match_count(self, profile_id, hidden=False, skills_filter=None):
+    def match_count(self, profile_id, hidden=False, skills_filter=None,
+                    work_modes=None, min_score=None):
         return len(self.matched_jobs(profile_id, limit=10 ** 9, hidden=hidden,
-                                     skills_filter=skills_filter))
+                                     skills_filter=skills_filter, work_modes=work_modes,
+                                     min_score=min_score))
 
-    def match_skill_facets(self, profile_id, hidden=False):
+    def match_facets(self, profile_id, hidden=False, skills_filter=None, work_modes=None,
+                     min_score=None, great_fit_score=None):
+        # Each facet skips its own filter and applies the others, mirroring the real query.
         counts = {}
-        for j in self.matched_jobs(profile_id, limit=10 ** 9, hidden=hidden):
+        for j in self.matched_jobs(profile_id, limit=10 ** 9, hidden=hidden,
+                                   work_modes=work_modes, min_score=min_score):
             for s in j.get("skills") or []:
                 counts[s] = counts.get(s, 0) + 1
-        return [{"skill": s, "count": n}
-                for s, n in sorted(counts.items(), key=lambda kv: (-kv[1], kv[0]))]
+        modes = {}
+        for j in self.matched_jobs(profile_id, limit=10 ** 9, hidden=hidden,
+                                   skills_filter=skills_filter, min_score=min_score):
+            if j.get("work_mode"):
+                modes[j["work_mode"]] = modes.get(j["work_mode"], 0) + 1
+        great = None
+        if great_fit_score is not None:
+            great = len(self.matched_jobs(profile_id, limit=10 ** 9, hidden=hidden,
+                                          skills_filter=skills_filter, work_modes=work_modes,
+                                          min_score=great_fit_score))
+        return {
+            "skills": [{"skill": s, "count": n}
+                       for s, n in sorted(counts.items(), key=lambda kv: (-kv[1], kv[0]))],
+            "work_modes": [{"work_mode": m, "count": modes[m]}
+                           for m in geo.WORK_MODES if m in modes],
+            "great_fit_count": great,
+        }
 
     def set_matches_hidden(self, profile_id, posting_ids, hidden):
         """Mirrors the real query's shape: ids that aren't this profile's live matches change
