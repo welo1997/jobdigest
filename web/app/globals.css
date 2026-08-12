@@ -299,17 +299,49 @@ button.nav-link{background:none;border:0;padding:0;cursor:pointer;font-family:in
 .skill{font-family:var(--font-mono);font-size:10px;letter-spacing:.02em;color:var(--brand-deep);
   background:var(--brand-tint);border:1px solid color-mix(in srgb,var(--brand-deep) 22%,var(--line));
   border-radius:var(--r-pill);padding:2px 8px;}
-/* Interactive filter chips on /matches (`.skill.sel`): a togglable button, neutral when off
-   and brand-filled when on. Distinct from the read-only display `.skill` chips on cards. */
-.skill-filter{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:16px 0 2px;}
-.skill-filter .sf-lbl{font-size:var(--fs-sm);color:var(--muted);font-weight:600;}
-.skill-filter .chips{display:flex;flex-wrap:wrap;gap:6px;}
+/* The /matches skill filter. A dropdown of tick boxes replaced the ~80-chip inline wall that
+   ran five rows deep and pushed the matches below the fold; the ticked skills stay on the row
+   as removable chips (`.skill.sel.on`).
+   `auto` on the sides, not 0: this element is also `.wrap`, whose `margin:0 auto` centres it
+   within --maxw. A shorthand of `16px 0 2px` here would zero those sides and pin the whole
+   filter row to the left viewport edge while the page heading stays centred. */
+.skill-filter{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:16px auto 2px;}
+
+/* Trigger + popover. */
+.skill-menu{position:relative;}
+.skill-menu-btn{display:inline-flex;align-items:center;gap:7px;font-family:var(--font-sans);
+  font-size:var(--fs-sm);font-weight:600;color:var(--ink);background:var(--surface);
+  border:1.5px solid var(--line);border-radius:var(--r-pill);padding:7px 14px;cursor:pointer;
+  transition:border-color .15s,background .15s;}
+.skill-menu-btn:hover{border-color:var(--brand);}
+.skill-menu-btn.on{border-color:var(--brand-deep);}
+.skill-menu-btn .n{display:inline-flex;align-items:center;justify-content:center;min-width:18px;
+  height:18px;padding:0 5px;font-size:11px;font-weight:700;color:#fff;background:var(--brand);
+  border-radius:var(--r-pill);}
+.skill-menu-btn .caret{font-size:10px;color:var(--muted);}
+.skill-menu-pop{position:absolute;z-index:40;top:calc(100% + 6px);left:0;background:var(--surface);
+  border:1px solid var(--line);border-radius:var(--r-md);box-shadow:var(--shadow-lg);padding:6px;
+  min-width:230px;animation:pop .16s ease both;}
+.skill-menu-list{display:flex;flex-direction:column;gap:1px;max-height:320px;overflow-y:auto;}
+.skill-opt{display:flex;align-items:center;gap:9px;width:100%;text-align:left;cursor:pointer;
+  font-family:var(--font-sans);font-size:var(--fs-sm);color:var(--ink);background:transparent;
+  border:0;border-radius:var(--r-sm);padding:7px 9px;transition:background .12s;}
+.skill-opt:hover{background:var(--surface-2);}
+.skill-opt.on{color:var(--brand-deep);font-weight:600;}
+.skill-opt .box{flex:none;display:inline-flex;align-items:center;justify-content:center;width:16px;
+  height:16px;border:1.5px solid var(--line);border-radius:4px;font-size:11px;line-height:1;color:#fff;}
+.skill-opt.on .box{background:var(--brand);border-color:var(--brand);}
+.skill-opt .nm{flex:1;}
+.skill-opt .c{flex:none;font-size:var(--fs-xs);color:var(--muted);font-variant-numeric:tabular-nums;}
+.skill-menu-foot{border-top:1px solid var(--line-soft);margin-top:5px;padding:7px 9px 3px;}
+
+/* Removable chip for a ticked skill, sitting on the row beside the trigger. */
 .skill.sel{cursor:pointer;font-family:var(--font-sans);font-size:11px;letter-spacing:0;
-  text-transform:none;color:var(--fg);background:var(--surface-2);border:1px solid var(--line);}
+  text-transform:none;color:var(--ink);background:var(--surface-2);border:1px solid var(--line);}
 .skill.sel:hover{border-color:color-mix(in srgb,var(--brand-deep) 40%,var(--line));}
-.skill.sel .c{color:var(--muted);margin-left:3px;}
 .skill.sel.on{color:var(--brand-deep);background:var(--brand-tint);border-color:var(--brand-deep);}
-.skill.sel.on .c{color:var(--brand-deep);}
+.skill.sel.on .x{margin-left:4px;font-weight:700;opacity:.7;}
+.skill.sel.on:hover .x{opacity:1;}
 .reason{font-size:var(--fs-sm);color:var(--muted);}
 .reason mark{background:var(--brand-tint);color:var(--brand-deep);padding:0 3px;border-radius:3px;font-weight:600;}
 .job .apply{font-size:var(--fs-xs);font-weight:700;margin-top:5px;display:inline-block;}

@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { Nav, Footer } from "@/components/SiteChrome";
 import { MatchCard, SelectionBar } from "@/components/MatchCard";
@@ -21,6 +21,94 @@ function skillLabel(id: string): string {
     .split(/[_-]/)
     .map((w) => (SKILL_ACRONYMS.has(w) ? w.toUpperCase() : w.charAt(0).toUpperCase() + w.slice(1)))
     .join(" ");
+}
+
+// The skill filter as a dropdown of tick boxes, not the ~80-chip inline wall it replaced (five
+// rows deep in production, pushing the matches below the fold). The facets live one click down;
+// the active filters stay on the row as removable chips (rendered by the caller). Multi-select
+// is OR — every ticked skill widens the list — which is the settled behaviour, so this is a
+// presentation change only.
+function SkillMenu({
+  facets,
+  selected,
+  onToggle,
+  onClear,
+  triggerLabel,
+  clearLabel,
+}: {
+  facets: { skill: string; count: number }[];
+  selected: string[];
+  onToggle: (s: string) => void;
+  onClear: () => void;
+  triggerLabel: string;
+  clearLabel: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  // Close on an outside click or Escape. A menu that only closes by re-clicking its trigger
+  // feels broken on a page you scroll, and it would sit open over the matches.
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpen(false);
+    };
+    document.addEventListener("mousedown", onDown);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDown);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+
+  const n = selected.length;
+  return (
+    <div className="skill-menu" ref={ref}>
+      <button
+        type="button"
+        className={`skill-menu-btn${n ? " on" : ""}`}
+        aria-haspopup="true"
+        aria-expanded={open}
+        onClick={() => setOpen((o) => !o)}
+      >
+        {triggerLabel}
+        {n > 0 && <span className="n">{n}</span>}
+        <span className="caret" aria-hidden>▾</span>
+      </button>
+      {open && (
+        <div className="skill-menu-pop">
+          <div className="skill-menu-list" role="group">
+            {facets.map((f) => {
+              const on = selected.includes(f.skill);
+              return (
+                <button
+                  type="button"
+                  key={f.skill}
+                  className={`skill-opt${on ? " on" : ""}`}
+                  aria-pressed={on}
+                  onClick={() => onToggle(f.skill)}
+                >
+                  <span className="box" aria-hidden>{on ? "✓" : ""}</span>
+                  <span className="nm">{skillLabel(f.skill)}</span>
+                  <span className="c">{f.count}</span>
+                </button>
+              );
+            })}
+          </div>
+          {n > 0 && (
+            <div className="skill-menu-foot">
+              <button type="button" className="lnk" onClick={onClear}>
+                {clearLabel}
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
 }
 
 function Inner() {
@@ -100,31 +188,29 @@ function Inner() {
   const facets = data.skill_facets ?? [];
   const filtering = skills.length > 0;
   // Shown whenever there is anything to filter by (or a filter is already on, so it can always
-  // be cleared). Facets are the *unfiltered* set, so the chips never vanish as you narrow.
+  // be cleared). Facets are the *unfiltered* set, so the options never vanish as you narrow.
+  // The trigger opens a tick-box menu; the ticked skills stay on the row as removable chips.
   const filterRow = (facets.length > 0 || filtering) && (
     <div className="wrap skill-filter">
-      <span className="sf-lbl">{t.matches.filterBySkill}</span>
-      <div className="chips">
-        {facets.map((f) => {
-          const on = skills.includes(f.skill);
-          return (
-            <button
-              type="button"
-              key={f.skill}
-              className={`skill sel${on ? " on" : ""}`}
-              aria-pressed={on}
-              onClick={() => toggleSkill(f.skill)}
-            >
-              {skillLabel(f.skill)} <span className="c">{f.count}</span>
-            </button>
-          );
-        })}
-      </div>
-      {filtering && (
-        <button type="button" className="lnk" onClick={() => setSkills([])}>
-          {t.matches.clearFilter}
+      <SkillMenu
+        facets={facets}
+        selected={skills}
+        onToggle={toggleSkill}
+        onClear={() => setSkills([])}
+        triggerLabel={t.matches.filterBySkill}
+        clearLabel={t.matches.clearFilter}
+      />
+      {skills.map((s) => (
+        <button
+          type="button"
+          key={s}
+          className="skill sel on"
+          aria-pressed={true}
+          onClick={() => toggleSkill(s)}
+        >
+          {skillLabel(s)} <span className="x" aria-hidden>×</span>
         </button>
-      )}
+      ))}
     </div>
   );
 
