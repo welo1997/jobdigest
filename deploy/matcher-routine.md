@@ -91,6 +91,18 @@ live matcher. Update all three together, then push the routine with `RemoteTrigg
 drifted once already: the part-time and `unstated`-seniority rules shipped in Python on
 2026-07-26 while the routine still ran the old text.
 
+**The routine lives on the owner's personal claude.ai account, not the work one.** Verified
+2026-08-12: from a CLI authenticated to the work account, `RemoteTrigger get` on the id above
+returns 404, and `list` shows ten triggers, all of them Footshop jobs — no JobDigest matcher
+anywhere. That is consistent with the go-live note (2026-07-19): the routine was created on
+the account that owns the Drive connector (`owner@example.com`), and CLAUDE.md's
+"owner's own connector" rule means it must stay there. So a `RemoteTrigger` 404 on this id
+does **not** mean the routine is gone or the id is stale — check which account the CLI is
+holding before concluding anything. Pushing an update requires a session authenticated to
+the personal account, or the paste-by-hand fallback below. **Never create a new routine from
+the work account as a workaround**: two matchers racing over one `picks.json` would look like
+partial or alternating picks, not an error — `import_picks` validates content, not authorship.
+
 The live routine carries **one clause this file does not**, deliberately: a transitional
 fallback saying that a profile with no `locations` field came from an older export and should
 be judged on `regions` as before. It was pushed on 2026-07-27, before the VPS had the code
