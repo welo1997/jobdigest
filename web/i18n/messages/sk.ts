@@ -392,6 +392,9 @@ const sk: Messages = {
     searchLabel: "Hľadať ponuky",
     searchPlaceholder: "Pozícia, zručnosť alebo firma",
     searchButton: "Hľadať",
+    startTitle: "Čo hľadáte?",
+    startBody:
+      "Zadajte pozíciu, zručnosť alebo firmu — alebo si vyberte odbor, krajinu či úroveň.",
     countTitle: { one: "{n} ponuka", few: "{n} ponuky", other: "{n} ponúk" },
     countCapped: "{n}+ ponúk",
     showing: {

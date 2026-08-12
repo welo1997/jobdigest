@@ -7,8 +7,14 @@
  * It reads `GET /jobs`, which is unauthenticated and writes nothing — including nothing about
  * what was searched for.
  *
- * Three decisions worth knowing before editing:
+ * Four decisions worth knowing before editing:
  *
+ *   - **Nothing is listed until something is asked for.** With no term and no filter the page
+ *     fetches the filter menus and shows no jobs. A feed that opens full of listings reads as
+ *     a recommendation, and this page makes no per-job judgement — that is the digest's, and
+ *     the difference between the tiers. The newest twenty rows in the corpus are nobody's
+ *     search, and presenting them as an answer overstates what an unauthenticated,
+ *     model-free SQL query knows about the visitor.
  *   - **The search lives in the URL.** `?q=&country=&category=` is built by `searchQuery` in
  *     `lib/api.ts`, the same function that builds the request, so the link and the fetch can
  *     never disagree about what was asked for. A search worth running is a search worth
@@ -208,18 +214,39 @@ function Inner() {
     [params.toString()]
   );
 
+  // Whether anything has actually been asked for. Read before the fetch, not after it: it is
+  // what decides whether this page answers at all.
+  const filtering =
+    Boolean(q) || countries.length > 0 || categories.length > 0 ||
+    seniorities.length > 0 || remote;
+
   useEffect(() => {
     let cancelled = false;
     setErr(false);
     setData(null);
-    searchJobs({ q, countries, categories, seniorities, remote, limit: PAGE })
+    // **A visitor who has asked for nothing is shown no jobs.** Landing on a page already
+    // full of listings reads as a recommendation — it is not one; it was the newest twenty
+    // rows in the corpus, which is nobody's search. So with no term and no filter this call
+    // fetches the filter menus and nothing else, and the first thing on screen is the
+    // question rather than an answer to one nobody asked.
+    //
+    // `limit: 1` rather than a facets-only mode: the API clamps `limit` to a minimum of one
+    // (`SEARCH_LIMIT_MAX` guards the other end), so one row is the cheapest legal request and
+    // it is discarded below. Facets are computed on `offset == 0` regardless, which is the
+    // part we are actually here for.
+    searchJobs({ q, countries, categories, seniorities, remote, limit: filtering ? PAGE : 1 })
       .then((d) => {
         if (cancelled) return;
-        setData(d);
-        setJobs(d.jobs);
         // Kept rather than read from `data` on every render: later pages omit `facets`, and
         // reading it off the newest response would empty the menu the visitor is using.
         if (d.facets) setFacets(d.facets);
+        if (!filtering) {
+          // No jobs, no count, and no `job_search` event — nothing was searched for.
+          setJobs([]);
+          return;
+        }
+        setData(d);
+        setJobs(d.jobs);
         track("job_search", { count: d.count });
       })
       .catch(() => {
@@ -267,10 +294,6 @@ function Inner() {
       setLoadingMore(false);
     }
   };
-
-  const filtering =
-    Boolean(q) || countries.length > 0 || categories.length > 0 ||
-    seniorities.length > 0 || remote;
 
   if (err) {
     return (
@@ -368,11 +391,22 @@ function Inner() {
         )}
       </div>
 
-      <div className="wrap list-tools">
-        <p className="hint">{headline}</p>
-      </div>
+      {filtering && (
+        <div className="wrap list-tools">
+          <p className="hint">{headline}</p>
+        </div>
+      )}
 
-      {data && data.count === 0 ? (
+      {!filtering ? (
+        // The idle state. Not an empty-results card: nothing was searched for, so saying
+        // "nothing matches" would be answering a question that was never asked.
+        <div className="state-wrap">
+          <div className="state-card">
+            <h1>{t.jobs.startTitle}</h1>
+            <p>{t.jobs.startBody}</p>
+          </div>
+        </div>
+      ) : data && data.count === 0 ? (
         <div className="state-wrap">
           <div className="state-card">
             <h1>{t.jobs.noneTitle}</h1>

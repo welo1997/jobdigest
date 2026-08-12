@@ -350,6 +350,9 @@ const en: Messages = {
     searchLabel: "Search jobs",
     searchPlaceholder: "Job title, skill or company",
     searchButton: "Search",
+    startTitle: "What are you looking for?",
+    startBody:
+      "Search by job title, skill or company — or pick a field, a country or a level to browse.",
     countTitle: { one: "{n} job", other: "{n} jobs" },
     countCapped: "{n}+ jobs",
     showing: { one: "Showing {shown} of {n} job", other: "Showing {shown} of {n} jobs" },

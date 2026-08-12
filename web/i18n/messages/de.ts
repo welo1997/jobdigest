@@ -370,6 +370,9 @@ const de: Messages = {
     searchLabel: "Stellen suchen",
     searchPlaceholder: "Position, Kenntnis oder Unternehmen",
     searchButton: "Suchen",
+    startTitle: "Wonach suchen Sie?",
+    startBody:
+      "Suchen Sie nach Position, Kenntnis oder Unternehmen — oder wählen Sie einen Bereich, ein Land oder ein Level.",
     countTitle: { one: "{n} Stelle", other: "{n} Stellen" },
     countCapped: "{n}+ Stellen",
     showing: {

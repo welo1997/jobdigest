@@ -355,6 +355,9 @@ const es: Messages = {
     searchLabel: "Buscar ofertas",
     searchPlaceholder: "Puesto, competencia o empresa",
     searchButton: "Buscar",
+    startTitle: "¿Qué estás buscando?",
+    startBody:
+      "Busca por puesto, competencia o empresa, o elige un área, un país o un nivel.",
     countTitle: { one: "{n} oferta", other: "{n} ofertas" },
     countCapped: "{n}+ ofertas",
     showing: {

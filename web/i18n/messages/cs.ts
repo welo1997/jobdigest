@@ -393,6 +393,9 @@ const cs: Messages = {
     searchLabel: "Hledat nabídky",
     searchPlaceholder: "Pozice, dovednost nebo firma",
     searchButton: "Hledat",
+    startTitle: "Co hledáte?",
+    startBody:
+      "Zadejte pozici, dovednost nebo firmu — nebo si vyberte obor, zemi či úroveň.",
     countTitle: { one: "{n} nabídka", few: "{n} nabídky", other: "{n} nabídek" },
     countCapped: "{n}+ nabídek",
     showing: {

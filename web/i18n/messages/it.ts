@@ -357,6 +357,9 @@ const it: Messages = {
     searchLabel: "Cerca offerte",
     searchPlaceholder: "Ruolo, competenza o azienda",
     searchButton: "Cerca",
+    startTitle: "Che cosa stai cercando?",
+    startBody:
+      "Cerca per ruolo, competenza o azienda — oppure scegli un settore, un paese o un livello.",
     countTitle: { one: "{n} offerta", other: "{n} offerte" },
     countCapped: "{n}+ offerte",
     showing: {

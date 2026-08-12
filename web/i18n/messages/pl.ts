@@ -400,6 +400,9 @@ const pl: Messages = {
     searchLabel: "Szukaj ofert",
     searchPlaceholder: "Stanowisko, umiejętność lub firma",
     searchButton: "Szukaj",
+    startTitle: "Czego szukasz?",
+    startBody:
+      "Szukaj po stanowisku, umiejętności lub firmie — albo wybierz branżę, kraj lub poziom.",
     countTitle: {
       one: "{n} oferta",
       few: "{n} oferty",

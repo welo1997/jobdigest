@@ -314,6 +314,11 @@ export interface Messages {
     searchLabel: string;
     searchPlaceholder: string;
     searchButton: string;
+    /** The idle state: shown before anything has been searched for, in place of the result
+     *  count and the list. Deliberately distinct from `noneTitle`/`noneBody` — "nothing
+     *  matches" is an answer, and at this point there is no question. */
+    startTitle: string;
+    startBody: string;
     countTitle: PluralForms;
     /** Shown instead of `countTitle` when the server capped the total: "500+ jobs". The cap
      *  is never rendered as an exact figure. */
