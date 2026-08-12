@@ -41,16 +41,25 @@ DB is Supabase). The routine only ever touches the two files.
                   "sectors": ["ecommerce"], "years_experience": 3, "cv_summary": "..."},
       "candidates": [
         {"posting_id": "md5…", "title": "...", "company": "...", "location": "...",
-         "region": "cz", "city": "Brno", "remote": false, "work_mode": "hybrid",
-         "education_min": null,
-         "seniority": "unstated", "work_type": "permanent",
-         "part_time": false,
+         "city": "Brno", "work_mode": "hybrid", "seniority": "senior",
+         "work_type": "permanent", "remote": true, "part_time": true,
+         "education_min": "bachelor",
          "salary": "45 000 – 90 000 Kč", "description": "…≤320 chars…"}
       ]
     }
   ]
 }
 ```
+
+**That candidate is the maximal shape — a posting that stated everything.** Since 2026-08-12
+a candidate carries **only the fields its posting actually stated**: a field the posting never
+gave is *absent*, not null or `false` or `"?"`. Most candidates are therefore much smaller than
+the example. `education_min` is absent on 90.6% of active postings, `salary` on ~65%,
+`work_mode` on most, and `remote` / `part_time` appear only when true. That removed
+~100-125 bytes per candidate — 117 candidates per subscriber per day — but the reason it is
+*better* is that null used to mean three different things (unread, never-stated, not-claimed)
+taught field by field, and absence means one thing everywhere, including on fields nobody has
+added yet. **The prompt below teaches that rule; the two are one change.**
 
 ## picks.json (output the routine writes — the import step's ONLY input)
 
@@ -95,13 +104,17 @@ always emits them, which is why `ROUTINE_INSTRUCTIONS` has no such clause.
 > specific person — weigh the whole context (role type, seniority, skills/stack, work setup,
 > location, sector interest), not just keyword overlap.
 >
+> **A candidate carries only the fields its posting actually stated, so a missing field means
+> we do not know — never that the answer is no.** Where a field you need is missing, read the
+> `description` if there is one and judge it yourself; never exclude a posting for being
+> silent.
+>
 > Treat **seniority as a hard filter**: exclude any posting whose level clearly differs from
 > the subscriber's target seniority level(s) — a senior/lead role for a junior-only
 > subscriber, or a junior/graduate/intern role for a senior-only subscriber — even if the
-> role, skills and location fit perfectly (omit it, or score it below 4). **A candidate whose
-> `seniority` is `"unstated"` never named a level at all — that is NOT a mismatch, judge it on
-> overall fit.** Most postings are `unstated`; treating them as exclusions would empty the
-> digest.
+> role, skills and location fit perfectly (omit it, or score it below 4). **A candidate with
+> no `seniority` field never named a level at all — that is NOT a mismatch, judge it on
+> overall fit.** Most postings name none; treating them as exclusions would empty the digest.
 >
 > Treat **location as a hard filter for anything that is not fully remote**. The profile's
 > `locations` line names the countries and, where given, the exact cities the subscriber can
@@ -109,19 +122,20 @@ always emits them, which is why `ROUTINE_INSTRUCTIONS` has no such clause.
 > city is written `"cz:prague"`). A posting that requires being anywhere else — another city,
 > or a country they did not pick — is not a fit however well the role matches: omit it, or
 > score it below 4. Being emailed an on-site job in Brno when you live in Prague is the
-> failure this rule exists to prevent. **Only `"remote": true` candidates are exempt** —
-> `"hybrid"` is not remote, it means being in that city most weeks. A candidate whose `city`
-> is `"?"` did not resolve to a city we recognise: the prefilter deliberately lets those
-> through, so read its `location` text and judge it yourself rather than assuming it was
-> checked. Naming no city for a country means any city in that country.
+> failure this rule exists to prevent. **Only candidates carrying `"remote": true` are
+> exempt** — `"hybrid"` is not remote, it means being in that city most weeks, and a candidate
+> with no `remote` field is not exempt. A candidate with **no `city` field** did not resolve to
+> a city we recognise: the prefilter deliberately lets those through, so read its `location`
+> text and judge it yourself rather than assuming it was checked. Naming no city for a country
+> means any city in that country.
 >
 > **Work setup**: `"work_modes"` / `"work_setup"` appear on a profile **only when the
 > subscriber has ruled some arrangements out** — most have not, and their absence means
 > anything goes. When present, a candidate whose `"work_mode"` is not one of the modes they
-> accept is not a fit: omit it, or score it below 4. `"work_mode": null` means the posting
+> accept is not a fit: omit it, or score it below 4. **No `work_mode` field** means the posting
 > never stated an arrangement, which is the common case and is deliberately not guessed at by
 > the prefilter — read the description and judge it, rather than letting it through because
-> the field was empty. Note `"work_mode": "remote"` and `"remote": true` are the same claim
+> the field was missing. Note `"work_mode": "remote"` and `"remote": true` are the same claim
 > said twice; `"hybrid"` means part of the week in that city, so the location rule above
 > applies to it in full.
 >
@@ -130,9 +144,9 @@ always emits them, which is why `ROUTINE_INSTRUCTIONS` has no such clause.
 > anything goes. When present, a candidate whose `"education_min"` is above every level they
 > accept is not a fit: omit it, or score it below 4.
 >
-> `"education_min": null` is by far the most common value and means **the requirement was never
-> read**, not that there is none. About 97% of postings carry null, and every Czech and Slovak
-> posting does, because those boards ship no description text at all. So where there *is* a
+> **No `education_min` field** is by far the most common case and means **the requirement was
+> never read**, not that there is none. About 91% of active postings carry none (measured
+> 2026-08-08 against 98 858 rows). So where there *is* a
 > description, read it and judge; and **never drop a posting merely for being silent** — a
 > requirement nobody wrote down is not a requirement. A degree named as "preferred", "nice to
 > have" or "or equivalent experience" disqualifies nobody, and the classifier already refuses

@@ -91,14 +91,21 @@ def test_candidate_fields_match_the_real_export():
     If the exporter grows a field and this list does not, every projection silently
     under-reports from that day on — the same shape as a source that returns a plausible
     number while being wrong.
+
+    The row is **fully populated on purpose**: the exporter omits a field the posting never
+    stated, so a half-empty row would ship a subset and this guard would pass while quietly
+    measuring less than the maximal payload. Every value here has to be one that survives
+    omission — note the title names a level, or `_seniority_for_model` reports 'unstated' and
+    drops the key.
     """
     from service import matcher
 
     row = {
-        "posting_id": "a" * 32, "title": "t", "company": "c", "location": "l",
-        "region": "r", "city": "cz:prague", "remote_signal": False, "work_mode": "hybrid",
-        "education_min": None, "seniority": "senior", "work_type": "fulltime",
-        "is_part_time": False, "salary_raw": "x", "description": "d" * 1000,
+        "posting_id": "a" * 32, "title": "Senior Data Engineer", "company": "c",
+        "location": "l", "city": "prague", "country_code": "CZ",
+        "remote_signal": True, "work_mode": "hybrid",
+        "education_min": "bachelor", "seniority": "senior", "work_type": "fulltime",
+        "is_part_time": True, "salary_raw": "x", "description": "d" * 1000,
     }
     shipped = set(matcher._candidate_export(row).keys())
     assert shipped == set(sb.CANDIDATE_FIELDS), (

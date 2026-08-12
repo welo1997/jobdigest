@@ -234,33 +234,38 @@ def match_profile(client, profile: dict, shortlist: list[dict]) -> list[dict]:
 ROUTINE_INSTRUCTIONS = (
     "You are JobDigest's daily matcher. For EACH subscriber below, read their profile and "
     "candidate postings and pick the jobs that genuinely fit them (whole context: role, "
-    "seniority, skills, work setup, location, sector — not just keywords). Treat seniority as "
+    "seniority, skills, work setup, location, sector — not just keywords). "
+    "A candidate carries ONLY the fields its posting actually stated, so **a missing field "
+    "means we do not know, never that the answer is no**. Judge a missing field from the "
+    "description where there is one, and never exclude a posting for being silent. "
+    "Treat seniority as "
     "a HARD filter: exclude any posting whose level clearly differs from the subscriber's "
     "target seniority level(s) — a senior/lead role for a junior-only subscriber, or a "
     "junior/graduate/intern role for a senior-only subscriber — even if everything else fits "
-    "(omit it / score it below 4). A candidate with \"seniority\":\"unstated\" never named a "
-    "level and is NOT a mismatch — judge it on overall fit. "
+    "(omit it / score it below 4). A candidate with no \"seniority\" never named a level and "
+    "is NOT a mismatch — that is most of them; judge it on overall fit. "
     "Treat location as a HARD filter for anything that is not fully remote: the profile's "
     "\"locations\" line names the countries and, where given, the exact cities the subscriber "
     "can work in. A posting requiring presence anywhere else — another city, or a country they "
     "did not pick — is not a fit however well the role matches (omit it / score it below 4); "
     "being emailed an on-site job in Brno when you live in Prague is the failure this prevents. "
-    "Only \"remote\":true candidates are exempt — \"hybrid\" is not remote. A candidate with "
-    "\"city\":\"?\" did not resolve to a known city: read its \"location\" text and judge it "
-    "yourself rather than assuming the prefilter checked it. "
+    "Only candidates carrying \"remote\":true are exempt — \"hybrid\" is not remote, and a "
+    "candidate with no \"remote\" field is not exempt. A candidate with no \"city\" did not "
+    "resolve to a known city: read its \"location\" text and judge it yourself rather than "
+    "assuming the prefilter checked it. "
     "If (and only if) the profile has a \"work_setup\" line, the subscriber has ruled some "
     "arrangements out: a candidate whose \"work_mode\" is not one they accept is not a fit "
-    "(omit it / score it below 4). \"work_mode\":null means the posting never stated one — "
-    "most do not — so read its description and judge it, rather than letting it through "
-    "because the field was empty. "
+    "(omit it / score it below 4). A candidate with no \"work_mode\" never stated an "
+    "arrangement — most do not — so read its description and judge it, rather than letting it "
+    "through because the field was missing. "
     "If (and only if) the profile has an \"education\" line, the subscriber has ruled out roles "
     "demanding a qualification above the levels listed: a candidate whose \"education_min\" is "
     "higher than any level they accept is not a fit (omit it / score it below 4). "
-    "\"education_min\":null means the posting's requirement was never read — most were not, and "
-    "the entire Czech and Slovak inventory has no description at all — so read the description "
-    "where there is one and judge it, and **never exclude a posting just for being silent**: a "
-    "requirement nobody wrote down is not a requirement. A degree named as \"preferred\", \"nice "
-    "to have\" or \"or equivalent experience\" does not disqualify anyone. "
+    "A candidate with no \"education_min\" is the common case (about 91%) and means the "
+    "requirement was never READ — not that there is none — so read the description where there "
+    "is one and judge it, and **never exclude a posting just for being silent**: a requirement "
+    "nobody wrote down is not a requirement. A degree named as \"preferred\", \"nice to have\" "
+    "or \"or equivalent experience\" does not disqualify anyone. "
     "\"education_field\" is what the subscriber studied — context for judging how well a role "
     "fits them, never a reason to exclude one. "
     "If the profile has \"part_time_only\":true, a full-time posting is not what they asked "
@@ -313,22 +318,71 @@ def _profile_export(p: dict) -> dict:
 
 
 def _candidate_export(c: dict) -> dict:
+    """One posting as the routine reads it. **A field the posting never stated is absent, not
+    null** — one rule, replacing five different spellings of "we don't know".
+
+    This is the payload the whole scaling ladder is sized against, and most of it used to be
+    padding. Measured on production 2026-08-09: 691 bytes per candidate, 117 candidates per
+    subscriber, ~25k tokens a day each. Five of the fourteen keys carried their default on the
+    *majority* of rows — `education_min` is null on 90.6% of active postings, `salary` on ~65%
+    (coverage is 30-40%), `work_mode` on most of them, and `remote`/`part_time` are false on
+    most — so `"education_min":null` was being written 117 times per subscriber per day to say
+    nothing. Omission is what `_profile_export` already does one function above, and it is
+    worth ~100-125 bytes a candidate.
+
+    **The saving is not the reason the convention is better, though.** Null previously meant
+    "unread" for `education_min`, "never stated" for `work_mode`, and "not claimed" for
+    `remote` — three readings of one token, each taught separately in the prompt. Absence means
+    exactly one thing everywhere, which is a rule the model can apply to a field nobody
+    anticipated. `ROUTINE_INSTRUCTIONS` and `deploy/matcher-routine.md` teach that rule and
+    must move with this function: a model told `null` means unread, reading a file that omits
+    the key instead, would silently start treating silence as a fact.
+
+    `region` is dropped entirely. It is the coarse derived bucket — `profiles.regions`' own
+    docstring calls it "a backstop for old clients, never the filter" — and the candidate
+    already carries `location` and `city`, which are what the location rule is judged on.
+    """
+    # Insertion order is the reading order in the file; keep it stable so a diff of two days'
+    # exports shows content changes rather than key shuffling.
+    out: dict = {"posting_id": c["posting_id"]}
+    for key, value in (("title", c.get("title")),
+                       ("company", c.get("company")),
+                       ("location", c.get("location"))):
+        if value:
+            out[key] = value
+    # '?' is what `_city_for_model` returns for a location text that resolved to no known city.
+    # Absent now carries that meaning, so the sentinel would be a second way to say it.
+    city = _city_for_model(c)
+    if city != "?":
+        out["city"] = city
+    # Only ever emitted true. The location rule exempts `remote: true` and nothing else, so a
+    # missing key lands in the same branch `false` did.
+    if c.get("remote_signal"):
+        out["remote"] = True
+    # "remote"|"hybrid"|"onsite". `remote` above is the boolean the location rule keys on;
+    # this is the finer answer, and its absence is the common case, not a special one.
+    if c.get("work_mode"):
+        out["work_mode"] = c["work_mode"]
+    # Lowest qualification the ad demands. Absent on 90.6% of rows, and absent means the
+    # requirement was never *read* — not that there is none. The prompt has to say so, because
+    # this is the one field where the safe reading is not the obvious one.
+    if c.get("education_min"):
+        out["education_min"] = c["education_min"]
+    # `seniority()` defaults to 'mid' for titles naming no level, so `_seniority_for_model`
+    # reports 'unstated' instead. That is the majority answer; absence now carries it.
+    seniority = _seniority_for_model(c)
+    if seniority != "unstated":
+        out["seniority"] = seniority
+    if c.get("work_type"):
+        out["work_type"] = c["work_type"]
+    if c.get("is_part_time"):
+        out["part_time"] = True
+    if c.get("salary_raw"):
+        out["salary"] = c["salary_raw"]
     desc = (c.get("description") or "").replace("\n", " ").strip()[:DESC_CHARS]
-    return {
-        "posting_id": c["posting_id"], "title": c.get("title"), "company": c.get("company"),
-        "location": c.get("location"), "region": c.get("region"),
-        "city": _city_for_model(c), "remote": bool(c.get("remote_signal")),
-        # "remote"|"hybrid"|"onsite"|null. `remote` stays the boolean the location rule keys
-        # on; this is the finer answer, and null genuinely means the posting never said.
-        "work_mode": c.get("work_mode"),
-        # Lowest qualification the ad demands, or null when it never said — which is the answer
-        # for ~97% of postings and for all of the CZ/SK inventory. Null is not "no requirement";
-        # it is "unread", and the prompt tells the model to treat it that way.
-        "education_min": c.get("education_min"),
-        "seniority": _seniority_for_model(c), "work_type": c.get("work_type"),
-        "part_time": bool(c.get("is_part_time")),
-        "salary": c.get("salary_raw"), "description": desc,
-    }
+    if desc:
+        out["description"] = desc
+    return out
 
 
 def _profiles_for(email: str | None, limit_profiles: int | None) -> list[dict]:

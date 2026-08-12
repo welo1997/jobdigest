@@ -49,11 +49,14 @@ import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 
-#: The fields `matcher._candidate_export` writes. Pinned against the real exporter by
-#: `service/tests/test_scaling_budget.py`, so a rename or an added field fails loudly here
-#: instead of silently shrinking every projection.
+#: The *maximal* field set `matcher._candidate_export` writes — what a posting that stated
+#: everything ships. Since 2026-08-12 the exporter omits a field the posting never stated
+#: rather than writing null, so a real candidate carries a subset of these; the drift guard in
+#: `service/tests/test_scaling_budget.py` therefore feeds it a fully-populated row. Pinned
+#: against the real exporter so a rename or an added field fails loudly here instead of
+#: silently shrinking every projection.
 CANDIDATE_FIELDS = (
-    "posting_id", "title", "company", "location", "region", "city", "remote",
+    "posting_id", "title", "company", "location", "city", "remote",
     "work_mode", "education_min", "seniority", "work_type", "part_time", "salary",
     "description",
 )

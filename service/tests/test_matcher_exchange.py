@@ -377,7 +377,9 @@ def test_part_time_only_reaches_the_routine(store, tmp_path):
     )
     assert entry["profile"]["part_time_only"] is True
     assert entry["candidates"][0]["part_time"] is True
-    assert entry["candidates"][1]["part_time"] is False
+    # Only ever emitted true — the prompt tells the model to *prefer* part_time candidates, so
+    # a missing key lands in the same branch `false` did, at no cost per candidate.
+    assert "part_time" not in entry["candidates"][1]
 
 
 def test_part_time_only_is_omitted_when_false(store, tmp_path):
@@ -412,9 +414,11 @@ def test_a_narrowed_work_setup_reaches_the_routine(store, tmp_path):
     assert entry["profile"]["work_modes"] == ["hybrid", "remote"]
     assert entry["profile"]["work_setup"] == "hybrid or fully remote roles only"
     assert entry["candidates"][0]["work_mode"] == "hybrid"
-    # Null is exported as null, not smoothed into a guess — that is what tells the routine to
-    # read the description instead of trusting the field.
-    assert entry["candidates"][1]["work_mode"] is None
+    # An unstated arrangement is *absent*, not smoothed into a guess — the routine is told a
+    # missing field means "we don't know" and to read the description. What must never happen
+    # is the export inventing 'onsite' here: one unticked checkbox would delete most of the
+    # inventory. Absence and null differ only in bytes; both refuse to guess.
+    assert "work_mode" not in entry["candidates"][1]
 
 
 def test_an_unnarrowed_work_setup_is_omitted(store, tmp_path):
@@ -459,10 +463,55 @@ def test_unstated_seniority_is_not_reported_as_mid(store, tmp_path, title, expec
         store, tmp_path, {"label": "My digest", "seniorities": ["junior"]},
         [{"posting_id": "real-a", "title": title, "seniority": stored}],
     )
-    assert entry["candidates"][0]["seniority"] == expected
+    if expected == "unstated":
+        # The file exchange says "unstated" by saying nothing — one rule for every field.
+        assert "seniority" not in entry["candidates"][0]
+    else:
+        assert entry["candidates"][0]["seniority"] == expected
+    # The API path keeps the explicit word because its format has no way to omit a key. The
+    # two encodings differ; what must not differ is that neither reports the stored 'mid'
+    # default as a fact.
     block, _ = matcher._candidates_block([{"posting_id": "real-a", "title": title,
                                            "seniority": stored}])
     assert f"seniority={expected}" in block
+
+
+# ------------------------------------------- what a candidate costs to describe ---
+
+
+def test_a_candidate_states_only_what_the_posting_said(store, tmp_path):
+    """A posting that stated nothing ships nothing but its identity.
+
+    Against production distributions, five of the old fourteen keys carried their default on
+    the *majority* of rows — `education_min` null on 90.6%, `salary` on ~65%, `work_mode` on
+    most, `remote`/`part_time` false on most. Writing them anyway cost ~100-125 bytes per
+    candidate, 117 candidates per subscriber, every day, to say "we don't know". This is the
+    guard that they stay unwritten; `scripts/scaling_budget.py` is what measures the result.
+    """
+    entry = _one_profile_export(
+        store, tmp_path, {"label": "My digest"},
+        [{"posting_id": "real-a", "title": "Grafik"}],
+    )
+    assert entry["candidates"][0] == {"posting_id": "real-a", "title": "Grafik"}
+
+
+def test_the_prompt_teaches_absence_rather_than_null():
+    """The encoding and the instructions that read it have to move together.
+
+    A model told `"education_min":null` means "the requirement was never read", handed a file
+    that omits the key instead, has no rule for the field it cannot see — and on that field the
+    safe reading (do not guess, do not exclude) is *not* the obvious one. Absence is now one
+    rule covering every field, including ones nobody has added yet.
+
+    **`deploy/matcher-routine.md` carries a third copy and is the one the live routine
+    actually runs.** This test cannot reach it, and that copy has drifted from Python before
+    (2026-07-26, the part-time and unstated-seniority rules). Changing either means changing
+    all three.
+    """
+    text = matcher.ROUTINE_INSTRUCTIONS
+    assert "a missing field" in text.lower()
+    # Nothing in the export is null any more, so nothing in the prompt should teach null.
+    assert "null" not in text.lower()
 
 
 # ------------------------------------------------------------------- safe_url ---
