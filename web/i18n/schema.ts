@@ -346,7 +346,11 @@ export interface Messages {
     /** Work setup. Its option labels come from `geo.workModeLabel`, not from here — one
      *  definition per language, shared with the signup form and /matches. */
     filterWorkMode: string;
-    remoteOnly: string;
+    /** The remote toggle WIDENS: it adds fully-remote jobs to the selected places (the API
+     *  ORs it into the location filter). The label must say "also", never "only" — "Remote
+     *  only" is what the Work setup menu's Fully-remote option already means, and the two
+     *  must not read as the same control. */
+    includeRemote: string;
     clearFilters: string;
     loadMore: string;
     loadMoreFailed: string;

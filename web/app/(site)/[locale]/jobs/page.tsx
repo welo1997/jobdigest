@@ -437,11 +437,14 @@ function Inner() {
         />
         <button
           type="button"
+          // Widens, never narrows: the server ORs this into the location filter, so ticking
+          // it *adds* fully-remote jobs to the selected countries. "Remote only" lives in
+          // the Work setup menu; this control answers "jobs I could take from here".
           className={`skill-menu-btn${remote ? " on" : ""}`}
           aria-pressed={remote}
           onClick={() => apply({ remote: !remote })}
         >
-          {t.jobs.remoteOnly}
+          {t.jobs.includeRemote}
         </button>
         {filtering && (
           <button

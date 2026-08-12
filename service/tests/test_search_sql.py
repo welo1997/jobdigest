@@ -77,6 +77,11 @@ FIXTURES: dict[str, tuple] = {
     # "hybrid is not remote" a test rather than an assertion about one row.
     "hybrid-cz":   ("Hybrid Analyst", "Eta", "CZ", "brno", "hybrid", "mid",
                     "data_analysis", False, "eta|hybrid analyst", True),
+    # A remote row that *resolved to a city* — the Vivantis shape: employer in Zlín, work
+    # from anywhere. It is what makes the include-remote facet rules testable: its city must
+    # never leak into another country's city menu just because Remote is ticked.
+    "remote-city": ("Remote Berlin Engineer", "Iota", "DE", "berlin", "remote", "mid",
+                    "software_engineering", True, "iota|remote berlin engineer", True),
 }
 
 
@@ -177,10 +182,52 @@ def test_an_inactive_posting_is_never_returned():
 def test_hybrid_is_not_remote():
     """`remote_signal` is the posting's own words; `work_mode='hybrid'` is a commute. Folding
     hybrid into remote is how someone filtering for remote work gets an office job."""
-    got = search(remote_only=True)
+    got = search(include_remote=True)
     assert _pid("remote-dev") in got
     assert _pid("hybrid-cz") not in got
     assert _pid("dup-ats") not in got
+
+
+def test_include_remote_widens_a_country_search_instead_of_narrowing_it():
+    """Remote is one more selected place, ORed in — never an AND over the country filter.
+
+    Until 2026-08-12 `country=CZ&remote=true` meant "remote jobs registered in CZ": the
+    toggle *narrowed* a search it claimed to widen, and there was no way to ask the actual
+    question — "jobs I could take from Czechia". The CZ rows must all survive the tick
+    (hybrid included: it is a commute, so its being in CZ is exactly why it stays), remote
+    rows from anywhere must join, and a non-remote row abroad must not.
+    """
+    got = search(countries=["CZ"], include_remote=True)
+    assert got & {_pid("dup-ats"), _pid("dup-register")}, "a CZ row was lost by the widening"
+    assert _pid("hybrid-cz") in got
+    assert _pid("remote-dev") in got, "a remote row abroad was not included"
+    assert _pid("remote-city") in got
+    assert _pid("designer") not in got, "include-remote leaked a non-remote row abroad"
+
+
+def test_include_remote_alone_still_means_remote_jobs():
+    """The union with no other place has one arm. Same rule, not a second meaning: with no
+    country picked, the visitor's selected places are {Remote} and that is what they get."""
+    got = search(include_remote=True)
+    assert _pid("remote-dev") in got and _pid("remote-city") in got
+    assert _pid("dup-ats") not in got and _pid("designer") not in got
+
+
+def test_include_remote_does_not_leak_into_the_location_menus():
+    """The toggle belongs to the location group, so location facets are computed without it.
+
+    Two leaks, both real if the `skip` arm is missing: the country menu would be counted
+    over remote rows only (SE has none, so Sweden would vanish as an option), and the Berlin
+    remote row's city would appear in the menu opened under Czechia.
+    """
+    facets = store.search_facets(countries=["CZ"], include_remote=True, **scoped())
+    assert "SE" in {f["value"] for f in facets["countries"]}, \
+        "a country with no remote rows vanished from the menu"
+    assert "de:berlin" not in {f["value"] for f in facets["cities"]}, \
+        "a remote row's home city leaked into another country's city menu"
+    # The *category* facet keeps the union, which is what makes its counts match the list:
+    # software_engineering is reachable only through the remote arm here.
+    assert "software_engineering" in {f["value"] for f in facets["categories"]}
 
 
 def test_a_city_filter_cannot_escape_its_country():
@@ -204,7 +251,7 @@ def test_paging_is_stable_and_reaches_every_row():
     for offset in range(0, len(FIXTURES) + 6):
         rows, _, _ = store.search_postings(limit=1, offset=offset, **scoped())
         seen.extend(r["posting_id"] for r in rows if str(r["posting_id"]).startswith(PREFIX))
-    # 8 fixtures, less the inactive one and the collapsed duplicate.
+    # 9 fixtures, less the inactive one and the collapsed duplicate.
     assert len(seen) == len(set(seen)), f"a row was served on two pages: {seen}"
     assert set(seen) == search()
 

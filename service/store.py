@@ -1228,7 +1228,7 @@ def _search_where(q: Optional[str] = None,
                   categories: Optional[Iterable[str]] = None,
                   work_modes: Optional[Iterable[str]] = None,
                   seniorities: Optional[Iterable[str]] = None,
-                  remote_only: bool = False,
+                  include_remote: bool = False,
                   skip: str = "") -> tuple[list[str], list[Any]]:
     """The filter set, as SQL fragments and params. One definition, four callers.
 
@@ -1241,6 +1241,18 @@ def _search_where(q: Optional[str] = None,
     list on 2026-08-12 and read this function's `skip` argument without it being wired up —
     so the city menu narrowed to the city already ticked and could not be widened again.
     Silent, and invisible to every test that did not open the menu twice.
+
+    **`include_remote` is one more selected place, not a mode filter.** It joins the
+    country/city clause by OR: "Czechia, and also fully-remote jobs" — the same shape as the
+    digest's `location_predicate` (`onsite-in-countries OR remote`). Until 2026-08-12 it was
+    ANDed instead, so ticking it *narrowed* a country search to remote-jobs-registered-in-
+    that-country — a set nobody was asking for (the visitor who wants only remote work in one
+    place still has the Work setup filter). With no country picked, the union has one arm and
+    the toggle means "remote jobs"; the two readings are one rule. Because it belongs to the
+    location group, it is left out whenever a location facet is being computed
+    (`skip` of "countries" or "cities") — otherwise every country would be counted over the
+    remote rows only, and a remote row's home city would leak into another country's city
+    menu.
     """
     where = ["p.is_active"]
     params: list[Any] = []
@@ -1255,9 +1267,11 @@ def _search_where(q: Optional[str] = None,
         where.append("p.search_tsv @@ plainto_tsquery('simple', %s)")
         params.append(term)
 
+    place: list[str] = []
+    place_params: list[Any] = []
     if countries and skip != "countries":
-        where.append("p.country_code = any(%s)")
-        params.append(list(countries))
+        place.append("p.country_code = any(%s)")
+        place_params.append(list(countries))
 
     if cities and skip != "cities":
         # Stored as `cz:prague` and validated by `split_city`, so a malformed one is dropped
@@ -1269,8 +1283,20 @@ def _search_where(q: Optional[str] = None,
             clauses = []
             for cc, slug in good:
                 clauses.append("(p.country_code = %s and p.city = %s)")
-                params.extend([cc, slug])
-            where.append("(" + " or ".join(clauses) + ")")
+                place_params.extend([cc, slug])
+            place.append("(" + " or ".join(clauses) + ")")
+
+    # The posting's own words, never a source's claim — same rule the digest applies.
+    # `work_mode = 'hybrid'` is deliberately excluded: hybrid is not remote.
+    remote_sql = "(p.remote_signal is true or p.work_mode = 'remote')"
+    remote_arm = include_remote and skip not in ("countries", "cities")
+    if place:
+        place_sql = " and ".join(place)
+        where.append(f"(({place_sql}) or {remote_sql})" if remote_arm
+                     else f"({place_sql})")
+        params.extend(place_params)
+    elif remote_arm:
+        where.append(remote_sql)
 
     if categories and skip != "categories":
         where.append("p.role_category = any(%s)")
@@ -1283,11 +1309,6 @@ def _search_where(q: Optional[str] = None,
     if seniorities:
         where.append("p.seniority = any(%s)")
         params.append(list(seniorities))
-
-    if remote_only:
-        # The posting's own words, never a source's claim — same rule the digest applies.
-        # `work_mode = 'hybrid'` is deliberately excluded: hybrid is not remote.
-        where.append("(p.remote_signal is true or p.work_mode = 'remote')")
 
     return where, params
 
@@ -1307,7 +1328,7 @@ def search_postings(q: Optional[str] = None,
                     categories: Optional[Iterable[str]] = None,
                     work_modes: Optional[Iterable[str]] = None,
                     seniorities: Optional[Iterable[str]] = None,
-                    remote_only: bool = False,
+                    include_remote: bool = False,
                     limit: int = 20,
                     offset: int = 0) -> tuple[list[dict], int, bool]:
     """One page of the public feed, plus `(total, total_is_capped)`.
@@ -1327,7 +1348,7 @@ def search_postings(q: Optional[str] = None,
     limit = max(1, min(int(limit or 20), SEARCH_LIMIT_MAX))
     offset = max(0, int(offset or 0))
     where, params = _search_where(q, countries, cities, categories, work_modes,
-                                  seniorities, remote_only)
+                                  seniorities, include_remote)
 
     term = (q or "").strip()[:SEARCH_TERM_MAX]
     if term:
@@ -1373,7 +1394,7 @@ def search_facets(q: Optional[str] = None,
                   categories: Optional[Iterable[str]] = None,
                   work_modes: Optional[Iterable[str]] = None,
                   seniorities: Optional[Iterable[str]] = None,
-                  remote_only: bool = False) -> dict[str, list[dict]]:
+                  include_remote: bool = False) -> dict[str, list[dict]]:
     """Category, country and city counts for the current search, each computed with every
     filter *except its own* — so ticking one option never empties the menu it came from.
 
@@ -1397,7 +1418,7 @@ def search_facets(q: Optional[str] = None,
     global _facet_cache
 
     unfiltered = not (q or "").strip() and not (
-        countries or cities or categories or work_modes or seniorities or remote_only)
+        countries or cities or categories or work_modes or seniorities or include_remote)
     if unfiltered and _facet_cache is not None:
         expires_at, cached = _facet_cache
         if time.monotonic() < expires_at:
@@ -1420,7 +1441,7 @@ def search_facets(q: Optional[str] = None,
     with cursor() as cur:
         for key, expr, skip in wanted:
             where, params = _search_where(q, countries, cities, categories, work_modes,
-                                          seniorities, remote_only, skip=skip)
+                                          seniorities, include_remote, skip=skip)
             # Counted over the same dedup'd set the list shows, or the facet totals and the
             # result count disagree and neither is wrong-looking enough to notice.
             #

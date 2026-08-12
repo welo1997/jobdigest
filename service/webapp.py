@@ -811,6 +811,13 @@ def search_jobs_public(
     it. Logging queries here would need that page to change in the same commit (security
     rule 4); the cheaper and better answer is not to.
 
+    **`remote=true` widens, never narrows** — it adds fully-remote postings to whatever
+    places are selected, as one more place in the location union (see
+    `store._search_where`). It is deliberately not scoped by the selected country: a browse
+    page has no subscriber whose eligibility could scope it, and that precision belongs to
+    the digest's `location_predicate`, which has a real `remote_scope` to read. The visitor
+    who wants *only* remote work has the `work_mode` filter, or this flag with no country.
+
     **Facets are computed on the first page only.** They do not change as you page, so
     recomputing them for `offset=20` would be two extra aggregates per scroll for a value the
     client already holds. `facets` is absent, not empty, on later pages — an empty list would
@@ -830,7 +837,7 @@ def search_jobs_public(
 
     rows, total, capped = store.search_postings(
         q=q, countries=countries, cities=cities, categories=categories,
-        work_modes=work_modes, seniorities=seniorities, remote_only=remote,
+        work_modes=work_modes, seniorities=seniorities, include_remote=remote,
         limit=limit, offset=offset)
 
     out: dict = {
@@ -841,7 +848,7 @@ def search_jobs_public(
     if offset == 0:
         facets = store.search_facets(
             q=q, countries=countries, cities=cities, categories=categories,
-            work_modes=work_modes, seniorities=seniorities, remote_only=remote)
+            work_modes=work_modes, seniorities=seniorities, include_remote=remote)
         # The category facet is filtered to the canonical vocabulary *here*, which is the one
         # place that can import it. Production still holds ~1 058 rows whose `role_category`
         # is a raw Swedish SSYK label ("Butikssäljare, fackhandel") from the 2026-08-08 hint

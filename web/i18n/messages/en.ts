@@ -369,7 +369,7 @@ const en: Messages = {
     cityNeedsCountry: "Pick a country first",
     filterSeniority: "Level",
     filterWorkMode: "Work setup",
-    remoteOnly: "Remote only",
+    includeRemote: "Include remote",
     clearFilters: "Clear filters",
     loadMore: "Load more",
     loadMoreFailed: "Couldn't load more — check your connection and try again.",

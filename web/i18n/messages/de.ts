@@ -392,7 +392,7 @@ const de: Messages = {
     cityNeedsCountry: "Wählen Sie zuerst ein Land",
     filterSeniority: "Level",
     filterWorkMode: "Arbeitsform",
-    remoteOnly: "Nur Remote",
+    includeRemote: "Auch Remote",
     clearFilters: "Filter zurücksetzen",
     loadMore: "Mehr laden",
     loadMoreFailed: "Mehr konnte nicht geladen werden — Verbindung prüfen und erneut versuchen.",
