@@ -29,7 +29,6 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from search_jobs import seniority_stated  # noqa: E402
 from service import education, geo, store  # noqa: E402
 
 logger = logging.getLogger("service.matcher")
@@ -51,11 +50,17 @@ How to judge fit:
 - Weigh the whole context, not just keyword overlap: role type, seniority, skills/stack, \
 work setup (remote/hybrid/onsite), location/region, and sector interest.
 - Seniority is a HARD filter, not a soft signal. The profile lists target seniority level(s) \
-(junior/mid/senior). Exclude any posting whose level clearly differs from every target — a \
-senior/lead/principal role for a junior-only subscriber, or a junior/graduate/intern role for \
-a senior-only subscriber — even if the role, skills and location fit perfectly; give it a \
-score below 4 so it is dropped. Candidates whose level the posting never stated are marked \
-`seniority=unstated`: those are NOT mismatches, so judge them on overall fit like any other.
+drawn from six: intern (a placement — internship/Praktikum/Werkstudent), entry_level (a first \
+permanent job — graduate scheme/absolvent/trainee), junior, mid, senior (senior individual \
+contributor — senior/staff/principal/architect) and lead (people leadership — lead/head/ \
+director/VP/C-level). Exclude any posting whose level clearly differs from every target — a \
+lead or senior role for a junior-only subscriber, an internship for anyone who did not ask \
+for one, a graduate role for a senior-only subscriber — even if the role, skills and location \
+fit perfectly; give it a score below 4 so it is dropped. Note that senior and lead are \
+different kinds of job rather than adjacent rungs: someone targeting senior wants deeper \
+individual work, and a "Head of" role is not a promotion they asked for. Candidates whose \
+level the posting never stated are marked `seniority=unstated` — that is 62% of postings and \
+is NOT a mismatch, so judge them on overall fit like any other.
 - Location is a HARD filter for anything that is not fully remote. The profile's "Locations" \
 line lists the countries the subscriber can work in and, where they named specific cities, \
 those cities. A posting that requires being somewhere else — another city, or a country they \
@@ -138,14 +143,14 @@ def _profile_block(p: dict) -> str:
 
 
 def _seniority_for_model(c: dict) -> str:
-    """The candidate's level as the model should read it — 'unstated' when the title never
-    said one. `search_jobs.seniority()` defaults to 'mid', so a plain "2D Grafik" is stored
-    as mid and used to reach the model as a confident claim; against a hard seniority filter
-    that quietly reads as a mismatch for a junior-only subscriber (or, worse, as a licence to
-    email them mid-level roles). Recomputed from the title rather than stored, because the
-    column cannot express the difference."""
-    if not seniority_stated(c.get("title")):
-        return "unstated"
+    """The candidate's level as the model should read it — 'unstated' when the title said none.
+
+    This used to recompute the answer from the title on every export, because the column could
+    not express the difference: `seniority()` returned a confident 'mid' for a plain "2D
+    Grafik", which against a hard seniority filter reads as a mismatch for a junior-only
+    subscriber (or, worse, as a licence to email them mid-level roles). The column now stores
+    NULL for exactly that case, so the stored value is the answer and there is no second
+    derivation left to drift from the first."""
     return c.get("seniority") or "unstated"
 
 
@@ -239,11 +244,16 @@ ROUTINE_INSTRUCTIONS = (
     "means we do not know, never that the answer is no**. Judge a missing field from the "
     "description where there is one, and never exclude a posting for being silent. "
     "Treat seniority as "
-    "a HARD filter: exclude any posting whose level clearly differs from the subscriber's "
-    "target seniority level(s) — a senior/lead role for a junior-only subscriber, or a "
-    "junior/graduate/intern role for a senior-only subscriber — even if everything else fits "
-    "(omit it / score it below 4). A candidate with no \"seniority\" never named a level and "
-    "is NOT a mismatch — that is most of them; judge it on overall fit. "
+    "a HARD filter. The six levels are: intern (a placement — internship/Praktikum/"
+    "Werkstudent), entry_level (a first permanent job — graduate scheme/absolvent/trainee), "
+    "junior, mid, senior (senior individual contributor) and lead (people leadership — "
+    "lead/head/director/VP/C-level). Exclude any posting whose level clearly differs from the "
+    "subscriber's target level(s) — a lead or senior role for a junior-only subscriber, an "
+    "internship for anyone who did not ask for one, a graduate role for a senior-only "
+    "subscriber — even if everything else fits (omit it / score it below 4). Senior and lead "
+    "are different kinds of job, not adjacent rungs: a \"Head of\" role is not what someone "
+    "targeting senior asked for. A candidate with no \"seniority\" never named a level and "
+    "is NOT a mismatch — that is 62% of them; judge it on overall fit. "
     "Treat location as a HARD filter for anything that is not fully remote: the profile's "
     "\"locations\" line names the countries and, where given, the exact cities the subscriber "
     "can work in. A posting requiring presence anywhere else — another city, or a country they "
@@ -368,11 +378,10 @@ def _candidate_export(c: dict) -> dict:
     # this is the one field where the safe reading is not the obvious one.
     if c.get("education_min"):
         out["education_min"] = c["education_min"]
-    # `seniority()` defaults to 'mid' for titles naming no level, so `_seniority_for_model`
-    # reports 'unstated' instead. That is the majority answer; absence now carries it.
-    seniority = _seniority_for_model(c)
-    if seniority != "unstated":
-        out["seniority"] = seniority
+    # One of the six levels, or absent when the title named none — which is 62% of rows, so
+    # absence here is the ordinary case and the prompt says so explicitly.
+    if c.get("seniority"):
+        out["seniority"] = c["seniority"]
     if c.get("work_type"):
         out["work_type"] = c["work_type"]
     if c.get("is_part_time"):

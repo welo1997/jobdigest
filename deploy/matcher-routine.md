@@ -41,7 +41,7 @@ DB is Supabase). The routine only ever touches the two files.
                   "sectors": ["ecommerce"], "years_experience": 3, "cv_summary": "..."},
       "candidates": [
         {"posting_id": "md5…", "title": "...", "company": "...", "location": "...",
-         "city": "Brno", "work_mode": "hybrid", "seniority": "senior",
+         "city": "Brno", "work_mode": "hybrid", "seniority": "lead",
          "work_type": "permanent", "remote": true, "part_time": true,
          "education_min": "bachelor",
          "salary": "45 000 – 90 000 Kč", "description": "…≤320 chars…"}
@@ -109,12 +109,17 @@ always emits them, which is why `ROUTINE_INSTRUCTIONS` has no such clause.
 > `description` if there is one and judge it yourself; never exclude a posting for being
 > silent.
 >
-> Treat **seniority as a hard filter**: exclude any posting whose level clearly differs from
-> the subscriber's target seniority level(s) — a senior/lead role for a junior-only
-> subscriber, or a junior/graduate/intern role for a senior-only subscriber — even if the
-> role, skills and location fit perfectly (omit it, or score it below 4). **A candidate with
-> no `seniority` field never named a level at all — that is NOT a mismatch, judge it on
-> overall fit.** Most postings name none; treating them as exclusions would empty the digest.
+> Treat **seniority as a hard filter**. The six levels are `intern` (a placement —
+> internship/Praktikum/Werkstudent), `entry_level` (a first permanent job — graduate
+> scheme/absolvent/trainee), `junior`, `mid`, `senior` (senior individual contributor) and
+> `lead` (people leadership — lead/head/director/VP/C-level). Exclude any posting whose level
+> clearly differs from the subscriber's target level(s) — a lead or senior role for a
+> junior-only subscriber, an internship for anyone who did not ask for one, a graduate role
+> for a senior-only subscriber — even if the role, skills and location fit perfectly (omit it,
+> or score it below 4). **Senior and lead are different kinds of job, not adjacent rungs**: a
+> "Head of" role is not what someone targeting senior asked for. **A candidate with no
+> `seniority` field never named a level at all — that is NOT a mismatch, judge it on overall
+> fit.** 62% of postings name none; treating them as exclusions would empty the digest.
 >
 > Treat **location as a hard filter for anything that is not fully remote**. The profile's
 > `locations` line names the countries and, where given, the exact cities the subscriber can

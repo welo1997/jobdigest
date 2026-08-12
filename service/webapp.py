@@ -46,6 +46,7 @@ import json
 import logging
 import os
 import secrets
+import sys
 import time
 import urllib.parse
 import urllib.request
@@ -58,17 +59,24 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, RedirectResponse
 from pydantic import BaseModel, EmailStr, Field, field_validator
 
-from service import (cvparse, education, geo, i18n, links, mailer, store, taxonomy,
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+# The seniority vocabulary is imported rather than restated: `search_jobs.seniority()` decides
+# what a posting's level *is*, so anything validating what a subscriber or a visitor may ask
+# for has to agree with it by construction. Same reasoning as `source_watchdog` reading
+# `search_jobs.source_classes`. The file is in this image (`Dockerfile` COPYs it explicitly).
+from search_jobs import SENIORITY_LEVELS  # noqa: E402
+from service import (cvparse, education, geo, i18n, links, mailer, store, taxonomy,  # noqa: E402
                      transactional)
 # Aliased because the /matches endpoint has a `skills` query parameter that would otherwise
 # shadow the module inside that function.
-from service import skills as skill_gazetteer
+from service import skills as skill_gazetteer  # noqa: E402
 # Bound at import rather than read as `store.SEARCH_TERM_MAX` at call time: the lifecycle
 # tests swap `webapp.store` for a fake that implements the query functions and no constants,
 # and reaching through the module for a value would make this endpoint depend on that double
 # carrying one. Still a single definition — `store` owns it, this only borrows the name.
-from service.store import SEARCH_TERM_MAX
-from service.digest import C, SANS, SERIF
+from service.store import SEARCH_TERM_MAX  # noqa: E402
+from service.digest import C, SANS, SERIF  # noqa: E402
 
 # Where users land back (frontend). Used for the "homepage" links on API-served pages.
 SITE_URL = links.site_url()
@@ -577,8 +585,14 @@ def _preview_view(j: dict, terms: list[str]) -> dict:
         tags.append("Hybrid")
     elif j.get("remote_signal") or j.get("region") in ("eu", "worldwide"):
         tags.append("Remote")
+    # Read out of the email vocabulary rather than title-cased: `.capitalize()` renders the
+    # stored `entry_level` as "Entry_level", which is the kind of thing that ships because the
+    # three values it was written for happened to be single words.
     if j.get("seniority"):
-        tags.append(str(j["seniority"]).capitalize())
+        _key = f'seniority_{j["seniority"]}'
+        tags.append(i18n.t(i18n.DEFAULT_LOCALE, _key)
+                    if _key in i18n.MESSAGES[i18n.DEFAULT_LOCALE]
+                    else str(j["seniority"]).replace("_", " ").capitalize())
     if j.get("work_type") == "freelance/contract":
         tags.append("Freelance")
     if j.get("salary_raw"):
@@ -681,7 +695,10 @@ def _jobs_allowed() -> bool:
 #: Postings carrying it are still returned whenever no category is ticked, which is the half
 #: that matters — a filter nobody applied must never narrow anything.
 _SEARCH_CATEGORIES = frozenset(taxonomy.CATEGORIES) - {taxonomy.UNCATEGORISED}
-_SEARCH_SENIORITIES = frozenset({"junior", "mid", "senior"})
+#: The six levels a posting can carry. NULL — 62% of the corpus, the titles that named no
+#: level — is deliberately not selectable: "unstated" is the absence of an answer, not a
+#: seventh level, and a chip for it would invite a visitor to search for silence.
+_SEARCH_SENIORITIES = frozenset(SENIORITY_LEVELS)
 
 
 def _is_offered_city(value: str) -> bool:

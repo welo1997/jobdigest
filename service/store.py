@@ -440,6 +440,16 @@ _FILTER_WORDS = {
     # seniority — `profile["seniorities"]` already gates this
     "junior", "medior", "mid", "middle", "senior", "entry", "graduate", "absolvent",
     "juniorni", "juniorní", "seniorni", "seniorní",
+    # …and the rungs added on 2026-08-12. Deliberately NOT here: "lead", "head", "director"
+    # and "manager". Those are filter words on the posting side but ordinary *subject-matter*
+    # words on the subscriber's side — someone whose label says "lead generation" or "head of
+    # content" means the work, not the level, and dropping the word would cost them the
+    # retrieval it was carrying. The rule that makes dropping safe ("the filter still applies")
+    # does not hold when the word means two different things.
+    # "stage" is excluded for the same reason: it is an internship in French and a theatre or
+    # a pipeline step everywhere else.
+    "intern", "internship", "stáž", "staz", "praktikant", "praktyka", "praktykant",
+    "werkstudent", "trainee", "absolwent", "stagiaire", "tirocinio",
     # work arrangement — `remote_scope` / `geo.is_fully_remote` / `part_time_only` gate these
     "remote", "hybrid", "onsite", "on-site", "office", "homeoffice", "home-office",
     "fulltime", "full-time", "parttime", "part-time", "uvazek", "úvazek",

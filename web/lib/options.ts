@@ -203,8 +203,23 @@ export type WorkTypeId = (typeof WORK_TYPE_IDS)[number];
 // ------------------------------------------------------------------- seniority ------
 
 // These *are* the stored codes (`profiles.seniorities`, `postings.seniority`), so there is no
-// mapping step and nothing to keep in sync — the chip id is the value.
-export const SENIORITY_IDS = ["junior", "mid", "senior"] as const;
+// mapping step and nothing to keep in sync — the chip id is the value. Ordered weakest-first,
+// which is the order the chips render in.
+//
+// **`postings.seniority` also has a seventh state these ids deliberately do not cover: NULL**,
+// meaning the title named no level. That is 62% of the live corpus (measured 2026-08-12), and
+// it is an absence rather than a level — so it is never offered as a chip, and ticking one of
+// these narrows to postings that actually said. The subscriber-preference side reads it the
+// other way: a profile's seniorities never exclude an unstated posting, because the AI matcher
+// is what judges those. Two polarities on purpose — see `docs/jobdigest.md`.
+//
+// `intern` and `entry_level` are separated by contract shape, not experience: an internship or
+// Werkstudent placement versus a first permanent job (graduate scheme, absolvent, trainee).
+// `senior` and `lead` are separated by kind, not rank: senior individual contributor versus
+// people leadership. Neither pair is a pair of synonyms and neither is a ladder step.
+export const SENIORITY_IDS = [
+  "intern", "entry_level", "junior", "mid", "senior", "lead",
+] as const;
 export type SeniorityId = (typeof SENIORITY_IDS)[number];
 
 // ------------------------------------------------------------------ skills ----------

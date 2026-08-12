@@ -249,9 +249,14 @@ def _tags(job: dict, lang: str = i18n.DEFAULT_LOCALE) -> list[str]:
     elif job.get("remote_signal") or (job.get("region") in ("eu", "worldwide")):
         tags.append(i18n.t(lang, "tag_remote"))
     if job.get("seniority"):
-        tags.append(i18n.t(lang, f'seniority_{str(job["seniority"]).lower()}')
-                    if f'seniority_{str(job["seniority"]).lower()}' in i18n.MESSAGES[i18n.DEFAULT_LOCALE]
-                    else str(job["seniority"]).capitalize())
+        # The fallback un-snake-cases first: `entry_level` title-cased is "Entry_level", which
+        # is what shipping a two-word level through a renderer written for one-word ones looks
+        # like. It is only reachable for a value no catalogue knows, which after the 2026-08-12
+        # backfill means a level added in code and not in `service/i18n.py`.
+        _key = f'seniority_{str(job["seniority"]).lower()}'
+        tags.append(i18n.t(lang, _key)
+                    if _key in i18n.MESSAGES[i18n.DEFAULT_LOCALE]
+                    else str(job["seniority"]).replace("_", " ").capitalize())
     if job.get("work_type") == "freelance/contract":
         tags.append(i18n.t(lang, "tag_freelance"))
     if job.get("is_part_time"):

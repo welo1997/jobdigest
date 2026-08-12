@@ -448,17 +448,25 @@ def test_the_work_setup_is_also_in_the_api_prompt(store):
     assert "setup=unstated" in block
 
 
-@pytest.mark.parametrize("title,expected", [
-    ("Senior Data Engineer", "senior"),      # the title says so
-    ("Junior Data Engineer", "junior"),
-    ("2D Grafik marketing", "unstated"),     # no level word -> stored 'mid' is a default
+@pytest.mark.parametrize("title,stored,expected", [
+    ("Senior Data Engineer", "senior", "senior"),
+    ("Junior Data Engineer", "junior", "junior"),
+    ("Head of Data", "lead", "lead"),
+    ("Werkstudent Data Analytics", "intern", "intern"),
+    ("Graduate Data Engineer", "entry_level", "entry_level"),
+    ("2D Grafik marketing", None, "unstated"),   # the title names no level: NULL, not 'mid'
 ])
-def test_unstated_seniority_is_not_reported_as_mid(store, tmp_path, title, expected):
-    """`seniority()` returns 'mid' both for a stated mid-level role and for the ~majority of
-    titles that name no level at all. Sending the default as a fact to a model told seniority
-    is a HARD filter makes it either drop unlabelled postings or treat them as licence to
-    email mid-level roles to a junior-only subscriber. Neither is what the column means."""
-    stored = "senior" if expected == "senior" else "junior" if expected == "junior" else "mid"
+def test_unstated_seniority_is_not_reported_as_mid(store, tmp_path, title, stored, expected):
+    """A posting whose title names no level must reach the model as *unstated*, never as a
+    confident level. Sending a default as a fact to a model told seniority is a HARD filter
+    makes it either drop unlabelled postings or treat them as licence to email mid-level roles
+    to a junior-only subscriber. Neither is what the column means.
+
+    Before 2026-08-12 the guarantee was a *recomputation*: the column stored 'mid' for both a
+    stated mid-level role and the 62% of titles naming nothing, so the exporter re-read the
+    title to tell them apart. The column now stores NULL for the second kind, so what this
+    pins is that the exporter passes the distinction through rather than flattening it — the
+    failure it would catch today is a `or "mid"` creeping into either export path."""
     entry = _one_profile_export(
         store, tmp_path, {"label": "My digest", "seniorities": ["junior"]},
         [{"posting_id": "real-a", "title": title, "seniority": stored}],
@@ -469,8 +477,7 @@ def test_unstated_seniority_is_not_reported_as_mid(store, tmp_path, title, expec
     else:
         assert entry["candidates"][0]["seniority"] == expected
     # The API path keeps the explicit word because its format has no way to omit a key. The
-    # two encodings differ; what must not differ is that neither reports the stored 'mid'
-    # default as a fact.
+    # two encodings differ; what must not differ is that neither invents a level.
     block, _ = matcher._candidates_block([{"posting_id": "real-a", "title": title,
                                            "seniority": stored}])
     assert f"seniority={expected}" in block

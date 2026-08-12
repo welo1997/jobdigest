@@ -20,8 +20,10 @@ export function jobTags(j: MatchJob, t: Messages): { text: string; fl?: boolean 
   else if (j.work_mode === "remote" || j.region === "eu" || j.region === "worldwide") {
     out.push({ text: t.matches.tagRemote });
   }
-  // Seniority is a stored code (junior|mid|senior), so it reads out of the same chip
-  // vocabulary the preferences form uses rather than being title-cased in English.
+  // Seniority is a stored code (`SENIORITY_IDS`), so it reads out of the same chip vocabulary
+  // the preferences form uses rather than being title-cased in English — which is also what
+  // keeps `entry_level` from rendering as "Entry_level". A posting whose title named no level
+  // is NULL and gets no tag at all: an absence is not a fact about the job.
   if (j.seniority) out.push({ text: t.seniorities[j.seniority] ?? j.seniority });
   if (j.work_type === "freelance/contract") out.push({ text: t.matches.tagFreelance, fl: true });
   if (j.salary) out.push({ text: j.salary });

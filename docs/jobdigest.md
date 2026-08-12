@@ -710,6 +710,61 @@ management"* rather than attempting ACME (`deploy/cert-renewal.md`).
 
 **Every item from the security review is now closed.**
 
+### Seniority: six levels and a NULL (measured 2026-08-12, shipped the same day)
+
+The three-value scheme was replaced after measuring it against the live corpus — 128 080
+active postings. What the measurement said:
+
+| | rows | % of active |
+|---|---:|---:|
+| titles naming **no level at all** | 79 719 | **62.2%** |
+| `manager` as the *only* level signal | 11 210 | 8.8% |
+| genuine leadership word, no senior word | 8 165 | 6.4% |
+| senior/principal/architect/expert only | 16 102 | 12.6% |
+| `staff` only | 1 663 | 1.3% |
+| intern/Praktikum/Werkstudent only | 1 761 | 1.4% |
+| junior only | 915 | 0.7% |
+| roman-numeral `II` only | 854 | 0.7% |
+| medior / mid-level only | 319 | 0.25% |
+| graduate / entry-level only | 262 | 0.2% |
+
+Three conclusions, none of them re-derivable from intuition:
+
+1. **`mid` was never a level.** Stored `mid` was 82 427 rows against 79 719 titles containing
+   no level word — the same number. The column could not say "the title did not say", so it
+   said "mid" instead, and every consumer read a default as a fact. `mid` is now a *stated*
+   level of ~1% and NULL carries the rest. A small honest bucket beats a large dishonest one.
+2. **27% of everything stored `senior` was senior because of the word "manager"** — *Account
+   Manager*, *Territory Sales Manager*, *Assistant Manager*. All of them were hidden from every
+   junior/mid filter on `/jobs` and `/matches`. Bare `manager` now sets no level. Symmetrically
+   `associate` was in the *junior* pattern and tested first, so *Associate Director* classified
+   as a junior hire; it is ambiguous across industries and now says nothing.
+3. **`staff` was suspected and cleared.** The UK "Staff Nurse means an ordinary nurse" false
+   positive does not exist in this corpus — all 1 663 rows are senior IC. Recorded because the
+   next person to read the pattern will have the same suspicion.
+
+**Stated-rate by country is the finding that constrains the feature**, not the vocabulary:
+
+```
+SE 37 623 active — 5.6% state a level    US 27 041 — 41.0%    DE 7 268 — 42.9%
+CZ  9 237        — 15.3%                 GB  9 313 — 36.7%    CA 2 457 — 43.6%
+NO    959        — 13.3%                 PL  2 996 — 22.4%
+```
+
+Sweden alone is 29% of inventory and essentially never states a level in the title; SE+CZ+NO+PL
+is ~40% of the corpus at single-to-low-double-digit rates. **This is why seniority is not a SQL
+gate on the delivery path** and why `/jobs`' Level menu is offered unfaceted — a faceted menu
+would be honest about the thin markets, and is the open question below.
+
+`"Mid-Market"` and `"Mid-Enterprise"` are sales *segments*, not levels — the same class of trap
+as the `georgia` rule. `_MID_FALSE` in `search_jobs.py` is what excludes them.
+
+**Still open, deliberately not done in the same commit:** `/jobs` offers the six levels
+unfaceted and with no counts, so a Swedish visitor ticking *Senior* gets an empty page with no
+explanation, where `/matches` would have shown them a count of 0 before they clicked.
+`search_facets` does not compute a seniority facet today. **Trigger:** any signal that visitors
+are filtering to empty on the public feed.
+
 ### Measured on 2026-07-29 and deliberately NOT fixed
 
 Three long-standing items were quantified against production rather than re-argued. Each

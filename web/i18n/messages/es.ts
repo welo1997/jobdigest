@@ -71,9 +71,12 @@ const es: Messages = {
   },
 
   seniorities: {
-    junior: "Prácticas / Junior",
+    intern: "Prácticas",
+    entry_level: "Recién titulado",
+    junior: "Junior",
     mid: "Intermedio",
     senior: "Senior",
+    lead: "Dirección",
   },
 
   geo: {

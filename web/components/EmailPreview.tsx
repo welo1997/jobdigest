@@ -11,7 +11,7 @@ interface Props {
   skills: Set<string>;
   /** Employment-type ids: fulltime | freelance | parttime. */
   work: Set<string>;
-  /** Seniority codes the visitor picked (junior | mid | senior). */
+  /** Seniority codes the visitor picked — the `SENIORITY_IDS` in lib/options.ts. */
   levels: Set<string>;
   email: string;
   limit?: number;

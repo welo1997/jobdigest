@@ -128,6 +128,17 @@ Each of these has been broken in production at least once. Reasoning and measure
   city, a US state, or an ordinary word.** That is the `georgia` rule; `island`, `waterloo`,
   `cambridge` and the `CA`/`DE`/`MT`/`NL`/`SK` subdivision codes are the same rule.
   `check_no_shadowed_cities` raises if a name sits in both tables.
+- **Seniority has six levels and a NULL, and the NULL is the majority.** One definition:
+  `search_jobs.seniority()` (mirrored as `SENIORITY_IDS` in `web/lib/options.ts`, labels in
+  all eight catalogues plus `service/i18n.py` for email). `intern | entry_level` split on
+  **contract shape** (a placement vs a first permanent job), `senior | lead` on **kind** (IC
+  vs people leadership) — neither pair is a ladder step. **NULL means the title named no
+  level: 62.2% of the live corpus**, and it is never a selectable value. The two polarities
+  are deliberate: display filters (`/jobs`, `/matches`) are equality, so NULL is excluded;
+  **the digest path does not gate on seniority in SQL at all** — `_hard_gate` must never grow
+  that predicate, or two thirds of every candidate pool vanishes with no error. Changing the
+  patterns means `python -m service.backfill_seniority`, and the live claude.ai routine
+  prompt is a *separate* copy that must move too.
 - **Education is a fourth axis and is mostly unprovable.** `service/education.py` is the one
   definition (mirrored in `web/lib/education.ts`). Null is 90.6% of rows and **always passes
   the gate**; the classifier's only safe error is a miss; a CV never narrows this

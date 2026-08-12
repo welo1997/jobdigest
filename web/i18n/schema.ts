@@ -58,7 +58,10 @@ export interface Messages {
   roles: Record<string, string>;
   /** Employment type chips (`fulltime` | `freelance` | `parttime`). */
   workTypes: Record<string, string>;
-  /** Seniority chips, keyed by the stored code (`junior` | `mid` | `senior`). */
+  /** Seniority chips, keyed by the stored code — `intern` | `entry_level` | `junior` | `mid` |
+   *  `senior` | `lead`, the `SENIORITY_IDS` in lib/options.ts. There is deliberately no key for
+   *  a posting whose title named no level: that is stored as NULL and rendered as no tag at
+   *  all, because an absence is not a level. */
   seniorities: Record<string, string>;
 
   geo: {

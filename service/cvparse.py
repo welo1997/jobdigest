@@ -134,8 +134,10 @@ _ROLE_RULES = taxonomy.CV_RULES
 _SECTORS = ("fintech", "ecommerce", "e-commerce", "trading", "banking", "insurance",
             "healthcare", "gaming", "logistics", "retail", "saas", "crypto", "marketing")
 
-_SENIOR_RE = re.compile(r"\b(senior|sr\.?|lead|principal|staff|head of|architect)\b", re.I)
-_JUNIOR_RE = re.compile(r"\b(junior|jr\.?|graduate|intern|trainee|entry[- ]level)\b", re.I)
+_LEAD_RE = re.compile(r"\b(head of|director|vp|vice president|chief|c[teofi]o|team lead)\b", re.I)
+_SENIOR_RE = re.compile(r"\b(senior|sr\.?|lead|principal|staff|architect)\b", re.I)
+_JUNIOR_RE = re.compile(r"\b(junior|jr\.?)\b", re.I)
+_ENTRY_RE = re.compile(r"\b(graduate|trainee|entry[- ]level|absolvent\w*|no experience)\b", re.I)
 _YEARS_RE = re.compile(r"(\d{1,2})\+?\s*(?:years|yrs)\b", re.I)
 
 
@@ -150,24 +152,37 @@ def _years(text: str) -> int | None:
     return max(yrs) if yrs else None
 
 
+#: The rungs a CV may prefill, weakest first. **`intern` is deliberately absent.** It is a
+#: contract shape rather than an experience level, and nobody should be opted into internships
+#: by a document they uploaded to get a job — it stays something the person ticks themselves.
+_CV_LADDER = ["entry_level", "junior", "mid", "senior", "lead"]
+
+
 def _seniority(text: str, years: int | None) -> list[str]:
     if years is not None:
-        if years < 2:
+        if years < 1:
+            base = "entry_level"
+        elif years < 3:
             base = "junior"
         elif years < 6:
             base = "mid"
         else:
             base = "senior"
+    elif _LEAD_RE.search(text):
+        base = "lead"
     elif _SENIOR_RE.search(text):
         base = "senior"
     elif _JUNIOR_RE.search(text):
         base = "junior"
+    elif _ENTRY_RE.search(text):
+        base = "entry_level"
     else:
         base = "mid"
-    # include the adjacent level so we don't over-narrow the search
-    ladder = ["junior", "mid", "senior"]
-    i = ladder.index(base)
-    return sorted({ladder[i], ladder[max(0, i - 1)]}, key=ladder.index)
+    # Include the adjacent lower rung so we don't over-narrow the search. Downwards only: a CV
+    # is evidence of what someone has done, so widening towards less senior work is a guess
+    # they can accept, while widening upwards would put roles they cannot get in their inbox.
+    i = _CV_LADDER.index(base)
+    return sorted({_CV_LADDER[i], _CV_LADDER[max(0, i - 1)]}, key=_CV_LADDER.index)
 
 
 def _roles(text: str) -> list[str]:

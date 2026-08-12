@@ -79,37 +79,115 @@ _CONTRACT_FALSE = re.compile(r"smart contract|contract address|contract law")
 
 
 # --- Seniority detection -------------------------------------------------------
-_JUNIOR_RE = re.compile(
-    r"\b(junior|jr|graduate|grad|entry[- ]?level|intern|internship|apprentice|"
-    r"working student|werkstudent|trainee|early[- ]career|no experience|"
-    r"associate|early[- ]?talent)\b", re.I)
-# Senior/lead signals, incl. roman-numeral levels III+ and "II" (mid-senior).
+#
+# **Six levels and an honest null.** Measured against the live corpus on 2026-08-12
+# (128 080 active postings, `notes/2026-08-12-seniority-ladder.md`): 62.2% of titles name no
+# level at all, so *unknown* is the majority answer and this function must be able to return
+# it. The previous three-value scheme could not — it fell through to `mid`, and the stored
+# `mid` bucket (64.4%) was within 3 000 rows of "titles containing no level word", i.e. it was
+# never a level, it was the absence of one.
+#
+# The boundary between the two lowest rungs is **contract shape, not experience**:
+#   intern       a placement — internship, Praktikum, stáž, Werkstudent, apprenticeship
+#   entry_level  a first *permanent* job — graduate scheme, absolvent, trainee, entry level
+# That line is crisp enough to hold across languages, which "junior vs entry-level" is not.
+#
+# Three tokens were removed on measured evidence, not intuition:
+#   `manager`   11 210 active titles (8.8% of the corpus, 27% of everything stored `senior`)
+#               carried it as their ONLY level signal — Account Manager, Product Manager,
+#               Territory Sales Manager, *Assistant* Manager. All were classified senior, and
+#               so were hidden from every junior/mid filter. Bare `manager` now sets no level;
+#               only the handful of forms that genuinely denote people-leadership do.
+#   `associate` "Associate Director" and "Production Associate II" both classified *junior*,
+#               because junior was tested first. In banking and consulting an Associate is
+#               mid-level, in retail it is entry. It is ambiguous, so it now says nothing.
+#   `mid`       "Mid-Market" / "Mid-Enterprise" are sales *segments*. Same class of trap as
+#               the `georgia` rule in CLAUDE.md — see `_MID_FALSE`.
+# `staff` was suspected of the same fault (UK "Staff Nurse" means an ordinary nurse) and the
+# corpus refuted it: all 1 663 occurrences are senior IC roles. It stays.
+
+_INTERN_RE = re.compile(
+    r"\b(intern|interns|internship|internships|praktikant\w*|praktikum|praktyk\w*|"
+    r"st[áa][žz]\w*|stagiaire|stagista|tirocinio|becario|becaria|"
+    r"working student|werkstudent\w*|apprentice\w*|apprenti|l[äæ]rling|l[æe]rling)\b", re.I)
+
+# A first permanent job. `graduate` is the one token here that also names a *field* of work
+# ("Graduate Recruitment Consultant", "Head of Graduate Talent"), so it is guarded.
+_ENTRY_RE = re.compile(
+    r"\b(entry[- ]?level|graduate|grad|school ?leaver|trainee\w*|"
+    r"absolvent\w*|absolwent\w*|ny(?:ut)?examinerad|nyutbildad|nyutdannet|"
+    r"berufseinsteiger\w*|einsteiger|einstiegs\w*|startersfunctie|"
+    r"d[ée]butant\w*|jeune dipl[ôo]m[ée]\w*|neo[- ]?laureat\w*|"
+    r"reci[ée]n titulad[oa]|reci[ée]n graduad[oa]|rec[ée]m[- ]formad[oa]|"
+    r"no experience|early[- ]?career|early[- ]?talent)\b", re.I)
+_ENTRY_FALSE = re.compile(
+    r"\bgrad(?:uate)?\s+(?:recruit\w*|talent|hiring|admissions?|programme? manager)", re.I)
+
+_JUNIOR_RE = re.compile(r"\b(junior|jr|juniorn[íi])\b", re.I)
+
+# Explicitly mid. Tiny (~1% of the corpus) and that is fine: it is now a *stated* level rather
+# than the fall-through, so a small honest bucket beats a large dishonest one.
+_MID_RE = re.compile(r"\b(medior|mid[- ]?level|mid[- ]?senior|mid|ii)\b", re.I)
+_MID_FALSE = re.compile(r"\bmid[- ](market|enterprise|size[d]?|cap|funnel|term)\b", re.I)
+
+# People-leadership, which is a different axis from senior IC and was previously collapsed
+# into it. 8 165 active titles carry one of these and no senior word at all.
+_LEAD_RE = re.compile(
+    r"\b(lead|leader|leads|head|director|vp|vice president|chief|c[teofi]o|"
+    r"vedouc[íi]|kierownik|leiter\w*|responsable|"
+    r"(?:engineering|development|software|data|general|country|managing)\s+(?:manager|director))\b",
+    re.I)
+
+# Senior individual contributor. Roman-numeral levels III+ ride here; II is `_MID_RE`.
 _SENIOR_RE = re.compile(
-    r"\b(senior|sr|staff|principal|lead|head|director|vp|expert|architect|"
-    r"iii|iv|manager)\b", re.I)
+    r"\b(senior|sr|staff|principal|expert|architect|seniorn[íi]|iii|iv)\b", re.I)
+
+#: Every value `seniority()` can return, weakest first. `None` is deliberately not in it —
+#: it is the absence of an answer, not a seventh level, and nothing may offer it as a choice.
+SENIORITY_LEVELS = ("intern", "entry_level", "junior", "mid", "senior", "lead")
 
 
-def seniority(title: Optional[str]) -> str:
-    """Classify a title as 'junior', 'mid', or 'senior'."""
+def seniority(title: Optional[str]) -> Optional[str]:
+    """Classify a title into `SENIORITY_LEVELS`, or `None` when it names no level.
+
+    **`None` is the majority answer (62.2% of the live corpus) and is not a failure.** It
+    means "this title did not say", which is a different statement from "mid", and every
+    consumer has to be able to tell them apart: the AI matcher must not treat silence as a
+    mismatch, while a visitor ticking a filter chip is narrowing to what was actually stated.
+
+    Precedence is **leadership first, then lowest stated rung**. Leadership wins because the
+    big buckets must not leak into the small ones — "Head of Graduate Recruitment" is a lead
+    role that happens to mention graduates, and letting `entry_level` win there would pollute
+    a 400-row bucket with rows from an 8 000-row one. Below that the *lowest* rung wins, so
+    "Junior/Medior Engineer" reads as junior: the lower bound is the bar the employer set.
+    """
     t = title or ""
-    if _JUNIOR_RE.search(t):
-        return "junior"
+    if not t:
+        return None
+    if _LEAD_RE.search(t):
+        return "lead"
     if _SENIOR_RE.search(t):
         return "senior"
-    return "mid"
+    if _INTERN_RE.search(t):
+        return "intern"
+    if _ENTRY_RE.search(t) and not _ENTRY_FALSE.search(t):
+        return "entry_level"
+    if _JUNIOR_RE.search(t):
+        return "junior"
+    if _MID_RE.search(t) and not _MID_FALSE.search(t):
+        return "mid"
+    return None
 
 
 def seniority_stated(title: Optional[str]) -> bool:
-    """True when the title actually names a level, rather than falling through to 'mid'.
+    """True when the title actually names a level.
 
-    `seniority()` returns 'mid' for two very different postings: one that says "Mid-level
-    Analyst" and one that says nothing at all — and most titles say nothing at all. Anything
-    treating the stored value as a fact the poster asserted will mis-handle the second kind.
-    The matcher uses this to show the model "seniority=unstated" instead of a confident
-    "mid", so its hard seniority filter drops genuine level mismatches without also dropping
-    every unlabelled posting from a junior-only subscriber's digest."""
-    t = title or ""
-    return bool(_JUNIOR_RE.search(t) or _SENIOR_RE.search(t))
+    Kept as a name because `service/evaluate.py` reports on it, but it is now the trivial
+    consequence of the column being able to say "I don't know" rather than a second,
+    separately-maintained regex pass that could disagree with the first. It used to exist
+    because `seniority()` returned a confident 'mid' for a posting that said nothing, and the
+    matcher needed to know the difference; the classifier now carries that itself."""
+    return seniority(title) is not None
 
 
 def work_type(title: Optional[str], description: Optional[str]) -> str:
@@ -374,17 +452,22 @@ def main() -> None:
         rows = [r for r in rows if r["work_type"] == "freelance/contract"]
         logger.info("Freelance filter: kept %d freelance/contract candidates", len(rows))
     if args.junior:
-        rows = [r for r in rows if r["seniority"] in ("junior", "mid")]
-        logger.info("Junior filter: kept %d junior/mid candidates", len(rows))
+        # `None` is kept deliberately: it means the title named no level, which is most of
+        # them, and dropping silence would throw away the bulk of what a junior can apply to.
+        rows = [r for r in rows
+                if r["seniority"] in ("intern", "entry_level", "junior", "mid", None)]
+        logger.info("Junior filter: kept %d junior/mid/unstated candidates", len(rows))
     if args.parttime:
         rows = [r for r in rows if r["part_time"]]
         logger.info("Part-time filter: kept %d part-time candidates", len(rows))
 
     # Best-eligible first; when hunting junior, float junior/mid up, else freelance up.
-    _sen_rank = {"junior": 0, "mid": 1, "senior": 2}
+    # Unstated sorts between mid and senior rather than last: it is the majority answer, and
+    # burying it would empty the top of a junior hunt of everything that simply didn't say.
+    _sen_rank = {lvl: i for i, lvl in enumerate(SENIORITY_LEVELS)}
     rows.sort(key=lambda r: (
         _RANK.get(r["eligibility"], 5),
-        _sen_rank[r["seniority"]] if args.junior else
+        _sen_rank.get(r["seniority"], 3.5) if args.junior else
         (0 if r["work_type"] == "freelance/contract" else 1),
         r["region"]))
     rows = rows[: args.limit]

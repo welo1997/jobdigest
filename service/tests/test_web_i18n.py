@@ -100,9 +100,18 @@ OPTIONS_TEXT = OPTIONS.read_text(encoding="utf-8")
 
 
 def _id_list(name: str) -> set[str]:
+    """The string ids of an `export const NAME = [...]` array in web/lib/options.ts.
+
+    `[a-z_]+`, not `[a-z]+`: `SENIORITY_IDS` gained `entry_level` on 2026-08-12 and the
+    narrower pattern silently skipped it, which would have left the catalogue-completeness
+    test below passing over a chip no catalogue had a label for — a drift check that cannot
+    see the drift is worse than none, because it reports coverage it never had.
+    """
     match = re.search(rf"export const {name} = \[(.*?)\]", OPTIONS_TEXT, re.S)
     assert match, f"{name} not found in web/lib/options.ts"
-    return set(re.findall(r'"([a-z]+)"', match.group(1)))
+    ids = set(re.findall(r'"([a-z_]+)"', match.group(1)))
+    assert ids, f"{name} parsed as empty — the array shape in options.ts has changed"
+    return ids
 
 
 ROLE_IDS = set(re.findall(r'id:\s*"([a-z_]+)"', OPTIONS_TEXT))
