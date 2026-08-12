@@ -120,6 +120,51 @@ def test_offer_without_display_id_or_title_is_skipped():
     assert StartupJobsSource().normalize([_offer(title={"cs": None, "en": None})]) == []
 
 
+def test_remote_preference_is_read_from_the_employers_own_tickboxes():
+    """The Vivantis case (offer 105209, found 2026-08-12): only location "Zlín", description
+    saying *"Spolupráce je možná v režimu full remote"* — a borrowed phrase `_REMOTE_STRONG`
+    does not know ("fully remote" is listed, "full remote" is not) — and `locationPreference:
+    ['remote']` on the API. With the adapter passing `None`, the whole pipeline agreed this
+    was an on-site Zlín job and the location gate withheld it from everyone outside Zlín.
+
+    Drives the real downstream call (`geo.work_mode`, as `service.ingest` makes it), so this
+    is the claim that matters: the posting ends up `remote`, not merely flagged.
+    """
+    p = StartupJobsSource().normalize([_offer(
+        locationPreference=["remote"],
+        locations=[{"name": {"cs": "Zlín", "en": None}}],
+        description={"cs": "<p>Spolupráce je možná v režimu <b>full remote</b>.</p>"},
+    )])[0]
+    assert p.remote_signal is True
+    assert geo.work_mode(p.location, p.description, p.remote_signal) == "remote"
+
+
+def test_a_named_office_schedule_still_demotes_the_remote_tickbox():
+    """`remote_signal` is a claim, not a fact — the rule that lets this adapter trust the
+    tick-box at all. An employer who ticks `remote` while the ad names three days a week in
+    the office is describing a hybrid job, and `geo._describes_hybrid` is checked *before*
+    the source signal precisely so this posting cannot slip past the location gate."""
+    p = StartupJobsSource().normalize([_offer(
+        locationPreference=["remote"],
+        description={"cs": "<p>We use a hybrid work model of 3 days in the office.</p>"},
+    )])[0]
+    assert p.remote_signal is True                      # the claim is carried…
+    assert geo.work_mode(p.location, p.description, p.remote_signal) == "hybrid"  # …and refused
+
+
+def test_absence_of_the_remote_tick_is_never_a_claim_of_an_office():
+    """`['hybrid']`, `['onsite']`, `[]` and a missing field all map to `None`, never `False`.
+    The tick-boxes say what is on offer, not what was refused — a `False` would be a
+    statement the text classifier could no longer overrule."""
+    for pref in (["hybrid"], ["onsite"], [], None, "remote"):
+        p = StartupJobsSource().normalize([_offer(locationPreference=pref)])[0]
+        assert p.remote_signal is None, f"locationPreference={pref!r} produced a claim"
+    # …and a mixed list that includes remote is a genuine offer of remote work.
+    mixed = StartupJobsSource().normalize(
+        [_offer(locationPreference=["onsite", "remote", "hybrid"])])[0]
+    assert mixed.remote_signal is True
+
+
 def test_field_gives_a_category_hint_for_the_classifier():
     # "sales" is StartupJobs' own field slug, not a role_category — `taxonomy.classify`
     # discards it (the canonical value would be `other_tech_function`). This pins what the

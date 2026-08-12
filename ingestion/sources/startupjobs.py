@@ -22,10 +22,20 @@ Two long-standing debts are paid off alongside the endpoint (both flagged in the
   throttle — which the old adapter bypassed with a bare `requests.get`. `robots.txt` on
   `startupjobs.com` and `core.startupjobs.cz` is allow-all (checked 2026-08-06).
 
-`remote_signal` is left `None` and the downstream text `work_mode` classifier decides — the
-Teamtailor precedent. The API's `locationPreference` (`remote`/`hybrid`/`onsite`) is a structured
-signal that could set it later, but a hybrid Bratislava role must stay gated to Bratislava, so the
-conservative default avoids re-opening the 2026-07-28 false-remote class of bug.
+`remote_signal` is read from the API's `locationPreference` since 2026-08-12 — `True` iff the
+employer ticked `remote`, `None` otherwise, so the downstream text classifier still decides the
+rest (the Teamtailor precedent). It had been left `None` entirely, which surfaced as a real
+mistagged job: offer 105209 (VIVANTIS, "Data Engineer - Snowflake/dbt") says *"Spolupráce je
+možná v režimu full remote"* and is remote-tagged on the board itself, but its only location is
+Zlín and the borrowed phrase "full remote" is not in `_REMOTE_STRONG` ("fully remote" is), so
+the posting reached subscribers as an on-site Zlín job. `locationPreference` is first-party
+structured data — the employer's own tick-boxes, the same trust class as Lever's
+`workplaceType` — not a scraped substring like the jobs.cz flag that caused the 2026-07-28
+false-remote bug. And the hybrid-Bratislava worry that justified the conservative default is
+now handled where it belongs: `geo.work_mode` checks `_describes_hybrid` *before* trusting any
+source signal, so a description naming an office schedule still demotes the claim. `['hybrid']`
+and `['onsite']` map to `None`, never `False` — absence of the remote tick is not proof of an
+office.
 """
 
 from __future__ import annotations
@@ -153,7 +163,7 @@ class StartupJobsSource(BaseSource):
                     # becomes SK rather than being overridden to CZ. Never a country constant.
                     location=self._location(item),
                     country_code=None,
-                    remote_signal=None,
+                    remote_signal=self._remote_signal(item),
                     salary_raw=salary_raw,
                     currency=currency,
                     posted_at=None,
@@ -168,6 +178,21 @@ class StartupJobsSource(BaseSource):
         company = item.get("company")
         if isinstance(company, dict):
             return company.get("name")
+        return None
+
+    @staticmethod
+    def _remote_signal(item: dict) -> Optional[bool]:
+        """`True` iff the employer's own `locationPreference` tick-boxes include `remote`.
+
+        A list, not a scalar — `['onsite', 'remote', 'hybrid']` is a real value and means
+        remote is genuinely on offer, which is all `remote_signal` claims (`geo.work_mode`
+        still demotes it if the description names an office schedule). Everything else is
+        `None`, never `False`: `['hybrid']` says nothing about whether remote was refused,
+        and a `False` here would be a claim the text classifier could not overrule.
+        """
+        prefs = item.get("locationPreference")
+        if isinstance(prefs, list) and "remote" in prefs:
+            return True
         return None
 
     @staticmethod
