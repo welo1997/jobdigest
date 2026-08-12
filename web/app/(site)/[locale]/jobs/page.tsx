@@ -119,6 +119,7 @@ function FacetMenu({
   render: (value: string) => string;
   onToggle: (v: string) => void;
 }) {
+  const { t } = useI18n();
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
@@ -138,7 +139,12 @@ function FacetMenu({
     };
   }, [open]);
 
-  if (!facets.length && !selected.length) return null;
+  // **Rendered even when it has nothing in it yet, and that is the point.** Level and Remote
+  // are static vocabularies while Field and Country are filled from the API's facet counts,
+  // so returning null until those arrived built the filter row in two stages — two controls,
+  // then four a second or two later, moving every control after them sideways under the
+  // pointer. A control that is going to exist occupies its place from the first paint; only
+  // its contents are allowed to arrive late.
   const n = selected.length;
   return (
     <div className="skill-menu" ref={ref}>
@@ -155,6 +161,9 @@ function FacetMenu({
       </button>
       {open && (
         <div className="skill-menu-pop">
+          {facets.length === 0 && (
+            <div className="skill-menu-empty">{t.common.loading}</div>
+          )}
           <div className="skill-menu-list" role="group">
             {facets.map((f) => {
               const on = selected.includes(f.value);

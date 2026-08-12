@@ -13,6 +13,7 @@ import json
 import logging
 import os
 import secrets
+import time
 from contextlib import contextmanager
 from datetime import datetime, timezone
 from typing import Any, Iterable, Optional
@@ -1081,6 +1082,38 @@ SEARCH_TERM_MAX = 80
 #: comes back with it so the caller can render the "+" rather than quoting a cap as a fact.
 SEARCH_TOTAL_CAP = 500
 
+#: How long the **unfiltered** facet counts may be served from memory.
+#:
+#: Those two aggregates are the landing page's whole cost: every visitor who opens `/jobs`
+#: asks the identical question, and answering it means a `distinct on` over the entire active
+#: corpus, twice. Measured against production on 2026-08-12 that was ~3 s — long enough that
+#: the filter row visibly arrived after the rest of the page. The answer changes once a day,
+#: when the 03:00 ingest lands, so serving a few minutes of staleness costs a count that is
+#: slightly behind and buys a menu that is there on first paint.
+#:
+#: Only the no-filter case is cached, deliberately. A narrower search is a different question
+#: per visitor, so a cache keyed on the filter set would hold far more entries for far fewer
+#: hits, and a stale count under a filter is harder to reason about than one under none.
+SEARCH_FACET_TTL_SECONDS = int(os.getenv("SEARCH_FACET_TTL_SECONDS", "600"))
+
+#: `(expires_at, value)` for the unfiltered facets, or None. A single slot rather than a dict
+#: because exactly one query is cacheable — there is no key to get wrong.
+_facet_cache: Optional[tuple[float, dict[str, list[dict]]]] = None
+
+
+def clear_facet_cache() -> None:
+    """Drop the cached unfiltered facets. For tests, which build a corpus and then ask about
+    it inside one process — and for anything that needs the next read to hit the database."""
+    global _facet_cache
+    _facet_cache = None
+
+
+def _facet_copy(value: dict[str, list[dict]]) -> dict[str, list[dict]]:
+    """A copy deep enough that a caller cannot mutate what the next caller will be handed.
+    `webapp.search_jobs_public` filters these lists; nothing today mutates the dicts, and
+    this is what keeps that from mattering."""
+    return {k: [dict(f) for f in facets] for k, facets in value.items()}
+
 
 def _search_where(q: Optional[str] = None,
                   countries: Optional[Iterable[str]] = None,
@@ -1240,7 +1273,20 @@ def search_facets(q: Optional[str] = None,
     whose `role_category` is a raw Swedish SSYK label — residue of the 2026-08-08 hint bug,
     draining over the staleness window — and a `select distinct role_category` straight into
     a public dropdown would offer `Butikssäljare, fackhandel` as a filter.
+
+    **The unfiltered case is served from memory for `SEARCH_FACET_TTL_SECONDS`.** It is the
+    landing page's question, identical for every visitor and ~3 s to answer; see the constant.
+    Anything with a term or a filter goes to the database every time.
     """
+    global _facet_cache
+
+    unfiltered = not (q or "").strip() and not (
+        countries or cities or categories or work_modes or seniorities or remote_only)
+    if unfiltered and _facet_cache is not None:
+        expires_at, cached = _facet_cache
+        if time.monotonic() < expires_at:
+            return _facet_copy(cached)
+
     out: dict[str, list[dict]] = {}
     with cursor() as cur:
         for key, column, skip in (("categories", "role_category", "categories"),
@@ -1264,6 +1310,11 @@ def search_facets(q: Optional[str] = None,
             """, params)
             out[key] = [{"value": r["value"], "count": int(r["count"])}
                         for r in cur.fetchall()]
+
+    if unfiltered:
+        # Two concurrent misses both compute and the second overwrites the first — harmless
+        # duplicate work, and cheaper than holding a lock across a 3 s query.
+        _facet_cache = (time.monotonic() + SEARCH_FACET_TTL_SECONDS, _facet_copy(out))
     return out
 
 

@@ -323,6 +323,9 @@ button.nav-link{background:none;border:0;padding:0;cursor:pointer;font-family:in
   border:1px solid var(--line);border-radius:var(--r-md);box-shadow:var(--shadow-lg);padding:6px;
   min-width:230px;animation:pop .16s ease both;}
 .skill-menu-list{display:flex;flex-direction:column;gap:1px;max-height:320px;overflow-y:auto;}
+/* The filter button exists from first paint; its options can still be in flight. */
+.skill-menu-empty{padding:9px 10px;font-family:var(--font-sans);font-size:var(--fs-sm);
+  color:var(--muted);}
 .skill-opt{display:flex;align-items:center;gap:9px;width:100%;text-align:left;cursor:pointer;
   font-family:var(--font-sans);font-size:var(--fs-sm);color:var(--ink);background:transparent;
   border:0;border-radius:var(--r-sm);padding:7px 9px;transition:background .12s;}

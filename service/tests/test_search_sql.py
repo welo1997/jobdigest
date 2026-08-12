@@ -244,6 +244,10 @@ def client(monkeypatch):
     # The global rate limiter is process-local state shared across tests; reset it so a
     # neighbouring test cannot make this one fail by exhausting the window.
     monkeypatch.setattr(webapp, "_jobs_total", 0)
+    # So is the unfiltered facet cache. A test that warms it would otherwise hand its answer
+    # to the next test, whose fixture rows are different — a failure with no relationship to
+    # the code under test, which is the exact trap MARKER exists to close.
+    store.clear_facet_cache()
     return TestClient(webapp.app)
 
 
@@ -276,6 +280,69 @@ def test_facets_are_sent_once_and_not_blanked_on_later_pages(client):
     menu the visitor is currently using."""
     assert "facets" in client.get("/jobs").json()
     assert "facets" not in client.get("/jobs", params={"offset": 20}).json()
+
+
+def test_the_unfiltered_facets_are_served_from_memory():
+    """The landing page's menus come out of a cache, because two aggregate scans of the whole
+    active corpus took ~3 s in production and the filter row visibly arrived after the rest of
+    the page.
+
+    Asserted by making the database unreachable rather than by timing anything: a stopwatch
+    test passes on a fast machine whatever the code does. Cleared first, so this measures a
+    cold start rather than whatever a neighbouring test left behind.
+    """
+    store.clear_facet_cache()
+    warm = store.search_facets()
+
+    def no_database(*a, **kw):
+        raise AssertionError("search_facets went to the database on a cache hit")
+
+    monkeypatch = pytest.MonkeyPatch()
+    monkeypatch.setattr(store, "cursor", no_database)
+    try:
+        assert store.search_facets() == warm
+    finally:
+        monkeypatch.undo()
+
+    # And the cache is dropped on demand, which is what the `client` fixture relies on.
+    store.clear_facet_cache()
+    assert store._facet_cache is None
+
+
+def test_a_filtered_search_is_never_served_the_unfiltered_counts():
+    """The cache holds exactly one answer — the one to "no filters at all". A narrower search
+    reading that slot would be handed counts for the whole corpus under a heading claiming a
+    filter, which is the silent-wrong-answer failure a cache exists in order not to have.
+
+    `design` is the probe because the fixture corpus carries it on a DE row only, so it is
+    present unfiltered and must be absent under a CZ filter — the same distinction
+    `test_ticking_a_country_does_not_empty_the_country_menu` relies on.
+    """
+    store.clear_facet_cache()
+    everything = {f["value"] for f in store.search_facets()["categories"]}
+    narrowed = {f["value"] for f in
+                store.search_facets(countries=["CZ"], **scoped())["categories"]}
+
+    assert "design" in everything, "fixture corpus changed — pick another probe"
+    assert "design" not in narrowed, "a filtered call was answered from the unfiltered cache"
+
+    # And a filtered call must not *poison* the slot for the next unfiltered visitor.
+    assert {f["value"] for f in store.search_facets()["categories"]} == everything
+
+
+def test_the_facet_cache_hands_out_copies():
+    """A caller that filters or reorders the lists it was given must not be editing what the
+    next visitor gets. `webapp.search_jobs_public` rebuilds the lists rather than mutating
+    them, and this is what keeps that from being load-bearing."""
+    store.clear_facet_cache()
+    first = store.search_facets()
+    first["countries"].clear()
+    if first["categories"]:
+        first["categories"][0]["count"] = -1
+
+    second = store.search_facets()
+    assert second["countries"], "a caller emptied the cached facet list"
+    assert all(f["count"] >= 0 for f in second["categories"])
 
 
 def test_the_search_writes_nothing(client):
