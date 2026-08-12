@@ -153,6 +153,46 @@ def test_every_declared_locale_has_a_catalogue_and_is_wired_up():
         assert locale in mapped, f"{locale} is imported but missing from the CATALOGUES map"
 
 
+def test_the_root_redirect_runs_before_the_language_gate_is_painted():
+    """`/` sends a visitor to their language twice over, and the order is the whole point.
+
+    `app/(plain)/page.tsx` negotiates in a `useEffect`, which cannot run until React has
+    hydrated — so before 2026-08-12 the bundle had to download and execute before anyone was
+    forwarded, and "Choose your language" flashed on screen for about a second on every visit
+    to the bare domain. The fix is a synchronous inline script emitted *above* the markup, so
+    the parser redirects before it reaches the card.
+
+    Move that `<script>` below `{children}` and the flash comes back with nothing failing —
+    the redirect still works, it is just slower than the paint. That is what this pins.
+    """
+    layout = (ROOT / "web" / "app" / "(plain)" / "layout.tsx").read_text(encoding="utf-8")
+
+    script = layout.find("__html: LOCALE_REDIRECT")
+    children = layout.find("{children}")
+    assert script > 0, "the inline locale redirect is gone from the plain layout"
+    assert children > 0, "{children} not found — the layout was restructured"
+    assert script < children, (
+        "the locale redirect is emitted after {children}, so the language gate paints first "
+        "— that is the flash this script exists to remove"
+    )
+
+    # It also has to be inert on the other routes this layout serves (/privacy, /terms, /v2).
+    assert 'location.pathname!=="/"' in layout, (
+        "the redirect is not guarded on the root path — it would fire on /privacy and /terms"
+    )
+
+    # And the locale list must be interpolated, never typed out again: a ninth language is
+    # added to LOCALES, and nothing else should need to know.
+    assert "JSON.stringify(LOCALES)" in layout, (
+        "the redirect hardcodes its locale list instead of reading i18n/config"
+    )
+    for locale in LOCALES:
+        assert f'"{locale}"' not in layout.split("const LOCALE_REDIRECT")[1].split("`;")[0], (
+            f"{locale} is written literally into the redirect script — that is the copy that "
+            "drifts when a language is added"
+        )
+
+
 @pytest.mark.parametrize("locale", LOCALES)
 def test_every_role_chip_has_a_label(locale):
     """A missing id renders as `product_manager` in the UI, with nothing failing."""
