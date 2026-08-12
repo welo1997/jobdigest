@@ -133,7 +133,7 @@ Each of these has been broken in production at least once. Reasoning and measure
   all eight catalogues plus `service/i18n.py` for email). `intern | entry_level` split on
   **contract shape** (a placement vs a first permanent job), `senior | lead` on **kind** (IC
   vs people leadership) — neither pair is a ladder step. **NULL means the title named no
-  level: 62.2% of the live corpus**, and it is never a selectable value. The two polarities
+  level: 70.7% of the live corpus**, and it is never a selectable value. The two polarities
   are deliberate: display filters (`/jobs`, `/matches`) are equality, so NULL is excluded;
   **the digest path does not gate on seniority in SQL at all** — `_hard_gate` must never grow
   that predicate, or two thirds of every candidate pool vanishes with no error. Changing the

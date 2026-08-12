@@ -695,7 +695,7 @@ def _jobs_allowed() -> bool:
 #: Postings carrying it are still returned whenever no category is ticked, which is the half
 #: that matters — a filter nobody applied must never narrow anything.
 _SEARCH_CATEGORIES = frozenset(taxonomy.CATEGORIES) - {taxonomy.UNCATEGORISED}
-#: The six levels a posting can carry. NULL — 62% of the corpus, the titles that named no
+#: The six levels a posting can carry. NULL — 70% of the corpus, the titles that named no
 #: level — is deliberately not selectable: "unstated" is the absence of an answer, not a
 #: seventh level, and a chip for it would invite a visitor to search for silence.
 _SEARCH_SENIORITIES = frozenset(SENIORITY_LEVELS)

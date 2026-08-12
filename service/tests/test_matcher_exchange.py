@@ -463,7 +463,7 @@ def test_unstated_seniority_is_not_reported_as_mid(store, tmp_path, title, store
     to a junior-only subscriber. Neither is what the column means.
 
     Before 2026-08-12 the guarantee was a *recomputation*: the column stored 'mid' for both a
-    stated mid-level role and the 62% of titles naming nothing, so the exporter re-read the
+    stated mid-level role and the 70% of titles naming nothing, so the exporter re-read the
     title to tell them apart. The column now stores NULL for the second kind, so what this
     pins is that the exporter passes the distinction through rather than flattening it — the
     failure it would catch today is a `or "mid"` creeping into either export path."""

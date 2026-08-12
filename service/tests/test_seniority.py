@@ -8,8 +8,10 @@ tests the imagination.
 
 The measurements this file encodes, in descending order of how much they cost:
 
-  62.2%   of active titles name no level at all. That is what NULL is for; the old scheme
-          stored them as `mid`, which is why `mid` was 64.4% of the corpus.
+  62.2%   of active titles contain no level word at all. That is what NULL is for; the old
+          scheme stored them as `mid`, which is why `mid` was 64.4% of the corpus. The column
+          came out at **70.7% NULL** after the backfill rather than 62.2%, because the
+          `manager`-only and `associate`-only rows below also stopped claiming a level.
   11 210  active titles (8.8%) carried `manager` as their ONLY level signal and were all
           stored `senior` — hiding *Assistant Manager* and *Account Manager* from every
           junior/mid filter.
@@ -99,7 +101,7 @@ def test_the_six_levels(title, expected):
     "Mid-Market Account Executive - DACH",
     "Account Executive, Mid-Enterprise",
 
-    # `graduate` also names a *field* of work. 62% of titles say nothing at all, and these
+    # `graduate` also names a *field* of work. 70% of titles say nothing at all, and these
     # must join them rather than be read as junior hires.
     "Graduate Recruitment Consultant",
     "Grad Hiring Partner",

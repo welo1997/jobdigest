@@ -81,7 +81,7 @@ _CONTRACT_FALSE = re.compile(r"smart contract|contract address|contract law")
 # --- Seniority detection -------------------------------------------------------
 #
 # **Six levels and an honest null.** Measured against the live corpus on 2026-08-12
-# (128 080 active postings, `notes/2026-08-12-seniority-ladder.md`): 62.2% of titles name no
+# (128 080 active postings, `notes/2026-08-12-seniority-ladder.md`): 70.7% of titles name no
 # level at all, so *unknown* is the majority answer and this function must be able to return
 # it. The previous three-value scheme could not — it fell through to `mid`, and the stored
 # `mid` bucket (64.4%) was within 3 000 rows of "titles containing no level word", i.e. it was
@@ -150,7 +150,7 @@ SENIORITY_LEVELS = ("intern", "entry_level", "junior", "mid", "senior", "lead")
 def seniority(title: Optional[str]) -> Optional[str]:
     """Classify a title into `SENIORITY_LEVELS`, or `None` when it names no level.
 
-    **`None` is the majority answer (62.2% of the live corpus) and is not a failure.** It
+    **`None` is the majority answer (70.7% of the live corpus) and is not a failure.** It
     means "this title did not say", which is a different statement from "mid", and every
     consumer has to be able to tell them apart: the AI matcher must not treat silence as a
     mismatch, while a visitor ticking a filter chip is narrowing to what was actually stated.

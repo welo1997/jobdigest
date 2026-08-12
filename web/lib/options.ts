@@ -207,7 +207,7 @@ export type WorkTypeId = (typeof WORK_TYPE_IDS)[number];
 // which is the order the chips render in.
 //
 // **`postings.seniority` also has a seventh state these ids deliberately do not cover: NULL**,
-// meaning the title named no level. That is 62% of the live corpus (measured 2026-08-12), and
+// meaning the title named no level. That is 70.7% of the live corpus (measured 2026-08-12), and
 // it is an absence rather than a level — so it is never offered as a chip, and ticking one of
 // these narrows to postings that actually said. The subscriber-preference side reads it the
 // other way: a profile's seniorities never exclude an unstated posting, because the AI matcher

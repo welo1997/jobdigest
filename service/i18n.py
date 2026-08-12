@@ -411,7 +411,7 @@ MESSAGES: dict[str, dict[str, Any]] = {
         "tag_remote": "Remote",
         "tag_freelance": "Freelance",
         "tag_part_time": "Part-time",
-        # Six levels; NULL (the 62% of titles naming none) renders no tag at all rather than
+        # Six levels; NULL (the 70% of titles naming none) renders no tag at all rather than
         # a "level unknown" one — an absence is not a fact about the job.
         "seniority_intern": "Internship",
         "seniority_entry_level": "Entry level",

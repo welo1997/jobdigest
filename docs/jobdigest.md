@@ -759,6 +759,16 @@ would be honest about the thin markets, and is the open question below.
 `"Mid-Market"` and `"Mid-Enterprise"` are sales *segments*, not levels — the same class of trap
 as the `georgia` rule. `_MID_FALSE` in `search_jobs.py` is what excludes them.
 
+**What the column actually holds after the backfill** (128 080 active, 2026-08-12):
+
+```
+NULL 90 613 (70.7%)   senior 22 109 (17.3%)   lead    11 209 (8.8%)
+mid   1 063 ( 0.8%)   intern  1 398 ( 1.1%)   junior     996 (0.8%)   entry_level 692 (0.5%)
+```
+
+NULL is 70.7% rather than the 62.2% of titles containing no level *word*, because the
+`manager`-only and `associate`-only rows also stopped claiming a level. **Quote 70.7%.**
+
 **Still open, deliberately not done in the same commit:** `/jobs` offers the six levels
 unfaceted and with no counts, so a Swedish visitor ticking *Senior* gets an empty page with no
 explanation, where `/matches` would have shown them a count of 0 before they clicked.

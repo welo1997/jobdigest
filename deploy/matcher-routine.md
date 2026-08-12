@@ -119,7 +119,7 @@ always emits them, which is why `ROUTINE_INSTRUCTIONS` has no such clause.
 > or score it below 4). **Senior and lead are different kinds of job, not adjacent rungs**: a
 > "Head of" role is not what someone targeting senior asked for. **A candidate with no
 > `seniority` field never named a level at all — that is NOT a mismatch, judge it on overall
-> fit.** 62% of postings name none; treating them as exclusions would empty the digest.
+> fit.** 70% of postings name none; treating them as exclusions would empty the digest.
 >
 > Treat **location as a hard filter for anything that is not fully remote**. The profile's
 > `locations` line names the countries and, where given, the exact cities the subscriber can

@@ -19,8 +19,8 @@ which is the 2026-07-23 soft/AI-only decision, and the matcher is told explicitl
 missing level is not a mismatch. So an unstated posting still reaches a junior-only
 subscriber's shortlist and is judged on overall fit.
 
-That second half is the load-bearing one and it is invisible in the schema: 62.2% of the live
-corpus is NULL, so a seniority predicate quietly added to `_hard_gate` would delete nearly
+That second half is the load-bearing one and it is invisible in the schema: 70.7% of the live
+corpus is NULL, so a seniority predicate quietly added to `_hard_gate` would delete more than
 two thirds of every subscriber's candidate pool, and the symptom would be thin digests with
 no error anywhere. That is what `test_the_digest_path_does_not_gate_on_seniority` is for.
 """
@@ -47,7 +47,7 @@ FIXTURES = [
     ("lead", "Head of Data"),
     ("intern", "Werkstudent Data Analytics"),
     ("entry_level", "Graduate Data Analyst"),
-    (None, "Data Analyst"),            # the title named no level: 62% of the real corpus
+    (None, "Data Analyst"),            # the title named no level: 70% of the real corpus
 ]
 POSTINGS = [f"{PREFIX}{i}" for i in range(len(FIXTURES))]
 UNSTATED = POSTINGS[-1]
@@ -112,7 +112,7 @@ def test_a_level_filter_excludes_the_unstated_posting():
 
 def test_no_level_filter_returns_everything_including_the_unstated_one():
     """A filter nobody applied must never narrow anything — the same rule `uncategorised`
-    follows. This is the half that matters for a corpus that is 62% NULL: a visitor who has
+    follows. This is the half that matters for a corpus that is 70% NULL: a visitor who has
     not touched the Level menu must still see those postings."""
     assert _search() == set(POSTINGS)
     assert UNSTATED in _search()
@@ -124,7 +124,7 @@ def test_several_levels_union_rather_than_intersect():
 
 def test_the_facet_menu_never_offers_unstated_as_an_option():
     """"Unstated" is the absence of an answer, not a seventh rung. If it reached the menu it
-    would read as a level a visitor could search for, and 62% of the corpus would sit behind
+    would read as a level a visitor could search for, and 70% of the corpus would sit behind
     a chip that means "we could not tell"."""
     facets = store.search_facets()
     values = {f["value"] for f in facets.get("seniorities", [])}
@@ -136,7 +136,7 @@ def test_the_facet_menu_never_offers_unstated_as_an_option():
 
 def test_the_digest_path_does_not_gate_on_seniority():
     """**The invariant this whole file exists for.** `_hard_gate` must not grow a seniority
-    predicate: 62.2% of the corpus is NULL, so one would silently delete two thirds of every
+    predicate: 70.7% of the corpus is NULL, so one would silently delete two thirds of every
     subscriber's candidate pool, and the failure would look like thin digests rather than an
     error.
 

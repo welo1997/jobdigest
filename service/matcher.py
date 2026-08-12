@@ -59,7 +59,7 @@ for one, a graduate role for a senior-only subscriber — even if the role, skil
 fit perfectly; give it a score below 4 so it is dropped. Note that senior and lead are \
 different kinds of job rather than adjacent rungs: someone targeting senior wants deeper \
 individual work, and a "Head of" role is not a promotion they asked for. Candidates whose \
-level the posting never stated are marked `seniority=unstated` — that is 62% of postings and \
+level the posting never stated are marked `seniority=unstated` — that is 70% of postings and \
 is NOT a mismatch, so judge them on overall fit like any other.
 - Location is a HARD filter for anything that is not fully remote. The profile's "Locations" \
 line lists the countries the subscriber can work in and, where they named specific cities, \
@@ -253,7 +253,7 @@ ROUTINE_INSTRUCTIONS = (
     "subscriber — even if everything else fits (omit it / score it below 4). Senior and lead "
     "are different kinds of job, not adjacent rungs: a \"Head of\" role is not what someone "
     "targeting senior asked for. A candidate with no \"seniority\" never named a level and "
-    "is NOT a mismatch — that is 62% of them; judge it on overall fit. "
+    "is NOT a mismatch — that is 70% of them; judge it on overall fit. "
     "Treat location as a HARD filter for anything that is not fully remote: the profile's "
     "\"locations\" line names the countries and, where given, the exact cities the subscriber "
     "can work in. A posting requiring presence anywhere else — another city, or a country they "
@@ -378,7 +378,7 @@ def _candidate_export(c: dict) -> dict:
     # this is the one field where the safe reading is not the obvious one.
     if c.get("education_min"):
         out["education_min"] = c["education_min"]
-    # One of the six levels, or absent when the title named none — which is 62% of rows, so
+    # One of the six levels, or absent when the title named none — which is 70% of rows, so
     # absence here is the ordinary case and the prompt says so explicitly.
     if c.get("seniority"):
         out["seniority"] = c["seniority"]

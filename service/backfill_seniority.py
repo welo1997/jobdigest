@@ -5,7 +5,7 @@ changed is what the values *mean*, and that is exactly the kind of change a sche
 carry: every stored row still holds a legal value, so nothing errors, and the column quietly
 means two things at once until this runs.
 
-**Read the expected result before running it, or it will look catastrophic.** Roughly 62% of
+**Read the expected result before running it, or it will look catastrophic.** Roughly 71% of
 active rows will come out NULL, against 0% before, because the old classifier had no way to
 say "this title named no level" and fell through to `mid` instead. Measured on the live corpus
 the day this shipped: 128 080 active postings, 79 719 of them naming no level at all. The
@@ -101,7 +101,7 @@ def main() -> None:
     logger.info("seniority: %s, %d unstated (of %d active)",
                 ", ".join(f"{stats[lvl]} {lvl}" for lvl in SENIORITY_LEVELS),
                 stats["unstated"], stats["total"])
-    logger.info("~62%% unstated is the expected result, not a failure — the old scheme stored "
+    logger.info("~71%% unstated is the expected result, not a failure — the old scheme stored "
                 "those as 'mid'. See this module's docstring.")
 
 
