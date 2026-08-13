@@ -7,7 +7,7 @@ export default function PrivacyEn() {
   return (
     <>
       <div className="wrap page-head">
-        <span className="label">Effective 20 July 2026</span>
+        <span className="label">Effective 13 August 2026</span>
         <h1>Privacy Policy</h1>
         <p>How JobDigest collects, uses, and protects your data. Plain language, no surprises.</p>
       </div>
@@ -36,8 +36,9 @@ export default function PrivacyEn() {
             already applied, or it isn&apos;t for you), we record that choice against your
             subscription so we stop listing and emailing it. You can see and undo every one of
             them on your hidden-jobs page.</li>
-          <li><b>Anonymous usage statistics</b> — which pages are viewed and which steps of the
-            signup form are reached or fail, so we can fix what&apos;s confusing. See section 6.</li>
+          <li><b>Privacy-preserving usage statistics</b> — which pages are viewed and which steps of the
+            signup form are reached or fail, so we can fix what&apos;s confusing. These do not identify
+            you; see section 6.</li>
         </ul>
         <p>We do <b>not</b> collect names, phone numbers, payment details, or track you across other
           websites. We do not buy or sell personal data.</p>
@@ -48,11 +49,11 @@ export default function PrivacyEn() {
           verifying that you control the address — to send you the daily job digest and the
           transactional emails required to manage it. You can withdraw consent at any time by unsubscribing — one click,
           from any email — which stops all sending immediately.</p>
-        <p>The anonymous usage statistics in section 6 are processed on the basis of our
+        <p>The usage statistics in section 6 are processed on the basis of our
           <b> legitimate interest</b> (Art. 6(1)(f) GDPR) in understanding which parts of our own
-          website are confusing or broken, so we can improve them. Because these statistics use no
-          cookies, no IP addresses and no cross-site tracking, the impact on your privacy is minimal
-          — but you can object at any time (section 8), and we honour your browser&apos;s
+          website are confusing or broken, so we can improve them. They are designed not to identify
+          you — no cookies, no IP addresses and no cross-site tracking — so the impact on your privacy
+          is minimal, but you can object at any time (section 8), and we honour your browser&apos;s
           &quot;Do Not Track&quot; and Global Privacy Control settings automatically.</p>
 
         <h2>4. Your CV — parse &amp; discard</h2>
@@ -97,9 +98,11 @@ export default function PrivacyEn() {
         <p>That file is transferred via <b>Google Drive</b> (Google Ireland Ltd / Google LLC) and read
           by <b>Anthropic</b> (Claude), both of which may process it in the United States. Transfers
           rely on the European Commission&apos;s Standard Contractual Clauses and the EU–US Data
-          Privacy Framework. The file deliberately contains <b>no email addresses</b>, so it cannot
-          by itself identify you; your address never leaves our EU database. The results come back as
-          a list of job matches against that same random identifier.</p>
+          Privacy Framework. The file deliberately contains <b>no email address and no name</b>, so it
+          does not directly identify you. It is <b>pseudonymised, not anonymous</b> — it remains
+          personal data, and we treat it as such, which is why the transfer relies on the safeguards
+          above; your address itself never leaves our EU database. The results come back as a list of
+          job matches against that same random identifier.</p>
 
         <h2>6. Cookies &amp; usage statistics</h2>
         <p>The site sets <b>no advertising or analytics cookies</b>. It sets one
@@ -111,7 +114,7 @@ export default function PrivacyEn() {
           inactivity — so a copy of our database never reveals a usable login. Cloudflare Turnstile
           (our no-CAPTCHA bot check) may also set a strictly necessary token to verify you&apos;re
           human when you sign up.</p>
-        <p>To improve the site we record a small number of anonymous events — for example
+        <p>To improve the site we record a small number of privacy-preserving events — for example
           &quot;landing page viewed&quot;, &quot;signup form started&quot;, or &quot;CV upload
           failed&quot;. This is done <b>without cookies</b>, and specifically:</p>
         <ul>
@@ -144,9 +147,9 @@ export default function PrivacyEn() {
           you never clicked. The window means that is recoverable by mailing us, instead of silently
           destroying your settings. If you would rather we erase everything right away, ask us and
           we will (section 8).</p>
-        <p>Anonymous usage events (section 6) are deleted after <b>180 days</b>. Before deletion they
-          are reduced to daily totals — for example &quot;42 signup forms started on 3 March&quot; —
-          which contain no individual records at all.</p>
+        <p>These usage events are deleted after <b>180 days</b>. Before deletion they
+          are reduced to anonymous daily totals — for example &quot;42 signup forms started on 3
+          March&quot; — which contain no individual records at all.</p>
 
         <h2>8. Your rights</h2>
         <p>Under the GDPR you have the right to access, correct, delete, restrict, or port your data,

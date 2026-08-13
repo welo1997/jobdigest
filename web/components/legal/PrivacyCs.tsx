@@ -17,7 +17,7 @@ export default function PrivacyCs() {
   return (
     <>
       <div className="wrap page-head">
-        <span className="label">Účinné od 20. července 2026</span>
+        <span className="label">Účinné od 13. srpna 2026</span>
         <h1>Zásady ochrany osobních údajů</h1>
         <p>Jak JobDigest shromažďuje, používá a chrání vaše údaje. Srozumitelně a bez překvapení.</p>
       </div>
@@ -46,9 +46,9 @@ export default function PrivacyCs() {
             skryjete (protože jste se už přihlásili nebo pro vás není), uložíme si tuto volbu
             k vašemu odběru, abychom ji přestali zobrazovat i posílat e-mailem. Všechny je
             vidíte na stránce se skrytými nabídkami a můžete je kdykoli vrátit zpět.</li>
-          <li><b>Anonymní statistiky používání</b> — které stránky se zobrazují a které kroky
-            registračního formuláře jsou dosaženy nebo selžou, abychom mohli opravit, co je
-            matoucí. Viz oddíl 6.</li>
+          <li><b>Statistiky používání šetrné k soukromí</b> — které stránky se zobrazují a které
+            kroky registračního formuláře jsou dosaženy nebo selžou, abychom mohli opravit, co je
+            matoucí. Vás neidentifikují; viz oddíl 6.</li>
         </ul>
         <p><b>Neshromažďujeme</b> jména, telefonní čísla ani platební údaje a nesledujeme vás
           napříč jinými weby. Osobní údaje nekupujeme ani neprodáváme.</p>
@@ -60,11 +60,12 @@ export default function PrivacyCs() {
           mohli zasílat denní přehled nabídek a provozní e-maily nutné k jeho správě. Souhlas
           můžete kdykoli odvolat odhlášením — jedním kliknutím z kteréhokoli e-mailu — což
           okamžitě zastaví veškeré zasílání.</p>
-        <p>Anonymní statistiky používání podle oddílu 6 zpracováváme na základě našeho
+        <p>Statistiky používání podle oddílu 6 zpracováváme na základě našeho
           <b> oprávněného zájmu</b> (čl. 6 odst. 1 písm. f) GDPR) porozumět tomu, které části
-          našeho vlastního webu jsou matoucí nebo nefunkční, abychom je mohli zlepšit. Protože
-          tyto statistiky nepoužívají cookies, IP adresy ani sledování napříč weby, je dopad na
-          vaše soukromí minimální — proti zpracování však můžete kdykoli vznést námitku
+          našeho vlastního webu jsou matoucí nebo nefunkční, abychom je mohli zlepšit. Jsou
+          navrženy tak, aby vás neidentifikovaly — bez cookies, bez IP adres a bez sledování
+          napříč weby — takže dopad na vaše soukromí je minimální, proti zpracování však můžete
+          kdykoli vznést námitku
           (oddíl 8) a nastavení „Do Not Track“ a Global Privacy Control ve vašem prohlížeči
           respektujeme automaticky.</p>
 
@@ -113,8 +114,10 @@ export default function PrivacyCs() {
           čte jej <b>Anthropic</b> (Claude); obě společnosti jej mohou zpracovávat ve Spojených
           státech. Přenosy se opírají o standardní smluvní doložky Evropské komise a rámec
           EU–USA pro ochranu osobních údajů (Data Privacy Framework). Soubor záměrně neobsahuje
-          <b> žádné e-mailové adresy</b>, takže vás sám o sobě nemůže identifikovat; vaše adresa
-          nikdy neopustí naši databázi v EU. Výsledky se vracejí jako seznam odpovídajících
+          <b> žádnou e-mailovou adresu ani jméno</b>, takže vás přímo neidentifikuje. Jde o údaje
+          <b> pseudonymizované, nikoli anonymní</b> — zůstávají osobními údaji a jako s takovými
+          s nimi nakládáme, což je důvod, proč se přenos opírá o výše uvedené záruky; samotná vaše
+          adresa nikdy neopustí naši databázi v EU. Výsledky se vracejí jako seznam odpovídajících
           nabídek k témuž náhodnému identifikátoru.</p>
 
         <h2>6. Cookies a statistiky používání</h2>
@@ -127,7 +130,7 @@ export default function PrivacyCs() {
           to nejvýše po <b>30 dnů</b> nečinnosti — kopie naší databáze tak nikdy neprozradí
           použitelné přihlášení. Cloudflare Turnstile (naše kontrola robotů bez CAPTCHA) může
           při registraci rovněž nastavit nezbytně nutný token k ověření, že jste člověk.</p>
-        <p>Pro zlepšení webu zaznamenáváme malý počet anonymních událostí — například
+        <p>Pro zlepšení webu zaznamenáváme malý počet událostí šetrných k soukromí — například
           „zobrazena úvodní stránka“, „zahájen registrační formulář“ nebo „nahrání životopisu
           selhalo“. Děje se tak <b>bez cookies</b>, a konkrétně:</p>
         <ul>
@@ -162,9 +165,9 @@ export default function PrivacyCs() {
           na které jste nikdy neklikli. Toto okno znamená, že se to dá napravit e-mailem, místo
           aby to tiše zničilo vaše nastavení. Pokud chcete, abychom vše smazali okamžitě, napište
           nám a uděláme to (oddíl 8).</p>
-        <p>Anonymní události o používání (oddíl 6) mažeme po <b>180 dnech</b>. Před smazáním se
-          redukují na denní součty — například „3. března zahájeno 42 registračních formulářů“ —
-          které neobsahují žádné jednotlivé záznamy.</p>
+        <p>Tyto události o používání mažeme po <b>180 dnech</b>. Před smazáním se
+          redukují na anonymní denní součty — například „3. března zahájeno 42 registračních
+          formulářů“ — které neobsahují žádné jednotlivé záznamy.</p>
 
         <h2>8. Vaše práva</h2>
         <p>Podle GDPR máte právo na přístup k údajům, jejich opravu, výmaz, omezení zpracování a
