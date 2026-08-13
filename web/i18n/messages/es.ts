@@ -5,7 +5,7 @@ const es: Messages = {
   meta: {
     title: "JobDigest — empleos que encajan contigo, cada mañana",
     description:
-      "Un correo corto al día con una selección ordenada de empleos que encajan contigo. Tech y CZ+EU primero. Empezar es gratis.",
+      "Un correo corto al día con una selección ordenada de empleos que encajan contigo. Tech y CZ+EU primero. Gratis.",
   },
 
   nav: {
@@ -190,12 +190,12 @@ const es: Messages = {
     livePreview: "Vista previa en vivo",
     trustEmail: "Un correo al día",
     trustUnsub: "Baja con un clic",
-    trustFree: "Empezar es gratis · 16 fuentes revisadas cada noche",
+    trustFree: "Gratis · 20+ fuentes revisadas cada noche",
     howItWorks: "Cómo funciona",
     step1Title: "Marca tu perfil",
     step1Body: "Puestos, habilidades, dónde puedes trabajar. Veinte segundos, casi todo tocando.",
     step2Title: "Buscamos por la noche",
-    step2Body: "Ofertas nuevas de decenas de fuentes, ordenadas para ti, sin duplicados.",
+    step2Body: "Ofertas nuevas de 20+ fuentes, ordenadas para ti, sin duplicados.",
     step3Title: "Lees un correo",
     step3Body: "Una lista corta y ordenada, con un motivo y un enlace para aplicar en cada una.",
     mcta: "Quiero mi resumen",

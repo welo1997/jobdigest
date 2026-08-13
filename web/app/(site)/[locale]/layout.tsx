@@ -32,7 +32,13 @@ export async function generateMetadata(
     title: t.meta.title,
     description: t.meta.description,
     alternates: {
-      canonical: `/${locale}/`,
+      // Deliberately NO blanket `canonical` here. This layout wraps every page under `/[locale]/`,
+      // so a canonical set here is inherited by `/jobs/`, `/privacy/`, `/matches/` and the rest —
+      // which told Google every page was a duplicate of the locale root and stopped them being
+      // indexed on their own. Each page owns its canonical instead: the home self-canonicalises
+      // (no tag needed), and `jobs/layout.tsx`, `privacy/page.tsx`, `terms/page.tsx` set theirs
+      // explicitly. Only the language alternates belong at this level.
+      //
       // Every language points at every other, plus an x-default at the negotiating root. Without
       // these a search engine treats the eight copies as duplicates and picks one on its own.
       languages: {

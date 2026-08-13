@@ -12,7 +12,7 @@ const cs: Messages = {
   meta: {
     title: "JobDigest — nabídky práce, které vám sedí, každé ráno",
     description:
-      "Jeden krátký e-mail denně s vybraným a seřazeným přehledem nabídek, které vám sedí. Tech a CZ+EU na prvním místě. Začátek zdarma.",
+      "Jeden krátký e-mail denně s vybraným a seřazeným přehledem nabídek, které vám sedí. Tech a CZ+EU na prvním místě. Zdarma.",
   },
 
   nav: {
@@ -197,12 +197,12 @@ const cs: Messages = {
     livePreview: "Živá ukázka",
     trustEmail: "Jeden e-mail denně",
     trustUnsub: "Odhlášení jedním kliknutím",
-    trustFree: "Začátek zdarma · 16 zdrojů prohledáváme každou noc",
+    trustFree: "Zdarma · 20+ zdrojů prohledáváme každou noc",
     howItWorks: "Jak to funguje",
     step1Title: "Naklikejte si profil",
     step1Body: "Pozice, dovednosti, kde můžete pracovat. Dvacet vteřin, hlavně klikání.",
     step2Title: "Přes noc hledáme",
-    step2Body: "Čerstvé inzeráty z desítek zdrojů, seřazené pro vás, duplicity pryč.",
+    step2Body: "Čerstvé inzeráty z 20+ zdrojů, seřazené pro vás, duplicity pryč.",
     step3Title: "Přečtete jeden e-mail",
     step3Body: "Krátký seřazený výběr — u každé nabídky důvod a odkaz, kde se přihlásit.",
     mcta: "Chci svůj přehled",

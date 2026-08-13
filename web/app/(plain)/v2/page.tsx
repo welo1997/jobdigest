@@ -381,7 +381,7 @@ export default function Landing() {
             <div className="microtrust">
               <span><Check /> One email a day</span>
               <span><Check /> Unsubscribe in one click</span>
-              <span><Check /> Free to start · 13 sources scanned nightly</span>
+              <span><Check /> Free · 20+ sources scanned nightly</span>
             </div>
           </div>
 
@@ -389,7 +389,7 @@ export default function Landing() {
             <span className="label">How it works</span>
             <div className="steps">
               <div className="step"><div className="num">01</div><h3>Tap your profile</h3><p>Roles, skills, where you can work. Twenty seconds, mostly tapping.</p></div>
-              <div className="step"><div className="num">02</div><h3>We match overnight</h3><p>Fresh postings from dozens of sources, ranked to you, duplicates dropped.</p></div>
+              <div className="step"><div className="num">02</div><h3>We match overnight</h3><p>Fresh postings from 20+ sources, ranked to you, duplicates dropped.</p></div>
               <div className="step"><div className="num">03</div><h3>Read one email</h3><p>A short ranked shortlist with a reason and an apply link for each.</p></div>
             </div>
           </div>

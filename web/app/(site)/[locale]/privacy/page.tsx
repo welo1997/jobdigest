@@ -25,7 +25,19 @@ export async function generateMetadata(
   { params }: { params: Promise<{ locale: string }> }
 ): Promise<Metadata> {
   const { locale } = await params;
-  return { title: TITLE[locale] ?? TITLE.en };
+  return {
+    title: TITLE[locale] ?? TITLE.en,
+    // Self-referencing, or this page inherits the layout's language alternates and canonicalises
+    // to the locale root. The policy exists in en+cs only (LEGAL_LOCALES), so those are the only
+    // hreflang alternates that resolve to a real page.
+    alternates: {
+      canonical: `/${locale}/privacy/`,
+      languages: {
+        ...Object.fromEntries(LEGAL_LOCALES.map((l) => [l, `/${l}/privacy/`])),
+        "x-default": "/en/privacy/",
+      },
+    },
+  };
 }
 
 export default async function PrivacyPage(

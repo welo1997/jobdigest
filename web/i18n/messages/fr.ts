@@ -6,7 +6,7 @@ const fr: Messages = {
   meta: {
     title: "JobDigest — des offres qui vous correspondent, chaque matin",
     description:
-      "Un court e-mail par jour avec une sélection classée d'offres qui vous correspondent. Tech et CZ+EU en priorité. Démarrage gratuit.",
+      "Un court e-mail par jour avec une sélection classée d'offres qui vous correspondent. Tech et CZ+EU en priorité. Gratuit.",
   },
 
   nav: {
@@ -191,12 +191,12 @@ const fr: Messages = {
     livePreview: "Aperçu en direct",
     trustEmail: "Un e-mail par jour",
     trustUnsub: "Désinscription en un clic",
-    trustFree: "Démarrage gratuit · 16 sources parcourues chaque nuit",
+    trustFree: "Gratuit · 20+ sources parcourues chaque nuit",
     howItWorks: "Comment ça marche",
     step1Title: "Composez votre profil",
     step1Body: "Postes, compétences, où vous pouvez travailler. Vingt secondes, surtout des clics.",
     step2Title: "On cherche pendant la nuit",
-    step2Body: "Des annonces fraîches issues de dizaines de sources, classées pour vous, sans doublons.",
+    step2Body: "Des annonces fraîches issues de 20+ sources, classées pour vous, sans doublons.",
     step3Title: "Vous lisez un e-mail",
     step3Body: "Une courte liste classée, avec pour chaque offre une raison et un lien pour postuler.",
     mcta: "Je veux mon digest",

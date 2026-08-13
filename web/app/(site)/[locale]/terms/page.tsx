@@ -18,7 +18,17 @@ export async function generateMetadata(
   { params }: { params: Promise<{ locale: string }> }
 ): Promise<Metadata> {
   const { locale } = await params;
-  return { title: TITLE[locale] ?? TITLE.en };
+  return {
+    title: TITLE[locale] ?? TITLE.en,
+    // Self-referencing — same reasoning as the privacy page. en+cs only.
+    alternates: {
+      canonical: `/${locale}/terms/`,
+      languages: {
+        ...Object.fromEntries(LEGAL_LOCALES.map((l) => [l, `/${l}/terms/`])),
+        "x-default": "/en/terms/",
+      },
+    },
+  };
 }
 
 export default async function TermsPage(

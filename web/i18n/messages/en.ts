@@ -13,7 +13,7 @@ const en: Messages = {
   meta: {
     title: "JobDigest — jobs that fit you, every morning",
     description:
-      "One short email a day with a curated, ranked shortlist of jobs that fit you. Tech/CZ+EU first. Free to start.",
+      "One short email a day with a curated, ranked shortlist of jobs that fit you. Tech/CZ+EU first. Free.",
   },
 
   nav: {
@@ -187,12 +187,16 @@ const en: Messages = {
     livePreview: "Live preview",
     trustEmail: "One email a day",
     trustUnsub: "Unsubscribe in one click",
-    trustFree: "Free to start · 16 sources scanned nightly",
+    // "20+" tracks the live adapter count in `search_jobs.source_classes(include_cz=True)` — the
+    // set the deployed export actually runs (currently 21). A hardcoded exact number is what let
+    // "16" go stale here; "20+" stays true as sources come and go, and — unlike the old copy — it
+    // no longer contradicts step2Body, which used to say "dozens". Keep the two in step.
+    trustFree: "Free · 20+ sources scanned nightly",
     howItWorks: "How it works",
     step1Title: "Tap your profile",
     step1Body: "Roles, skills, where you can work. Twenty seconds, mostly tapping.",
     step2Title: "We match overnight",
-    step2Body: "Fresh postings from dozens of sources, ranked to you, duplicates dropped.",
+    step2Body: "Fresh postings from 20+ sources, ranked to you, duplicates dropped.",
     step3Title: "Read one email",
     step3Body: "A short ranked shortlist with a reason and an apply link for each.",
     mcta: "Get my digest",
