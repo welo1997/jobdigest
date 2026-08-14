@@ -429,7 +429,7 @@ const pl: Messages = {
     cityNeedsCountry: "Najpierw wybierz kraj",
     filterSeniority: "Poziom",
     filterWorkMode: "Tryb pracy",
-    includeRemote: "Także zdalnie",
+    includeRemote: "Zdalnie",
     clearFilters: "Wyczyść filtry",
     loadMore: "Pokaż więcej",
     loadMoreFailed: "Nie udało się wczytać więcej — sprawdź połączenie i spróbuj ponownie.",

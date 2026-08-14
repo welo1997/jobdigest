@@ -416,7 +416,7 @@ const cs: Messages = {
     cityNeedsCountry: "Nejprve vyberte zemi",
     filterSeniority: "Úroveň",
     filterWorkMode: "Forma práce",
-    includeRemote: "I na dálku",
+    includeRemote: "Na dálku",
     clearFilters: "Zrušit filtry",
     loadMore: "Načíst další",
     loadMoreFailed: "Další se nepodařilo načíst — zkontrolujte připojení a zkuste to znovu.",

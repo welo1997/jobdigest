@@ -380,7 +380,7 @@ const fr: Messages = {
     cityNeedsCountry: "Choisissez d'abord un pays",
     filterSeniority: "Niveau",
     filterWorkMode: "Mode de travail",
-    includeRemote: "Inclure le télétravail",
+    includeRemote: "Remote",
     clearFilters: "Effacer les filtres",
     loadMore: "Afficher plus",
     loadMoreFailed: "Impossible d'en charger plus — vérifiez votre connexion et réessayez.",

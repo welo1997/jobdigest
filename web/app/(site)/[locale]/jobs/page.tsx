@@ -42,6 +42,12 @@ import type { Messages } from "@/i18n/schema";
 
 const PAGE = 20;
 
+/** Synthetic value for the "Remote" row that leads the Country menu. It stands in the same
+ *  list as country codes but is not one, so `onToggle` routes it to the `remote` URL param
+ *  instead of the country list. Lower-case and underscored so it can never collide with an
+ *  ISO-3166 alpha-2 code (always two upper-case letters). */
+const REMOTE_OPTION = "__remote__";
+
 /** Tags for one public card. Deliberately the same precedence as `MatchCard.jobTags` and the
  *  digest's `_tags`: hybrid is never also "Remote". Not imported from there because that one
  *  takes a `MatchJob` (which carries a score and a summary this page has neither of). */
@@ -398,10 +404,20 @@ function Inner() {
         />
         <FacetMenu
           label={t.jobs.filterCountry}
-          facets={facets?.countries ?? []}
-          selected={countries}
-          render={(v) => country(v)}
-          onToggle={(v) => apply({ countries: toggle(countries, v) })}
+          // "Remote" leads the Country menu as a location choice. Ticking it WIDENS — it adds
+          // fully-remote jobs to whatever countries are selected (the API ORs the `remote`
+          // param into the location filter), exactly as the old standalone toggle did. It is
+          // not a country, so it flips that param rather than the country list, and it stays
+          // deliberately distinct from the Work-setup menu's "Fully remote", which NARROWS to
+          // remote-only.
+          facets={[{ value: REMOTE_OPTION }, ...(facets?.countries ?? [])]}
+          selected={remote ? [REMOTE_OPTION, ...countries] : countries}
+          render={(v) => (v === REMOTE_OPTION ? t.jobs.includeRemote : country(v))}
+          onToggle={(v) =>
+            v === REMOTE_OPTION
+              ? apply({ remote: !remote })
+              : apply({ countries: toggle(countries, v) })
+          }
         />
         <FacetMenu
           label={t.jobs.filterCity}
@@ -435,17 +451,6 @@ function Inner() {
           render={(v) => t.geo.workModeLabel[v] ?? v}
           onToggle={(v) => apply({ workModes: toggle(workModes, v) })}
         />
-        <button
-          type="button"
-          // Widens, never narrows: the server ORs this into the location filter, so ticking
-          // it *adds* fully-remote jobs to the selected countries. "Remote only" lives in
-          // the Work setup menu; this control answers "jobs I could take from here".
-          className={`skill-menu-btn${remote ? " on" : ""}`}
-          aria-pressed={remote}
-          onClick={() => apply({ remote: !remote })}
-        >
-          {t.jobs.includeRemote}
-        </button>
         {filtering && (
           <button
             type="button"

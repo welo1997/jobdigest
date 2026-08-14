@@ -377,7 +377,7 @@ const es: Messages = {
     cityNeedsCountry: "Elige primero un país",
     filterSeniority: "Nivel",
     filterWorkMode: "Modalidad",
-    includeRemote: "También en remoto",
+    includeRemote: "Remoto",
     clearFilters: "Quitar filtros",
     loadMore: "Cargar más",
     loadMoreFailed: "No se pudo cargar más: comprueba tu conexión e inténtalo de nuevo.",
