@@ -845,16 +845,72 @@ column is set **only for fully-remote rows**: the reach of an on-site Berlin job
 error, and deriving one anyway would fill the column with trivially-`country` rows and make
 coverage look far better than it is.
 
-**Still open, deliberately not in the same commit:** nothing reads the column yet. The UI
-question is genuinely open given 0.5% — an opt-in "work from anywhere" refinement under the
-Country menu surfaces **83 jobs**, and a hard *timezone* filter is worse than that (the offsets
-exist for one source), so extract-and-badge is the likelier shape. **Never silently hide the
-NULLs behind such a filter** — that is this repo's canonical failure mode, and here it would hide
-12% of remote inventory on a promise none of those postings made either way. Deliberately deferred
-on 2026-08-14: **`scope_raw` was still 0 on every source at backfill time** and only fills in as
-each adapter re-ingests over the staleness window, so the boards that publish the cleanest scope
-(WWR at 90% unknown, still on pre-fix stored rows) are the ones today's numbers understate.
-**Re-measure before designing anything**; the column's own by-source report is the check.
+### What `/jobs` does with it: Country means where, Work setup means how
+
+Shipped 2026-08-14, immediately after the above. The measurement said "work from anywhere" is 83
+postings, which killed the obvious feature (an opt-in work-from-anywhere refinement) and pointed at
+a better one — because the useful question was never "is this unrestricted" but **"can I, here,
+hold this job"**.
+
+`remote_reach` alone cannot answer that: `region` covers "Europe", "APAC" and "US or Canada" alike.
+`postings.reach_areas` (migration 022, `geo.REACH_AREAS`) is the second half — which of the areas we
+can name a scope actually includes. Over the 961 multi-country remote postings:
+
+| Country-menu row | postings | |
+|---|---:|---|
+| **EU-International** | 568 | scope includes an EEA country, a European macro-region, or a European timezone band |
+| **North America-International** | 403 | scope includes the US or Canada |
+| — in both | 150 | **the only set where someone in the EEA can hold a US-facing role** |
+| EEA only, closed to North America | 418 | "Europe", "EMEA", "CET ±3" |
+| NA only, **closed to Europeans** | 253 | "Remote, Canada; Remote, US" |
+| neither (APAC / LATAM / Middle East) | 114 | a real region, no row for it |
+
+**The two rows overlap and their counts must never be summed** — that would double-count the 150,
+which are the most interesting postings in the set. It is why `reach_areas` is a `text[]` and not a
+single-valued column: one value would have to pick, and lose them.
+
+**A remote job bound to one country is in neither row.** It sits under its own country, and Work
+setup's "Fully remote" is what says it is remote. That split is what keeps the rows meaningful:
+13 377 of 16 296 active remote postings are single-country, and admitting them would make an
+international row mean nothing. It also replaced the thing that was actually broken — a synthetic
+"Remote" row at the top of the Country menu that ORed *every* fully-remote posting into the location
+filter, so a location control answered a work-arrangement question and a Prague visitor ticking it
+was shown US-only roles.
+
+`eea` is `EEA_COUNTRIES`, **not** `COUNTRIES`: GB is selectable and outside the EEA, so "Australia,
+Canada, New Zealand, United Kingdom, United States" is `na` alone. Same decoupling, and the same
+consequence, as the `eu` remote scope in `location_predicate`.
+
+Three things that were wrong first and are now pinned:
+
+1. **Named countries and macro-regions are unioned, not chosen between.** "Canada, Europe, USA"
+   names two countries *and* a region; reading only the countries filed 26 live postings that a
+   European may hold as North-America-only.
+2. **The timezone patterns read the raw scope text.** `normalise` reduces punctuation to spaces, so
+   "UTC+2" (Europe) and "UTC-8" (California) both become "utc 2" / "utc 8" with the sign — the whole
+   signal — gone. A signed-offset pattern applied to normalised text is a regex that can never
+   match, and it fails silently. They are case-insensitive for the same reason: boards write "CET".
+3. **Both columns come from one `geo.classify_reach` pass.** Read from separate calls, a posting
+   whose scope field says EMEA and whose location says APAC is `region` from the first and filed
+   under the second — and neither column looks wrong on its own.
+
+An unrecognised `intl` id is **dropped**, which widens, so frontend/backend drift on `REACH_AREAS`
+would make the filter silently return every job rather than error. That is why the mirror has its
+own drift test even though the ids are two short strings.
+
+**What is still deferred:** the ~1 400 remote postings whose scope is unstated *and* whose country
+is unresolved are reachable through no Country row at all — only through Work setup = Fully remote
+with no country picked. Nothing is hidden, but the Country menu cannot name them. **Never "fix" that
+by folding them into an international row**: 12% of remote inventory would then carry a promise none
+of those postings made. There is also no row for APAC or LATAM (114 postings) and none for a
+GB-inclusive-but-not-EEA scope, and no timezone filter — the offsets exist for one source only, so a
+hard filter would have a near-empty menu; a badge is the shape if it is ever wanted.
+
+**Re-measure before extending any of this.** `scope_raw` was still 0 on every source when the
+backfill ran, and fills in only as each adapter re-ingests over the staleness window, so the boards
+publishing the cleanest scope fields (WeWorkRemotely, still reading 90% unknown off pre-fix rows)
+are exactly the ones these numbers understate. `backfill_remote_reach`'s own by-source report is the
+check.
 
 ### Measured on 2026-07-29 and deliberately NOT fixed
 

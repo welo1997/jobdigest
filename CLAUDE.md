@@ -165,6 +165,24 @@ Each of these has been broken in production at least once. Reasoning and measure
   beating a stated country ("Anywhere in the United States" read as `anywhere`; a Himalayas
   timezone band read as `region` on all 300 sampled rows). Prose is read through a keyhole:
   a bare "based in" is an employer's head office, not an eligibility rule.
+- **On `/jobs`, Country means *where* and Work setup means *how*.** They were conflated until
+  2026-08-14 by a synthetic "Remote" row at the top of the Country menu that ORed in every
+  fully-remote posting — a location control answering a work-arrangement question, which showed
+  a Prague visitor US-only roles. The Country menu now leads with two **international rows**
+  backed by `postings.reach_areas` (`geo.REACH_AREAS`, mirrored and drift-tested in
+  `web/lib/geo.ts`, sent as the `intl` parameter): **EU-International 568** postings,
+  **North America-International 403**, **150 in both** — and the overlap is the only set in
+  which someone in the EEA can hold a US-facing role, so **the two counts must never be
+  summed**. A remote job bound to one country is in *neither* row: it sits under its own
+  country and Work setup flags it remote. That is what keeps the rows meaningful — 13 377 of
+  16 296 active remote postings are single-country. **`eea` means `EEA_COUNTRIES`, not
+  `COUNTRIES`** (GB is selectable and outside the EEA), the same decoupling as the `eu` remote
+  scope. `remote_reach` and `reach_areas` must come from one `geo.classify_reach` call, or a
+  posting is `region` from its scope field and filed under the area named in its location
+  field. **The timezone patterns read the raw scope text, not `normalise`d output** — the sign
+  in "UTC+2" does not survive normalisation, so a signed pattern on normalised text is a regex
+  that can never match. An unrecognised `intl` id is *dropped*, which widens; so mirror drift
+  makes the filter silently return everything rather than fail.
 - **`postings.eligibility` is a subscriber-specific judgement in a posting-level column**, so
   a constant allowlist over it is always wrong for somebody. `store.eligibility_allowlist`
   derives from `profile["countries"]`, shared by both call sites.
