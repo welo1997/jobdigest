@@ -347,10 +347,11 @@ export interface Messages {
      *  definition per language, shared with the signup form and /matches. */
     filterWorkMode: string;
     /** The "Remote" row that leads the Country menu. It WIDENS: ticking it adds fully-remote
-     *  jobs to the selected places (the API ORs it into the location filter). Read as a
-     *  location choice ("jobs I could take from anywhere"), so a bare "Remote" is right — it
-     *  must NOT read as the Work-setup menu's Fully-remote option, which NARROWS to
-     *  remote-only. */
+     *  jobs to the selected places (the API ORs it into the location filter). "Remote" here is
+     *  a work arrangement — no office attendance — NOT a promise you may work the job from
+     *  anywhere; geographic eligibility is a separate axis this public feed does not gate on.
+     *  A bare "Remote" is right, and it must NOT read as the Work-setup menu's Fully-remote
+     *  option, which NARROWS to remote-only. */
     includeRemote: string;
     clearFilters: string;
     loadMore: string;

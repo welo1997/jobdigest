@@ -1222,6 +1222,15 @@ def _facet_copy(value: dict[str, list[dict]]) -> dict[str, list[dict]]:
     return {k: [dict(f) for f in facets] for k, facets in value.items()}
 
 
+#: Fully remote as the posting's own words describe it — no office attendance. This is a
+#: *work-arrangement* claim, not a *geographic-eligibility* one: a "remote within Germany"
+#: or "US-remote" posting is still `remote_signal is true`. It is the predicate the remote
+#: arm of `_search_where` ORs into the location filter and the one the Remote facet counts,
+#: hoisted to a single definition so the count and the filter can never drift. Hybrid is
+#: deliberately excluded — hybrid is a commute, not remote.
+_REMOTE_SQL = "(p.remote_signal is true or p.work_mode = 'remote')"
+
+
 def _search_where(q: Optional[str] = None,
                   countries: Optional[Iterable[str]] = None,
                   cities: Optional[Iterable[str]] = None,
@@ -1287,8 +1296,8 @@ def _search_where(q: Optional[str] = None,
             place.append("(" + " or ".join(clauses) + ")")
 
     # The posting's own words, never a source's claim — same rule the digest applies.
-    # `work_mode = 'hybrid'` is deliberately excluded: hybrid is not remote.
-    remote_sql = "(p.remote_signal is true or p.work_mode = 'remote')"
+    # `work_mode = 'hybrid'` is deliberately excluded: hybrid is not remote (see `_REMOTE_SQL`).
+    remote_sql = _REMOTE_SQL
     remote_arm = include_remote and skip not in ("countries", "cities")
     if place:
         place_sql = " and ".join(place)
@@ -1395,8 +1404,13 @@ def search_facets(q: Optional[str] = None,
                   work_modes: Optional[Iterable[str]] = None,
                   seniorities: Optional[Iterable[str]] = None,
                   include_remote: bool = False) -> dict[str, list[dict]]:
-    """Category, country and city counts for the current search, each computed with every
-    filter *except its own* — so ticking one option never empties the menu it came from.
+    """Category, country, city and remote counts for the current search, each computed with
+    every filter *except its own* — so ticking one option never empties the menu it came from.
+
+    **`remote` is a single count, not a menu**, returned as a one-row list (`value: "remote"`)
+    so the caller can render it beside the country counts. It leads the Country menu as a
+    location choice; see `_REMOTE_SQL` for what "remote" means (a work arrangement, not a
+    right to work from anywhere).
 
     **`cities` is present only when a country is selected**, and is absent (not empty) the
     rest of the time — the same distinction the API's `facets` key already makes on later
@@ -1462,6 +1476,24 @@ def search_facets(q: Optional[str] = None,
             """, params)
             out[key] = [{"value": r["value"], "count": int(r["count"])}
                         for r in cur.fetchall()]
+
+        # The Remote row's count, in the same shape as a country row so the frontend renders
+        # it identically. Computed with every *non-location* filter applied but no country,
+        # city or `include_remote` — Remote widens across all places, so its own count must
+        # not be narrowed by which country is ticked, exactly as a country facet leaves out
+        # the country filter. Deduped over the same set the list shows. It reuses `_REMOTE_SQL`,
+        # so "what Remote counts" and "what Remote filters" are one definition.
+        rwhere, rparams = _search_where(q, None, None, categories, work_modes, seniorities)
+        rwhere.append(_REMOTE_SQL)
+        cur.execute(f"""
+            select count(*) as count from (
+                select distinct on (coalesce(p.dedup_key, p.posting_id)) 1
+                from postings p
+                where {' and '.join(rwhere)}
+                order by coalesce(p.dedup_key, p.posting_id), p.last_seen_at desc
+            ) d
+        """, rparams)
+        out["remote"] = [{"value": "remote", "count": int(cur.fetchone()["count"])}]
 
     if unfiltered:
         # Two concurrent misses both compute and the second overwrites the first — harmless

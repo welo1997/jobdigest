@@ -859,6 +859,9 @@ def search_jobs_public(
                            if f["value"] in _SEARCH_CATEGORIES],
             "countries": [f for f in facets["countries"]
                           if f["value"] in geo.COUNTRIES],
+            # A single count for the "Remote" row that leads the Country menu. No vocabulary
+            # filtering to do — it is one derived predicate, not a column of raw values.
+            "remote": facets["remote"],
         }
         if "cities" in facets:
             # Filtered to the curated table for the same reason the categories are, though

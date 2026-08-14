@@ -230,6 +230,26 @@ def test_include_remote_does_not_leak_into_the_location_menus():
     assert "software_engineering" in {f["value"] for f in facets["categories"]}
 
 
+def test_the_remote_facet_counts_remote_rows_and_ignores_the_country_picked():
+    """The count beside the "Remote" row in the Country menu. Two remote rows in the corpus
+    (`remote-dev`, `remote-city`), so the count is 2 — and because Remote widens across every
+    place, ticking a country must not change it. A country facet leaves out its own filter;
+    the Remote count leaves out all of location the same way, or it would promise a number the
+    widened list does not deliver."""
+    assert store.search_facets(**scoped())["remote"][0]["count"] == 2
+    # CZ holds no remote row, but the Remote count is location-independent, so it stays 2.
+    assert store.search_facets(countries=["CZ"], **scoped())["remote"][0]["count"] == 2
+
+
+def test_the_remote_facet_still_honours_the_non_location_filters():
+    """It is not a raw corpus count: a category with no remote inventory zeroes it, or the
+    menu would offer a Remote count the filtered list cannot produce. `design` is on-site
+    only here, so ticking it drops the Remote count to nothing."""
+    assert store.search_facets(categories=["design"], **scoped())["remote"][0]["count"] == 0
+    assert store.search_facets(
+        categories=["software_engineering"], **scoped())["remote"][0]["count"] == 2
+
+
 def test_a_city_filter_cannot_escape_its_country():
     """Cities are stored qualified (`cz:prague`) and filtered as (country, city) pairs. A bare
     slug would match a same-named city in another country's table the day one is added."""

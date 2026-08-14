@@ -410,7 +410,7 @@ function Inner() {
           // not a country, so it flips that param rather than the country list, and it stays
           // deliberately distinct from the Work-setup menu's "Fully remote", which NARROWS to
           // remote-only.
-          facets={[{ value: REMOTE_OPTION }, ...(facets?.countries ?? [])]}
+          facets={[{ value: REMOTE_OPTION, count: facets?.remote?.[0]?.count }, ...(facets?.countries ?? [])]}
           selected={remote ? [REMOTE_OPTION, ...countries] : countries}
           render={(v) => (v === REMOTE_OPTION ? t.jobs.includeRemote : country(v))}
           onToggle={(v) =>

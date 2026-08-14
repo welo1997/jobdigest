@@ -441,6 +441,11 @@ export interface SearchResponse {
   facets?: {
     categories: SearchFacet[];
     countries: SearchFacet[];
+    /** A single count (one row, `value: "remote"`) for the "Remote" option that leads the
+     *  Country menu. "Remote" is a work arrangement (no office), not a right to work from
+     *  anywhere — the count is of fully-remote postings under the current non-location
+     *  filters. */
+    remote?: SearchFacet[];
     /** `cz:prague` pairs, present only when a country is filtered on — absent, never empty,
      *  so "no country picked yet" and "this country has no cities" stay distinguishable. */
     cities?: SearchFacet[];
