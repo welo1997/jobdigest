@@ -33,7 +33,8 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Nav, Footer } from "@/components/SiteChrome";
 import { searchJobs, searchQuery, type SearchFacet, type SearchJob, type SearchResponse } from "@/lib/api";
 import { categoryLabel } from "@/lib/options";
-import { cityLabel, splitCity, WORK_MODES } from "@/lib/geo";
+import { cityLabel, cleanReachAreas, REACH_AREAS, splitCity, WORK_MODES,
+         type ReachArea } from "@/lib/geo";
 import { SENIORITY_IDS } from "@/lib/options";
 import { safeHref } from "@/lib/url";
 import { track } from "@/lib/analytics";
@@ -42,11 +43,21 @@ import type { Messages } from "@/i18n/schema";
 
 const PAGE = 20;
 
-/** Synthetic value for the "Remote" row that leads the Country menu. It stands in the same
- *  list as country codes but is not one, so `onToggle` routes it to the `remote` URL param
- *  instead of the country list. Lower-case and underscored so it can never collide with an
- *  ISO-3166 alpha-2 code (always two upper-case letters). */
-const REMOTE_OPTION = "__remote__";
+/** Synthetic values for the two international rows that lead the Country menu, one per
+ *  `REACH_AREAS` id. They stand in the same list as country codes but are not countries, so
+ *  `onToggle` routes them to the `intl` URL param instead of the country list. Lower-case and
+ *  underscored so they can never collide with an ISO-3166 alpha-2 code (always two upper-case
+ *  letters), and *derived* from the area id rather than written out, so adding a third area
+ *  cannot leave a sentinel behind that maps to nothing.
+ *
+ *  They replaced a single "Remote" row on 2026-08-14. That row ORed every fully-remote posting
+ *  into the location filter, so a location control was answering a work-arrangement question and
+ *  a Prague visitor ticking it was shown US-only roles they cannot legally take. Country now
+ *  means *where*; the Work-setup menu is the only thing that asks *how*. */
+const intlOption = (area: ReachArea) => `__intl_${area}__`;
+const INTL_OPTIONS: Record<string, ReachArea> = Object.fromEntries(
+  REACH_AREAS.map((a) => [intlOption(a), a])
+);
 
 /** Tags for one public card. Deliberately the same precedence as `MatchCard.jobTags` and the
  *  digest's `_tags`: hybrid is never also "Remote". Not imported from there because that one
@@ -217,7 +228,9 @@ function Inner() {
   const categories = params.getAll("category");
   const seniorities = params.getAll("seniority");
   const workModes = params.getAll("work_mode");
-  const remote = params.get("remote") === "true";
+  // Cleaned here as well as on the server: an id the API would drop must not render as a ticked
+  // chip, or the visitor sees a filter we are not honouring.
+  const intl = cleanReachAreas(params.getAll("intl"));
 
   const [text, setText] = useState(q);
   const [data, setData] = useState<SearchResponse | null>(null);
@@ -231,7 +244,7 @@ function Inner() {
   // dependencies without refetching forever. The serialised query is stable for an unchanged
   // search, which is exactly the identity we want.
   const key = useMemo(
-    () => searchQuery({ q, countries, cities, categories, seniorities, workModes, remote }).toString(),
+    () => searchQuery({ q, countries, cities, categories, seniorities, workModes, intl }).toString(),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [params.toString()]
   );
@@ -240,7 +253,7 @@ function Inner() {
   // what decides whether this page answers at all.
   const filtering =
     Boolean(q) || countries.length > 0 || cities.length > 0 || categories.length > 0 ||
-    seniorities.length > 0 || workModes.length > 0 || remote;
+    seniorities.length > 0 || workModes.length > 0 || intl.length > 0;
 
   useEffect(() => {
     let cancelled = false;
@@ -256,7 +269,7 @@ function Inner() {
     // (`SEARCH_LIMIT_MAX` guards the other end), so one row is the cheapest legal request and
     // it is discarded below. Facets are computed on `offset == 0` regardless, which is the
     // part we are actually here for.
-    searchJobs({ q, countries, cities, categories, seniorities, workModes, remote,
+    searchJobs({ q, countries, cities, categories, seniorities, workModes, intl,
                  limit: filtering ? PAGE : 1 })
       .then((d) => {
         if (cancelled) return;
@@ -284,7 +297,7 @@ function Inner() {
   /** Rewrite the URL, which is what actually triggers a refetch. `scroll: false` because a
    *  filter change should leave the reader where they were. */
   const apply = useCallback(
-    (next: Partial<{ q: string; countries: string[]; cities: string[]; categories: string[]; seniorities: string[]; workModes: string[]; remote: boolean }>) => {
+    (next: Partial<{ q: string; countries: string[]; cities: string[]; categories: string[]; seniorities: string[]; workModes: string[]; intl: string[] }>) => {
       const nextCountries = next.countries ?? countries;
       // **A city cannot outlive the country it belongs to.** Unticking Czechia has to take
       // `cz:prague` with it: the server already refuses such a pair (`geo.clean_cities`
@@ -302,7 +315,7 @@ function Inner() {
         categories: next.categories ?? categories,
         seniorities: next.seniorities ?? seniorities,
         workModes: next.workModes ?? workModes,
-        remote: next.remote ?? remote,
+        intl: next.intl ?? intl,
       }).toString();
       router.replace(`?${s}`, { scroll: false });
     },
@@ -333,7 +346,10 @@ function Inner() {
     setMoreErr(false);
     try {
       const d = await searchJobs({
-        q, countries, categories, seniorities, remote,
+        // Every filter, not a subset. `cities` and `workModes` were missing until 2026-08-14, so
+        // "Load more" on a city- or work-setup-filtered search appended rows that ignored those
+        // two filters — a silent widening on page two only, which is why nobody saw it.
+        q, countries, cities, categories, seniorities, workModes, intl,
         limit: PAGE, offset: jobs.length,
       });
       setJobs((prev) => [...prev, ...d.jobs]);
@@ -404,18 +420,32 @@ function Inner() {
         />
         <FacetMenu
           label={t.jobs.filterCountry}
-          // "Remote" leads the Country menu as a location choice. Ticking it WIDENS — it adds
-          // fully-remote jobs to whatever countries are selected (the API ORs the `remote`
-          // param into the location filter), exactly as the old standalone toggle did. It is
-          // not a country, so it flips that param rather than the country list, and it stays
-          // deliberately distinct from the Work-setup menu's "Fully remote", which NARROWS to
-          // remote-only.
-          facets={[{ value: REMOTE_OPTION, count: facets?.remote?.[0]?.count }, ...(facets?.countries ?? [])]}
-          selected={remote ? [REMOTE_OPTION, ...countries] : countries}
-          render={(v) => (v === REMOTE_OPTION ? t.jobs.includeRemote : country(v))}
+          // The two international rows lead the Country menu as location choices: "where may I
+          // live", the same question every country row answers. Ticking one WIDENS — it adds the
+          // postings whose remote scope reaches that area to whatever countries are selected (the
+          // API ORs `intl` into the location filter).
+          //
+          // A remote job bound to one country is NOT here — it sits under that country, and the
+          // Work-setup menu's "Fully remote" is what says it is remote. That split is the point:
+          // these rows are places, that menu is an arrangement, and one control conflating them
+          // is what showed a Prague visitor US-only roles.
+          //
+          // The two counts overlap and deliberately do not sum: a scope reading "North America or
+          // Europe" is counted under both.
+          facets={[
+            ...REACH_AREAS.map((a) => ({
+              value: intlOption(a),
+              count: facets?.reach_areas?.find((f) => f.value === a)?.count,
+            })),
+            ...(facets?.countries ?? []),
+          ]}
+          selected={[...intl.map(intlOption), ...countries]}
+          render={(v) =>
+            INTL_OPTIONS[v] ? (INTL_OPTIONS[v] === "eea" ? t.jobs.intlEea : t.jobs.intlNa) : country(v)
+          }
           onToggle={(v) =>
-            v === REMOTE_OPTION
-              ? apply({ remote: !remote })
+            INTL_OPTIONS[v]
+              ? apply({ intl: toggle(intl, INTL_OPTIONS[v]) })
               : apply({ countries: toggle(countries, v) })
           }
         />

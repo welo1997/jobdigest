@@ -346,13 +346,23 @@ export interface Messages {
     /** Work setup. Its option labels come from `geo.workModeLabel`, not from here — one
      *  definition per language, shared with the signup form and /matches. */
     filterWorkMode: string;
-    /** The "Remote" row that leads the Country menu. It WIDENS: ticking it adds fully-remote
-     *  jobs to the selected places (the API ORs it into the location filter). "Remote" here is
-     *  a work arrangement — no office attendance — NOT a promise you may work the job from
-     *  anywhere; geographic eligibility is a separate axis this public feed does not gate on.
-     *  A bare "Remote" is right, and it must NOT read as the Work-setup menu's Fully-remote
-     *  option, which NARROWS to remote-only. */
-    includeRemote: string;
+    /** The two international rows that lead the Country menu, keyed by `geo.REACH_AREAS`. They
+     *  WIDEN: ticking one adds the postings whose remote scope reaches that area to the selected
+     *  places (the API ORs them into the location filter).
+     *
+     *  **These are places, not work arrangements.** They replaced a single "Remote" row on
+     *  2026-08-14 that ORed in every fully-remote posting — so a location control answered a
+     *  work-arrangement question, and a Prague visitor ticking it was shown US-only roles they
+     *  cannot legally take. A remote job bound to one country now sits under that country and is
+     *  flagged by the Work-setup menu's Fully-remote option instead.
+     *
+     *  So the copy must say *where you may live*, not *that the job is remote*. `intlEea` is
+     *  "roles you can do from anywhere in the EU/EEA", `intlNa` the same for the US and Canada.
+     *  **`intlNa` must not imply a European can take those roles** — most cannot; the two sets
+     *  overlap only partly, and the overlap is what `intlEea` already shows. Neither may read as
+     *  the Work-setup menu's Fully-remote option, which NARROWS to remote-only. */
+    intlEea: string;
+    intlNa: string;
     clearFilters: string;
     loadMore: string;
     loadMoreFailed: string;

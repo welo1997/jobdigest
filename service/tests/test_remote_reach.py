@@ -281,3 +281,145 @@ def test_reach_ids_are_ordered_widest_first():
     order of this tuple is load-bearing rather than cosmetic."""
     assert geo.REACH_IDS == ("anywhere", "region", "country")
     assert set(geo.REACH_LABELS) == set(geo.REACH_IDS)
+
+
+# --- which areas a multi-country scope reaches -----------------------------------------
+#
+# `remote_reach` gives the breadth; this gives the place. The two are computed from one pass over
+# the same text (`geo.classify_reach`), because reading them from separate calls lets a posting be
+# `region` on the strength of its scope field and filed under the area named in its location field.
+
+@pytest.mark.parametrize("scope, expected", [
+    # Unrestricted reaches everything.
+    ("Worldwide", ["eea", "na"]),
+    ("Anywhere", ["eea", "na"]),
+    ("Global", ["eea", "na"]),
+    # Europe, in the many ways boards write it.
+    ("Europe", ["eea"]),
+    ("EMEA", ["eea"]),
+    ("Remote-EMEA", ["eea"]),
+    ("Remote-Western Europe", ["eea"]),
+    ("Remote-Nordics", ["eea"]),
+    ("Remote-DACH", ["eea"]),
+    ("Remote-Iberia", ["eea"]),
+    ("Remote (EU-based creators only)", ["eea"]),
+    ("Anywhere in France, Belgium, Spain", ["eea"]),
+    ("Remote, Austria; Remote, France; Remote, Germany", ["eea"]),
+    ("Ireland,  UK", ["eea"]),
+    # North America.
+    ("North America", ["na"]),
+    ("AMER", ["na"]),
+    ("Remote, Canada; Remote, US", ["na"]),
+    ("Remote in the United States or Canada", ["na"]),
+    ("United States or Canada - Remote Opportunity", ["na"]),
+    ("Israel, United States", ["na"]),
+    # Both — the interesting set.
+    ("Canada,  Europe,  USA", ["eea", "na"]),
+    ("Remote | North America or Europe", ["eea", "na"]),
+    ("Europe, North America, Latin America, APAC", ["eea", "na"]),
+    ("EMEA,  LATAM,  Canada,  USA", ["eea", "na"]),
+    # Neither: a real region, just not one we can name a row for.
+    ("APAC", []),
+    ("LATAM", []),
+    ("Remote-South America", []),
+    ("Middle East", []),
+    ("Argentina, Brazil, Mexico", []),
+    # Not a multi-country scope at all.
+    ("Germany", []),
+    ("USA", []),
+    ("Remote, Bangalore", []),
+    ("Remote", []),
+    (None, []),
+])
+def test_which_areas_a_scope_reaches(scope, expected):
+    assert geo.reach_areas(scope) == expected
+
+
+def test_the_united_kingdom_is_not_the_eea():
+    """`eea` means `EEA_COUNTRIES`, not `COUNTRIES`. GB is selectable and is not in the EEA.
+
+    Merging the two sets here would tell a Czech visitor that a UK-only role is open to them. Same
+    rule, and the same consequence, as the `EEA_COUNTRIES` decoupling in `location_predicate`.
+    """
+    assert geo.reach_areas("Australia, Canada, New Zealand, United Kingdom, United States") == ["na"]
+    assert geo.reach_areas("Moldova, Serbia, United Kingdom") == []
+    # Add one EEA country and it qualifies — the rule is membership, not word count.
+    assert geo.reach_areas("Moldova, Serbia, United Kingdom, Ireland") == ["eea"]
+
+
+def test_a_country_bound_scope_reaches_no_area():
+    """The half of the design that makes the Country menu coherent: a Germany-remote job belongs
+    under Germany, so it must reach no international area at all. Otherwise EU-International would
+    fill up with single-country work-from-home roles and mean nothing."""
+    for scope in ("Germany", "Remote, Italy", "Remote in the United States",
+                  "United States | UTC-10..UTC-5, UTC+14", "Texas, USA"):
+        reach, areas = geo.classify_reach(scope)
+        assert reach == "country", scope
+        assert areas == [], scope
+
+
+def test_a_named_country_and_a_macro_region_are_unioned_not_chosen_between():
+    """"Canada, Europe, USA" names two countries *and* a region, and reading only the countries
+    files a role a European may hold as North-America-only. Found on 26 live postings while
+    measuring; it moved 26 of them from `na` to `eea, na`."""
+    assert geo.reach_areas("Canada,  Europe,  USA") == ["eea", "na"]
+    assert geo.reach_areas("EMEA,  LATAM,  Canada,  USA") == ["eea", "na"]
+
+
+def test_a_timezone_band_is_read_from_the_raw_text_not_the_normalised_one():
+    """`geo.normalise` reduces punctuation to spaces, so "UTC+2" and "UTC-8" both become "utc 2"
+    and "utc 8" with the sign — the entire signal — gone. A signed-offset pattern applied to
+    normalised text is a regex that can never match, and it fails silently.
+
+    Europe is UTC+0..+3, North America UTC-4..-10, and those are opposite answers.
+    """
+    assert geo.reach_areas("UTC+0") == ["eea"]
+    assert geo.reach_areas("UTC+2") == ["eea"]
+    assert geo.reach_areas("GMT+1") == ["eea"]
+    assert geo.reach_areas("UTC-8..UTC-5") == ["na"]
+    # Named European zones survive normalisation and are matched case-insensitively, because
+    # boards write "CET", not "cet".
+    assert geo.reach_areas("CET (+/- 3 hours)") == ["eea"]
+    assert geo.reach_areas("Time zone: CET (+/- 3 hours)") == ["eea"]
+
+
+def test_the_areas_come_from_the_same_field_as_the_verdict():
+    """A posting whose scope field says EMEA and whose location says APAC is `region` from the
+    scope field — the trusted layer — so its area must come from the scope field too.
+
+    Reading the two from separate passes would file it under the wrong continent, and neither
+    column would look wrong on its own.
+    """
+    assert geo.classify_reach("EMEA", "APAC") == ("region", ["eea"])
+    assert geo.classify_reach("APAC", "Europe") == ("region", [])
+    # With no scope field, the location answers both halves.
+    assert geo.classify_reach(None, "Europe") == ("region", ["eea"])
+
+
+def test_classify_reach_agrees_with_the_two_single_purpose_functions():
+    """`ingest` and the backfill call `classify_reach`; the tests and `/jobs` reason about
+    `remote_reach`. If the three disagree the column means one thing and the filter another."""
+    for scope in ("Worldwide", "Europe", "APAC", "Canada, Europe, USA", "Germany", "Remote", None):
+        assert geo.classify_reach(scope) == (geo.remote_reach(scope), geo.reach_areas(scope))
+
+
+def test_clean_reach_areas_drops_what_it_does_not_know():
+    """These arrive from a public URL parameter, and dropping can only widen — an empty list means
+    the international rows were never ticked, so the search falls back to every place."""
+    assert geo.clean_reach_areas(["eea", "na"]) == ["eea", "na"]
+    assert geo.clean_reach_areas(["na", "eea"]) == ["eea", "na"], "REACH_AREAS order, not the input's"
+    assert geo.clean_reach_areas("eea,na") == ["eea", "na"]
+    assert geo.clean_reach_areas(["EEA", " na "]) == ["eea", "na"]
+    assert geo.clean_reach_areas(["eea", "eea"]) == ["eea"]
+    for junk in (None, "", [], ["apac"], ["worldwide"], ["country"], 7, 0.5, object()):
+        assert geo.clean_reach_areas(junk) == [], junk
+    assert geo.clean_reach_areas(["apac", "latam"]) == []
+    # A dict is iterable over its keys, and a `{"eea": ...}` body would otherwise pass by
+    # accident — pinned so the type check stays a type check.
+    assert geo.clean_reach_areas({"eea": True}) == []
+
+
+def test_the_area_ids_are_stable_and_labelled():
+    """The ids are sent verbatim as the `intl` query parameter and mirrored in web/lib/geo.ts."""
+    assert geo.REACH_AREAS == ("eea", "na")
+    assert set(geo.REACH_AREA_LABELS) == set(geo.REACH_AREAS)

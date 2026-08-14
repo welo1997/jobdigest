@@ -791,6 +791,56 @@ REACH_LABELS = {
     "country": "Remote within one country",
 }
 
+# --- and *which* areas it reaches ----------------------------------------------
+#
+# `remote_reach` measures the *breadth* of a scope. It cannot answer the question `/jobs` actually
+# asks, which is "could I, here, hold this job" — `region` covers "Europe", "APAC" and "US or
+# Canada" alike, and only one of those is any use to someone in Prague. `reach_areas` is the
+# second half: which of the areas we can name does a multi-country scope actually include.
+#
+# Two areas, because those are the two the product serves (`COUNTRIES` is the EEA plus GB, US and
+# CA). They **overlap by design** — a scope reading "North America or Europe" is in both, and that
+# overlap is the only set in which someone in the EEA can hold a US-facing role.
+#
+#   eea   the scope includes at least one EEA country, or a European macro-region or timezone band
+#   na    the scope includes the US or Canada, or a North-American macro-region
+#
+# **Only computed for `anywhere` and `region`.** A single-country scope is already answered by the
+# country filter — a Germany-remote job belongs under Germany, not under an international heading —
+# so `country` and unknown reaches get an empty list. Empty is also what an unreadable scope gets,
+# and it passes every filter rather than being hidden: the same rule as `skills`, `work_mode` and
+# `education_min`.
+#
+# `EEA_COUNTRIES` is used rather than `COUNTRIES` deliberately, and the difference is not cosmetic:
+# GB is selectable but is *not* in the EEA, so "Australia, Canada, New Zealand, United Kingdom,
+# United States" is `na` and not `eea`. Merging the two sets here would silently tell a Czech
+# visitor that a UK-only role is open to them. See the `COUNTRIES` / `EEA_COUNTRIES` rule.
+
+REACH_AREAS = ("eea", "na")
+REACH_AREA_LABELS = {"eea": "EU-International", "na": "North America-International"}
+#: The `na` area in selectable-country terms. Mexico is North America geographically and is not
+#: here, because nothing in `COUNTRIES` can select it and an area nobody can pick grants nothing.
+_NA_COUNTRIES = frozenset({"US", "CA"})
+
+# Macro-regions and timezone bands that contain the EEA. "EMEA" is Europe + Middle East + Africa,
+# so it counts; "MENA" is Middle East + North Africa and does not, which is why it is absent.
+_EEA_AREA = re.compile(
+    r"\b(europe|european|eu|eea|emea|dach|benelux|nordics|nordic|baltics|cee|schengen"
+    r"|eurozone|iberia)\b")
+# European timezones. `bst` and `wet` are deliberately absent: BST is British and GB is not in the
+# EEA, and "wet" is an ordinary English word. UTC+0 is Ireland and Portugal, so it counts.
+#: Case-insensitive because, unlike every other pattern here, these two run against the **raw**
+#: scope text rather than `normalise`d output — the sign in "UTC+2" does not survive normalisation.
+#: Boards write "CET", not "cet".
+_EEA_TZ = re.compile(r"\b(cet|cest|eet|eest)\b|\b(utc|gmt)\s*\+\s*[0-3]\b", re.I)
+# North America. `latam`, "south america" and "central america" are absent on purpose — they name
+# the half of the Americas that grants nothing in the US or Canada.
+_NA_AREA = re.compile(r"\b(north america|americas|amer|nam)\b")
+# Only the offset form. The bare abbreviations (EST/CST/PST/MST) are left out for the reason given
+# on `_TIMEZONE_BAND`: "est" is a word in three European languages. The cost is nil — a role bound
+# to US timezones names the US, and a named country is read before any band.
+_NA_TZ = re.compile(r"\b(utc|gmt)\s*-\s*([4-9]|10)\b", re.I)
+
 # Matched against the scope/location field, never body copy. "global" is safe here and would be
 # hopeless there — a description says "a global leader in" and means nothing about eligibility.
 _ANYWHERE_SCOPE = re.compile(
@@ -822,7 +872,12 @@ _MACRO_REGION = re.compile(
     r"\b(europe|european|eu|eea|emea|apac|asia pacific|asiapac|latam|latin america"
     r"|north america|south america|central america|americas|africa|oceania|middle east|mena"
     r"|asia|anz|dach|benelux|nordics|nordic|baltics|cee|schengen|eurozone"
-    r"|commonwealth)\b")
+    # `amer` and `nam` are the North-American members of the AMER/EMEA/APAC trio that large
+    # employers write their regions in, and `iberia` of the sub-European set alongside DACH and
+    # the Nordics. Added 2026-08-14 after "AMER" and "Remote-Iberia" turned up as scope fields
+    # this list could not read — a scope naming a region we cannot parse falls through to
+    # unknown, which is safe but loses a row the visitor could have used.
+    r"|commonwealth|amer|nam|iberia)\b")
 # A timezone band is a geographic scope too, and a wide one: "CET (+/- 3 hours)" spans some
 # thirty countries, so it means "abroad, within this band" rather than any single country.
 #
@@ -970,42 +1025,131 @@ def remote_reach(scope_raw: Optional[str] = None,
     claiming a country-bound role is open worldwide sends someone to an application they cannot
     legally take, so every rule is a positive detection and nothing is inferred from silence.
     """
+    return _classify_reach(scope_raw, location, description)[0]
+
+
+def _classify_reach(scope_raw: Optional[str] = None,
+                    location: Optional[str] = None,
+                    description: Optional[str] = None) -> tuple[Optional[str], str]:
+    """``(reach, the normalised text that decided it)``.
+
+    The second half exists so `reach_areas` reads **the same field the verdict came from**. Doing
+    it any other way lets the two columns describe different sentences: a posting whose scope field
+    says "EMEA" and whose location says "APAC" would be stored `region` (from the scope field, the
+    trusted layer) with areas taken from the location — filed under the wrong continent, and no
+    test comparing the columns pairwise would look wrong because each is individually defensible.
+    """
     for field in (scope_raw, location):
         hit = _reach_of_scope(field)
         if hit:
-            return hit
+            # The **raw** field, not the normalised one. `normalise` reduces punctuation to spaces,
+            # so "UTC+2" and "UTC-8" both arrive as "utc 2" / "utc 8" with the sign gone — and a
+            # signed-offset pattern applied to normalised text is a regex that can never match,
+            # which is a silent miss rather than an error. `_areas_of` normalises for the country
+            # and macro-region passes and keeps the raw text for the timezone offsets.
+            return hit, (field or "")
 
     text = normalise(description)[:4000]
     if not text:
-        return None
+        return None, ""
     # Narrowest wins among the right-to-work windows, and they are read *before* any
     # work-from-anywhere phrasing: an ad naming both "the EU" and "Germany" is telling you about
     # the entity and the seat, and the seat is the binding half. Same reason "we can only hire in
     # the US and Canada" has to outrank a cheerful "work from anywhere" in the perks list — one
     # of those two sentences is the one that stops an application.
     best: Optional[str] = None
+    best_text = ""
     for m in _TEXT_BOUND.finditer(text):
         scope = m.group("scope")
         cut = _MARKUP_BREAK.search(scope)
-        hit = _reach_of_scope(scope[:cut.start()] if cut else scope)
+        window = scope[:cut.start()] if cut else scope
+        hit = _reach_of_scope(window)
         if hit is None:
             continue
         if best is None or REACH_IDS.index(hit) > REACH_IDS.index(best):
-            best = hit
+            best, best_text = hit, window
     if best:
-        return best
+        return best, best_text
     m = _ANYWHERE_TEXT.search(text)
     if not m:
-        return None
+        return None, ""
     # "Anywhere in the world, as long as you are between UTC-5 and UTC+2" is a band, not a grant.
     window = text[max(0, m.start() - _ANYWHERE_WINDOW):m.end() + _ANYWHERE_WINDOW]
-    return "region" if _TIMEZONE_BAND.search(window) else "anywhere"
+    return ("region", window) if _TIMEZONE_BAND.search(window) else ("anywhere", window)
+
+
+def _areas_of(reach: Optional[str], raw: str) -> list[str]:
+    """Which of `REACH_AREAS` a multi-country scope grants. Order follows `REACH_AREAS`.
+
+    ``raw`` is the scope text as the board wrote it. The country and macro-region passes run on the
+    normalised form; the timezone-offset patterns run on ``raw``, because normalisation deletes the
+    sign and "UTC+2" (Europe) and "UTC-8" (California) are the same string once it has.
+    """
+    if reach == "anywhere":
+        # No restriction stated, so both areas are reached. This is the one place the two
+        # options overlap wholesale, and it is why the `anywhere` rows are the good half of
+        # both counts.
+        return list(REACH_AREAS)
+    if reach != "region":
+        # `country` is answered by the country filter itself; None means nobody said. Neither
+        # belongs under an international heading, and an empty list narrows nothing.
+        return []
+    countries, residue = countries_named(raw)
+    # Union, never either/or. "Canada, Europe, USA" names two countries *and* a macro-region, and
+    # stopping at the countries files a role a European may hold as North-America-only — found
+    # while measuring, on 26 live postings.
+    eea = bool(countries & set(EEA_COUNTRIES)) or bool(
+        _EEA_AREA.search(residue) or _EEA_TZ.search(raw))
+    na = bool(countries & _NA_COUNTRIES) or bool(
+        _NA_AREA.search(residue) or _NA_TZ.search(raw))
+    return [area for area, hit in (("eea", eea), ("na", na)) if hit]
+
+
+def reach_areas(scope_raw: Optional[str] = None,
+                location: Optional[str] = None,
+                description: Optional[str] = None) -> list[str]:
+    """Which named areas a fully-remote posting's scope reaches: ``["eea"]``, ``["eea", "na"]``, …
+
+    Empty means "not a multi-country scope, or we could not read which areas" — and empty must
+    narrow nothing, on the same rule as `skills`. A scope naming both Europe and North America
+    returns both, which is correct rather than sloppy: it is exactly the set in which someone in
+    the EEA can hold a US-facing role.
+
+    Read `reach_areas` and `remote_reach` from `classify_reach` when you need both — computing them
+    from separate calls is the same work twice and invites them to drift.
+    """
+    reach, text = _classify_reach(scope_raw, location, description)
+    return _areas_of(reach, text)
+
+
+def classify_reach(scope_raw: Optional[str] = None,
+                   location: Optional[str] = None,
+                   description: Optional[str] = None
+                   ) -> tuple[Optional[str], list[str]]:
+    """``(remote_reach, reach_areas)`` in one pass — what `ingest` and the backfill both store."""
+    reach, text = _classify_reach(scope_raw, location, description)
+    return reach, _areas_of(reach, text)
 
 
 def clean_remote_reach(value: Any) -> Optional[str]:
     """The stored/queried form of a reach value, or None for anything unrecognised."""
     v = str(value or "").strip().lower()
     return v if v in REACH_IDS else None
+
+
+def clean_reach_areas(values: Any) -> list[str]:
+    """The queried form of an area list: recognised ids only, in `REACH_AREAS` order, deduped.
+
+    The public `/jobs` feed passes these straight from a URL parameter, so an unrecognised id must
+    be dropped rather than reaching SQL — and dropping it can only ever *widen*, because an empty
+    list means the international filter was not asked for.
+    """
+    if isinstance(values, str):
+        values = values.split(",")
+    if not isinstance(values, (list, tuple, set, frozenset)):
+        return []
+    given = {str(v).strip().lower() for v in values}
+    return [area for area in REACH_AREAS if area in given]
 
 
 # --- preference values ---------------------------------------------------------

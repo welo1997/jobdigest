@@ -799,7 +799,7 @@ def search_jobs_public(
     category: list[str] = Query(default_factory=list),
     work_mode: list[str] = Query(default_factory=list),
     seniority: list[str] = Query(default_factory=list),
-    remote: bool = False,
+    intl: list[str] = Query(default_factory=list),
     limit: int = 20,
     offset: int = 0,
 ) -> dict:
@@ -811,12 +811,15 @@ def search_jobs_public(
     it. Logging queries here would need that page to change in the same commit (security
     rule 4); the cheaper and better answer is not to.
 
-    **`remote=true` widens, never narrows** — it adds fully-remote postings to whatever
-    places are selected, as one more place in the location union (see
-    `store._search_where`). It is deliberately not scoped by the selected country: a browse
-    page has no subscriber whose eligibility could scope it, and that precision belongs to
-    the digest's `location_predicate`, which has a real `remote_scope` to read. The visitor
-    who wants *only* remote work has the `work_mode` filter, or this flag with no country.
+    **`intl` widens, never narrows** — each area (`eea`, `na`) adds the postings whose remote scope
+    reaches it, as one more place in the location union (see `store._search_where`). It replaced a
+    `remote=true` flag on 2026-08-14: that one added *every* fully-remote posting, so a location
+    control answered a work-arrangement question and a Prague visitor ticking it was shown US-only
+    roles they cannot legally take. Country now means *where*; the visitor who wants only remote
+    work has the `work_mode` filter.
+
+    The areas are validated by `geo.clean_reach_areas`, which drops an unrecognised id — and
+    dropping can only widen, since an empty list means the international rows were never ticked.
 
     **Facets are computed on the first page only.** They do not change as you page, so
     recomputing them for `offset=20` would be two extra aggregates per scroll for a value the
@@ -834,10 +837,11 @@ def search_jobs_public(
     # countries are also given — one whose country is not among them. That is the same rule
     # the subscription form applies, so a city filter cannot outlive the country it belongs to.
     cities = geo.clean_cities(city, countries or None)
+    areas = geo.clean_reach_areas(intl)
 
     rows, total, capped = store.search_postings(
         q=q, countries=countries, cities=cities, categories=categories,
-        work_modes=work_modes, seniorities=seniorities, include_remote=remote,
+        work_modes=work_modes, seniorities=seniorities, reach_areas=areas,
         limit=limit, offset=offset)
 
     out: dict = {
@@ -848,7 +852,7 @@ def search_jobs_public(
     if offset == 0:
         facets = store.search_facets(
             q=q, countries=countries, cities=cities, categories=categories,
-            work_modes=work_modes, seniorities=seniorities, include_remote=remote)
+            work_modes=work_modes, seniorities=seniorities, reach_areas=areas)
         # The category facet is filtered to the canonical vocabulary *here*, which is the one
         # place that can import it. Production still holds ~1 058 rows whose `role_category`
         # is a raw Swedish SSYK label ("Butikssäljare, fackhandel") from the 2026-08-08 hint
@@ -859,9 +863,9 @@ def search_jobs_public(
                            if f["value"] in _SEARCH_CATEGORIES],
             "countries": [f for f in facets["countries"]
                           if f["value"] in geo.COUNTRIES],
-            # A single count for the "Remote" row that leads the Country menu. No vocabulary
-            # filtering to do — it is one derived predicate, not a column of raw values.
-            "remote": facets["remote"],
+            # One count per international row leading the Country menu. No vocabulary filtering
+            # to do — `search_facets` emits exactly `geo.REACH_AREAS`, in that order.
+            "reach_areas": facets["reach_areas"],
         }
         if "cities" in facets:
             # Filtered to the curated table for the same reason the categories are, though

@@ -1,10 +1,13 @@
-"""Backfill `postings.remote_reach` for existing postings (migration 021).
+"""Backfill `postings.remote_reach` and `postings.reach_areas` (migrations 021 and 022).
 
-Migration 021 adds the column, but SQL cannot fill it: deciding that "Anywhere in the United
+The migrations add the columns, but SQL cannot fill them: deciding that "Anywhere in the United
 States" is a *US-only* role while "Anywhere in the World" is not needs the country tables and the
-precedence rules in `service/geo.py`. The daily ingest fills it for everything still being
-re-listed; without this, the new filter has nothing to act on for a full staleness window and
+precedence rules in `service/geo.py`. The daily ingest fills them for everything still being
+re-listed; without this, the new filters have nothing to act on for a full staleness window and
 postings that stopped being re-listed would never get a value at all.
+
+Both columns come from one `geo.classify_reach` call, which is what stops a posting being `region`
+on the strength of its scope field and filed under the area named in its location field.
 
 **Read the expected result before running it, or it will look broken.**
 
@@ -19,11 +22,10 @@ ashby is not what the corpus looks like. **Quote the full-corpus numbers.** The 
 that it made per-source auditing cheap, not that it estimated the total.)
 
 `anywhere` really is a fraction of a percent — 83 postings — and that is the finding rather than a
-bug: "remote" in
-this corpus almost always means work from home in one named country, because that is where the
-employer runs payroll. A run that reports a few hundred `anywhere` rows out of tens of thousands
-is working correctly. A run that reports many thousands is a false-positive bug, and the first
-thing to check is whether a wide signal has started outranking a named country — all three
+bug: "remote" in this corpus almost always means work from home in one named country, because that
+is where the employer runs payroll. A run that reports a few hundred `anywhere` rows out of tens of
+thousands is working correctly. A run that reports many thousands is a false-positive bug, and the
+first thing to check is whether a wide signal has started outranking a named country — all three
 false positives found while writing this classifier were exactly that (see
 `service/tests/test_remote_reach.py`).
 
@@ -65,11 +67,11 @@ from service import geo, store  # noqa: E402
 logger = logging.getLogger("service.backfill_remote_reach")
 
 _UPDATE = """
-update postings p set remote_reach = v.remote_reach
-from (values %s) as v(posting_id, remote_reach)
+update postings p set remote_reach = v.remote_reach, reach_areas = v.reach_areas
+from (values %s) as v(posting_id, remote_reach, reach_areas)
 where p.posting_id = v.posting_id
 """
-_TEMPLATE = "(%s, %s::text)"
+_TEMPLATE = "(%s, %s::text, %s::text[])"
 
 
 def run(batch: int = 2000, dry_run: bool = False) -> tuple[int, int]:
@@ -80,7 +82,7 @@ def run(batch: int = 2000, dry_run: bool = False) -> tuple[int, int]:
         with store.cursor() as cur:
             cur.execute(
                 "select posting_id, location, description, scope_raw, remote_signal, "
-                "       work_mode, remote_reach "
+                "       work_mode, remote_reach, reach_areas "
                 "from postings where posting_id > %s order by posting_id limit %s",
                 (cursor_id, batch),
             )
@@ -95,10 +97,14 @@ def run(batch: int = 2000, dry_run: bool = False) -> tuple[int, int]:
             # Mirrors `ingest.build_row`: only a fully-remote posting has a reach, and one that
             # has stopped being remote is cleared rather than left stale.
             is_remote = r["remote_signal"] is True or r["work_mode"] == "remote"
-            reach = geo.remote_reach(
-                r["scope_raw"], r["location"], r["description"]) if is_remote else None
-            if reach != r["remote_reach"]:
-                updates.append((r["posting_id"], reach))
+            reach, areas = (geo.classify_reach(r["scope_raw"], r["location"], r["description"])
+                            if is_remote else (None, []))
+            # Compared against the stored form, not the computed one: `upsert_postings` and the
+            # update below both store an empty list as NULL, so comparing `[] != None` would mark
+            # every non-multi-country row as changed on every run and the idempotency test — the
+            # one that proves this agrees with `ingest.build_row` — would never be able to pass.
+            if reach != r["remote_reach"] or (areas or None) != (r["reach_areas"] or None):
+                updates.append((r["posting_id"], reach, areas or None))
 
         changed += len(updates)
         if updates and not dry_run:
@@ -139,9 +145,14 @@ def main() -> None:
             "       count(*) filter (where remote_reach = 'anywhere')  as anywhere, "
             "       count(*) filter (where remote_reach = 'region')    as region, "
             "       count(*) filter (where remote_reach = 'country')   as country, "
-            "       count(*) filter (where scope_raw is not null)      as with_scope "
-            "from postings "
-            "where is_active and (remote_signal is true or work_mode = 'remote')")
+            "       count(*) filter (where scope_raw is not null)      as with_scope, "
+            "       count(*) filter (where reach_areas @> array['eea']) as eea, "
+            "       count(*) filter (where reach_areas @> array['na'])  as na, "
+            "       count(*) filter (where reach_areas @> array['eea','na']) as both, "
+            "       count(*) filter (where remote_reach = 'region' "
+            "                          and coalesce(cardinality(reach_areas), 0) = 0) as no_area "
+            "from postings p "
+            f"where p.is_active and {store.REMOTE_SQL}")
         stats = dict(cur.fetchone())
         # Per source, because coverage is a property of the *board*, not the corpus: a source
         # publishing a scope field lands near 100% and one that publishes none near 30%, and the
@@ -151,8 +162,8 @@ def main() -> None:
             "select source, count(*) as n, "
             "       count(*) filter (where remote_reach is null) as unknown, "
             "       count(*) filter (where scope_raw is not null) as with_scope "
-            "from postings "
-            "where is_active and (remote_signal is true or work_mode = 'remote') "
+            "from postings p "
+            f"where p.is_active and {store.REMOTE_SQL} "
             "group by source order by count(*) desc")
         by_source = [dict(r) for r in cur.fetchall()]
 
@@ -167,6 +178,11 @@ def main() -> None:
                 stats["unknown"], 100 * stats["unknown"] / total)
     logger.info("%d of those carry a board-published scope field (`scope_raw`); the rest were "
                 "read from location text and description", stats["with_scope"])
+    # What the two /jobs international rows will show. The overlap is not an error to be removed:
+    # it is the only set in which someone in the EEA can hold a US-facing role.
+    logger.info("reach areas: %d EU-International, %d North America-International "
+                "(%d in both), %d region rows whose areas could not be read",
+                stats["eea"], stats["na"], stats["both"], stats["no_area"])
     # `anywhere` under a couple of percent is the expected shape — see the module docstring.
     if stats["anywhere"] > total * 0.15:
         logger.error("anywhere is %.1f%% of remote postings, which is far above the measured "

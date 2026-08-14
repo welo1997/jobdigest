@@ -26,7 +26,7 @@ import os
 import pytest
 from fastapi.testclient import TestClient
 
-from service import store, taxonomy, webapp
+from service import geo, store, taxonomy, webapp
 
 TEST_DSN = os.environ.get("TEST_DATABASE_URL")
 pytestmark = pytest.mark.skipif(not TEST_DSN, reason="TEST_DATABASE_URL is not set")
@@ -49,39 +49,52 @@ PREFIX = "searchtest-"
 MARKER = "zzsearchfixture"
 
 # posting_id -> (title, company, country, city, work_mode, seniority, category,
-#                remote_signal, dedup_key, is_active)
+#                remote_signal, dedup_key, is_active, reach_areas)
+#
+# `reach_areas` is the geographic *reach* of a remote scope (migration 022) and is null for every
+# non-remote row and for a remote role bound to one country — which is the distinction the Country
+# menu's international rows exist to draw. See `geo.reach_areas`.
 #
 # Two rows deliberately share a dedup_key and sit on different sources: the same job carried
 # by a national register and by the employer's own ATS board is the case the feed collapses,
 # and it is real — `mpsv` and `greenhouse` both carry Czech employers.
 FIXTURES: dict[str, tuple] = {
     "dup-ats":     ("Senior Data Engineer", "Acme", "CZ", "prague", "hybrid", "senior",
-                    "data_engineering", False, "acme|senior data engineer", True),
+                    "data_engineering", False, "acme|senior data engineer", True, None),
     "dup-register": ("Senior Data Engineer", "Acme", "CZ", "prague", None, "senior",
-                     "data_engineering", False, "acme|senior data engineer", True),
+                     "data_engineering", False, "acme|senior data engineer", True, None),
     "designer":    ("Junior Designer", "Beta", "DE", "berlin", "onsite", "junior",
-                    "design", False, "beta|junior designer", True),
+                    "design", False, "beta|junior designer", True, None),
     "remote-dev":  ("Remote Python Developer", "Ceta", "DE", None, "remote", "mid",
-                    "software_engineering", True, "ceta|remote python developer", True),
+                    "software_engineering", True, "ceta|remote python developer", True, ["eea"]),
     # The 2026-08-08 raw-hint residue: `role_category` holding a Swedish SSYK *label* rather
     # than a category. Still ~1 058 rows in production on 2026-08-12, draining over the
     # staleness window. It must never be offered as a filter on a public page.
     "ssyk-label":  ("Butiksbitrade", "Delta", "SE", "stockholm", None, None,
-                    "Butikssäljare, fackhandel", False, "delta|butiksbitrade", True),
+                    "Butikssäljare, fackhandel", False, "delta|butiksbitrade", True, None),
     # An honest decline. Reachable when nothing is ticked; never offered as a chip.
     "uncat":       ("Mystery Specialist", "Eps", "SE", None, None, None,
-                    "uncategorised", False, "eps|mystery specialist", True),
+                    "uncategorised", False, "eps|mystery specialist", True, None),
     "expired":     ("Old Data Engineer", "Zeta", "CZ", "prague", None, "senior",
-                    "data_engineering", False, "zeta|old data engineer", False),
+                    "data_engineering", False, "zeta|old data engineer", False, None),
     # Hybrid in a country that also has a genuinely remote row — the pair is what makes
     # "hybrid is not remote" a test rather than an assertion about one row.
     "hybrid-cz":   ("Hybrid Analyst", "Eta", "CZ", "brno", "hybrid", "mid",
-                    "data_analysis", False, "eta|hybrid analyst", True),
+                    "data_analysis", False, "eta|hybrid analyst", True, None),
     # A remote row that *resolved to a city* — the Vivantis shape: employer in Zlín, work
     # from anywhere. It is what makes the include-remote facet rules testable: its city must
     # never leak into another country's city menu just because Remote is ticked.
     "remote-city": ("Remote Berlin Engineer", "Iota", "DE", "berlin", "remote", "mid",
-                    "software_engineering", True, "iota|remote berlin engineer", True),
+                    "software_engineering", True, "iota|remote berlin engineer", True, ["eea", "na"]),
+    # **The two rows the redesign turns on.**
+    # A US-only remote role: fully remote, reaches North America, and a Prague visitor cannot
+    # legally take it. Under the old "Remote" row in the Country menu they were shown it anyway.
+    "remote-us":   ("Remote US Engineer", "Kappa", "US", None, "remote", "mid",
+                    "software_engineering", True, "kappa|remote us engineer", True, ["na"]),
+    # A remote role bound to one country: work from your couch, in Czechia. It belongs under
+    # Czechia and under no international heading, so its `reach_areas` is null.
+    "remote-cz-bound": ("Remote Czech Analyst", "Lambda", "CZ", None, "remote", "mid",
+                        "data_analysis", True, "lambda|remote czech analyst", True, None),
 }
 
 
@@ -107,18 +120,18 @@ def fixtures():
     ids = [_pid(k) for k in FIXTURES]
     with store.cursor(commit=True) as cur:
         cur.execute("delete from postings where posting_id = any(%s)", (ids,))
-        for key, (title, company, cc, city, mode, sen, cat, remote, dedup, active) \
+        for key, (title, company, cc, city, mode, sen, cat, remote, dedup, active, areas) \
                 in FIXTURES.items():
             cur.execute(
                 """insert into postings
                    (posting_id, source, title, company, url, description, country_code,
                     city, work_mode, seniority, role_category, remote_signal, dedup_key,
-                    eligibility, is_active)
-                   values (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
+                    eligibility, is_active, reach_areas)
+                   values (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
                 (_pid(key), "greenhouse" if "ats" in key else "mpsv", title, company,
                  f"https://example.invalid/{key}",
                  f"{MARKER} A job description mentioning {title}.",
-                 cc, city, mode, sen, cat, remote, PREFIX + dedup, "eligible", active))
+                 cc, city, mode, sen, cat, remote, PREFIX + dedup, "eligible", active, areas))
     try:
         yield
     finally:
@@ -179,75 +192,134 @@ def test_an_inactive_posting_is_never_returned():
     assert _pid("expired") not in search(countries=["CZ"])
 
 
-def test_hybrid_is_not_remote():
-    """`remote_signal` is the posting's own words; `work_mode='hybrid'` is a commute. Folding
-    hybrid into remote is how someone filtering for remote work gets an office job."""
-    got = search(include_remote=True)
-    assert _pid("remote-dev") in got
-    assert _pid("hybrid-cz") not in got
-    assert _pid("dup-ats") not in got
+def test_an_international_row_widens_a_country_search_instead_of_narrowing_it():
+    """An international area is one more selected place, ORed in — never an AND over the country.
 
-
-def test_include_remote_widens_a_country_search_instead_of_narrowing_it():
-    """Remote is one more selected place, ORed in — never an AND over the country filter.
-
-    Until 2026-08-12 `country=CZ&remote=true` meant "remote jobs registered in CZ": the
-    toggle *narrowed* a search it claimed to widen, and there was no way to ask the actual
-    question — "jobs I could take from Czechia". The CZ rows must all survive the tick
-    (hybrid included: it is a commute, so its being in CZ is exactly why it stays), remote
-    rows from anywhere must join, and a non-remote row abroad must not.
+    Inherited from the `include_remote` flag this replaced, where it was ANDed until 2026-08-12:
+    `country=CZ&remote=true` meant "remote jobs registered in CZ", so the toggle *narrowed* a
+    search it claimed to widen and there was no way to ask the actual question. Every CZ row must
+    survive the tick (the hybrid one included — it is a commute, so its being in CZ is exactly why
+    it stays), the internationally-open rows must join, and a non-remote row abroad must not.
     """
-    got = search(countries=["CZ"], include_remote=True)
+    got = search(countries=["CZ"], reach_areas=["eea"])
     assert got & {_pid("dup-ats"), _pid("dup-register")}, "a CZ row was lost by the widening"
     assert _pid("hybrid-cz") in got
-    assert _pid("remote-dev") in got, "a remote row abroad was not included"
+    assert _pid("remote-cz-bound") in got, "a CZ remote row was lost by the widening"
+    assert _pid("remote-dev") in got, "an EEA-reaching row abroad was not included"
     assert _pid("remote-city") in got
-    assert _pid("designer") not in got, "include-remote leaked a non-remote row abroad"
+    assert _pid("designer") not in got, "a non-remote row abroad leaked in"
 
 
-def test_include_remote_alone_still_means_remote_jobs():
-    """The union with no other place has one arm. Same rule, not a second meaning: with no
-    country picked, the visitor's selected places are {Remote} and that is what they get."""
-    got = search(include_remote=True)
+def test_eu_international_does_not_return_a_role_closed_to_europeans():
+    """**The bug the whole redesign exists to fix.**
+
+    The Country menu used to lead with a "Remote" row that ORed in every fully-remote posting. A
+    Prague visitor ticking it was handed US-only roles they cannot legally take — the control said
+    "location" and answered "work arrangement". `remote-us` is fully remote, reaches North America
+    and nothing else, and must not appear under EU-International however remote it is.
+    """
+    eea = search(reach_areas=["eea"])
+    assert _pid("remote-us") not in eea, "a US-only remote role was offered as EU-International"
+    assert _pid("remote-dev") in eea and _pid("remote-city") in eea
+    # And symmetrically, from the other side of the Atlantic.
+    na = search(reach_areas=["na"])
+    assert _pid("remote-us") in na
+    assert _pid("remote-dev") not in na, "a Europe-only role was offered as North American"
+
+
+def test_a_country_bound_remote_role_lives_under_its_country_and_nowhere_else():
+    """The other half of "Country means where": a remote job you must be Czech-resident for is a
+    Czech job. It is reachable under Czechia, is flagged remote by the Work-setup menu, and is
+    absent from both international rows — `reach_areas` is null for a single-country scope.
+    """
+    assert _pid("remote-cz-bound") in search(countries=["CZ"])
+    assert _pid("remote-cz-bound") in search(work_modes=["remote"])
+    assert _pid("remote-cz-bound") not in search(reach_areas=["eea"])
+    assert _pid("remote-cz-bound") not in search(reach_areas=["na"])
+
+
+def test_the_two_areas_overlap_rather_than_partition():
+    """A scope reading "North America or Europe" is in both rows, and that is the point: it is the
+    only set in which someone in the EEA can hold a US-facing role. Selecting both areas is a
+    union, not an intersection — a visitor ticking both wants more results, not fewer."""
+    both = search(reach_areas=["eea", "na"])
+    assert {_pid("remote-dev"), _pid("remote-city"), _pid("remote-us")} <= both
+    assert _pid("remote-city") in search(reach_areas=["eea"])
+    assert _pid("remote-city") in search(reach_areas=["na"])
+
+
+def test_an_international_row_alone_means_internationally_open_jobs():
+    """The union with no other place has one arm. Same rule, not a second meaning: with no country
+    picked, the visitor's selected places are {EU-International} and that is what they get."""
+    got = search(reach_areas=["eea"])
     assert _pid("remote-dev") in got and _pid("remote-city") in got
     assert _pid("dup-ats") not in got and _pid("designer") not in got
+    # Hybrid is never international: it is a commute, and a commute has a country.
+    assert _pid("hybrid-cz") not in got
 
 
-def test_include_remote_does_not_leak_into_the_location_menus():
-    """The toggle belongs to the location group, so location facets are computed without it.
+def test_an_unrecognised_area_is_dropped_rather_than_reaching_sql():
+    """These arrive from a public URL parameter. `geo.clean_reach_areas` drops what it does not
+    know, and dropping can only *widen* — an empty list means the rows were never ticked, so the
+    search falls back to every place rather than to none."""
+    everything = search()
+    assert search(reach_areas=["apac"]) == everything
+    assert search(reach_areas=["'; drop table postings; --"]) == everything
+    # A recognised id alongside a bogus one still filters on the recognised one.
+    assert search(reach_areas=["eea", "apac"]) == search(reach_areas=["eea"])
 
-    Two leaks, both real if the `skip` arm is missing: the country menu would be counted
-    over remote rows only (SE has none, so Sweden would vanish as an option), and the Berlin
-    remote row's city would appear in the menu opened under Czechia.
+
+def test_an_international_row_does_not_leak_into_the_location_menus():
+    """The rows belong to the location group, so location facets are computed without them.
+
+    Two leaks, both real if the `skip` arm is missing: the country menu would be counted over the
+    internationally-open rows only (SE has none, so Sweden would vanish as an option), and the
+    Berlin remote row's city would appear in the menu opened under Czechia.
     """
-    facets = store.search_facets(countries=["CZ"], include_remote=True, **scoped())
+    facets = store.search_facets(countries=["CZ"], reach_areas=["eea"], **scoped())
     assert "SE" in {f["value"] for f in facets["countries"]}, \
-        "a country with no remote rows vanished from the menu"
+        "a country with no international rows vanished from the menu"
     assert "de:berlin" not in {f["value"] for f in facets["cities"]}, \
-        "a remote row's home city leaked into another country's city menu"
+        "an international row's home city leaked into another country's city menu"
     # The *category* facet keeps the union, which is what makes its counts match the list:
-    # software_engineering is reachable only through the remote arm here.
+    # software_engineering is reachable only through the international arm here.
     assert "software_engineering" in {f["value"] for f in facets["categories"]}
 
 
-def test_the_remote_facet_counts_remote_rows_and_ignores_the_country_picked():
-    """The count beside the "Remote" row in the Country menu. Two remote rows in the corpus
-    (`remote-dev`, `remote-city`), so the count is 2 — and because Remote widens across every
-    place, ticking a country must not change it. A country facet leaves out its own filter;
-    the Remote count leaves out all of location the same way, or it would promise a number the
-    widened list does not deliver."""
-    assert store.search_facets(**scoped())["remote"][0]["count"] == 2
-    # CZ holds no remote row, but the Remote count is location-independent, so it stays 2.
-    assert store.search_facets(countries=["CZ"], **scoped())["remote"][0]["count"] == 2
+def test_the_international_facets_ignore_the_country_picked():
+    """The counts beside the international rows in the Country menu. They widen across every
+    place, so ticking a country must not change them — a country facet leaves out its own filter
+    and these leave out all of location the same way, or they promise a number the widened list
+    does not deliver."""
+    def counts(**kw):
+        return {f["value"]: f["count"]
+                for f in store.search_facets(**scoped(**kw))["reach_areas"]}
+
+    base = counts()
+    # remote-dev + remote-city reach the EEA; remote-city + remote-us reach North America.
+    assert base["eea"] == 2 and base["na"] == 2
+    # CZ holds neither, but the counts are location-independent, so they do not move.
+    assert counts(countries=["CZ"]) == base
 
 
-def test_the_remote_facet_still_honours_the_non_location_filters():
-    """It is not a raw corpus count: a category with no remote inventory zeroes it, or the
-    menu would offer a Remote count the filtered list cannot produce. `design` is on-site
-    only here, so ticking it drops the Remote count to nothing."""
-    assert store.search_facets(categories=["design"], **scoped())["remote"][0]["count"] == 0
-    assert store.search_facets(
-        categories=["software_engineering"], **scoped())["remote"][0]["count"] == 2
+def test_the_international_facets_are_one_row_per_area_in_a_fixed_order():
+    """Always both areas, always in `geo.REACH_AREAS` order, and a zero is reported rather than
+    omitted — a missing row would make the frontend render no option at all, which is how a filter
+    silently disappears instead of showing an honest 0."""
+    rows = store.search_facets(categories=["design"], **scoped())["reach_areas"]
+    assert [r["value"] for r in rows] == list(geo.REACH_AREAS)
+    assert all(r["count"] == 0 for r in rows), "design is on-site only in this corpus"
+
+
+def test_the_international_facets_still_honour_the_non_location_filters():
+    """Not a raw corpus count: a category with no international inventory zeroes them, or the menu
+    offers a count the filtered list cannot produce."""
+    def counts(**kw):
+        return {f["value"]: f["count"]
+                for f in store.search_facets(**scoped(**kw))["reach_areas"]}
+
+    assert counts(categories=["design"]) == {"eea": 0, "na": 0}
+    assert counts(categories=["software_engineering"]) == {"eea": 2, "na": 2}
 
 
 def test_a_city_filter_cannot_escape_its_country():

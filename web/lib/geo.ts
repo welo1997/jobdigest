@@ -352,6 +352,25 @@ export const REMOTE_SCOPE_LABEL: Record<RemoteScope, string> = {
   worldwide: "Anywhere in the world",
 };
 
+// The areas a *multi-country* remote scope can reach, and the two international rows that lead
+// the /jobs Country menu. Mirrors `geo.REACH_AREAS`; the drift test in service/tests/test_geo.py
+// fails if the two lists stop agreeing, which matters more here than it looks: these strings are
+// sent verbatim as the `intl` query parameter, and `geo.clean_reach_areas` silently *drops* an id
+// it does not recognise. Drift would therefore not error — it would quietly return every job,
+// which reads as "the filter does nothing" rather than as a bug.
+//
+// Widest-relevant first, and they overlap on purpose: a scope reading "North America or Europe" is
+// in both, which is the only set where someone in the EEA can hold a US-facing role. Labels live
+// in web/i18n, not here — they are user-facing copy and exist in eight languages.
+export const REACH_AREAS = ["eea", "na"] as const;
+export type ReachArea = (typeof REACH_AREAS)[number];
+
+/** The `intl` values, filtered to the ones we know. Mirrors `geo.clean_reach_areas`. */
+export function cleanReachAreas(values: readonly string[] | null | undefined): ReachArea[] {
+  const wanted = new Set((values ?? []).map((v) => v.trim().toLowerCase()));
+  return REACH_AREAS.filter((a) => wanted.has(a));
+}
+
 // How much of the job happens in an office. Mirrors `geo.WORK_MODES`, office-first — the
 // drift test in service/tests/test_geo.py fails if the two lists stop agreeing.
 export const WORK_MODES = ["onsite", "hybrid", "remote"] as const;

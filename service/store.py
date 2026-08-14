@@ -67,7 +67,7 @@ def cursor(commit: bool = False):
 _UPSERT_SQL = """
 insert into postings (
     posting_id, source, title, company, url, description, location, country_code, city,
-    remote_signal, work_mode, scope_raw, remote_reach, education_min,
+    remote_signal, work_mode, scope_raw, remote_reach, reach_areas, education_min,
     salary_raw, currency, posted_at,
     role_category, region, eligibility, seniority, work_type, is_part_time, dedup_key, skills,
     last_seen_at, is_active
@@ -91,6 +91,7 @@ on conflict (posting_id) do update set
     work_mode = excluded.work_mode,
     scope_raw = excluded.scope_raw,
     remote_reach = excluded.remote_reach,
+    reach_areas = excluded.reach_areas,
     education_min = excluded.education_min,
     salary_raw = excluded.salary_raw,
     currency = excluded.currency,
@@ -115,7 +116,10 @@ def upsert_postings(rows: Iterable[dict]) -> int:
             r["posting_id"], r["source"], r.get("title"), r.get("company"), r["url"],
             r.get("description"), r.get("location"), r.get("country_code"), r.get("city"),
             r.get("remote_signal"), r.get("work_mode"),
-            r.get("scope_raw"), r.get("remote_reach"), r.get("education_min"),
+            r.get("scope_raw"), r.get("remote_reach"),
+            # Empty list -> NULL for the same reason as `skills` below: psycopg2 renders `[]` as an
+            # untyped empty array Postgres cannot coerce, and null/empty are equivalent here.
+            r.get("reach_areas") or None, r.get("education_min"),
             r.get("salary_raw"), r.get("currency"),
             r.get("posted_at"),
             r.get("role_category"), r.get("region"), r.get("eligibility"),
@@ -129,11 +133,11 @@ def upsert_postings(rows: Iterable[dict]) -> int:
     ]
     if not values:
         return 0
-    # 25 placeholders for the 25 columns above `last_seen_at`. Counted, not eyeballed: these
+    # 26 placeholders for the 26 columns above `last_seen_at`. Counted, not eyeballed: these
     # bind by position, so one missing %s shifts every column after it by one and psycopg2
     # cannot tell — it would write `skills` into `dedup_key` and fail on the type, or
     # worse, not fail at all. The assert below is cheap and turns that into a loud error.
-    template = ("(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,"
+    template = ("(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,"
                 "now(), true)")
     assert template.count("%s") == len(values[0]), (
         f"upsert template has {template.count('%s')} placeholders "
@@ -1228,11 +1232,30 @@ def _facet_copy(value: dict[str, list[dict]]) -> dict[str, list[dict]]:
 
 #: Fully remote as the posting's own words describe it — no office attendance. This is a
 #: *work-arrangement* claim, not a *geographic-eligibility* one: a "remote within Germany"
-#: or "US-remote" posting is still `remote_signal is true`. It is the predicate the remote
-#: arm of `_search_where` ORs into the location filter and the one the Remote facet counts,
-#: hoisted to a single definition so the count and the filter can never drift. Hybrid is
-#: deliberately excluded — hybrid is a commute, not remote.
-_REMOTE_SQL = "(p.remote_signal is true or p.work_mode = 'remote')"
+#: or "US-remote" posting is still `remote_signal is true`. Hoisted to a single definition so
+#: every count and filter over it agree. Hybrid is deliberately excluded — hybrid is a commute,
+#: not remote.
+#:
+#: It is no longer ORed into the location filter. Until 2026-08-14 the Country menu led with a
+#: synthetic "Remote" row that did exactly that, which meant the menu answered two questions at
+#: once: a Prague visitor ticking it was shown US-only roles they cannot legally take. Country now
+#: means *where* and the Work-setup menu means *how* — see `_REACH_AREA_SQL`.
+#:
+#: Public, and it takes a `p` alias, because `service.backfill_remote_reach` reports over exactly
+#: this set. It held the same predicate as a copied literal until 2026-08-14, which is the shape of
+#: drift this file spends most of its comments on: two definitions of "fully remote" would let the
+#: backfill's coverage report describe a different population than the one the site filters.
+REMOTE_SQL = "(p.remote_signal is true or p.work_mode = 'remote')"
+
+#: The international rows that lead the Country menu: postings whose scope reaches a named area
+#: rather than a single country. `&&` is array overlap, index-backed by `idx_postings_reach_areas`.
+#:
+#: These are **places, not modes** — the same shape the old remote row had, and the same shape as
+#: the digest's `location_predicate`: ORed into the country/city clause, so ticking Czechia and
+#: EU-International means "Czech jobs, and also internationally-open remote ones". `reach_areas` is
+#: null for a single-country scope, so a Germany-remote job is reached through Germany and never
+#: through here, which is the whole point of the split.
+_REACH_AREA_SQL = "(p.reach_areas && %s)"
 
 
 def _search_where(q: Optional[str] = None,
@@ -1241,7 +1264,7 @@ def _search_where(q: Optional[str] = None,
                   categories: Optional[Iterable[str]] = None,
                   work_modes: Optional[Iterable[str]] = None,
                   seniorities: Optional[Iterable[str]] = None,
-                  include_remote: bool = False,
+                  reach_areas: Optional[Iterable[str]] = None,
                   skip: str = "") -> tuple[list[str], list[Any]]:
     """The filter set, as SQL fragments and params. One definition, four callers.
 
@@ -1255,17 +1278,22 @@ def _search_where(q: Optional[str] = None,
     so the city menu narrowed to the city already ticked and could not be widened again.
     Silent, and invisible to every test that did not open the menu twice.
 
-    **`include_remote` is one more selected place, not a mode filter.** It joins the
-    country/city clause by OR: "Czechia, and also fully-remote jobs" — the same shape as the
-    digest's `location_predicate` (`onsite-in-countries OR remote`). Until 2026-08-12 it was
-    ANDed instead, so ticking it *narrowed* a country search to remote-jobs-registered-in-
-    that-country — a set nobody was asking for (the visitor who wants only remote work in one
-    place still has the Work setup filter). With no country picked, the union has one arm and
-    the toggle means "remote jobs"; the two readings are one rule. Because it belongs to the
-    location group, it is left out whenever a location facet is being computed
-    (`skip` of "countries" or "cities") — otherwise every country would be counted over the
-    remote rows only, and a remote row's home city would leak into another country's city
-    menu.
+    **`reach_areas` are more selected places, not a mode filter.** They join the country/city
+    clause by OR: "Czechia, and also internationally-open remote jobs" — the same shape as the
+    digest's `location_predicate` (`onsite-in-countries OR remote`). With no country picked, the
+    union has one arm and the selection means "internationally-open jobs"; the two readings are one
+    rule. Because they belong to the location group, they are left out whenever a location facet is
+    being computed (`skip` of "countries" or "cities") — otherwise every country would be counted
+    over the international rows only, and one of their home cities would leak into another
+    country's city menu.
+
+    This replaced an `include_remote` boolean on 2026-08-14. That flag ORed in *every* fully-remote
+    posting, so the Country menu's "Remote" row answered a work-arrangement question inside a
+    location control and showed a Prague visitor US-only roles. Two lessons are preserved from it:
+    the OR (it was ANDed until 2026-08-12, which *narrowed* a country search to
+    remote-jobs-registered-in-that-country, a set nobody asked for) and the `skip` exclusion. The
+    visitor who wants only remote work in one place still has the Work-setup filter, which is now
+    the only place that asks about arrangement.
     """
     where = ["p.is_active"]
     params: list[Any] = []
@@ -1299,17 +1327,21 @@ def _search_where(q: Optional[str] = None,
                 place_params.extend([cc, slug])
             place.append("(" + " or ".join(clauses) + ")")
 
-    # The posting's own words, never a source's claim — same rule the digest applies.
-    # `work_mode = 'hybrid'` is deliberately excluded: hybrid is not remote (see `_REMOTE_SQL`).
-    remote_sql = _REMOTE_SQL
-    remote_arm = include_remote and skip not in ("countries", "cities")
+    # Validated here rather than trusted: these arrive from a public URL parameter, and an
+    # unrecognised id must be dropped before it reaches SQL. Dropping can only widen, because an
+    # empty list means the international rows were not ticked at all.
+    areas = geo.clean_reach_areas(reach_areas)
+    area_arm = bool(areas) and skip not in ("countries", "cities")
     if place:
         place_sql = " and ".join(place)
-        where.append(f"(({place_sql}) or {remote_sql})" if remote_arm
+        where.append(f"(({place_sql}) or {_REACH_AREA_SQL})" if area_arm
                      else f"({place_sql})")
         params.extend(place_params)
-    elif remote_arm:
-        where.append(remote_sql)
+        if area_arm:
+            params.append(areas)
+    elif area_arm:
+        where.append(_REACH_AREA_SQL)
+        params.append(areas)
 
     if categories and skip != "categories":
         where.append("p.role_category = any(%s)")
@@ -1341,7 +1373,7 @@ def search_postings(q: Optional[str] = None,
                     categories: Optional[Iterable[str]] = None,
                     work_modes: Optional[Iterable[str]] = None,
                     seniorities: Optional[Iterable[str]] = None,
-                    include_remote: bool = False,
+                    reach_areas: Optional[Iterable[str]] = None,
                     limit: int = 20,
                     offset: int = 0) -> tuple[list[dict], int, bool]:
     """One page of the public feed, plus `(total, total_is_capped)`.
@@ -1361,7 +1393,7 @@ def search_postings(q: Optional[str] = None,
     limit = max(1, min(int(limit or 20), SEARCH_LIMIT_MAX))
     offset = max(0, int(offset or 0))
     where, params = _search_where(q, countries, cities, categories, work_modes,
-                                  seniorities, include_remote)
+                                  seniorities, reach_areas)
 
     term = (q or "").strip()[:SEARCH_TERM_MAX]
     if term:
@@ -1407,14 +1439,14 @@ def search_facets(q: Optional[str] = None,
                   categories: Optional[Iterable[str]] = None,
                   work_modes: Optional[Iterable[str]] = None,
                   seniorities: Optional[Iterable[str]] = None,
-                  include_remote: bool = False) -> dict[str, list[dict]]:
-    """Category, country, city and remote counts for the current search, each computed with
-    every filter *except its own* — so ticking one option never empties the menu it came from.
+                  reach_areas: Optional[Iterable[str]] = None) -> dict[str, list[dict]]:
+    """Category, country, city and international-reach counts for the current search, each computed
+    with every filter *except its own* — so ticking one option never empties the menu it came from.
 
-    **`remote` is a single count, not a menu**, returned as a one-row list (`value: "remote"`)
-    so the caller can render it beside the country counts. It leads the Country menu as a
-    location choice; see `_REMOTE_SQL` for what "remote" means (a work arrangement, not a
-    right to work from anywhere).
+    **`reach_areas` is one row per area and the rows overlap**, so they do not sum to the number of
+    postings behind them: a scope reading "North America or Europe" is counted under both, and that
+    intersection is the only set in which someone in the EEA can hold a US-facing role. They lead
+    the Country menu as location choices — see `_REACH_AREA_SQL`.
 
     **`cities` is present only when a country is selected**, and is absent (not empty) the
     rest of the time — the same distinction the API's `facets` key already makes on later
@@ -1436,7 +1468,7 @@ def search_facets(q: Optional[str] = None,
     global _facet_cache
 
     unfiltered = not (q or "").strip() and not (
-        countries or cities or categories or work_modes or seniorities or include_remote)
+        countries or cities or categories or work_modes or seniorities or reach_areas)
     if unfiltered and _facet_cache is not None:
         expires_at, cached = _facet_cache
         if time.monotonic() < expires_at:
@@ -1459,7 +1491,7 @@ def search_facets(q: Optional[str] = None,
     with cursor() as cur:
         for key, expr, skip in wanted:
             where, params = _search_where(q, countries, cities, categories, work_modes,
-                                          seniorities, include_remote, skip=skip)
+                                          seniorities, reach_areas, skip=skip)
             # Counted over the same dedup'd set the list shows, or the facet totals and the
             # result count disagree and neither is wrong-looking enough to notice.
             #
@@ -1481,23 +1513,35 @@ def search_facets(q: Optional[str] = None,
             out[key] = [{"value": r["value"], "count": int(r["count"])}
                         for r in cur.fetchall()]
 
-        # The Remote row's count, in the same shape as a country row so the frontend renders
-        # it identically. Computed with every *non-location* filter applied but no country,
-        # city or `include_remote` — Remote widens across all places, so its own count must
-        # not be narrowed by which country is ticked, exactly as a country facet leaves out
-        # the country filter. Deduped over the same set the list shows. It reuses `_REMOTE_SQL`,
-        # so "what Remote counts" and "what Remote filters" are one definition.
-        rwhere, rparams = _search_where(q, None, None, categories, work_modes, seniorities)
-        rwhere.append(_REMOTE_SQL)
+        # The international rows' counts, in the same shape as a country row so the frontend
+        # renders them identically. Computed with every *non-location* filter applied but no
+        # country, city or area of their own — they widen across all places, so a count must not
+        # be narrowed by which country is ticked, exactly as a country facet leaves out the
+        # country filter. Deduped over the same set the list shows.
+        #
+        # **One row per area, and they overlap**: a posting reaching both is counted under both, so
+        # these two numbers deliberately do not sum to the number of postings behind them. Summing
+        # them would double-count the 150 roles that are the most interesting ones in the set.
+        #
+        # `unnest` rather than one query per area: the areas are a closed two-value vocabulary
+        # today, but a third would otherwise silently need a third round trip nobody would add.
+        # `geo.REACH_AREAS` is the source of the order, so a new area appears here for free —
+        # the same reason `source_watchdog` reads `search_jobs.source_classes` and not a copy.
+        awhere, aparams = _search_where(q, None, None, categories, work_modes, seniorities)
         cur.execute(f"""
-            select count(*) as count from (
-                select distinct on (coalesce(p.dedup_key, p.posting_id)) 1
+            select area, count(*) as count from (
+                select distinct on (coalesce(p.dedup_key, p.posting_id))
+                       coalesce(p.dedup_key, p.posting_id) as k, p.reach_areas
                 from postings p
-                where {' and '.join(rwhere)}
+                where {' and '.join(awhere)} and p.reach_areas is not null
                 order by coalesce(p.dedup_key, p.posting_id), p.last_seen_at desc
-            ) d
-        """, rparams)
-        out["remote"] = [{"value": "remote", "count": int(cur.fetchone()["count"])}]
+            ) d, unnest(d.reach_areas) as area
+            where area = any(%s)
+            group by 1
+        """, aparams + [list(geo.REACH_AREAS)])
+        counts = {r["area"]: int(r["count"]) for r in cur.fetchall()}
+        out["reach_areas"] = [{"value": a, "count": counts.get(a, 0)}
+                              for a in geo.REACH_AREAS]
 
     if unfiltered:
         # Two concurrent misses both compute and the second overwrites the first — harmless

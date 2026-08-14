@@ -36,6 +36,12 @@ create table if not exists postings (
     -- (`remote_reach`) before relying on this, and never gate the digest path on it in SQL.
     scope_raw      text,
     remote_reach   text,
+    -- Which named areas a *multi-country* scope reaches (migration 022): a subset of
+    -- geo.REACH_AREAS ('eea', 'na'), overlapping on purpose — a "North America or Europe" role is
+    -- in both, and that overlap is the only set where someone in the EEA can hold a US role.
+    -- Null for `remote_reach` of `country` or unknown: a single-country scope is answered by the
+    -- country filter itself. Null/empty passes every filter, exactly like `skills`.
+    reach_areas    text[],
     -- Lowest qualification the ad demands (migration 014): secondary | vocational | bachelor |
     -- master | doctorate | null=never said. Null for ~97% of rows and for 100% of the CZ/SK
     -- inventory, which carries no description text at all — the gate keeps nulls and defers to
@@ -102,6 +108,8 @@ create index if not exists idx_postings_education   on postings (education_min) 
 -- already filtering on remote.
 create index if not exists idx_postings_remote_reach on postings (remote_reach)
     where is_active and remote_reach is not null;
+-- GIN over the reach areas (migration 022), so `reach_areas && array['eea']` is index-backed.
+create index if not exists idx_postings_reach_areas on postings using gin (reach_areas);
 -- GIN over skill array elements (migration 020): index-backs `skills && array['python']` and
 -- unnest facet counts. Null/empty arrays add no entries, so it stays proportional to postings
 -- that name a skill.

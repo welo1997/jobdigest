@@ -86,7 +86,10 @@ def build_row(p, title_cache: dict[str, str] | None = None,
     # far better than it is. `scope_raw` is stored whatever the mode, because it is the board's own
     # claim and re-deriving the verdict after a classifier change must not need a re-ingest.
     scope_raw = getattr(p, "scope_raw", None)
-    reach = geo.remote_reach(scope_raw, p.location, p.description) if remote else None
+    # Both columns from one call, so a posting cannot be `region` on the strength of its scope field
+    # and filed under the area named in its location field.
+    reach, areas = (geo.classify_reach(scope_raw, p.location, p.description) if remote
+                    else (None, []))
     region = work_region(p.location, country_code)
     text = f"{p.title or ''} {p.location or ''} {p.description or ''}"
     return {
@@ -94,7 +97,7 @@ def build_row(p, title_cache: dict[str, str] | None = None,
         "company": p.company, "url": p.url, "description": p.description,
         "location": p.location, "country_code": country_code, "city": city,
         "remote_signal": remote, "work_mode": mode,
-        "scope_raw": scope_raw, "remote_reach": reach,
+        "scope_raw": scope_raw, "remote_reach": reach, "reach_areas": areas,
         # Null whenever the ad does not state a binding requirement, which is the answer for
         # ~97% of postings — and necessarily for every source that ships no description text
         # (jobs.cz, profesia, cocuma). See service/education.py before reading anything into

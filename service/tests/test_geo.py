@@ -458,6 +458,24 @@ def test_frontend_work_modes_match():
     assert tuple(re.findall(r'"([a-z]+)"', match.group(1))) == geo.WORK_MODES
 
 
+def test_frontend_reach_areas_match():
+    """The `intl` query-parameter vocabulary, mirrored in web/lib/geo.ts.
+
+    Drift here fails *silently* rather than loudly, which is why it needs a test more than the
+    other mirrors do: `geo.clean_reach_areas` drops an id it does not recognise, and dropping
+    widens — so a renamed area would make the EU-International row return every job in the corpus
+    and read as "the filter does nothing" rather than as an error. Order is pinned too, because it
+    is the order the rows render in at the top of the Country menu.
+    """
+    text = WEB_GEO.read_text(encoding="utf-8")
+    match = re.search(r"export const REACH_AREAS = \[(.*?)\]", text, re.S)
+    assert match, "REACH_AREAS not found in web/lib/geo.ts"
+    assert tuple(re.findall(r'"([a-z]+)"', match.group(1))) == geo.REACH_AREAS, (
+        "web/lib/geo.ts and service/geo.py disagree about the international areas — the menu "
+        "would send an id the API drops, and the filter would silently return everything."
+    )
+
+
 def test_frontend_work_mode_labels_match():
     assert _ts_object("WORK_MODE_LABEL") == geo.WORK_MODE_LABELS, (
         "web/lib/geo.ts and service/geo.py disagree about what to call a work setup — the "

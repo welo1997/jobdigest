@@ -441,11 +441,14 @@ export interface SearchResponse {
   facets?: {
     categories: SearchFacet[];
     countries: SearchFacet[];
-    /** A single count (one row, `value: "remote"`) for the "Remote" option that leads the
-     *  Country menu. "Remote" is a work arrangement (no office), not a right to work from
-     *  anywhere — the count is of fully-remote postings under the current non-location
-     *  filters. */
-    remote?: SearchFacet[];
+    /** One row per `geo.REACH_AREAS` id (`eea`, `na`), always both and always in that order,
+     *  for the two international options that lead the Country menu. Counted under the current
+     *  non-location filters, because they widen across every place.
+     *
+     *  **The rows overlap and must not be summed**: a scope reading "North America or Europe"
+     *  is counted under both, and that intersection is the only set in which someone in the
+     *  EEA can hold a US-facing role. */
+    reach_areas?: SearchFacet[];
     /** `cz:prague` pairs, present only when a country is filtered on — absent, never empty,
      *  so "no country picked yet" and "this country has no cities" stay distinguishable. */
     cities?: SearchFacet[];
@@ -463,7 +466,10 @@ export interface SearchParams {
   /** `onsite` / `hybrid` / `remote`. Accepted and validated by `/jobs` since it shipped;
    *  the control arrived 2026-08-12. */
   workModes?: string[];
-  remote?: boolean;
+  /** `geo.REACH_AREAS` ids — the international rows in the Country menu. These are *places*:
+   *  they widen the location filter, they are not a work-arrangement toggle. Replaced a
+   *  `remote?: boolean` on 2026-08-14; see `intlEea` in web/i18n/schema.ts. */
+  intl?: string[];
   limit?: number;
   offset?: number;
 }
@@ -479,7 +485,7 @@ export function searchQuery(p: SearchParams): URLSearchParams {
   for (const c of p.categories ?? []) q.append("category", c);
   for (const s of p.seniorities ?? []) q.append("seniority", s);
   for (const m of p.workModes ?? []) q.append("work_mode", m);
-  if (p.remote) q.set("remote", "true");
+  for (const a of p.intl ?? []) q.append("intl", a);
   if (p.offset) q.set("offset", String(p.offset));
   if (p.limit) q.set("limit", String(p.limit));
   return q;
