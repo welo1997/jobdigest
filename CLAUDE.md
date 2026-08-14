@@ -151,10 +151,10 @@ Each of these has been broken in production at least once. Reasoning and measure
   — `anywhere | region | country | NULL`, one definition in `geo.remote_reach`, backfilled by
   `python -m service.backfill_remote_reach`. The two are independent and conflating them
   promises something no posting said. **The measured answer is that "remote" almost always
-  means work from home in one country: 71.6% `country`, 5.3% `region`, 0.75% `anywhere`, 22%
-  NULL** (3 593 active remote rows, 2026-08-14) — so *do not build a feature on the assumption
-  that fully-remote-abroad inventory is large*, and do not re-argue the size of it from
-  intuition. **The signal is a board's structured field first, location text second, prose
+  means work from home in one country: 82.1% `country`, 5.4% `region`, 0.5% `anywhere` — 83
+  postings — and 12% NULL** (all 16 296 active remote rows, 2026-08-14) — so *do not build a
+  feature on the assumption that fully-remote-abroad inventory is large*, and do not re-argue
+  the size of it from intuition. **The signal is a board's structured field first, location text second, prose
   last.** Reading description prose alone found 5.8% and looked unprovable; that was the wrong
   layer. `JobPosting.scope_raw` carries the publisher's own scope field verbatim — it is a
   *claim*, like `remote_signal`, and the reason a classifier change can be backfilled without

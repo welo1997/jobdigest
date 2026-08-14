@@ -782,20 +782,26 @@ are filtering to empty on the public feed.
 from anywhere" are the same chip on `/jobs` today and are not the same job. `postings.remote_reach`
 (migration 021, `geo.remote_reach`) is the second answer: `anywhere | region | country | NULL`.
 
-**The headline is the distribution, not the coverage.** Stratified sample, 3 593 active
-fully-remote rows:
+**The headline is the distribution, not the coverage.** Backfilled over the whole corpus
+(170 299 scanned, 18 160 written); all 16 296 active fully-remote rows:
 
 | verdict | rows | % |
 |---|---:|---:|
-| `country` — work from home, one named country | 2 574 | **71.6%** |
-| `region` — a macro-region, a timezone band, or ≥2 named countries | 191 | 5.3% |
-| `anywhere` — no geographic restriction stated | 27 | **0.75%** |
-| NULL — the posting never said | 801 | 22.3% |
+| `country` — work from home, one named country | 13 377 | **82.1%** |
+| `region` — a macro-region, a timezone band, or ≥2 named countries | 878 | 5.4% |
+| `anywhere` — no geographic restriction stated | **83** | **0.5%** |
+| NULL — the posting never said | 1 958 | 12.0% |
+
+A stratified 300-per-source sample taken first said 71.6 / 5.3 / 0.75 / 22.3, and the difference
+is instructive rather than an error: 300 rows each from cocuma, recruitee and themuse against 300
+from ashby is not what the corpus looks like, and those small sources are the badly-covered ones.
+**Quote the full-corpus numbers.** What the sample was actually good for was making per-source
+auditing cheap — it is how the three false positives were found — not estimating a total.
 
 So the intuition that remote usually means work-from-home is correct, and it is *overwhelmingly*
-correct. A "work from anywhere" filter over 12 041 remote postings would surface roughly a
-hundred. **Do not build a feature on the assumption that this inventory is large, and do not
-re-argue its size from intuition.** The economic reason is not a data problem: a company can
+correct. **83 postings** in the entire live corpus are provably work-from-anywhere. **Do not build
+a feature on the assumption that this inventory is large, and do not re-argue its size from
+intuition.** The economic reason is not a data problem: a company can
 usually only employ you where it has a legal entity and payroll, so country-bound is the default
 and genuinely global roles are rare enough to be a selling point — which is exactly why the ones
 that exist tend to say so, and why positive detection has decent recall on that specific class.
@@ -840,12 +846,15 @@ error, and deriving one anyway would fill the column with trivially-`country` ro
 coverage look far better than it is.
 
 **Still open, deliberately not in the same commit:** nothing reads the column yet. The UI
-question is genuinely open given 0.75% — an opt-in "work from anywhere" refinement under the
-Country menu surfaces ~100 jobs, and a hard *timezone* filter is worse than that (the offsets
+question is genuinely open given 0.5% — an opt-in "work from anywhere" refinement under the
+Country menu surfaces **83 jobs**, and a hard *timezone* filter is worse than that (the offsets
 exist for one source), so extract-and-badge is the likelier shape. **Never silently hide the
 NULLs behind such a filter** — that is this repo's canonical failure mode, and here it would hide
-78% of remote inventory. `scope_raw` fills in over the staleness window as each adapter
-re-ingests, so re-measure before designing the filter.
+12% of remote inventory on a promise none of those postings made either way. Deliberately deferred
+on 2026-08-14: **`scope_raw` was still 0 on every source at backfill time** and only fills in as
+each adapter re-ingests over the staleness window, so the boards that publish the cleanest scope
+(WWR at 90% unknown, still on pre-fix stored rows) are the ones today's numbers understate.
+**Re-measure before designing anything**; the column's own by-source report is the check.
 
 ### Measured on 2026-07-29 and deliberately NOT fixed
 

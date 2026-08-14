@@ -8,12 +8,18 @@ postings that stopped being re-listed would never get a value at all.
 
 **Read the expected result before running it, or it will look broken.**
 
-Measured against a stratified sample of the live corpus on 2026-08-14 (3 593 active fully-remote
-rows), the distribution comes out:
+Run against the whole live corpus on 2026-08-14 — 170 299 postings scanned, 18 160 changed — the
+distribution over the 16 296 **active fully-remote** rows came out:
 
-    country   71.6%      region 5.3%      anywhere 0.75%      null 22.3%
+    country   82.1%      region 5.4%      anywhere 0.5%      null 12.0%
 
-`anywhere` really is under one percent, and that is the finding rather than a bug: "remote" in
+(A stratified 300-per-source sample taken first said 71.6 / 5.3 / 0.75 / 22.3. It was not wrong,
+it was differently weighted: 300 rows each from cocuma, recruitee and themuse against 300 from
+ashby is not what the corpus looks like. **Quote the full-corpus numbers.** The sample's value was
+that it made per-source auditing cheap, not that it estimated the total.)
+
+`anywhere` really is a fraction of a percent — 83 postings — and that is the finding rather than a
+bug: "remote" in
 this corpus almost always means work from home in one named country, because that is where the
 employer runs payroll. A run that reports a few hundred `anywhere` rows out of tens of thousands
 is working correctly. A run that reports many thousands is a false-positive bug, and the first
@@ -25,6 +31,10 @@ false positives found while writing this classifier were exactly that (see
 and setting one anyway would fill the column with trivially-`country` rows and make coverage look
 far better than it is. Rows that stop being remote are cleared back to null, so a re-run after a
 `work_mode` change repairs them.
+
+It scans **all** postings rather than only active ones (as `backfill_education` does), so
+`scanned` is the whole table — 170 299 against 16 296 active remote rows. Do not read `changed` as
+a count of remote postings.
 
 `scope_raw` is deliberately **not** backfilled — it can only come from a source payload, so it
 fills in over the staleness window as each adapter re-ingests (the same shape as
@@ -110,6 +120,17 @@ def main() -> None:
                         stream=sys.stdout)
     scanned, changed = run(batch=args.batch, dry_run=args.dry_run)
     logger.info("done: scanned %d, changed %d", scanned, changed)
+
+    if args.dry_run:
+        # The summary below reads what is *stored*, so after a dry run it describes the column as
+        # it was before — on a first run, "100% unknown". Printing that under a dry run invites
+        # exactly the wrong conclusion ("the classifier found nothing"), which is the plausible-
+        # looking-number failure this repo keeps paying for. Say so instead of showing it.
+        logger.info("dry run: %d rows would change. No distribution printed — the summary reads "
+                    "stored values, which a dry run has not written, so it would report the "
+                    "column's *previous* state and look like a classifier that found nothing.",
+                    changed)
+        return
 
     with store.cursor() as cur:
         cur.execute(
