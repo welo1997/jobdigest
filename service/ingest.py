@@ -80,6 +80,13 @@ def build_row(p, title_cache: dict[str, str] | None = None,
     # can show. Derived from the same call so they cannot disagree.
     mode = geo.work_mode(p.location, p.description, p.remote_signal)
     remote = mode == "remote"
+    # The *other* remote question: not "is there an office" but "where may I live". Computed only
+    # for fully-remote rows — the reach of an on-site Berlin job is a category error, and deriving
+    # one anyway would fill the column with trivially-`country` rows and make its coverage look
+    # far better than it is. `scope_raw` is stored whatever the mode, because it is the board's own
+    # claim and re-deriving the verdict after a classifier change must not need a re-ingest.
+    scope_raw = getattr(p, "scope_raw", None)
+    reach = geo.remote_reach(scope_raw, p.location, p.description) if remote else None
     region = work_region(p.location, country_code)
     text = f"{p.title or ''} {p.location or ''} {p.description or ''}"
     return {
@@ -87,6 +94,7 @@ def build_row(p, title_cache: dict[str, str] | None = None,
         "company": p.company, "url": p.url, "description": p.description,
         "location": p.location, "country_code": country_code, "city": city,
         "remote_signal": remote, "work_mode": mode,
+        "scope_raw": scope_raw, "remote_reach": reach,
         # Null whenever the ad does not state a binding requirement, which is the answer for
         # ~97% of postings — and necessarily for every source that ships no description text
         # (jobs.cz, profesia, cocuma). See service/education.py before reading anything into

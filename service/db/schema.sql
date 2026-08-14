@@ -27,6 +27,15 @@ create table if not exists postings (
     city           text,                            -- resolved slug ('prague'), null = unknown
     remote_signal  boolean,                          -- true only when FULLY remote, not hybrid
     work_mode      text,                             -- remote | hybrid | onsite | null=unknown
+    -- How far a fully-remote role reaches (migration 021), which is a different question from
+    -- whether it happens in an office. `scope_raw` is the board's own scope field verbatim — a
+    -- claim, like `remote_signal` (WWR's `region`, Himalayas' location+timezone restrictions,
+    -- Ashby's `secondaryLocations`, Greenhouse's `offices`). `remote_reach` is the derived
+    -- verdict: anywhere | region | country | null=never said. Set only for remote rows.
+    -- Null is 22% of active remote rows and passes every gate — see service/geo.py
+    -- (`remote_reach`) before relying on this, and never gate the digest path on it in SQL.
+    scope_raw      text,
+    remote_reach   text,
     -- Lowest qualification the ad demands (migration 014): secondary | vocational | bachelor |
     -- master | doctorate | null=never said. Null for ~97% of rows and for 100% of the CZ/SK
     -- inventory, which carries no description text at all — the gate keeps nulls and defers to
@@ -89,6 +98,10 @@ create index if not exists idx_postings_eligibility on postings (eligibility);
 create index if not exists idx_postings_dedup       on postings (dedup_key);
 -- Partial: only ~3% of rows carry a requirement, and the null-majority path never needs it.
 create index if not exists idx_postings_education   on postings (education_min) where education_min is not null;
+-- Partial (migration 021): only ever set for fully-remote rows, and every query that reads it is
+-- already filtering on remote.
+create index if not exists idx_postings_remote_reach on postings (remote_reach)
+    where is_active and remote_reach is not null;
 -- GIN over skill array elements (migration 020): index-backs `skills && array['python']` and
 -- unnest facet counts. Null/empty arrays add no entries, so it stays proportional to postings
 -- that name a skill.

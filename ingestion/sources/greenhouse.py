@@ -84,6 +84,7 @@ class GreenhouseSource(BaseSource):
                     salary_raw=None,
                     currency=None,
                     posted_at=self._parse_date(item.get("updated_at")),
+                    scope_raw=self._scope(location, item),
                 )
             )
         logger.info("Greenhouse: normalised %d postings", len(postings))
@@ -95,6 +96,29 @@ class GreenhouseSource(BaseSource):
         if isinstance(locations, dict):
             return locations.get("name")
         return None
+
+    @staticmethod
+    def _scope(location: Optional[str], item: dict) -> Optional[str]:
+        """The location text plus the `offices` names, for `geo.remote_reach`.
+
+        Greenhouse's `location.name` already answers the scope question most of the time — it is
+        written "Remote, Italy" / "Remote, United States" / "Remote, Bangalore", which is why 60%
+        of this source's remote rows resolve a scope from location alone. `offices` is the part
+        that was going unread: a country-level office list ("Italy", "India"), which names the
+        country the location text sometimes leaves at a bare city.
+
+        Not folded into `location` for the reason given in `ashby._scope` — an office list would
+        outrank the real city in `geo.resolve_location`.
+        """
+        parts = [str(location).strip()] if location else []
+        for office in item.get("offices") or []:
+            name = str((office or {}).get("name") or "").strip() if isinstance(office, dict) \
+                else str(office or "").strip()
+            # "No office" / "Remote" are Greenhouse placeholders, not places.
+            if name and name.casefold() not in {p.casefold() for p in parts} \
+                    and name.casefold() not in {"no office", "remote"}:
+                parts.append(name)
+        return ", ".join(parts) or None
 
     @staticmethod
     def _parse_date(date_str: Optional[str]) -> Optional[date]:

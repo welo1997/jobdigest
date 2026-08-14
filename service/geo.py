@@ -754,6 +754,260 @@ def is_fully_remote(location: Optional[str], description: Optional[str] = None,
     return work_mode(location, description, source_signal) == "remote"
 
 
+# --- how far a remote role reaches ---------------------------------------------
+#
+# `work_mode` answers "does this job happen in an office". This answers the *other* question a
+# remote posting raises and the one subscribers actually read into the word: "and where am I
+# allowed to live while doing it". The two are independent, and conflating them is a promise we
+# cannot keep — most work-from-home roles are bound to one country because that is where the
+# employer runs payroll, a minority are genuinely location-independent, and the difference is
+# what decides whether a Prague subscriber can take a US-remote job. They cannot.
+#
+# Values, widest first:
+#   anywhere  names no geographic restriction at all ("Anywhere in the World", "Worldwide")
+#   region    bound to a named macro-region, a timezone band, or an explicit set of >= 2
+#             countries — you may live abroad, inside that set
+#   country   bound to exactly one country: work from *home*, not from another country
+#   None      the posting never said. **The majority answer, and kept everywhere** — same rule
+#             as `work_mode`, `education_min` and an unresolved city. A display filter is
+#             equality so it excludes None; the digest path must never gate on this in SQL.
+#
+# Only meaningful for a fully-remote posting, and `ingest` stores it only for those: "reach" of
+# an on-site Berlin job is a category error, and computing it anyway would fill the column with
+# trivially-`country` rows and make coverage look far better than it is.
+#
+# **The signal is structured data first, prose last.** Measured 2026-08-14: reading description
+# prose found an explicit scope on 5.8% of active remote rows, which read as "unprovable, give
+# up". That was measuring the wrong layer. The remote boards publish scope as a *field* — WWR's
+# `region`, Himalayas' `locationRestrictions` + `timezoneRestrictions`, Jobicy's `jobGeo`,
+# Remotive's `candidate_required_location`, Ashby's `secondaryLocations` — and three adapters
+# were dropping theirs on the floor. `JobPosting.scope_raw` carries that field verbatim so this
+# classifier reads a publisher's own answer instead of guessing at body copy.
+
+REACH_IDS = ("anywhere", "region", "country")
+REACH_LABELS = {
+    "anywhere": "Work from anywhere",
+    "region": "Remote within a region",
+    "country": "Remote within one country",
+}
+
+# Matched against the scope/location field, never body copy. "global" is safe here and would be
+# hopeless there — a description says "a global leader in" and means nothing about eligibility.
+_ANYWHERE_SCOPE = re.compile(
+    r"\b(anywhere|worldwide|world wide|global|globally|any country"
+    r"|location independent|fully distributed globally)\b")
+# The description equivalent, deliberately much narrower: only phrases that state the policy
+# outright. A bare "anywhere" in body copy is "anywhere in the org", "anywhere from 3-5 years".
+#
+# The hedge guard is not hypothetical. Measured 2026-08-14, `anywhere` read out of the location
+# field was right 22 times out of 22, and read out of body copy right once in three — both
+# failures being sentences that *say* anywhere and then take it back:
+#   "work from almost anywhere in the world; IDEXX offers employment contracts in 30 [countries]"
+#   "you can work from anywhere in the world as long as your main location is between UTC-5 and
+#    UTC+2"
+# The first is caught by refusing the hedge, the second by `_ANYWHERE_HEDGED_BY` below, which
+# downgrades to `region` when a timezone band sits beside the phrase. Marketing copy promises
+# freedom in the same paragraph that limits it, which is exactly why prose is the last resort.
+_ANYWHERE_TEXT = re.compile(
+    r"\b(?<!almost )(?<!nearly )(?<!virtually )(?<!practically )(?<!just about )"
+    r"(work from anywhere|from anywhere in the world|anywhere in the world"
+    r"|no location restrictions?|location independent|any country in the world"
+    r"|work remotely from anywhere)\b")
+#: How far either side of an `_ANYWHERE_TEXT` hit to look for a qualifier that takes it back.
+_ANYWHERE_WINDOW = 220
+# Named macro-regions. Searched on the *residue* after country names have been blanked out, so
+# "South Africa" cannot be read as the continent and "United States of America" cannot be read
+# as "Americas". "america" (singular) is deliberately absent: it usually means the USA.
+_MACRO_REGION = re.compile(
+    r"\b(europe|european|eu|eea|emea|apac|asia pacific|asiapac|latam|latin america"
+    r"|north america|south america|central america|americas|africa|oceania|middle east|mena"
+    r"|asia|anz|dach|benelux|nordics|nordic|baltics|cee|schengen|eurozone"
+    r"|commonwealth)\b")
+# A timezone band is a geographic scope too, and a wide one: "CET (+/- 3 hours)" spans some
+# thirty countries, so it means "abroad, within this band" rather than any single country.
+#
+# The American abbreviations (EST/CST/PST/MST) are deliberately absent. "est" is a word in
+# French, Spanish and Latin and shows up in normalised body copy constantly, and the cost of
+# omitting them is nil: a role bound to US timezones names the US, and the country rule below
+# already outranks this one. Bare "overlap" is out for the same reason — it is almost always
+# "overlap with our team", and the cases that matter ("EU timezone overlap") say timezone.
+_TIMEZONE_BAND = re.compile(r"\b(time ?zones?|utc|gmt|cet|cest|eet|weso?t)\b")
+# Right-to-work phrasing, the only prose worth reading on a general employer board. The scope
+# classifier is re-run on the window that follows, so "eligible to work in the EU" resolves the
+# same way the field "EU" would.
+#
+# **A bare "based in" is not enough, and that was the first version's mistake.** Every posting
+# describes its employer, and "Azumo is based in San Francisco" / "a Munich-based company is
+# looking for a founding engineer" then read as a restriction on the candidate — attaching a
+# company's head office to a role that may well be open across the EU. Audited on 18 live
+# description-derived verdicts, five of them were an employer's own address read as an
+# eligibility rule.
+#
+# So the trigger must either state an obligation outright (`must be based`, `right to work`) or
+# name who is being restricted (`candidates based in`, `you must reside in`). "Azumo is based in"
+# matches neither. This costs recall — some genuine "based in the greater San Diego area" role
+# statements are lost with it — and that is the correct direction: this classifier's only safe
+# error is a miss, and 97 of 3 593 verdicts came from prose at all.
+_TEXT_BOUND = re.compile(
+    r"\b(?:"
+    # (a) an obligation, whoever it is aimed at
+    r"must (?:be |currently be )?(?:a )?(?:located|based|resident|residing|reside|living)"
+    r"|(?:eligible|authori[sz]ed|legally able|permitted|able) to work"
+    r"|right to work|work authori[sz]ation|work permit|permanent resident"
+    r"|(?:can only|only) (?:hire|employ|consider)"
+    # (b) or an explicit subject — the candidate, not the company
+    r"|(?:candidates?|applicants?|you|your|talent|new hires?|hires?|employees?"
+    r"|team members?|this (?:role|position)|the (?:role|position))"
+    r"(?:\s+\w+){0,3}?\s+(?:based|located|residing|reside|living|sits|open)"
+    r")"
+    r"(?:\s+\w+){0,3}?\s+(?:in|within|from|across)\s+"
+    r"(?:the\s+)?(?P<scope>.{0,60})")
+# `normalise` flattens HTML to bare words, so a scope window runs straight through the end of its
+# sentence and into the next block. That is how "right to work in Germany" picked up arbeitnow's
+# site-wide footer link — "…in germany p p find a href https www arbeitnow co uk jobs in united
+# kingdom" — and read as a two-country region. Block-level tag remnants are where the sentence
+# actually ended, so the window stops at the first one. Inline tags (`strong`, `em`, `span`) are
+# deliberately absent: they sit *inside* the list being enumerated, and cutting there would lose
+# "candidates based in the <strong>EU, UK or North America</strong>".
+_MARKUP_BREAK = re.compile(r"\b(?:p|br|div|li|ul|ol|tr|td|table|href|https|www|h[1-6])\b")
+
+
+def countries_named(text: Optional[str]) -> tuple[set[str], str]:
+    """Every country ``text`` names, plus the text with those names blanked out.
+
+    Reuses this module's own tables — `COUNTRY_ALIASES` for country names, `CITIES` and
+    `FOREIGN_CITIES` for the places that imply one — because geography has one definition and a
+    second list of country spellings here would drift from `resolve_location` within a month.
+    Longest n-gram first and non-overlapping, so "united states" is one hit rather than "united
+    states" plus a stray "us".
+
+    **An explicitly named country outranks a country merely implied by a city**, exactly as in
+    `resolve_location`, and the whole set of implied ones is discarded when any explicit name is
+    present. RemoteOK writes "London, London, Ontario, Canada"; reading the city as Great Britain
+    alongside the stated Canada makes a single-city job look open in two countries, which is the
+    difference between "work from home in Ontario" and "live wherever you like in two countries".
+    Where nothing is named outright, an unambiguous city is the best evidence available and
+    "Remote, Bangalore" resolves to India.
+
+    The residue is what makes the macro-region pass safe: "South Africa" leaves nothing behind
+    that looks like a continent, so the caller can then trust a bare "africa".
+    """
+    tokens = normalise(text).split()
+    if not tokens:
+        return set(), ""
+    named: set[str] = set()
+    implied: set[str] = set()
+    consumed = [False] * len(tokens)
+    for start, phrase in _ngrams(tokens):
+        size = len(phrase.split())
+        if any(consumed[start:start + size]):
+            continue
+        hit = _COUNTRY_INDEX.get(phrase) or _FOREIGN_INDEX.get(phrase)
+        bucket = named
+        if not hit:
+            cities = _CITY_INDEX.get(phrase)
+            # An ambiguous city name never implies a country here, on the `georgia` rule.
+            if cities and len(cities) == 1 and phrase not in _AMBIGUOUS:
+                hit, bucket = cities[0][0], implied
+        if hit:
+            bucket.add(hit)
+            for i in range(start, start + size):
+                consumed[i] = True
+    residue = " ".join(t for t, used in zip(tokens, consumed) if not used)
+    return (named or implied), residue
+
+
+def _reach_of_scope(scope: Optional[str]) -> Optional[str]:
+    """Classify one scope string — a board's own field, or a window of right-to-work prose.
+
+    **A named country outranks every wider signal**, and that ordering is the whole classifier.
+    All three false positives found on live data in the first measurement pass were a wide
+    signal winning over a stated country:
+
+    - RemoteOK's "Anywhere in the United States" — a US-only role — read as `anywhere`, which
+      would put an unreachable job in front of a Prague subscriber under a filter that promises
+      the opposite.
+    - Himalayas' `"United States | UTC-10..UTC-5, UTC+14"` read as `region`, for **every one of
+      300 sampled postings**: the timezone band is a refinement *inside* the country, not a
+      wider grant, and taking it as scope wiped the country/region distinction off the board.
+    - "London, London, Ontario, Canada" read as `region` — see `countries_named`.
+
+    So countries are resolved first and answer alone if there are any. A macro-region or
+    timezone band only speaks when no country is named, and `anywhere` only when there is no
+    narrower reading at all — "Anywhere in Europe" is Europe, not anywhere.
+    """
+    text = normalise(scope)
+    if not text:
+        return None
+    countries, residue = countries_named(text)
+    if len(countries) >= 2:
+        return "region"          # an explicit multi-country set: abroad, within that set
+    if len(countries) == 1:
+        return "country"
+    if _MACRO_REGION.search(residue) or _TIMEZONE_BAND.search(residue):
+        return "region"
+    if _ANYWHERE_SCOPE.search(text):
+        return "anywhere"
+    return None
+
+
+def remote_reach(scope_raw: Optional[str] = None,
+                 location: Optional[str] = None,
+                 description: Optional[str] = None) -> Optional[str]:
+    """How far a fully-remote posting reaches: ``anywhere`` | ``region`` | ``country`` | None.
+
+    Reads the three sources of truth in descending order of trustworthiness, and stops at the
+    first that answers: the board's own structured scope field, then the location text, then —
+    only through the right-to-work keyhole of `_TEXT_BOUND` and the outright policy statements of
+    `_ANYWHERE_TEXT` — the description.
+
+    Precedence is not a tie-break, it is a trust ordering. A publisher who filled in a scope
+    field has answered the question; body copy mentioning a country is usually saying something
+    else entirely ("our Berlin office", "customers across Europe"), which is why prose is read
+    last and through a keyhole.
+
+    Returning None is a real answer and the common one. The only safe error here is a miss:
+    claiming a country-bound role is open worldwide sends someone to an application they cannot
+    legally take, so every rule is a positive detection and nothing is inferred from silence.
+    """
+    for field in (scope_raw, location):
+        hit = _reach_of_scope(field)
+        if hit:
+            return hit
+
+    text = normalise(description)[:4000]
+    if not text:
+        return None
+    # Narrowest wins among the right-to-work windows, and they are read *before* any
+    # work-from-anywhere phrasing: an ad naming both "the EU" and "Germany" is telling you about
+    # the entity and the seat, and the seat is the binding half. Same reason "we can only hire in
+    # the US and Canada" has to outrank a cheerful "work from anywhere" in the perks list — one
+    # of those two sentences is the one that stops an application.
+    best: Optional[str] = None
+    for m in _TEXT_BOUND.finditer(text):
+        scope = m.group("scope")
+        cut = _MARKUP_BREAK.search(scope)
+        hit = _reach_of_scope(scope[:cut.start()] if cut else scope)
+        if hit is None:
+            continue
+        if best is None or REACH_IDS.index(hit) > REACH_IDS.index(best):
+            best = hit
+    if best:
+        return best
+    m = _ANYWHERE_TEXT.search(text)
+    if not m:
+        return None
+    # "Anywhere in the world, as long as you are between UTC-5 and UTC+2" is a band, not a grant.
+    window = text[max(0, m.start() - _ANYWHERE_WINDOW):m.end() + _ANYWHERE_WINDOW]
+    return "region" if _TIMEZONE_BAND.search(window) else "anywhere"
+
+
+def clean_remote_reach(value: Any) -> Optional[str]:
+    """The stored/queried form of a reach value, or None for anything unrecognised."""
+    v = str(value or "").strip().lower()
+    return v if v in REACH_IDS else None
+
+
 # --- preference values ---------------------------------------------------------
 
 def qualify(country: str, city_slug: str) -> str:

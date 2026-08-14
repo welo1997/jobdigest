@@ -146,6 +146,25 @@ Each of these has been broken in production at least once. Reasoning and measure
 - **A source's `remote_signal` is a claim, not a fact** — `is_fully_remote` checks the
   posting's own words. Only a *named* schedule or policy disqualifies. Changing detection
   means re-running `python -m service.backfill_geo`.
+- **"Remote" is two questions, and `remote_signal` only answers one.** Whether there is an
+  office is `work_mode`; **where you may live while holding the job is `postings.remote_reach`**
+  — `anywhere | region | country | NULL`, one definition in `geo.remote_reach`, backfilled by
+  `python -m service.backfill_remote_reach`. The two are independent and conflating them
+  promises something no posting said. **The measured answer is that "remote" almost always
+  means work from home in one country: 71.6% `country`, 5.3% `region`, 0.75% `anywhere`, 22%
+  NULL** (3 593 active remote rows, 2026-08-14) — so *do not build a feature on the assumption
+  that fully-remote-abroad inventory is large*, and do not re-argue the size of it from
+  intuition. **The signal is a board's structured field first, location text second, prose
+  last.** Reading description prose alone found 5.8% and looked unprovable; that was the wrong
+  layer. `JobPosting.scope_raw` carries the publisher's own scope field verbatim — it is a
+  *claim*, like `remote_signal`, and the reason a classifier change can be backfilled without
+  re-ingesting. It must **never** be folded into `location`: `resolve_location` takes the first
+  country n-gram it finds, so Ashby's secondary countries in front of "Paris offices" silently
+  re-home the job to Germany. **Every rule is a positive detection and a named country outranks
+  every wider signal** — all three false positives found on live data were a wide signal
+  beating a stated country ("Anywhere in the United States" read as `anywhere`; a Himalayas
+  timezone band read as `region` on all 300 sampled rows). Prose is read through a keyhole:
+  a bare "based in" is an employer's head office, not an eligibility rule.
 - **`postings.eligibility` is a subscriber-specific judgement in a posting-level column**, so
   a constant allowlist over it is always wrong for somebody. `store.eligibility_allowlist`
   derives from `profile["countries"]`, shared by both call sites.

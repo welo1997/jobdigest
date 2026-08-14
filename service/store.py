@@ -67,7 +67,8 @@ def cursor(commit: bool = False):
 _UPSERT_SQL = """
 insert into postings (
     posting_id, source, title, company, url, description, location, country_code, city,
-    remote_signal, work_mode, education_min, salary_raw, currency, posted_at,
+    remote_signal, work_mode, scope_raw, remote_reach, education_min,
+    salary_raw, currency, posted_at,
     role_category, region, eligibility, seniority, work_type, is_part_time, dedup_key, skills,
     last_seen_at, is_active
 ) values %s
@@ -88,6 +89,8 @@ on conflict (posting_id) do update set
     city = excluded.city,
     remote_signal = excluded.remote_signal,
     work_mode = excluded.work_mode,
+    scope_raw = excluded.scope_raw,
+    remote_reach = excluded.remote_reach,
     education_min = excluded.education_min,
     salary_raw = excluded.salary_raw,
     currency = excluded.currency,
@@ -111,7 +114,8 @@ def upsert_postings(rows: Iterable[dict]) -> int:
         (
             r["posting_id"], r["source"], r.get("title"), r.get("company"), r["url"],
             r.get("description"), r.get("location"), r.get("country_code"), r.get("city"),
-            r.get("remote_signal"), r.get("work_mode"), r.get("education_min"),
+            r.get("remote_signal"), r.get("work_mode"),
+            r.get("scope_raw"), r.get("remote_reach"), r.get("education_min"),
             r.get("salary_raw"), r.get("currency"),
             r.get("posted_at"),
             r.get("role_category"), r.get("region"), r.get("eligibility"),
@@ -125,11 +129,11 @@ def upsert_postings(rows: Iterable[dict]) -> int:
     ]
     if not values:
         return 0
-    # 23 placeholders for the 23 columns above `last_seen_at`. Counted, not eyeballed: these
+    # 25 placeholders for the 25 columns above `last_seen_at`. Counted, not eyeballed: these
     # bind by position, so one missing %s shifts every column after it by one and psycopg2
     # cannot tell — it would write `skills` into `dedup_key` and fail on the type, or
     # worse, not fail at all. The assert below is cheap and turns that into a loud error.
-    template = ("(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,"
+    template = ("(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,"
                 "now(), true)")
     assert template.count("%s") == len(values[0]), (
         f"upsert template has {template.count('%s')} placeholders "

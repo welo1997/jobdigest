@@ -1,9 +1,22 @@
 """Himalayas — fetch worldwide remote jobs via the public JSON API.
 
 https://himalayas.app/jobs/api?limit=&offset= returns {"jobs": [...]}. Each job
-carries `locationRestrictions` (list) and `timezoneRestrictions`, which we keep in
-the location text for region tagging, and an `expiryDate` epoch used to skip
-already-expired postings at ingestion time. Every listing is remote.
+carries `locationRestrictions` (list) and `timezoneRestrictions`, and an `expiryDate`
+epoch used to skip already-expired postings at ingestion time. Every listing is remote.
+
+**`timezoneRestrictions` was fetched and dropped, and this docstring used to claim otherwise**
+(it said both restrictions were kept "in the location text for region tagging"; only the
+locations ever were). Corrected 2026-08-14. It is a list of UTC offsets — `[-10, -9, -8, -7,
+-6, -5, 14]` for a US role, `[8]` for Singapore, `[0]` for UK — present on 20 of 20 sampled
+postings, and it is the only structured timezone data in this entire corpus. Both restrictions
+now go to `scope_raw`, offsets rendered as `UTC-10..UTC-5` so a later reader can parse them
+back out without another ingest.
+
+An **empty** `locationRestrictions` is a meaningful answer here rather than a missing one:
+Himalayas asks publishers what they want to restrict, so no restrictions recorded is the
+board's way of saying anywhere. It is deliberately *not* translated into a scope claim — that
+would be inferring a promise from silence, which is the one error `geo.remote_reach` must never
+make. `location` keeps falling back to the bare string "Remote" and the reach stays unknown.
 
 The upstream sometimes serves the field *name* instead of the value
 --------------------------------------------------------------------
@@ -60,6 +73,13 @@ _COUNTRY_MAP = {
     "poland": "PL", "austria": "AT", "ireland": "IE", "portugal": "PT",
     "czech republic": "CZ", "czechia": "CZ", "slovakia": "SK", "canada": "CA",
 }
+
+
+def _utc(offset: float) -> str:
+    """`-3.5` -> ``UTC-3.5``, `0` -> ``UTC+0``. Half-hour zones are real (India, Newfoundland)."""
+    whole = int(offset)
+    body = str(whole) if offset == whole else f"{offset:g}"
+    return f"UTC{'+' if offset >= 0 else ''}{body}"
 
 
 def _company(raw) -> Optional[str]:
@@ -141,6 +161,7 @@ class HimalayasSource(BaseSource):
                     salary_raw=self._build_salary(item),
                     currency=item.get("currency"),
                     posted_at=self._parse_epoch(item.get("pubDate")),
+                    scope_raw=self._scope(locations, item.get("timezoneRestrictions")),
                 )
             )
         logger.info(
@@ -157,6 +178,35 @@ class HimalayasSource(BaseSource):
                          "serving a degraded payload, treat the company column as suspect",
                          len(postings), next(iter(names)))
         return postings
+
+    @staticmethod
+    def _scope(locations: list, timezones) -> Optional[str]:
+        """Both restrictions as one text claim, or None when the board recorded neither.
+
+        Offsets are collapsed into contiguous `UTC-10..UTC-5` runs because the raw list for a
+        US role is seven numbers and reads as noise; the run form survives a round trip. `14`
+        (Kiritimati) rides along with the American offsets in Himalayas' own data and is kept
+        rather than cleaned — it is their answer, and inventing a tidier one is how a claim
+        becomes a classification.
+        """
+        parts: list[str] = []
+        if locations:
+            parts.append(", ".join(str(loc).strip() for loc in locations if str(loc).strip()))
+        offsets = sorted({float(t) for t in (timezones or [])
+                          if isinstance(t, (int, float))
+                          or str(t).replace("-", "").replace(".", "").isdigit()})
+        if offsets:
+            runs: list[str] = []
+            start = prev = offsets[0]
+            for off in offsets[1:] + [None]:
+                if off is not None and off - prev <= 1:
+                    prev = off
+                    continue
+                runs.append(_utc(start) if start == prev else f"{_utc(start)}..{_utc(prev)}")
+                if off is not None:
+                    start = prev = off
+            parts.append(", ".join(runs))
+        return " | ".join(p for p in parts if p) or None
 
     @staticmethod
     def _country_from(locations: list) -> Optional[str]:

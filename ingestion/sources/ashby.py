@@ -318,10 +318,42 @@ class AshbySource(BaseSource):
                     salary_raw=None,
                     currency=None,
                     posted_at=self._parse(item.get("publishedAt")),
+                    scope_raw=self._scope(item),
                 )
             )
-        logger.info("Ashby: normalised %d postings", len(postings))
+        logger.info("Ashby: normalised %d postings (%d carrying a scope)",
+                    len(postings), sum(1 for p in postings if p.scope_raw))
         return postings
+
+    @staticmethod
+    def _scope(item: dict) -> Optional[str]:
+        """`location` plus every `secondaryLocations` entry — the other countries it is open in.
+
+        Ashby publishes a role open in several places as one primary `location` and a list of
+        secondaries, and this adapter read only the primary. The secondaries are the interesting
+        half for geographic reach: an Engineering Manager whose primary is "Paris offices" and
+        whose secondaries are "Germany", "France", "Portugal (remote)" is a role you may hold
+        from three countries, and on the primary alone it is indistinguishable from a Paris desk
+        job. Measured 2026-08-14 against live boards.
+
+        **The secondaries must not be folded into `location`.** `geo.resolve_location` takes the
+        first country n-gram it finds, so "Paris offices, Germany, France" resolves to DE with no
+        city and the Paris job leaves every Paris subscriber's digest. That is the whole reason
+        `scope_raw` is a separate field.
+
+        Returns None when there are no secondaries *and* the primary is empty — a lone primary
+        still goes in, because "Remote in the United States" is a scope statement.
+        """
+        parts: list[str] = []
+        primary = str(item.get("location") or "").strip()
+        if primary:
+            parts.append(primary)
+        for sec in item.get("secondaryLocations") or []:
+            name = str((sec or {}).get("location") or "").strip() if isinstance(sec, dict) \
+                else str(sec or "").strip()
+            if name and name.casefold() not in {p.casefold() for p in parts}:
+                parts.append(name)
+        return ", ".join(parts) or None
 
     @staticmethod
     def _country(item: dict) -> Optional[str]:

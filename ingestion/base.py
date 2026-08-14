@@ -37,6 +37,21 @@ class JobPosting:
     # of the corpus into a category nothing could match. The absence of this sentence is what
     # let that happen without anyone noticing.
     source_category: Optional[str] = None
+    # The board's own answer to "where may the holder of this job live" — WeWorkRemotely's
+    # `region`, Himalayas' `locationRestrictions` + `timezoneRestrictions`, Jobicy's `jobGeo`,
+    # Remotive's `candidate_required_location`, Ashby's `secondaryLocations`. Verbatim-ish text,
+    # a *claim* like `remote_signal`, never a classification: `geo.remote_reach` derives
+    # `postings.remote_reach` from it and this column is what lets a backfill re-derive that
+    # without re-ingesting.
+    #
+    # It exists as its own field rather than being folded into `location` because folding it in
+    # breaks `geo.resolve_location`: appending Ashby's secondary countries to "Paris offices"
+    # makes the first country n-gram "Germany", and a Paris job silently resolves to DE with no
+    # city. Kept separate, an unparseable scope costs nothing.
+    #
+    # `None` means the board published no scope field — which is most boards, and not the same
+    # claim as "anywhere". See `geo.remote_reach`.
+    scope_raw: Optional[str] = None
 
     def as_tuple(self) -> tuple:
         """Return values in column order for Snowflake INSERT."""

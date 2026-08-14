@@ -285,6 +285,32 @@ payload will pick a different string and that *shape* is the thing to watch.
   `category OR keyword`, so a subscriber asking for design or sales could not be shown those
   postings — not because none existed, but because none were fetched. **When a source looks
   small, measure what it holds before believing it.**
+- **The same failure has a quieter form: a field fetched and never read.** Volume was right,
+  ids were fresh, links worked, and four adapters were dropping the geographic-scope field
+  their board publishes (found 2026-08-14 while asking whether "remote" could be split into
+  work-from-home and work-from-anywhere — see `docs/jobdigest.md`). What each one holds, now
+  carried in `JobPosting.scope_raw`:
+  - **WeWorkRemotely** — `region` is a closed publisher vocabulary ("Anywhere in the World",
+    "Europe Only", "Asia Only") present on 100 of 100 entries, plus `country` (an explicit
+    allowlist) and `state`. `normalize` passed **`location=None` outright**, so all 170 rows
+    were location-empty — the only such source in the corpus, and it looked like the board's
+    fault. `state` is still deliberately **not** read: it is the *employer's* seat, and Proxify
+    advertises "Anywhere in the World" with `state: Stockholm`.
+  - **Himalayas** — `timezoneRestrictions`, a list of UTC offsets, on 20 of 20 sampled rows.
+    Fetched and dropped, while the module docstring claimed it was kept. It is the only
+    structured timezone data in the corpus.
+  - **Ashby** — `secondaryLocations`, the other countries a role is open in ("Germany",
+    "Portugal (remote)"). On the primary `location` alone, a role open in three countries is
+    indistinguishable from a desk job.
+  - **Greenhouse** — `offices`, a country-level list that names the country a bare city
+    location omits ("Remote, Bangalore" + `[{"name": "India"}]`).
+
+  **RemoteOK genuinely has no scope field** — checked, not assumed — so its 31% coverage is the
+  board's ceiling rather than an adapter bug. That distinction is the reason to probe the raw
+  payload before "fixing" a source that looks thin. And **a recovered field must not be folded
+  into `location`**: `geo.resolve_location` takes the first country n-gram it finds, so a scope
+  list in front of the real city silently re-homes the job to another country, with nothing
+  failing.
 - **Greenhouse/Lever/Ashby/SmartRecruiters/Workday** curated company lists, no domain-wide crawls.
   A board that goes dark is a **silent zero**: `fetch` skips a non-200 without an error-level
   log. Re-probe the lists rather than assuming (`dbtlabsinc` and `nubank` were both dead when

@@ -775,6 +775,78 @@ explanation, where `/matches` would have shown them a count of 0 before they cli
 `search_facets` does not compute a seniority facet today. **Trigger:** any signal that visitors
 are filtering to empty on the public feed.
 
+### Remote is two questions, and we were only answering one (measured 2026-08-14)
+
+`work_mode` answers *is there an office*. The question subscribers actually read into the word
+"remote" is *and where am I allowed to live while doing it* — "remote within Germany" and "work
+from anywhere" are the same chip on `/jobs` today and are not the same job. `postings.remote_reach`
+(migration 021, `geo.remote_reach`) is the second answer: `anywhere | region | country | NULL`.
+
+**The headline is the distribution, not the coverage.** Stratified sample, 3 593 active
+fully-remote rows:
+
+| verdict | rows | % |
+|---|---:|---:|
+| `country` — work from home, one named country | 2 574 | **71.6%** |
+| `region` — a macro-region, a timezone band, or ≥2 named countries | 191 | 5.3% |
+| `anywhere` — no geographic restriction stated | 27 | **0.75%** |
+| NULL — the posting never said | 801 | 22.3% |
+
+So the intuition that remote usually means work-from-home is correct, and it is *overwhelmingly*
+correct. A "work from anywhere" filter over 12 041 remote postings would surface roughly a
+hundred. **Do not build a feature on the assumption that this inventory is large, and do not
+re-argue its size from intuition.** The economic reason is not a data problem: a company can
+usually only employ you where it has a legal entity and payroll, so country-bound is the default
+and genuinely global roles are rare enough to be a selling point — which is exactly why the ones
+that exist tend to say so, and why positive detection has decent recall on that specific class.
+
+**The first measurement was wrong because it read the wrong layer.** Scanning description prose
+found an explicit scope on 5.8% of remote rows, which read as "mostly unprovable" — the
+education/on-site situation. It was not. The dedicated remote boards publish scope as a
+*structured field*, and three adapters were fetching theirs and discarding it:
+
+| source | field | was |
+|---|---|---|
+| weworkremotely | `region` ("Anywhere in the World", "Europe Only") + `country` | **`location=None`, hardcoded.** 100% of rows location-empty — the only such source in the corpus |
+| himalayas | `timezoneRestrictions` (UTC offsets) | fetched, dropped; the docstring claimed it was kept |
+| ashby | `secondaryLocations` (the other countries a role is open in) | dropped |
+| greenhouse | `offices` (country-level list) | dropped |
+| remoteok | — | genuinely has no scope field; 31% coverage is the board's ceiling, not a bug |
+
+Coverage per source is a property of the *board*, so the corpus average describes neither half:
+workday/oraclecloud/smartrecruiters are 100% `country` (big employers, payroll-bound), the remote
+boards run 94–100%, remoteok 31%.
+
+Three design rules, each of which was a false positive on live data first:
+
+1. **A named country outranks every wider signal.** "Anywhere in the United States" is a US-only
+   role; matching "anywhere" first called it `anywhere`, which is the single most expensive error
+   available here. A Himalayas timezone band (`["United States"]` + `[-10..-5, 14]`) read as
+   `region` on **all 300 sampled rows** — the band is a refinement *inside* the country. And a
+   city-implied country never counts beside a stated one ("London, London, Ontario, Canada").
+2. **Prose is read through a keyhole.** `anywhere` from a location field was right 22/22; from
+   body copy, 1/3. Both failures promised freedom and withdrew it in the same breath ("almost
+   anywhere"; "anywhere in the world as long as you are between UTC-5 and UTC+2"). A bare "based
+   in" is an employer's head office — five of eighteen prose verdicts were a company address read
+   as an eligibility rule.
+3. **`scope_raw` must never be folded into `location`.** `resolve_location` takes the first
+   country n-gram it finds, so Ashby's secondaries in front of "Paris offices" resolve to DE with
+   no city, and the Paris job leaves every Paris subscriber's digest while appearing in Germany's.
+   Nothing fails — a country resolved is a country resolved.
+
+NULL is 22% and passes every gate, on the same rule as `work_mode` and `education_min`. The
+column is set **only for fully-remote rows**: the reach of an on-site Berlin job is a category
+error, and deriving one anyway would fill the column with trivially-`country` rows and make
+coverage look far better than it is.
+
+**Still open, deliberately not in the same commit:** nothing reads the column yet. The UI
+question is genuinely open given 0.75% — an opt-in "work from anywhere" refinement under the
+Country menu surfaces ~100 jobs, and a hard *timezone* filter is worse than that (the offsets
+exist for one source), so extract-and-badge is the likelier shape. **Never silently hide the
+NULLs behind such a filter** — that is this repo's canonical failure mode, and here it would hide
+78% of remote inventory. `scope_raw` fills in over the staleness window as each adapter
+re-ingests, so re-measure before designing the filter.
+
 ### Measured on 2026-07-29 and deliberately NOT fixed
 
 Three long-standing items were quantified against production rather than re-argued. Each
