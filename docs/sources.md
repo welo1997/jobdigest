@@ -254,7 +254,12 @@ payload will pick a different string and that *shape* is the thing to watch.
   Recruitee's `(Sample)` problem in a form the existing guard cannot see, and the general rule is
   **a marker-free demo posting is caught by what the description sells, not by what the job is
   called.**
-- **Never use LinkedIn beyond its public RSS** — account ban risk, and never Playwright. As
+- **Never use LinkedIn beyond its public RSS** — account ban risk. And **no browser
+  automation on the sourcing path**: the ban is scoped to *sourcing* and is about terms/legal
+  risk, not the tool — if a board can only be read by driving a headless browser, its anti-bot
+  wall or terms are refusing us, so it is closed (`test_politeness.py` guards adapter agents).
+  Browser automation for dev/UX testing or a future *user-authorised* auto-apply flow is a
+  separate, permitted matter. As
   of 2026-08-01 that RSS returns 0 entries, as does EuroJobs (Cloudflare interstitial), so
   both adapters are **not wired into `gather()`**; the README used to list them as coverage.
   A source that fetches nothing is a gap counted as filled — measure before believing a list.

@@ -407,8 +407,15 @@ it.
   either returns to `gather()`. **Do not re-add them because the digest looks thin.**
   Alma Career also owns Teamio, CVonline.lt, CV.lv, CV.ee, MojPosao and Jobly.fi — check
   ownership before checking terms.
-- **Never use LinkedIn beyond its public RSS** — account ban risk — and **never Playwright**.
-  A source needing a browser is closed, not a project.
+- **Never use LinkedIn beyond its public RSS** — account ban risk.
+- **No browser automation on the sourcing/ingestion path.** The rule is scoped to *sourcing*,
+  and it is about terms and legal risk, not the tool: a source that can only be read by
+  driving a headless browser is one whose anti-bot wall or terms are telling us no, so **a
+  source needing a browser to crawl it is closed, not a project** — and `test_politeness.py`
+  fails if any adapter reintroduces a browser agent. Browser automation (Playwright,
+  claude-in-chrome) is **fine elsewhere** — dev/UX testing already uses it, and a future
+  *user-authorised* auto-apply workstream is a separate, permitted use. What is forbidden is
+  scraping a job board with a browser, not the browser.
 - `ingestion/politeness.py` is the one place for the crawler's identity: `USER_AGENT`
   (`JobDigest/1.0` + contact URL), `robots_allows()`, and `throttle()` at 1 s/host.
   `test_politeness.py` fails if any adapter reintroduces a browser agent. Its 1 s guarantee
