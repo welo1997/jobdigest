@@ -311,6 +311,31 @@ payload will pick a different string and that *shape* is the thing to watch.
   into `location`**: `geo.resolve_location` takes the first country n-gram it finds, so a scope
   list in front of the real city silently re-homes the job to another country, with nothing
   failing.
+- **That 2026-08-14 pass probed the six remote boards and stopped there, and the ATS adapters had
+  the same bug** (found 2026-08-15). Each of the four holds a `locations[]` array and read exactly
+  one element of it. Measured against live payloads, 16 boards per source:
+
+  | source | field | postings naming >1 location | …and >1 country |
+  |---|---|---:|---:|
+  | **teamtailor** | schema.org `jobLocation[]` | 32 of 174 | **19** |
+  | **lever** | `categories.allLocations` | 32 of 349 | 4 remote |
+  | **recruitee** | `locations[]` | 12 of 106 | 3 remote |
+  | **workable** | `locations[]` | 1 of 427 | 1 |
+
+  Teamtailor is the worst and was the least suspected: the reader was called `_first_address`, so
+  the discard was in the function's own name. One Printful posting lists **twelve countries** and
+  was stored as Barcelona alone. Workable's rate is the lowest and its one hit is the clearest —
+  open in ES, CZ, GB, IE, PT and NL, stored as Spain — which is the argument against ranking this
+  work by hit rate. Note also that `_country` in workable *already* iterated `locations[]` and
+  stopped at the first usable code: the array was known to be there.
+  **A multi-entry list is not by itself a remote scope.** Most of Lever's are an employer's office
+  pair (Spotify runs "Stockholm, London" on hybrid and on-site roles alike). They still name two
+  countries the job can be held in, which is `reach_countries`; they say nothing about where its
+  holder may live, which is why `remote_reach` is still computed only for fully-remote rows.
+  The entries are joined with **`;`**, because the comma is already spoken for inside one entry
+  ("Warsaw, PL") — and `geo.countries_in_scope` splits on it, resolving each entry independently.
+  Without that split, `countries_named`'s "an explicit name discards every city-implied country"
+  rule — correct within one phrase — read five cities in five countries as Ukraine alone.
 - **Greenhouse/Lever/Ashby/SmartRecruiters/Workday** curated company lists, no domain-wide crawls.
   A board that goes dark is a **silent zero**: `fetch` skips a non-200 without an error-level
   log. Re-probe the lists rather than assuming (`dbtlabsinc` and `nubank` were both dead when

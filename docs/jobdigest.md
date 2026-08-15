@@ -912,6 +912,68 @@ publishing the cleanest scope fields (WeWorkRemotely, still reading 90% unknown 
 are exactly the ones these numbers understate. `backfill_remote_reach`'s own by-source report is the
 check.
 
+### The country a posting is stored under is one of the several it names (2026-08-15)
+
+The two sections above both work on the assumption that a posting has *a* country. It does not.
+`resolve_location` has to pick one, because `postings.city` has to agree with it — and every other
+country the posting named was then reachable by nothing: not the Country filter, not the facet
+counts, not `location_predicate`. A Printful posting listing twelve countries answered eleven
+country filters with silence, and no test, watchdog or coverage report could see it, because each
+of those eleven was individually a correct "no rows".
+
+`postings.reach_countries` (migration 023, `geo.reach_countries`) is the fix: every country the
+posting names, when it names two or more. It is ORed into the country test on both query paths.
+
+**It is deliberately not gated on being remote, and that asymmetry is the point.** `remote_reach`
+and `reach_areas` answer *where may I live*, which is a category error for an on-site job — that
+is why they are remote-only, and that rule stands. This column answers *is there a job for me in
+country X*, and a role listed at offices in two countries answers it yes in both. Gating it on
+remoteness is the obvious symmetry and would discard most of what the Teamtailor probe found.
+
+Three things are load-bearing:
+
+- **`countries_named`'s "an explicit name discards every city-implied country" rule is right for
+  one location phrase and wrong for a list of them.** `"Warsaw, PL; Kyiv, UA; Bucharest, RO;
+  Tallinn, EE; Barcelona, ES"` has five cities in five countries, of which only `ua` is a token
+  this module reads as a country outright. That one hit filled the `named` bucket, the other four
+  were dropped as merely implied, and a role open across five countries classified `country` —
+  Ukraine, the country the posting says least about. `geo.countries_in_scope` splits on `;` and
+  resolves each entry independently, so both rules hold: "London, London, Ontario, Canada" is
+  still one phrase and still Canada alone.
+- **The facet has to count what the filter returns.** The country menu counted `country_code`
+  alone; ticking Ireland would have returned a row the menu said did not exist. Counted with
+  `array_agg(distinct ...)` over `country_code ∪ reach_countries`, because the primary country is
+  usually *also* in the array and a naive unnest would double-count exactly the numbers this
+  change corrects.
+- **`eu` remote scope tests the array against `EEA_COUNTRIES`, not `COUNTRIES`.** Same rule as
+  everywhere else, same counterexample: a role reaching only GB and US reaches two *selectable*
+  countries and no EEA one, and must not be admitted at `eu` scope.
+
+**This widens the digest's candidate pool**, deliberately — a subscriber who picked Poland now
+also sees a role whose stored country is Spain and which names Poland among its own locations.
+Every country in the column was named outright by the board; **nothing here is read from prose**.
+Reach classification reads prose through a keyhole because it is unreliable there (`anywhere` from
+body copy was right one time in three, and five of eighteen prose verdicts were an employer's head
+office read as an eligibility rule); minting a *country-filter entry* from that would be a stronger
+claim on the same weak evidence.
+
+### The macro-region words were English-only (2026-08-15)
+
+Measured while doing the above: `geo` read "Europe" in English and French, so a German board
+writing `Europaweit`, a Dutch one writing `Europees` and a Czech one writing `Evropa` all
+classified as **no scope at all** — silently, because unknown is the safe answer everywhere in
+this module. Arbeitnow, a German board, ran 48% unknown. Country names were never the gap:
+`COUNTRY_ALIASES` has read "Deutschland" and "Nederland" all along. Only the region words were
+English, and they are the half that produces an *international* row.
+
+`_EUROPE` and `_EUROPE_SUB` are one constant feeding both `_MACRO_REGION` (is this a region) and
+`_EEA_AREA` (does that region include the EEA); two copies of a word list drift, and dropping
+`emea` from one of them while refactoring is precisely what the regression list caught. The stems
+are enumerated rather than written `europ\w*` — the short form also matches *Europcar*, and a
+company name is not a scope. `norden` is **excluded** under the `georgia` rule: it is the Nordics
+in three languages, a town in Lower Saxony, and the ordinary German word for "the north";
+`nordisk` carries the meaning with no collision.
+
 ### Measured on 2026-07-29 and deliberately NOT fixed
 
 Three long-standing items were quantified against production rather than re-argued. Each

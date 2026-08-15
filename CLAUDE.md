@@ -183,6 +183,36 @@ Each of these has been broken in production at least once. Reasoning and measure
   in "UTC+2" does not survive normalisation, so a signed pattern on normalised text is a regex
   that can never match. An unrecognised `intl` id is *dropped*, which widens; so mirror drift
   makes the filter silently return everything rather than fail.
+- **A posting has several countries; `country_code` holds one of them.** `resolve_location` must
+  pick one because `city` has to agree with it, so before 2026-08-15 every *other* country a
+  posting named was reachable by nothing — one Printful row listing twelve countries answered
+  eleven country filters with silence, and each of those was individually a correct "no rows".
+  `postings.reach_countries` (`geo.reach_countries`, migration 023) holds them when a posting
+  names two or more, and is **ORed** into the country test in both `store._search_where` and
+  `geo.location_predicate` — a union, never a replacement. Three rules: it is **deliberately not
+  gated on being remote** (where you may *live* is a category error for an on-site job; whether
+  there is a job for you in Poland is not, and two offices in two countries answers yes to both);
+  the **country facet must count `country_code ∪ reach_countries`, deduped**, or the menu
+  promises fewer rows than ticking it returns; and `eu` remote scope tests the array against
+  **`EEA_COUNTRIES`**, on the same rule and the same GB counterexample as everything else here.
+  It reads **fields only, never the description** — prose is thin enough evidence for a reach
+  verdict and far too thin to mint a country-filter entry. Adding it to the digest gate widens
+  the candidate pool on purpose.
+- **A scope can be a *list* of locations, and `countries_named` cannot read one.** Its rule that
+  an explicitly named country discards every city-implied one is correct within a single phrase
+  ("London, London, Ontario, Canada" is Canada) and wrong across a list: `"Warsaw, PL; Kyiv, UA;
+  Bucharest, RO; Tallinn, EE; Barcelona, ES"` classified as `country` — Ukraine, the only token
+  read as a country outright, with the other four dropped as merely implied. `countries_in_scope`
+  splits on **`;`** and resolves each entry independently; the adapters that join a `locations[]`
+  array must use that separator, because the comma is already spoken for inside one entry.
+- **The macro-region words are `_EUROPE` / `_EUROPE_SUB`, one constant feeding both
+  `_MACRO_REGION` and `_EEA_AREA`.** They read English only until 2026-08-15, so `Europaweit`,
+  `Europees` and `Evropa` classified as no scope at all — silently, on exactly the boards an
+  international row exists to surface. Country names were never the gap. Two copies of the word
+  list drift (a refactor dropped `emea` from one of them and only the regression list noticed),
+  the stems are enumerated rather than `europ\w*` (which matches *Europcar*), and **`norden` is
+  excluded under the `georgia` rule** — the Nordics in three languages, a town in Lower Saxony,
+  and the ordinary German word for "the north"; `nordisk` says it with no collision.
 - **`postings.eligibility` is a subscriber-specific judgement in a posting-level column**, so
   a constant allowlist over it is always wrong for somebody. `store.eligibility_allowlist`
   derives from `profile["countries"]`, shared by both call sites.
