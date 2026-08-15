@@ -263,10 +263,18 @@ BOT_WALL_MARKERS = ("just a moment", "security verification", "attention require
                     "enable javascript and cookies", "checking your browser",
                     "verify you are human", "cf-chl", "__cf_chl")
 
-#: Sources whose links a human has opened in a real browser and seen the advertised job on.
-#: Every one of these is client-rendered, so HTTP will never do better than SHELL/WEAK/BLOCKED
-#: on them and re-reporting them every run would bury the one that is actually new. The date
-#: is the point: this is a record of when someone last looked, not a permanent exemption.
+#: Sources whose links have been confirmed to resolve by something HTTP cannot do. Every one is
+#: client-rendered, so an automated run will never do better than SHELL/WEAK/BLOCKED on them and
+#: re-reporting them every run would bury the one that is actually new. The date is the point:
+#: this is a record of when someone last checked, not a permanent exemption.
+#:
+#: **Two kinds of evidence appear here and the entry must say which.** Most are a human opening
+#: the page and seeing the advertised job. `mpsv` and `nva` are instead a *static trace of the
+#: app's own router* — the shipped bundle read end to end, from the route table through the
+#: controller to the API call it makes. That is weaker on rendering (it cannot see a login wall
+#: or an empty template) and stronger on routing (it proves which URL form the router accepts,
+#: which is the half that was wrong both times this repo shipped dead links). Where an entry is
+#: a static trace, say so, so nobody reads it as "someone looked at the page".
 BROWSER_CONFIRMED = {
     "ashby": "2026-08-08 — 8 boards spot-checked; `forto` was found dead (whole board 404s "
              "while its API still lists 12 jobs) and removed from ORGS",
@@ -285,6 +293,15 @@ BROWSER_CONFIRMED = {
                      "own application page for the right role; the title is theirs, not ours",
     "mpsv": "2026-08-08 — the app's router selects VOLNA-MISTA-DETAIL-VIEW for the fragment "
             "route and selects nothing for the old `?id=` form",
+    # STATIC TRACE, not a browser view — see the note above.
+    "nva": "2026-08-15 — static trace of the shipped AngularJS bundle, not a browser view. "
+           "ui-router state `pub.vakances.view` is `/:id` under `/pub` + `/vakances` (so the "
+           "fragment form is right); `PubVakViewCtrl` reads `$stateParams.id` and calls "
+           "`PubVakance.get({id})`; `PubVakance` comes from the generic factory "
+           "`$resource('./data/' + entity + '/:id')`, i.e. `/data/pub_vakance/{id}` — the "
+           "endpoint the adapter already fetches real records from. `pub-vak-view.html` is in "
+           "`templateCache`, so its 404 on direct fetch is expected rather than a break. "
+           "What this does NOT prove is rendering: open one in a browser when convenient.",
 }
 
 #: Sources `gather()` only adds when credentials are present. They are checked against their

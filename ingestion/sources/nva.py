@@ -124,12 +124,19 @@ DETAIL_ENTITY = "pub_vakance"
 #: `/vakances`. Read off `/js/app.*.js` rather than guessed — this is the MPSV failure exactly
 #: (`?id=` was never a route there), and a URL must carry whatever the site needs to resolve it.
 #:
-#: **NOT YET CONFIRMED IN A BROWSER (2026-08-15).** The route is derived from the shipped
-#: ui-router state table, which is far better evidence than MPSV's `?id=` ever had — but the
-#: app renders client-side, so `check_links` can only return SHELL and no HTTP client can tell
-#: a real vacancy from the app's empty page. This repo has shipped dead links twice on exactly
-#: that gap, and "unverified" in a comment is the shape of both. **Open one of these in a
-#: browser and record it in `check_links.BROWSER_CONFIRMED`** before trusting the source.
+#: **Verified 2026-08-15 by a static trace of the shipped bundle** (recorded in
+#: `check_links.BROWSER_CONFIRMED`), because the fragment never reaches the server and so no
+#: HTTP client can ever tell a real vacancy from the app's empty page — `check_links` returns
+#: SHELL here permanently. The trace runs end to end: the state above resolves the fragment
+#: form; `PubVakViewCtrl` reads `$stateParams.id` and calls `PubVakance.get({id})`; and
+#: `PubVakance` is built by the generic factory `$resource("./data/" + entity + "/:id")`, i.e.
+#: `/data/pub_vakance/{id}` — the endpoint this adapter already pulls real records from. The
+#: template `pub-vak-view.html` lives in `templateCache`, so its 404 on a direct fetch is
+#: expected rather than a break.
+#:
+#: **What that does not prove is rendering** — a login wall or an empty template would look the
+#: same. Open one in a browser when convenient. It is recorded as a static trace rather than a
+#: browser confirmation precisely so nobody reads it as more than it is.
 JOB_URL = "https://cvvp.nva.gov.lv/#/pub/vakances/{vacancy_id}"
 
 #: Server-enforced: `limit=200` and above return HTTP 400.
