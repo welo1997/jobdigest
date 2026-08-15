@@ -92,9 +92,9 @@ def test_smartrecruiters_is_not_ingested():
     granting no republication right. Nothing published permits this, and the only remaining
     route to permission is correspondence, which this repo does not do.
 
-    **This is the inverse of the shape `docs/sources.md` warns about.** Ten sources permit
-    in robots what they refuse in their terms, so the rule reads "never settle on robots
-    alone" — but that cuts one way only. A *permissive* robots is evidence of nothing; a
+    **This is the inverse of the shape `docs/sources.md` warns about.** Fourteen sources
+    permit in robots what they refuse in their terms, so the rule reads "never settle on
+    robots alone" — but that cuts one way only. A *permissive* robots is evidence of nothing; a
     *refusing* one is dispositive on its own and the terms never need to be reached.
 
     The cost is deliberate and large: ~7 700 postings from one of the widest European

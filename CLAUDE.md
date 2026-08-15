@@ -455,9 +455,15 @@ it.
   not record a source as *waiting* on anyone. What remains open without asking is **curated
   employers on Greenhouse/Lever/Ashby/Recruitee/Workable/Workday/Oracle/Teamtailor** via
   `scripts/discover_ats.py`.
-- **Settle a source on the narrowest applicable clause, never on robots.txt alone.** Ten
+- **Settle a source on the narrowest applicable clause, never on robots.txt alone.** Fourteen
   sources so far permit in robots what they refuse in their terms. Check robots.txt at the
-  **host root**, and quote the clause that would refuse you.
+  **host root**, and quote the clause that would refuse you. **A Cloudflare Content-Signal
+  block (`ai-train=no`, a named-AI-crawler disallow list including `ClaudeBot`) is neither a
+  refusal of *us* nor boilerplate** — we match `User-agent: *`, so it decides nothing on path
+  permission, but it is an express Art. 4 EU DSM reservation and a reason to go read the terms.
+  **A client-rendered SPA returns 200 for paths that do not exist**, so a path probe cannot
+  find terms; the site's own sitemap plus the Wayback Machine can, and neither is browser
+  automation. **No terms at all is a skip** — absence of a refusal is not permission.
 - **But that rule cuts one way only, and SmartRecruiters is the case that showed it.** A
   *permissive* robots is evidence of nothing; a **refusing** robots is dispositive on its own
   and the terms never need to be reached. `api.smartrecruiters.com/robots.txt` is `Disallow: /`

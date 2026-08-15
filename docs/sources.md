@@ -1170,6 +1170,62 @@ payload will pick a different string and that *shape* is the thing to watch.
   bytes, and carries the `Crawl-delay` above; and ELA's one-line reuse permission was quoted as
   the licence answer while the sentence that guts it sat one page away in the policy it cites.
   A source's terms are settled by the narrowest applicable clause, never the friendliest one.
+- **The curated EU-remote boards: six probed, six refuse (2026-08-15).** These were the last
+  untried idea for the EU-International row — small curated boards whose whole premise is
+  multi-country remote inventory, which is exactly what that row is short of. Settled on terms,
+  not probes. **Every one is closed, and none is a near miss.**
+
+  | Board | robots at host root (`JobDigest/1.0`) | The dispositive clause |
+  |---|---|---|
+  | **euremotejobs.com** | `*` Allow + Cloudflare Content-Signal | `/tos/` forbids *"robots, spiders, scrapers, crawlers, data mining tools, **APIs**, or other automated devices … to monitor, extract, or copy content"*, and the licence *"does not permit any commercial use, redistribution, or republication"*. |
+  | **remotifyeurope.com** (QubicleFree OÜ, Tallinn) | `*` Allow + Content-Signal | T&C §8.1 *"Users shall not scrape, harvest…"* and §8.4 *"**Automated access is permitted only through documented interfaces where specifically authorised.**"* — a refusal **and** an authorisation gate. |
+  | **nodesk.co** | `*` Allow + Content-Signal | `/legal/terms/`: *"Use any technical or other means … to 'mirror', 'frame', '**scrape**', '**crawl**' or '**spider**' any web pages"*; *"Attempt to or actually access our Site by any means other than through the interfaces provided by our Site"*; and *"You must not use any part of the content on our Site for **commercial purposes** without obtaining a licence."* |
+  | **europelanguagejobs.com** (Europe Language Jobs SL, Barcelona) | permits `/jobs`, **and offers `sitemap-jobs.xml`** | `/eulangjobs/legal-conditions`: *"Without the **prior written authorization** … it is forbidden to use, copy, transfer, manipulate"*; the private-copy carve-out holds only where *"it is not used for **commercial gain**, and it is exclusively for the candidate's personal information."* |
+  | **euroremotejobs.com** | `*` Allow + Content-Signal | **No terms exist.** Not in `page-sitemap.xml`, every candidate path 404s, the footer's own "Privacy" link 404s, and Wayback has never held one. |
+  | **remoteineurope.com** | ordinary robots; `/search`, `/companies`, `/checkout` disallowed, job pages permitted | **No terms and no privacy policy exist** — a one-person board (~410 job pages), sitemap lists every page and none is legal, Wayback has never held one. |
+
+  Four more where robots permits what the terms refuse, taking that count from ten to
+  **fourteen**; `europelanguagejobs` is the starkest yet, because it *advertises a job sitemap
+  in robots* and then requires prior written authorisation in its terms. Three things worth
+  keeping beyond the six verdicts:
+
+  - **`ClaudeBot: Disallow: /` is not about us, and the Content-Signal is not boilerplate to
+    wave away.** Four of the six served a **byte-identical Cloudflare Managed Content** block —
+    `Content-Signal: search=yes,ai-train=no,use=reference` plus a disallow list of named AI
+    crawlers. We are not ClaudeBot; `JobDigest` matches `User-agent: *` → `Allow: /`, so on
+    *path permission* those four permit us. Do not cite the ClaudeBot line as if it bound us
+    (the 2026-08-13 note on euremotejobs reached the right verdict leaning on the wrong
+    artefact — the terms are what actually refuse). Equally, do not dismiss the signal: it is
+    served under the operator's domain, prefaced *"As a condition of accessing this website,
+    you agree to abide by the following content signals"*, and states that any restriction is
+    an **express reservation under Art. 4 of EU DSM 2019/790**. It is a real reservation that
+    is *not* evidence of a considered per-source decision — so it is a reason to read the
+    terms, never the dispositive clause when terms exist. Expect it on every Cloudflare-fronted
+    source from now on.
+  - **A 200 from a client-rendered SPA means nothing, and the terms are still readable without
+    a browser.** `europelanguagejobs.com` returned **200 for `/terms` and `/terms-and-conditions`
+    alike — both nonexistent** (`X-Debug-Fallback: 1`, `X-Debug-URI: /index.html`, 1 441 bytes
+    of JS shell for any path). A path probe would have recorded "terms found". What worked:
+    **the site's own sitemap named the real route** (`/eulangjobs/legal-conditions`) and the
+    **Wayback Machine served the rendered text** (10 113 characters). That retires the
+    2026-08-13 verdict shape *"terms cannot be read without a browser (Playwright = out)"* —
+    sitemap + archive is not browser automation and is not on the sourcing path, so
+    `devitjobs` and `germantechjobs` are re-readable by the same route if anyone wants them.
+  - **No terms at all is a skip, not an opening.** Two of the six (`euroremotejobs`,
+    `remoteineurope`) publish none. Absence of a refusal is not permission — the standing rule
+    is *if a source does not already permit us, we skip it*, and there is nobody to read.
+    Asking would be correspondence, so these close on the same footing as a refusal.
+
+  **Do not re-open these because the EU-International row looks thin.** The row's shortfall is
+  not a sourcing gap that these boards would have filled: they are curated **re-listers** over
+  the same startup/ATS pool already read via Remotive/WWR/Himalayas/Jobicy/Ashby/Greenhouse/
+  Lever, so `dedupe_key` would have absorbed much of what they hold and the marginal inventory
+  is well below their row counts. `remoteineurope`'s own front page lists Alpaca, Wikimedia,
+  Grafana, GitLab, Dataiku, Goodnotes and Storyblok — all ATS-reachable without anyone's
+  permission. **Europe Language Jobs was the one genuinely additive slice** (multilingual
+  customer-support/BPO roles across ES/PT/GR/MT, which nothing here covers) and it is the
+  clearest refusal of the six. The route to that inventory is `scripts/discover_ats.py`, not
+  these boards.
 - **Oracle Recruiting Cloud is the one enterprise ATS here that is not N+1, and that is why
   it has no keyword ceiling.** Its list rows carry `ShortDescriptionStr` (86% non-empty,
   median 401 chars, Oracle-capped at 1 000), a real per-posting `PrimaryLocationCountry`, a
