@@ -67,7 +67,8 @@ def cursor(commit: bool = False):
 _UPSERT_SQL = """
 insert into postings (
     posting_id, source, title, company, url, description, location, country_code, city,
-    remote_signal, work_mode, scope_raw, remote_reach, reach_areas, education_min,
+    remote_signal, work_mode, scope_raw, remote_reach, reach_areas, reach_countries,
+    education_min,
     salary_raw, currency, posted_at,
     role_category, region, eligibility, seniority, work_type, is_part_time, dedup_key, skills,
     last_seen_at, is_active
@@ -92,6 +93,7 @@ on conflict (posting_id) do update set
     scope_raw = excluded.scope_raw,
     remote_reach = excluded.remote_reach,
     reach_areas = excluded.reach_areas,
+    reach_countries = excluded.reach_countries,
     education_min = excluded.education_min,
     salary_raw = excluded.salary_raw,
     currency = excluded.currency,
@@ -119,7 +121,8 @@ def upsert_postings(rows: Iterable[dict]) -> int:
             r.get("scope_raw"), r.get("remote_reach"),
             # Empty list -> NULL for the same reason as `skills` below: psycopg2 renders `[]` as an
             # untyped empty array Postgres cannot coerce, and null/empty are equivalent here.
-            r.get("reach_areas") or None, r.get("education_min"),
+            r.get("reach_areas") or None, r.get("reach_countries") or None,
+            r.get("education_min"),
             r.get("salary_raw"), r.get("currency"),
             r.get("posted_at"),
             r.get("role_category"), r.get("region"), r.get("eligibility"),
@@ -133,12 +136,14 @@ def upsert_postings(rows: Iterable[dict]) -> int:
     ]
     if not values:
         return 0
-    # 26 placeholders for the 26 columns above `last_seen_at`. Counted, not eyeballed: these
+    # 27 placeholders for the 27 columns above `last_seen_at`. Counted, not eyeballed: these
     # bind by position, so one missing %s shifts every column after it by one and psycopg2
     # cannot tell — it would write `skills` into `dedup_key` and fail on the type, or
-    # worse, not fail at all. The assert below is cheap and turns that into a loud error.
+    # worse, not fail at all. The assert below is cheap and turns that into a loud error —
+    # and it earned its keep on 2026-08-15, when `reach_countries` reached the column list and
+    # the values tuple but not this string.
     template = ("(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,"
-                "now(), true)")
+                "%s,now(), true)")
     assert template.count("%s") == len(values[0]), (
         f"upsert template has {template.count('%s')} placeholders "
         f"for {len(values[0])} values")
@@ -1311,8 +1316,12 @@ def _search_where(q: Optional[str] = None,
     place: list[str] = []
     place_params: list[Any] = []
     if countries and skip != "countries":
-        place.append("p.country_code = any(%s)")
-        place_params.append(list(countries))
+        # `reach_countries` (migration 023) is ORed in, never ANDed: a posting whose stored
+        # `country_code` is Spain but which names Poland among its locations *is* a job in Poland,
+        # and before this column the Poland filter answered it with silence. `country_code` alone
+        # can only ever name one of them, because `city` has to agree with it.
+        place.append("(p.country_code = any(%s) or p.reach_countries && %s)")
+        place_params.extend([list(countries), list(countries)])
 
     if cities and skip != "cities":
         # Stored as `cz:prague` and validated by `split_city`, so a malformed one is dropped
@@ -1474,8 +1483,18 @@ def search_facets(q: Optional[str] = None,
         if time.monotonic() < expires_at:
             return _facet_copy(cached)
 
-    wanted = [("categories", "p.role_category", "categories"),
-              ("countries", "p.country_code", "countries")]
+    # Each expression yields an **array** of facet values for one posting, because one of them
+    # genuinely has several: since migration 023 a posting can belong to more than one country.
+    # The country facet has to count exactly what ticking that country would return, or the menu
+    # and the results disagree — the failure this function's `skip` argument already exists to
+    # prevent, arriving through a different door. `array_agg(distinct ...)` because `country_code`
+    # is usually *also* in `reach_countries`, and counting it twice would inflate every count that
+    # this change is meant to correct.
+    _countries_expr = ("(select array_agg(distinct c) from unnest("
+                       "array_append(coalesce(p.reach_countries, '{}'::text[]), p.country_code)"
+                       ") c where c is not null)")
+    wanted = [("categories", "array[p.role_category]", "categories"),
+              ("countries", _countries_expr, "countries")]
     if countries:
         # **The city menu is only computed once a country is chosen**, which is also the only
         # time the UI offers it. Two reasons, and the second is the load-bearing one: a city
@@ -1485,7 +1504,7 @@ def search_facets(q: Optional[str] = None,
         # Emitted as `cz:prague`, the same `geo.qualify` pair `_search_where` takes back and
         # `profiles.cities` stores. A bare slug could not round-trip: several countries have a
         # city of the same name, which is why the filter matches on the pair.
-        wanted.append(("cities", "lower(p.country_code) || ':' || p.city", "cities"))
+        wanted.append(("cities", "array[lower(p.country_code) || ':' || p.city]", "cities"))
 
     out: dict[str, list[dict]] = {}
     with cursor() as cur:
@@ -1498,15 +1517,15 @@ def search_facets(q: Optional[str] = None,
             # `||` yields NULL if either side is, so the `value is not null` test covers a
             # posting with a country but no resolved city without a second predicate.
             cur.execute(f"""
-                select d.value, count(*) as count
+                select v.value, count(*) as count
                 from (
                     select distinct on (coalesce(p.dedup_key, p.posting_id))
-                           {expr} as value
+                           {expr} as vals
                     from postings p
                     where {' and '.join(where)}
                     order by coalesce(p.dedup_key, p.posting_id), p.last_seen_at desc
-                ) d
-                where d.value is not null
+                ) d, unnest(d.vals) as v(value)
+                where v.value is not null
                 group by 1
                 order by 2 desc, 1
             """, params)

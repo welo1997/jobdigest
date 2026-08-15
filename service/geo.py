@@ -822,11 +822,34 @@ REACH_AREA_LABELS = {"eea": "EU-International", "na": "North America-Internation
 #: here, because nothing in `COUNTRIES` can select it and an area nobody can pick grants nothing.
 _NA_COUNTRIES = frozenset({"US", "CA"})
 
+# "Europe", in the languages the boards write in. Measured 2026-08-15: this module read the word
+# in English and French only, so "Europaweit", "Remote, Europa", "Europees" and "Hela Norden" all
+# classified as *no scope at all* — a silent miss on exactly the boards whose inventory the
+# EU-International row exists to surface (arbeitnow is German and ran 48% unknown). Country names
+# were never the gap: `COUNTRY_ALIASES` already reads "Deutschland" and "Nederland". Only the
+# macro-region words were English.
+#
+# One constant, because it feeds both the "is this a region at all" test and the "does that region
+# include the EEA" test, and two copies of a word list drift. Stems are enumerated rather than
+# written `europ\w*`: that shorter pattern also matches *Europcar*, and a company name is not a
+# scope.
+#
+# **Excluded under the `georgia` rule**, having been checked rather than assumed:
+#   - `norden` — Swedish/Danish/Norwegian for "the Nordics" *and* a town in Lower Saxony *and* the
+#     ordinary German word for "the north". `nordisk`/`nordiska`/`pohjoismaat` carry the same
+#     meaning with no collision.
+#   - `mundial` (es/pt) — "worldwide", and also the football World Cup.
+_EUROPE = (r"europe|european|europa|europaweit|europaisch\w*|europeen\w*|europees|europese"
+           r"|europejsk\w*|europeo|europea|europei|europee|europeu|europeia"
+           r"|evropa|evropsk\w*|eurooppa|eurooppalainen")
+#: The Nordics and Iberia in their own languages, for the same reason. Every one of these is
+#: inside the EEA, so they belong to both patterns below.
+_EUROPE_SUB = r"dach|benelux|nordics|nordic|nordisk\w*|skandinav\w*|pohjoismaat|baltics|iberia"
+
 # Macro-regions and timezone bands that contain the EEA. "EMEA" is Europe + Middle East + Africa,
 # so it counts; "MENA" is Middle East + North Africa and does not, which is why it is absent.
 _EEA_AREA = re.compile(
-    r"\b(europe|european|eu|eea|emea|dach|benelux|nordics|nordic|baltics|cee|schengen"
-    r"|eurozone|iberia)\b")
+    rf"\b({_EUROPE}|eu|eea|emea|{_EUROPE_SUB}|cee|schengen|eurozone)\b")
 # European timezones. `bst` and `wet` are deliberately absent: BST is British and GB is not in the
 # EEA, and "wet" is an ordinary English word. UTC+0 is Ireland and Portugal, so it counts.
 #: Case-insensitive because, unlike every other pattern here, these two run against the **raw**
@@ -845,7 +868,18 @@ _NA_TZ = re.compile(r"\b(utc|gmt)\s*-\s*([4-9]|10)\b", re.I)
 # hopeless there — a description says "a global leader in" and means nothing about eligibility.
 _ANYWHERE_SCOPE = re.compile(
     r"\b(anywhere|worldwide|world wide|global|globally|any country"
-    r"|location independent|fully distributed globally)\b")
+    r"|location independent|fully distributed globally"
+    # The same words on the non-English boards, added 2026-08-15 alongside `_EUROPE`. Held to
+    # compounds and set phrases: this pattern is also run over the window after "must be based
+    # in", so a bare adjective that doubles as marketing ("mundial", "globale") would read a
+    # company's self-description as an eligibility grant — the failure `_ANYWHERE_TEXT`'s hedge
+    # guard exists for. `weltweit` and `wereldwijd` are safe because they can only be reached
+    # here through that bound window, never through free body copy.
+    r"|weltweit|wereldwijd|celosvetove|kdekoli\w*|gdziekolwiek|na calym swiecie"
+    r"|en cualquier lugar|en cualquier parte|desde cualquier lugar"
+    r"|partout dans le monde|n importe ou dans le monde"
+    r"|in tutto il mondo|da qualsiasi luogo|em qualquer lugar"
+    r"|var som helst|hvor som helst|overallt)\b")
 # The description equivalent, deliberately much narrower: only phrases that state the policy
 # outright. A bare "anywhere" in body copy is "anywhere in the org", "anywhere from 3-5 years".
 #
@@ -869,15 +903,17 @@ _ANYWHERE_WINDOW = 220
 # "South Africa" cannot be read as the continent and "United States of America" cannot be read
 # as "Americas". "america" (singular) is deliberately absent: it usually means the USA.
 _MACRO_REGION = re.compile(
-    r"\b(europe|european|eu|eea|emea|apac|asia pacific|asiapac|latam|latin america"
+    rf"\b({_EUROPE}|eu|eea|emea|apac|asia pacific|asiapac|latam|latin america"
     r"|north america|south america|central america|americas|africa|oceania|middle east|mena"
-    r"|asia|anz|dach|benelux|nordics|nordic|baltics|cee|schengen|eurozone"
+    rf"|asia|anz|{_EUROPE_SUB}|cee|schengen|eurozone"
     # `amer` and `nam` are the North-American members of the AMER/EMEA/APAC trio that large
     # employers write their regions in, and `iberia` of the sub-European set alongside DACH and
     # the Nordics. Added 2026-08-14 after "AMER" and "Remote-Iberia" turned up as scope fields
     # this list could not read — a scope naming a region we cannot parse falls through to
     # unknown, which is safe but loses a row the visitor could have used.
-    r"|commonwealth|amer|nam|iberia)\b")
+    # (`iberia` now lives in `_EUROPE_SUB`, with the other sub-European regions, because it is
+    # one of the ones the EEA test has to agree about.)
+    r"|commonwealth|amer|nam)\b")
 # A timezone band is a geographic scope too, and a wide one: "CET (+/- 3 hours)" spans some
 # thirty countries, so it means "abroad, within this band" rather than any single country.
 #
@@ -972,6 +1008,40 @@ def countries_named(text: Optional[str]) -> tuple[set[str], str]:
     return (named or implied), residue
 
 
+#: How a `scope_raw` built from a board's **list** of locations separates one entry from the next.
+#: The comma is already spoken for *inside* an entry ("Warsaw, PL"), so the adapters that join a
+#: `locations[]` array — teamtailor, lever, recruitee, workable — join it with this instead.
+_SCOPE_ENTRY = re.compile(r"\s*;\s*")
+
+
+def countries_in_scope(scope: Optional[str]) -> tuple[set[str], str]:
+    """`countries_named` over a scope that may be a **list** of locations, unioned per entry.
+
+    `countries_named`'s "an explicit name discards every city-implied country" rule is correct
+    for one location phrase and wrong for a list of them, and the difference is not academic —
+    it was a live miss the moment the ATS adapters began emitting `locations[]`. Printful's
+    ``"Warsaw, PL; Kyiv, UA; Bucharest, RO; Tallinn, EE; Barcelona, ES"`` has five cities in five
+    countries, of which only ``ua`` is a token this module reads as a country name outright. That
+    one hit filled the `named` bucket, the other four were dropped as merely implied, and a role
+    open across five countries classified as ``country`` — Ukraine, the one country the posting
+    arguably says least about.
+
+    Splitting first keeps both rules intact: within an entry, "London, London, Ontario, Canada"
+    is still one phrase and still resolves to Canada alone; across entries, each contributes
+    whatever it names or implies. A scope with no separator behaves exactly as before.
+    """
+    segments = [s for s in _SCOPE_ENTRY.split(scope or "") if s.strip()]
+    if len(segments) < 2:
+        return countries_named(scope)
+    countries: set[str] = set()
+    residues: list[str] = []
+    for segment in segments:
+        found, residue = countries_named(segment)
+        countries |= found
+        residues.append(residue)
+    return countries, " ".join(r for r in residues if r)
+
+
 def _reach_of_scope(scope: Optional[str]) -> Optional[str]:
     """Classify one scope string — a board's own field, or a window of right-to-work prose.
 
@@ -994,7 +1064,7 @@ def _reach_of_scope(scope: Optional[str]) -> Optional[str]:
     text = normalise(scope)
     if not text:
         return None
-    countries, residue = countries_named(text)
+    countries, residue = countries_in_scope(scope)
     if len(countries) >= 2:
         return "region"          # an explicit multi-country set: abroad, within that set
     if len(countries) == 1:
@@ -1094,7 +1164,7 @@ def _areas_of(reach: Optional[str], raw: str) -> list[str]:
         # `country` is answered by the country filter itself; None means nobody said. Neither
         # belongs under an international heading, and an empty list narrows nothing.
         return []
-    countries, residue = countries_named(raw)
+    countries, residue = countries_in_scope(raw)
     # Union, never either/or. "Canada, Europe, USA" names two countries *and* a macro-region, and
     # stopping at the countries files a role a European may hold as North-America-only — found
     # while measuring, on 26 live postings.
@@ -1129,6 +1199,40 @@ def classify_reach(scope_raw: Optional[str] = None,
     """``(remote_reach, reach_areas)`` in one pass — what `ingest` and the backfill both store."""
     reach, text = _classify_reach(scope_raw, location, description)
     return reach, _areas_of(reach, text)
+
+
+def reach_countries(scope_raw: Optional[str] = None,
+                    location: Optional[str] = None) -> list[str]:
+    """Every country a posting names as a place the job can be held, when it names **two or more**.
+
+    `postings.country_code` is one country, and a posting is routinely open in several: a
+    Teamtailor role listing twelve `jobLocation` entries, an Ashby role whose secondaries are
+    "Germany, France, Portugal (remote)", a Remotive row whose candidate location is "USA,
+    Canada". `resolve_location` has to pick one of those to be *the* country — that is its job,
+    and the city has to agree with it — so every other country the posting names was unreachable
+    by the country filter. A Printful posting open in twelve countries answered eleven country
+    filters with silence.
+
+    **Deliberately not gated on being remote**, unlike `remote_reach` and `reach_areas`. Those
+    two answer "where may I *live*", which is a category error for an on-site job. This one
+    answers "is there a job for me in country X", and two offices in two countries is a perfectly
+    ordinary way for the answer to be yes in both. It is the same question the Country filter
+    asks, so it belongs to the same control.
+
+    **Fields only — never the description.** Prose is read through a keyhole for reach
+    (`anywhere` from body copy was right one time in three) and minting a country filter entry
+    out of it would be a stronger claim on weaker evidence: an employer's head office read as a
+    second hiring country. Both arguments here are a board's own structured location list.
+
+    Empty below two countries, on the same rule as `reach_areas`: one country is what
+    `country_code` already says, and a column that repeats another one only invites them to
+    disagree.
+    """
+    countries: set[str] = set()
+    for field in (scope_raw, location):
+        if field:
+            countries |= countries_in_scope(field)[0]
+    return sorted(countries) if len(countries) >= 2 else []
 
 
 def clean_remote_reach(value: Any) -> Optional[str]:
@@ -1371,7 +1475,18 @@ def location_predicate(profile: dict, alias: str = "p") -> tuple[str, list[Any]]
     restricted = sorted({split_city(v)[0] for v in cities} - {None})
     remote = f"coalesce({alias}.remote_signal, false)"
 
-    params: list[Any] = [countries]
+    # `reach_countries` (migration 023) is ORed into the country test on both arms below. A
+    # posting whose stored `country_code` is Spain but which lists Poland among its own locations
+    # is a job in Poland, and `country_code` can only hold one of the two because `city` has to
+    # agree with it. This widens the digest's candidate pool, deliberately: the countries in that
+    # column are ones the board named outright, never anything read out of prose.
+    #
+    # **Two `%s`, so two params, and psycopg2 binds them by position in the SQL text** — which is
+    # why `params` is built strictly in the order the fragments are concatenated below rather than
+    # appended to wherever the reading is easiest.
+    in_country = f"({alias}.country_code = any(%s) or {alias}.reach_countries && %s)"
+
+    params: list[Any] = [countries, countries]
     if restricted:
         # Only the countries the subscriber named cities for are narrowed. An unresolved city
         # or country passes (see the docstring), and a country with no named city passes
@@ -1383,7 +1498,7 @@ def location_predicate(profile: dict, alias: str = "p") -> tuple[str, list[Any]]
     else:
         city_gate = "true"
     onsite = (f"({remote} = false and ({alias}.country_code is null"
-              f" or {alias}.country_code = any(%s)) and ({city_gate}))")
+              f" or {in_country}) and ({city_gate}))")
 
     scope = clean_remote_scope(profile.get("remote_scope"))
     if scope == "worldwide":
@@ -1391,13 +1506,16 @@ def location_predicate(profile: dict, alias: str = "p") -> tuple[str, list[Any]]
     elif scope == "eu":
         # EEA_COUNTRIES, not COUNTRIES: "Anywhere in the EU or EEA" must keep meaning the EEA
         # even though GB and US are now selectable. A US fully-remote role reaches a subscriber
-        # only at `worldwide` scope; picking `eu` must never admit it.
-        remote_gate = (f"({alias}.country_code = any(%s)"
+        # only at `worldwide` scope; picking `eu` must never admit it. `reach_countries` is
+        # tested against the same EEA set for the same reason — a role stored under the US that
+        # names Germany among its locations is reachable from the EEA; one that names only
+        # Canada is not.
+        remote_gate = (f"({alias}.country_code = any(%s) or {alias}.reach_countries && %s"
                        f" or {alias}.region in ('cz','eu','worldwide'))")
-        params.append(list(EEA_COUNTRIES))
+        params += [list(EEA_COUNTRIES), list(EEA_COUNTRIES)]
     else:
-        remote_gate = (f"({alias}.country_code = any(%s)"
+        remote_gate = (f"({in_country}"
                        f" or ({alias}.country_code is null and {alias}.region = any(%s)))")
-        params += [countries, regions_for(countries, scope)]
+        params += [countries, countries, regions_for(countries, scope)]
 
     return combine(f"({onsite} or ({remote} and {remote_gate}))", params)

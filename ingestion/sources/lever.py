@@ -181,10 +181,37 @@ class LeverSource(BaseSource):
                     salary_raw=None,
                     currency=None,
                     posted_at=self._parse_ms(item.get("createdAt")),
+                    scope_raw=self._scope(cats),
                 )
             )
-        logger.info("Lever: normalised %d postings", len(postings))
+        logger.info("Lever: normalised %d postings (%d naming more than one location)",
+                    len(postings), sum(1 for p in postings if p.scope_raw))
         return postings
+
+    @staticmethod
+    def _scope(cats: dict) -> Optional[str]:
+        """`categories.allLocations` — every place the posting is open in, not just the primary.
+
+        `categories.location` is one string and was the only field read, so a role open across
+        several countries was stored as whichever one Lever put first. Lever writes the entries
+        with their arrangement attached ("United Kingdom - Remote", "Spain - Remote", "Poland -
+        Remote"), which is a scope statement rather than an office list — a MoonPay posting
+        measured on 2026-08-15 named six countries this way and was stored as the United Kingdom.
+
+        Only emitted for two or more entries: a single `allLocations` is `location` verbatim.
+
+        **Not folded into `location`**, per `ashby._scope` — the secondaries would outrank the
+        real city in `geo.resolve_location`. Note that a multi-entry list is *not* by itself a
+        remote scope: most of them are an employer's office pair (Spotify runs "Stockholm,
+        London" on hybrid and on-site roles alike), which is why `geo` computes reach only for
+        rows that are fully remote on their own words.
+        """
+        parts: list[str] = []
+        for loc in cats.get("allLocations") or []:
+            name = str(loc or "").strip()
+            if name and name.casefold() not in {p.casefold() for p in parts}:
+                parts.append(name)
+        return "; ".join(parts) if len(parts) > 1 else None
 
     @staticmethod
     def _parse_ms(ms: Optional[int]) -> Optional[date]:

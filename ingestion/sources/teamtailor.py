@@ -357,6 +357,43 @@ def _first_address(jp: dict) -> dict:
     return {}
 
 
+def _addresses(jp: dict) -> list[dict]:
+    return [a for a in ((loc or {}).get("address") or {} for loc in jp.get("jobLocation") or [])
+            if a]
+
+
+def _scope(jp: dict) -> Optional[str]:
+    """Every `jobLocation` this posting names, for `geo.classify_reach` — not just the first.
+
+    `_first_address` is the right reader for `location` and `country_code` (a row gets one city
+    and one country), and it was the *only* reader, so every place after the first was discarded.
+    Measured 2026-08-15 over 16 tenants: **32 of 174 postings carry more than one `jobLocation`
+    and 19 of those name more than one country** — the highest rate of the four ATS adapters. One
+    Printful posting lists twelve countries and was stored as Barcelona alone, so eleven country
+    filters could not find it and no international row could either.
+
+    Emitted only when the feed names **two or more** places. Ashby and Greenhouse include their
+    lone primary because there the primary is itself a scope sentence ("Remote, United States");
+    here a single `jobLocation` is already `location` verbatim, so a copy of it would add a column
+    to most rows in the corpus and tell `classify_reach` nothing it does not read from `location`
+    anyway.
+
+    **Never folded into `location`** — `geo.resolve_location` takes the first country n-gram it
+    finds, so a secondary office in front of the real city re-homes the job. Same rule, and same
+    reason, as `ashby._scope`.
+    """
+    addrs = _addresses(jp)
+    if len(addrs) < 2:
+        return None
+    parts: list[str] = []
+    for addr in addrs:
+        name = ", ".join(str(addr.get(k)).strip() for k in ("addressLocality", "addressCountry")
+                         if str(addr.get(k) or "").strip())
+        if name and name.casefold() not in {p.casefold() for p in parts}:
+            parts.append(name)
+    return "; ".join(parts) or None
+
+
 def _country(addr: dict) -> Optional[str]:
     code = (addr.get("addressCountry") or "").strip().upper()
     return code if len(code) == 2 else None
@@ -486,5 +523,8 @@ class TeamtailorSource(BaseSource):
                 salary_raw=salary_raw,
                 currency=currency,
                 posted_at=_posted(jp, it),
+                scope_raw=_scope(jp),
             ))
+        logger.info("Teamtailor: normalised %d postings (%d naming more than one location)",
+                    len(out), sum(1 for p in out if p.scope_raw))
         return out

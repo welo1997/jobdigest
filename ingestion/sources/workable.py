@@ -143,6 +143,29 @@ def _location(job: dict) -> Optional[str]:
     return ", ".join(p for p in parts if p) or None
 
 
+def _scope(job: dict) -> Optional[str]:
+    """Every entry of `locations[]`, for `geo.classify_reach`.
+
+    `_country` already iterates this array — it takes the first usable `countryCode` and stops —
+    so the array was known to be there and only one entry ever reached a stored row. The rate is
+    low (1 of 427 postings over 16 accounts, measured 2026-08-15) because Workable's customers
+    here are mostly single-site, but the one that exists is exactly the row this work is for: a
+    CloudTalk posting open in Spain, Czechia, the United Kingdom, Ireland, Portugal and the
+    Netherlands, stored as Spain.
+
+    Only emitted for two or more entries; a single location is `_location` verbatim.
+
+    **Not folded into `location`**, per `ashby._scope`.
+    """
+    parts: list[str] = []
+    for loc in job.get("locations") or []:
+        name = ", ".join(str((loc or {}).get(k)).strip() for k in ("city", "country")
+                         if str((loc or {}).get(k) or "").strip())
+        if name and name.casefold() not in {p.casefold() for p in parts}:
+            parts.append(name)
+    return "; ".join(parts) if len(parts) > 1 else None
+
+
 def _posted(job: dict) -> Optional[date]:
     raw = job.get("published_on") or job.get("created_at")
     if not raw:
@@ -210,5 +233,8 @@ class WorkableSource(BaseSource):
                 remote_signal=bool(job.get("telecommuting")),
                 posted_at=_posted(job),
                 source_category=job.get("function") or job.get("department"),
+                scope_raw=_scope(job),
             ))
+        logger.info("Workable: normalised %d postings (%d naming more than one location)",
+                    len(out), sum(1 for p in out if p.scope_raw))
         return out

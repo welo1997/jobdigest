@@ -90,6 +90,12 @@ def build_row(p, title_cache: dict[str, str] | None = None,
     # and filed under the area named in its location field.
     reach, areas = (geo.classify_reach(scope_raw, p.location, p.description) if remote
                     else (None, []))
+    # Every country the posting names, when it names more than one — and unlike the two columns
+    # above, computed whatever the work mode. "Where may I live" is a category error for an
+    # on-site job; "is there a job for me in Poland" is not, and a role listed at offices in two
+    # countries answers it yes in both. `country_code` above can only hold one of them, because
+    # `city` has to agree with it.
+    other_countries = geo.reach_countries(scope_raw, p.location)
     region = work_region(p.location, country_code)
     text = f"{p.title or ''} {p.location or ''} {p.description or ''}"
     return {
@@ -98,6 +104,7 @@ def build_row(p, title_cache: dict[str, str] | None = None,
         "location": p.location, "country_code": country_code, "city": city,
         "remote_signal": remote, "work_mode": mode,
         "scope_raw": scope_raw, "remote_reach": reach, "reach_areas": areas,
+        "reach_countries": other_countries,
         # Null whenever the ad does not state a binding requirement, which is the answer for
         # ~97% of postings — and necessarily for every source that ships no description text
         # (jobs.cz, profesia, cocuma). See service/education.py before reading anything into

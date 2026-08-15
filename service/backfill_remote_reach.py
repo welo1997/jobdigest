@@ -67,11 +67,12 @@ from service import geo, store  # noqa: E402
 logger = logging.getLogger("service.backfill_remote_reach")
 
 _UPDATE = """
-update postings p set remote_reach = v.remote_reach, reach_areas = v.reach_areas
-from (values %s) as v(posting_id, remote_reach, reach_areas)
+update postings p set remote_reach = v.remote_reach, reach_areas = v.reach_areas,
+                      reach_countries = v.reach_countries
+from (values %s) as v(posting_id, remote_reach, reach_areas, reach_countries)
 where p.posting_id = v.posting_id
 """
-_TEMPLATE = "(%s, %s::text, %s::text[])"
+_TEMPLATE = "(%s, %s::text, %s::text[], %s::text[])"
 
 
 def run(batch: int = 2000, dry_run: bool = False) -> tuple[int, int]:
@@ -82,7 +83,7 @@ def run(batch: int = 2000, dry_run: bool = False) -> tuple[int, int]:
         with store.cursor() as cur:
             cur.execute(
                 "select posting_id, location, description, scope_raw, remote_signal, "
-                "       work_mode, remote_reach, reach_areas "
+                "       work_mode, remote_reach, reach_areas, reach_countries "
                 "from postings where posting_id > %s order by posting_id limit %s",
                 (cursor_id, batch),
             )
@@ -99,12 +100,18 @@ def run(batch: int = 2000, dry_run: bool = False) -> tuple[int, int]:
             is_remote = r["remote_signal"] is True or r["work_mode"] == "remote"
             reach, areas = (geo.classify_reach(r["scope_raw"], r["location"], r["description"])
                             if is_remote else (None, []))
+            # `reach_countries` is **not** gated on `is_remote`, and that asymmetry is the point
+            # of the column: a two-office on-site job is holdable in two countries even though
+            # asking where its holder may *live* is a category error. See `geo.reach_countries`.
+            others = geo.reach_countries(r["scope_raw"], r["location"])
             # Compared against the stored form, not the computed one: `upsert_postings` and the
             # update below both store an empty list as NULL, so comparing `[] != None` would mark
             # every non-multi-country row as changed on every run and the idempotency test — the
             # one that proves this agrees with `ingest.build_row` — would never be able to pass.
-            if reach != r["remote_reach"] or (areas or None) != (r["reach_areas"] or None):
-                updates.append((r["posting_id"], reach, areas or None))
+            if (reach != r["remote_reach"]
+                    or (areas or None) != (r["reach_areas"] or None)
+                    or (others or None) != (r["reach_countries"] or None)):
+                updates.append((r["posting_id"], reach, areas or None, others or None))
 
         changed += len(updates)
         if updates and not dry_run:
@@ -188,6 +195,21 @@ def main() -> None:
         logger.error("anywhere is %.1f%% of remote postings, which is far above the measured "
                      "0.75%% — suspect a wide signal outranking a named country, not a windfall",
                      100 * stats["anywhere"] / total)
+    # `reach_countries` is reported over the WHOLE active corpus, not the remote slice above,
+    # because unlike the two reach columns it is not gated on being remote — a two-office on-site
+    # job belongs to two countries. Reporting it against the remote denominator would understate
+    # it and quietly imply a gate that is not there.
+    with store.cursor() as cur:
+        cur.execute(
+            "select count(*) as active, "
+            "       count(*) filter (where reach_countries is not null) as multi, "
+            "       coalesce(sum(cardinality(reach_countries)) "
+            "                filter (where reach_countries is not null), 0) as memberships "
+            "from postings p where p.is_active")
+        rc = dict(cur.fetchone())
+    logger.info("reach_countries: %d of %d active postings name more than one country, "
+                "adding %d country-filter memberships that `country_code` alone could not reach",
+                rc["multi"], rc["active"], max(rc["memberships"] - rc["multi"], 0))
     logger.info("by source (n / unknown / with scope_raw):")
     for r in by_source:
         logger.info("  %-16s %6d  %5d unknown (%3d%%)  %6d scope_raw",

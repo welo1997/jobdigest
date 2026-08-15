@@ -253,6 +253,30 @@ def _posted(offer: dict) -> Optional[date]:
         return None
 
 
+def _scope(offer: dict) -> Optional[str]:
+    """Every entry of `locations[]`, for `geo.classify_reach`.
+
+    `location` is one string and was the only field read. Measured 2026-08-15 over 16 boards:
+    12 of 106 postings carry more than one location, 3 of them remote and naming more than one
+    country (Chaos runs "Karlsruhe, Germany; London, United Kingdom" remote roles).
+
+    The `city` of a Recruitee location is often the literal word "Remote" with the real
+    information in `country` — which is why the country is always appended and never assumed to
+    be implied by the city. Multi-*state* postings ("United States - North Carolina", "United
+    States - Massachusetts") therefore collapse to one country, which is the right answer: a US
+    state is not a country and `geo.countries_named` will read one.
+
+    Only emitted for two or more entries. **Not folded into `location`**, per `ashby._scope`.
+    """
+    parts: list[str] = []
+    for loc in offer.get("locations") or []:
+        name = ", ".join(str((loc or {}).get(k)).strip() for k in ("city", "country")
+                         if str((loc or {}).get(k) or "").strip())
+        if name and name.casefold() not in {p.casefold() for p in parts}:
+            parts.append(name)
+    return "; ".join(parts) if len(parts) > 1 else None
+
+
 class RecruiteeSource(BaseSource):
     """Recruitee public job boards across a curated list of companies."""
 
@@ -320,5 +344,8 @@ class RecruiteeSource(BaseSource):
                 currency=currency,
                 posted_at=_posted(offer),
                 source_category=offer.get("category_code"),
+                scope_raw=_scope(offer),
             ))
+        logger.info("Recruitee: normalised %d postings (%d naming more than one location)",
+                    len(out), sum(1 for p in out if p.scope_raw))
         return out

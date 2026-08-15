@@ -42,6 +42,14 @@ create table if not exists postings (
     -- Null for `remote_reach` of `country` or unknown: a single-country scope is answered by the
     -- country filter itself. Null/empty passes every filter, exactly like `skills`.
     reach_areas    text[],
+    -- Every country the posting names as a place the job can be held (migration 023), when it
+    -- names two or more. `country_code` has to be a single value because `city` must agree with
+    -- it, so without this column the other countries a multi-site posting names were reachable by
+    -- no filter at all. Unlike the two columns above, this is **not** gated on being remote: "may
+    -- I live anywhere" is a category error for an on-site job, but "is there a job for me in
+    -- Poland" is not, and two offices in two countries answers it yes in both.
+    -- Null below two countries — one country is what `country_code` already says.
+    reach_countries text[],
     -- Lowest qualification the ad demands (migration 014): secondary | vocational | bachelor |
     -- master | doctorate | null=never said. Null for ~97% of rows and for 100% of the CZ/SK
     -- inventory, which carries no description text at all — the gate keeps nulls and defers to
@@ -110,6 +118,10 @@ create index if not exists idx_postings_remote_reach on postings (remote_reach)
     where is_active and remote_reach is not null;
 -- GIN over the reach areas (migration 022), so `reach_areas && array['eea']` is index-backed.
 create index if not exists idx_postings_reach_areas on postings using gin (reach_areas);
+-- GIN over the secondary countries (migration 023), so `reach_countries && array['pl']` is
+-- index-backed alongside `idx_postings_geo`.
+create index if not exists idx_postings_reach_countries
+    on postings using gin (reach_countries);
 -- GIN over skill array elements (migration 020): index-backs `skills && array['python']` and
 -- unnest facet counts. Null/empty arrays add no entries, so it stays proportional to postings
 -- that name a skill.
