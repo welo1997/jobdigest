@@ -36,6 +36,12 @@ UNESTABLISHED_PERMISSION = {
         "the job pages and disallows only /search, /companies, /checkout, /post-a-job-2 and "
         "/internal/. Wired for its multi-country `schema-loc` scopes."
     ),
+    "NvaSource": (
+        "cvvp.nva.gov.lv — Latvia's live vacancy register. No terms page on nva.gov.lv and "
+        "robots.txt is 404 at the host root, so nothing permits and nothing refuses. NOT the "
+        "CC0 data.gov.lv 'Vakances' CSV, whose dedication covers only the public sector. "
+        "Gated by KEEP_FIELDS because the register is the whole labour market."
+    ),
 }
 
 

@@ -239,6 +239,11 @@ SAMPLING: dict[str, Sample] = {
     # Same N+1 shape: one page per job, `MAX_POSTINGS` is the only bound.
     "remoteineurope": Sample(module={"MAX_POSTINGS": 5},
                              note="one request per job; sitemap fetch on top"),
+    # `nva` bounds the DETAIL fan-out like `nav` does — the list walk is cheap, the per-vacancy
+    # detail is not, and the sector gate is only knowable from the detail. Constructor argument
+    # rather than module constant so a check run shrinks it without editing what ships.
+    "nva": Sample(instance={"_max_details": 5},
+                  note="walks the list, then one request per vacancy"),
     # No bounding hook: one gzipped dump, all or nothing. ~40 s.
     "mpsv": Sample(note="downloads the full 16 MB register"),
 }

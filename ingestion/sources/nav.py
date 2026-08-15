@@ -1,5 +1,9 @@
 """NAV (Norway) — the national employment service's public job feed.
 
+**Not `nva.py`.** That is NVA, *Latvia*'s register, one transposition away. Two national
+employment services whose acronyms differ by a swapped letter both live in this directory;
+check which one you are editing before changing anything that mentions a country.
+
 `arbeidsplassen.nav.no` is Norway's statutory vacancy register, and the third national
 register this project carries after `mpsv` (CZ) and `platsbanken` (SE). Permission is a
 **positive grant** rather than a disclaimer, which makes it the strongest of the three:
