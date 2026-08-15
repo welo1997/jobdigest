@@ -242,8 +242,13 @@ SAMPLING: dict[str, Sample] = {
     # `nva` bounds the DETAIL fan-out like `nav` does — the list walk is cheap, the per-vacancy
     # detail is not, and the sector gate is only knowable from the detail. Constructor argument
     # rather than module constant so a check run shrinks it without editing what ships.
-    "nva": Sample(instance={"_max_details": 5},
-                  note="walks the list, then one request per vacancy"),
+    # 60 rather than a handful: `KEEP_FIELDS` keeps ~12.7% of the register, so a 5-vacancy
+    # sample usually yields NO postings at all and the run reports "nobody has looked" for a
+    # source that is working. Sample past the gate, not up to it.
+    "nva": Sample(instance={"_max_details": 60},
+                  note="walks the list, then one request per vacancy; ~12.7% survive the gate"),
+    "goldencareers": Sample(module={"MAX_POSTINGS": 5},
+                            note="one request per vacancy; sitemap fetch on top"),
     # No bounding hook: one gzipped dump, all or nothing. ~40 s.
     "mpsv": Sample(note="downloads the full 16 MB register"),
 }

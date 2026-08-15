@@ -33,6 +33,7 @@ from typing import Optional
 from ingestion.base import JobPosting
 from ingestion.sources.arbeitnow import ArbeitnowSource
 from ingestion.sources.ashby import AshbySource
+from ingestion.sources.goldencareers import GoldenCareersSource
 from ingestion.sources.greenhouse import GreenhouseSource
 from ingestion.sources.himalayas import HimalayasSource
 from ingestion.sources.jobicy import JobicySource
@@ -368,6 +369,14 @@ def _source_classes(include_cz: bool) -> list[type]:
                # Latvia's whole labour market and its five commonest professions are labourer,
                # shop assistant, driver, cook and nurse. Not `nav` — that is Norway.
                NvaSource,
+               # Golden Careers is a Cypriot recruitment agency's own board — the first
+               # non-ATS Cypriot inventory here, and small (~62 vacancies). No terms and no
+               # privacy policy, robots is allow-all: the same 2026-08-15 unestablished-
+               # permission decision. NOT cyprusjobs.com, which serves an Art. 4 EU DSM TDM
+               # reservation and is deliberately excluded. Its ads anonymise the employer
+               # ("our client"), so `company` is the agency and dedupe_key cannot collapse a
+               # duplicate carried on the employer's own ATS board — see the module docstring.
+               GoldenCareersSource,
                # Workday is last on purpose — it must fetch each posting's description with
                # its own request, so it is by far the slowest, and a failure there should not
                # cost everything that runs before it.

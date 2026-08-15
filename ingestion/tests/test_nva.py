@@ -135,7 +135,7 @@ def test_fields_are_normalised():
     assert posting.salary_raw == "2000-2500"
     assert posting.currency == "EUR"
     assert posting.posted_at.isoformat() == "2026-08-14"
-    assert posting.source_category == "engineering"
+    assert posting.source_category == "software_engineering"
     assert posting.description == "Izstrādāt Python risinājumus."
 
 

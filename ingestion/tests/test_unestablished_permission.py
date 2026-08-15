@@ -42,6 +42,11 @@ UNESTABLISHED_PERMISSION = {
         "CC0 data.gov.lv 'Vakances' CSV, whose dedication covers only the public sector. "
         "Gated by KEEP_FIELDS because the register is the whole labour market."
     ),
+    "GoldenCareersSource": (
+        "goldencareers.com.cy — a Cypriot agency board. No terms and no privacy policy; "
+        "robots.txt is a Yoast block with a bare `Disallow:` (allow-all) advertising the "
+        "sitemap that carries the vacancies. ~62 postings, employer anonymised."
+    ),
 }
 
 

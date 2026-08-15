@@ -41,10 +41,23 @@ Measured 2026-08-15: **4 460 active vacancies, 827 distinct professions**, and t
 distribution is `PALĪGSTRĀDNIEKS` (general labourer, 205), retail shop assistant (147), truck
 driver (141), schoolteacher (139), construction worker (110), cook (109), nurse (98), cleaner
 (72). Loading all of it would put several thousand manual and service vacancies into a corpus
-whose matcher knows nine mostly-technical categories — and `query_shortlist_meta`'s widened
-path drops the recall predicate entirely, so a Latvian subscriber who trips `SHORTLIST_FLOOR`
-would get whatever is newest in Rīga, which after this source would be warehouse work. That is
-the MPSV problem in a second country and it gets the MPSV answer: one constant, `KEEP_FIELDS`.
+whose subscribers are overwhelmingly looking for professional work — and
+`query_shortlist_meta`'s widened path drops the recall predicate entirely, so a Latvian
+subscriber who trips `SHORTLIST_FLOOR` would get whatever is newest in Rīga, which unfiltered
+would be warehouse work. `KEEP_FIELDS` bounds it.
+
+**This is NOT the same gate as `mpsv`'s, and the difference is a real cost.** `ISCO_MAJOR_KEEP`
+filters by *skill level* — ISCO majors 1–3, managers/professionals/technicians — so `mpsv`
+keeps nurses and teachers, who are ISCO 2. `darb_joma` is a **sector**, not a level, and it
+cannot express "the professionals within healthcare". Excluding
+`Veselības aprūpe / Sociālā aprūpe` and `Izglītība / Zinātne` therefore drops registered nurses
+and schoolteachers along with care assistants — and `healthcare`, `education` and `social_care`
+are all real `taxonomy.CATEGORIES` members, so those are roles this product *can* match.
+
+That is a deliberate precision-over-recall trade on a source whose head is manual work, not a
+claim that the excluded rows are worthless. The right fix is a profession-level rule over
+`kla_profesija_nosaukums` (827 distinct Latvian names — "key before vocabulary", so build the
+answer key first). Until then, widening is one constant.
 
 The register offers no ISCO code, so the gate is `darb_joma` — NVA's own sector field.
 Enumerated from a 220-vacancy random sample rather than guessed (there is no classifier
@@ -110,6 +123,13 @@ DETAIL_ENTITY = "pub_vakance"
 #: the route lives in the fragment: state `pub.vakances.view` is `/:id` nested under `/pub` and
 #: `/vakances`. Read off `/js/app.*.js` rather than guessed — this is the MPSV failure exactly
 #: (`?id=` was never a route there), and a URL must carry whatever the site needs to resolve it.
+#:
+#: **NOT YET CONFIRMED IN A BROWSER (2026-08-15).** The route is derived from the shipped
+#: ui-router state table, which is far better evidence than MPSV's `?id=` ever had — but the
+#: app renders client-side, so `check_links` can only return SHELL and no HTTP client can tell
+#: a real vacancy from the app's empty page. This repo has shipped dead links twice on exactly
+#: that gap, and "unverified" in a comment is the shape of both. **Open one of these in a
+#: browser and record it in `check_links.BROWSER_CONFIRMED`** before trusting the source.
 JOB_URL = "https://cvvp.nva.gov.lv/#/pub/vakances/{vacancy_id}"
 
 #: Server-enforced: `limit=200` and above return HTTP 400.
@@ -136,7 +156,7 @@ KEEP_FIELDS = frozenset({
 #: models. Every value must be a real `taxonomy.CATEGORIES` member — `classify` discards
 #: anything else, and a title pattern still wins over this hint.
 FIELD_CATEGORIES = {
-    "Informācijas tehnoloģijas / Telekomunikācijas": "engineering",
+    "Informācijas tehnoloģijas / Telekomunikācijas": "software_engineering",
 }
 
 _TAG_RE = re.compile(r"<[^>]+>")
