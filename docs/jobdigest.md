@@ -924,6 +924,20 @@ of those eleven was individually a correct "no rows".
 `postings.reach_countries` (migration 023, `geo.reach_countries`) is the fix: every country the
 posting names, when it names two or more. It is ORed into the country test on both query paths.
 
+**Measured on production after the backfill (2026-08-15, 176 429 rows scanned, 3 097 changed):
+2 746 of 129 543 active postings name more than one country, adding 5 118 country-filter
+memberships that `country_code` alone could not reach.** The international rows roughly doubled in
+the same pass — EU-International 568 → **1 128**, North America-International 403 → **989**, both
+150 → **376** — and the `region` share of remote rows went 5.4% → **11.0%**. The Country menu shows
+908/810 rather than 1 128/989 because the facet dedups by `dedup_key`; that is the number a visitor
+sees and the two are not in conflict.
+
+**None of that gain is from the ATS adapter work yet.** All four still reported 0 `scope_raw` in
+the by-source table at backfill time — they only began sending it that day and fill in over the
+staleness window. The doubling above is the language vocabulary and the list-splitting alone.
+Re-read the by-source report in a week: teamtailor/lever/recruitee/workable still at 0 `scope_raw`
+means the adapter change never reached the box.
+
 **It is deliberately not gated on being remote, and that asymmetry is the point.** `remote_reach`
 and `reach_areas` answer *where may I live*, which is a category error for an on-site job — that
 is why they are remote-only, and that rule stands. This column answers *is there a job for me in
