@@ -1212,15 +1212,27 @@ payload will pick a different string and that *shape* is the thing to watch.
     because the real risk here is not the first source, it is "we already read boards with no
     terms" quietly becoming a general argument.
 
-  **Two members of the group were NOT wired, and not for permission reasons:**
+  **Wired under it so far (2026-08-15): `remoteineurope`, `nva` (Latvia's live `cvvp`
+  register, gated by `KEEP_FIELDS`), `goldencareers` (CY, ~62 agency postings).**
+
+  **Four members of the group were NOT wired, and only one of those is about permission:**
   - **Personio** — its feed answers with a job count for **bogus** slugs (`amazon`, `johnson`,
     `kbc`, none of them customers) and carries no `hiringOrganization` to check against, so an
     adapter cannot tell whose board it is reading. That is a **correctness** blocker: it would
     file postings under the wrong employer. Unrelated to terms, and not fixed by this decision.
-  - **`euroremotejobs`** — it publishes no terms *but* serves a Cloudflare Content-Signal block
-    reserving Art. 4 EU DSM TDM rights. That is a machine-readable **reservation**, not silence,
-    which puts it in a different class from `remoteineurope` even though both lack a terms page.
-    Flagged rather than assumed either way.
+  - **`euroremotejobs` and `cyprusjobs`** — both publish no terms *but* serve a Cloudflare
+    Content-Signal block reserving Art. 4 EU DSM TDM rights. That is a machine-readable
+    **reservation**, not silence, which puts them in a different class from `remoteineurope`
+    even though none of the three has a terms page. Left for an explicit call rather than
+    assumed either way. `cyprusjobs` is the more tempting of the two — 346 postings with clean
+    `JobPosting` JSON-LD — and also carries a freshness problem: the sampled ad was
+    `datePosted: 2025-08-22` with `validThrough` a year later, the Muse zombie shape.
+  - **NHS Jobs** — closed on a *technical* ground, not permission. `/robots.txt` returns an
+    HTML app shell rather than a robots file (so a parser reads it as allow), there is no
+    sitemap — `/sitemap.xml` returns the same 15 413-byte shell as every other path, the SPA-200
+    trap — and `/candidate/search` renders **2 386 characters of visible text and zero job
+    links**. Enumerating it needs a browser, which the sourcing rule forbids. Not a candidate
+    until it server-renders.
 
 - **Check robots.txt at the host root, and quote the clause that would refuse you.** Both
   errors happened in one session: `europa.eu/eures/robots.txt` 404'd and was reported as a
