@@ -463,7 +463,11 @@ it.
   permission, but it is an express Art. 4 EU DSM reservation and a reason to go read the terms.
   **A client-rendered SPA returns 200 for paths that do not exist**, so a path probe cannot
   find terms; the site's own sitemap plus the Wayback Machine can, and neither is browser
-  automation. **No terms at all is a skip** — absence of a refusal is not permission.
+  automation. **No terms at all is a skip *by default*, because absence of a refusal is not
+  permission** (`euroremotejobs`, `remoteineurope`, `cyprusjobs`, NHS Jobs, NVA — the "Personio
+  shape"). **The exception is an affirmative grant elsewhere, and `teamtailor` is it**: no ToS,
+  but robots carries `Content-Signal: ai-input=yes` and a keyless public JSON feed that exists
+  to be read. Silence plus an invitation is permission; silence alone is not.
 - **But that rule cuts one way only, and SmartRecruiters is the case that showed it.** A
   *permissive* robots is evidence of nothing; a **refusing** robots is dispositive on its own
   and the terms never need to be reached. `api.smartrecruiters.com/robots.txt` is `Disallow: /`

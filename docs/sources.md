@@ -1211,10 +1211,17 @@ payload will pick a different string and that *shape* is the thing to watch.
     2026-08-13 verdict shape *"terms cannot be read without a browser (Playwright = out)"* —
     sitemap + archive is not browser automation and is not on the sourcing path, so
     `devitjobs` and `germantechjobs` are re-readable by the same route if anyone wants them.
-  - **No terms at all is a skip, not an opening.** Two of the six (`euroremotejobs`,
-    `remoteineurope`) publish none. Absence of a refusal is not permission — the standing rule
-    is *if a source does not already permit us, we skip it*, and there is nobody to read.
-    Asking would be correspondence, so these close on the same footing as a refusal.
+  - **No terms at all is a skip, not an opening — and `teamtailor` is the exception that fixes
+    the rule's wording.** Two of the six (`euroremotejobs`, `remoteineurope`) publish none.
+    Absence of a refusal is not permission — the standing rule is *if a source does not already
+    permit us, we skip it*, there is nobody to read, and asking would be correspondence, so
+    these close on the same footing as a refusal. That is the "Personio shape" already recorded
+    for `cyprusjobs`/`goldencareers`, NHS Jobs and NVA's `cvvp`. **But `teamtailor` publishes no
+    ToS either and is built and permitted**, because silence there sits on top of an affirmative
+    grant: its robots carries `Content-Signal: ai-input=yes` and the keyless `jobs.json` feed
+    exists to be read. So the test is not *"are there terms"* but **"is there a positive
+    permission anywhere"** — silence plus an invitation is permission, silence alone is not.
+    Neither of these two offers anything of the kind.
 
   **Do not re-open these because the EU-International row looks thin.** The row's shortfall is
   not a sourcing gap that these boards would have filled: they are curated **re-listers** over
