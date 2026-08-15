@@ -1139,8 +1139,27 @@ payload will pick a different string and that *shape* is the thing to watch.
 
   At 1 296 pages it costs ~22 minutes at the current throttle, which fits the export window but
   is not free; the `Request-rate` header is the argument for a per-host exception if it matters.
-  **This is a build, not a lead** — it is recorded here rather than built because discovering it
-  was the task. By contrast **`werk.nl` (UWV), the much larger national board, is closed**: its
+  **BUILT 2026-08-15** (`ingestion/sources/werkenvoornederland.py`), and two things found in the
+  building are worth more than the entry above:
+  - **The JSON-LD `description` is a one-line summary**, not the vacancy text — *"Senior
+    Business Analist ERP in Den Haag voor 32-38 uur bij Ministerie van Defensie"*. The real
+    description is in the page body, so the adapter reads both from the one fetch. Anyone
+    trusting the JSON-LD alone would have shipped 1 260 postings with no description and a
+    matcher with nothing to read.
+  - **The personal-data measurement here was understated, and the "0 emails" was an artefact.**
+    Re-measured over a 20-page random sample: **15 of 20 pages (75%) carry a phone number, 33 in
+    all** — not "3 of 6" — nearly all `06` mobiles belonging to named individuals under a *"Stel
+    gerust je vraag"* heading, two per page ("Rianne van Os, Coördinator cluster informatie
+    06-25698769"). The zero-email finding holds only for the *rendered* text: the pages carry an
+    obfuscated `[email protected]` placeholder that a script rehydrates, so a regex sees nothing
+    where a browser shows an address. So the description is assembled from an **allowlist** of
+    content-section ids and the contact section is never read — an allowlist, not a denylist,
+    because a section the publisher adds tomorrow must be dropped by default. `_scrub` is the
+    backstop for a number typed into a body paragraph. `test_werkenvoornederland.py` fails if
+    either layer breaks (mutation-checked: adding the contact id to the allowlist goes red).
+    **A sample of six is not a corpus check** — that is the transferable lesson.
+
+  By contrast **`werk.nl` (UWV), the much larger national board, is closed**: its
   vacancy route renders 110 characters of visible text (a SPA) and its sitemap holds 155
   informational pages and no vacancies — the SIISL shape.
 - **Poland's CBOP is the best-licensed source this repo has ever found and is still skipped —

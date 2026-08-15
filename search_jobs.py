@@ -43,6 +43,7 @@ from ingestion.sources.platsbanken import PlatsbankenSource
 from ingestion.sources.remoteok import RemoteOKSource
 from ingestion.sources.remotive import RemotiveSource
 from ingestion.sources.themuse import TheMuseSource
+from ingestion.sources.werkenvoornederland import WerkenVoorNederlandSource
 from ingestion.sources.weworkremotely import WeWorkRemotelySource
 from ingestion.sources.workday import WorkdaySource
 from ingestion.sources.workingnomads import WorkingNomadsSource
@@ -336,6 +337,17 @@ def _source_classes(include_cz: bool) -> list[type]:
                # month appears in no recent window, and `deactivate_stale` would otherwise take
                # Norwegian inventory to zero within a week. See the module docstring.
                NavSource,
+               # Werken voor Nederland is the fourth register of that shape and the best
+               # licensed of them: CC0 with attribution *not required*, against MPSV's mere
+               # disclaimer of the database right. ~1 260 central-government vacancies, all
+               # professional (no ISCO filter needed, unlike MPSV), 100% with a min/max EUR
+               # salary off schema.org JSON-LD. It is also the only NL route that exists —
+               # werk.nl renders 110 characters of visible text and lists no vacancies in its
+               # sitemap. Two requests per posting, ~21 min; its pages name individual
+               # recruiters with direct mobiles, so the description is built from an
+               # allowlist of content sections and the contact block is never read. See the
+               # module docstring and `test_werkenvoornederland.py`.
+               WerkenVoorNederlandSource,
                # Workday is last on purpose — it must fetch each posting's description with
                # its own request, so it is by far the slowest, and a failure there should not
                # cost everything that runs before it.

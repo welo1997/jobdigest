@@ -231,6 +231,11 @@ SAMPLING: dict[str, Sample] = {
     "recruitee": Sample(module={"COMPANIES": Spread(3)}),
     "workable": Sample(module={"ACCOUNTS": Spread(3)}),
     "teamtailor": Sample(module={"TENANTS": Spread(3)}),
+    # `werkenvoornederland` is N+1 (one page per vacancy), so `MAX_POSTINGS` is the only
+    # bound that matters — an unbounded run is ~1 260 fetches at 1 s/host. The module
+    # constant bounds production; this shrinks it for a link check without editing what ships.
+    "werkenvoornederland": Sample(module={"MAX_POSTINGS": 5},
+                                  note="one request per vacancy; sitemap fetch on top"),
     # No bounding hook: one gzipped dump, all or nothing. ~40 s.
     "mpsv": Sample(note="downloads the full 16 MB register"),
 }
