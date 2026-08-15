@@ -146,6 +146,10 @@ def _text(html: str) -> str:
     html = re.sub(r"(?i)<li[^>]*>", "• ", html)
     text = _unescape(_TAG_RE.sub(" ", html))
     text = _WS_RE.sub(" ", text)
+    # Every tag becomes a space, so an inline `<strong>` leaves "kwaliteit ." — collapse the
+    # gap before punctuation, or the matcher reads a corpus of oddly spaced sentences.
+    text = re.sub(r" +([.,;:!?%)])", r"\1", text)
+    text = re.sub(r"([(¡¿]) +", r"\1", text)
     text = re.sub(r" *\n *", "\n", text)
     return re.sub(r"\n{3,}", "\n\n", text).strip()
 

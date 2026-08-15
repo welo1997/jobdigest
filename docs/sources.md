@@ -1183,6 +1183,45 @@ payload will pick a different string and that *shape* is the thing to watch.
   rather than a preference; and transport is **SOAP**, one operation `Dane` at
   `oferty.praca.gov.pl/integration/services/oferta` (hand-rollable as an XML POST — no `zeep`).
   `robots.txt` is 404 at the host root. Checked 2026-08-04.
+- **Unestablished permission: the rule, and the deliberate exception made on 2026-08-15.**
+  The standing rule is that a source publishing no terms has not permitted anything — it has
+  merely not spoken, and a working endpoint is not a grant. That is the Bundesagentur error,
+  and it is why `cyprusjobs`/`goldencareers`, NHS Jobs, NVA's `cvvp`, `hipo.ro` and Personio
+  are all closed above.
+
+  **The owner reviewed that class on 2026-08-15 and reversed it for a named, finite set**,
+  beginning with **`remoteineurope`** (built the same day). The reasoning recorded at the time:
+  the host publishes no terms of use and no privacy policy, none has ever existed in Wayback,
+  and its `robots.txt` affirmatively permits the job pages while disallowing `/search`,
+  `/companies`, `/checkout`, `/post-a-job-2` and `/internal/` — so nothing anywhere refuses
+  automated reading. It was wired for its **`schema-loc` country arrays** (a Wikimedia posting
+  names France + Germany + Italy + Netherlands; an Agorapulse one names 42), which is precisely
+  the multi-country remote inventory `reach_countries` and the EU-International row are short
+  of and which almost no other adapter emits.
+
+  **Four boundaries, and they are the point of the entry:**
+  - It is **a decision about risk appetite on the owner's own product**, not a finding that the
+    old rule was wrong. Do not cite it as precedent for a source not named in it.
+  - It **does not reach a source that refuses.** An anti-automation clause, a personal-use-only
+    licence, a refusing robots.txt and an application gate all still close a source; nothing in
+    the refusal groups above moves, and `test_source_exclusions.py` is unchanged.
+  - It **does not license ignoring robots.txt.** Every adapter added under it still calls
+    `politeness.robots_allows` and `throttle`, and `test_politeness.py` is unchanged.
+  - The set is **enumerated in `ingestion/tests/test_unestablished_permission.py`**, which fails
+    if a source is wired on this reasoning without being listed with the reason. That exists
+    because the real risk here is not the first source, it is "we already read boards with no
+    terms" quietly becoming a general argument.
+
+  **Two members of the group were NOT wired, and not for permission reasons:**
+  - **Personio** — its feed answers with a job count for **bogus** slugs (`amazon`, `johnson`,
+    `kbc`, none of them customers) and carries no `hiringOrganization` to check against, so an
+    adapter cannot tell whose board it is reading. That is a **correctness** blocker: it would
+    file postings under the wrong employer. Unrelated to terms, and not fixed by this decision.
+  - **`euroremotejobs`** — it publishes no terms *but* serves a Cloudflare Content-Signal block
+    reserving Art. 4 EU DSM TDM rights. That is a machine-readable **reservation**, not silence,
+    which puts it in a different class from `remoteineurope` even though both lack a terms page.
+    Flagged rather than assumed either way.
+
 - **Check robots.txt at the host root, and quote the clause that would refuse you.** Both
   errors happened in one session: `europa.eu/eures/robots.txt` 404'd and was reported as a
   finding, when robots.txt is only ever authoritative at the root — where it exists, is 4 930
@@ -1230,6 +1269,10 @@ payload will pick a different string and that *shape* is the thing to watch.
     2026-08-13 verdict shape *"terms cannot be read without a browser (Playwright = out)"* —
     sitemap + archive is not browser automation and is not on the sourcing path, so
     `devitjobs` and `germantechjobs` are re-readable by the same route if anyone wants them.
+  - **REVERSED IN PART, 2026-08-15 — see the entry below on unestablished permission.**
+    `remoteineurope` is now ingested despite this reasoning, by the owner's explicit decision.
+    The paragraph below stands as the argument that was made and the default that still
+    governs every source not named in that decision.
   - **No terms at all is a skip, not an opening — and `teamtailor` is the exception that fixes
     the rule's wording.** Two of the six (`euroremotejobs`, `remoteineurope`) publish none.
     Absence of a refusal is not permission — the standing rule is *if a source does not already

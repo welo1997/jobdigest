@@ -463,11 +463,19 @@ it.
   permission, but it is an express Art. 4 EU DSM reservation and a reason to go read the terms.
   **A client-rendered SPA returns 200 for paths that do not exist**, so a path probe cannot
   find terms; the site's own sitemap plus the Wayback Machine can, and neither is browser
-  automation. **No terms at all is a skip *by default*, because absence of a refusal is not
-  permission** (`euroremotejobs`, `remoteineurope`, `cyprusjobs`, NHS Jobs, NVA — the "Personio
-  shape"). **The exception is an affirmative grant elsewhere, and `teamtailor` is it**: no ToS,
-  but robots carries `Content-Signal: ai-input=yes` and a keyless public JSON feed that exists
-  to be read. Silence plus an invitation is permission; silence alone is not.
+  automation. **No terms at all is "permission unestablished", which is not the same as a
+  refusal** — the "Personio shape" (`cyprusjobs`, NHS Jobs, NVA's `cvvp`, `euroremotejobs`).
+  Historically that was an automatic skip. Two things now sit above it:
+  - **An affirmative grant elsewhere makes silence permission, and `teamtailor` is that case**:
+    no ToS, but robots carries `Content-Signal: ai-input=yes` and a keyless public JSON feed
+    that exists to be read. Silence plus an invitation is permission; silence alone is not.
+  - **The owner decided on 2026-08-15 to ingest a named, finite set of silent sources anyway**
+    — currently `remoteineurope` only. That is a risk-appetite call on the owner's own product,
+    not a general licence. **It never reaches a source that refuses**: an anti-automation
+    clause, a personal-use-only licence, a refusing robots.txt or an application gate all still
+    close a source, and `test_source_exclusions.py` is unchanged. Adding another silent source
+    means editing `ingestion/tests/test_unestablished_permission.py`, which enumerates the set
+    so it cannot spread by habit. Every such adapter still calls `robots_allows` and `throttle`.
 - **But that rule cuts one way only, and SmartRecruiters is the case that showed it.** A
   *permissive* robots is evidence of nothing; a **refusing** robots is dispositive on its own
   and the terms never need to be reached. `api.smartrecruiters.com/robots.txt` is `Disallow: /`

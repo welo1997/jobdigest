@@ -236,6 +236,9 @@ SAMPLING: dict[str, Sample] = {
     # constant bounds production; this shrinks it for a link check without editing what ships.
     "werkenvoornederland": Sample(module={"MAX_POSTINGS": 5},
                                   note="one request per vacancy; sitemap fetch on top"),
+    # Same N+1 shape: one page per job, `MAX_POSTINGS` is the only bound.
+    "remoteineurope": Sample(module={"MAX_POSTINGS": 5},
+                             note="one request per job; sitemap fetch on top"),
     # No bounding hook: one gzipped dump, all or nothing. ~40 s.
     "mpsv": Sample(note="downloads the full 16 MB register"),
 }

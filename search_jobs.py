@@ -40,6 +40,7 @@ from ingestion.sources.lever import LeverSource
 from ingestion.sources.nav import NavSource
 from ingestion.sources.oraclecloud import OracleCloudSource
 from ingestion.sources.platsbanken import PlatsbankenSource
+from ingestion.sources.remoteineurope import RemoteInEuropeSource
 from ingestion.sources.remoteok import RemoteOKSource
 from ingestion.sources.remotive import RemotiveSource
 from ingestion.sources.themuse import TheMuseSource
@@ -348,6 +349,16 @@ def _source_classes(include_cz: bool) -> list[type]:
                # allowlist of content sections and the contact block is never read. See the
                # module docstring and `test_werkenvoornederland.py`.
                WerkenVoorNederlandSource,
+               # Remote in Europe publishes NO terms of use and no privacy policy — permission
+               # is unestablished, which is normally a skip in this repo (the Bundesagentur
+               # error). Wired 2026-08-15 as a deliberate, enumerated exception; robots permits
+               # the job pages and nothing on the host refuses automated reading. See the
+               # module docstring, `ingestion/tests/test_unestablished_permission.py`, and the
+               # entry in docs/sources.md. It is here for its `schema-loc` country arrays —
+               # multi-country remote scopes are what the EU-International row is short of and
+               # almost nothing else in this stack emits them. Expect heavy overlap with the
+               # ATS adapters: it is a re-lister, so judge it on postings surviving dedupe.
+               RemoteInEuropeSource,
                # Workday is last on purpose — it must fetch each posting's description with
                # its own request, so it is by far the slowest, and a failure there should not
                # cost everything that runs before it.
