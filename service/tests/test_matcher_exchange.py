@@ -539,3 +539,99 @@ def test_safe_url_allows_only_http_schemes(url, expected):
     prevents attribute breakout but says nothing about the scheme."""
     from service.digest import safe_url
     assert safe_url(url) == expected
+
+
+# ------------------------------------------------- where you may live while remote ---
+#
+# The 2026-08-17 failure: the owner's own digest carried five "100% remote" data-engineering
+# roles bound to Poland, India and the UK, scored 7-8, none of them holdable from Prague.
+# `remote_reach` existed and was backfilled; it simply never reached the model. The SQL half is
+# `test_reach_gate_sql.py`; these are the rendering and the two prompts.
+
+_PL_REMOTE = {"posting_id": "pl", "title": "Data Engineer", "company": "7N",
+              "location": "Polska", "country_code": "PL", "remote_signal": True,
+              "remote_reach": "country"}
+_ANYWHERE = {"posting_id": "any", "title": "Data Engineer", "company": "X",
+             "remote_signal": True, "remote_reach": "anywhere"}
+_REGION_CZ = {"posting_id": "reg", "title": "Data Engineer", "company": "Y",
+              "remote_signal": True, "remote_reach": "region",
+              "reach_countries": ["CZ", "DE", "PL"]}
+_UNKNOWN = {"posting_id": "unk", "title": "Data Engineer", "company": "Z",
+            "remote_signal": True, "remote_reach": None}
+_ONSITE = {"posting_id": "on", "title": "Data Engineer", "company": "W",
+           "country_code": "CZ", "city": "prague", "remote_signal": False}
+
+
+@pytest.mark.parametrize("cand,expected", [
+    (_PL_REMOTE, "reach=other-country-only"),
+    (_ANYWHERE, "reach=anywhere"),
+    (_REGION_CZ, "reach=in-your-country"),
+    (_UNKNOWN, "reach=?"),
+])
+def test_the_prompt_tells_the_model_where_a_remote_role_can_be_held(cand, expected):
+    """Four verdicts, and the model can act on none of them if the token is missing. Before this
+    the candidate line said `remote=yes` and stopped, which is why a Warsaw-only role read as
+    exempt from the location rule — correctly, on the information it had."""
+    block, _ = matcher._candidates_block([cand], {"CZ"})
+    assert expected in block
+
+
+def test_an_onsite_candidate_carries_no_reach_token():
+    """Where you may *live* is a category error for a job with an office: its city and country
+    are already the hard test, and a reach token there would invite the model to re-judge an
+    on-site job on the wrong axis."""
+    block, _ = matcher._candidates_block([_ONSITE], {"CZ"})
+    assert "reach=" not in block
+
+
+def test_a_subscriber_with_no_countries_gets_question_marks_never_refusals():
+    """**The dangerous direction.** A legacy profile carrying only coarse `regions` gives an empty
+    country set, and "does PL intersect {}" is false for every posting on earth — so a naive
+    implementation would mark an entire shortlist `other-country-only` and the model would refuse
+    all 120 candidates. Unknown subscriber means unknown reach, which is `?`.
+    `geo.location_predicate` returns before its reach gate for exactly these profiles, so both
+    halves agree."""
+    block, _ = matcher._candidates_block([_PL_REMOTE, _ANYWHERE, _REGION_CZ], set())
+    assert "other-country-only" not in block
+    assert block.count("reach=?") == 3
+
+
+def test_the_routine_export_says_unknown_by_saying_nothing():
+    """This file's one rule for every field: a fact we could not establish is *absent*, never a
+    sentinel. `reach` follows it, so "no reach key" and "reach: other-country-only" cannot collapse
+    into one reading — which is the failure the whole absence convention exists to prevent."""
+    assert matcher._candidate_export(_PL_REMOTE, {"CZ"})["reach"] == "other-country-only"
+    assert matcher._candidate_export(_ANYWHERE, {"CZ"})["reach"] == "anywhere"
+    assert matcher._candidate_export(_REGION_CZ, {"CZ"})["reach"] == "in-your-country"
+    assert "reach" not in matcher._candidate_export(_UNKNOWN, {"CZ"})
+    assert "reach" not in matcher._candidate_export(_ONSITE, {"CZ"})
+    # And the same guard as the prompt: an unjudgeable subscriber must not mint a verdict.
+    assert "reach" not in matcher._candidate_export(_PL_REMOTE, set())
+
+
+def test_the_reach_rule_is_in_both_prompts():
+    """Same reason as the part-time and work-setup parity tests above: the API path and the routine
+    path share nothing but this module, and the routine's copy in `deploy/matcher-routine.md` is a
+    third one this test cannot reach. A rule taught in one and not the other is how the retired
+    path becomes a landmine if it is ever revived."""
+    for text in (matcher.SYSTEM, matcher.ROUTINE_INSTRUCTIONS):
+        low = text.lower()
+        assert "other-country-only" in low
+        assert "in-your-country" in low
+        assert "anywhere" in low
+        # The instruction that stops the fix from over-applying: silence is not a refusal.
+        assert "silent" in low or "assuming" in low
+
+
+def test_the_worldwide_scope_is_explained_as_willingness_not_relocation():
+    """`geo.describe` renders "plus fully remote roles worldwide" into the Locations line, and read
+    literally that invites the model to treat any remote job anywhere as a fit — undoing the reach
+    rule from the profile side. Both prompts have to say what that phrase does and does not mean.
+
+    It lives in the cached system block rather than per candidate on purpose: the teaching is a
+    fixed cost, the token that varies is three characters long."""
+    for text in (matcher.SYSTEM, matcher.ROUTINE_INSTRUCTIONS):
+        assert "worldwide" in text.lower()
+        assert "relocate" in text.lower()
+    assert "plus fully remote roles worldwide" in \
+        geo.describe(["CZ"], ["cz:prague"], "worldwide")

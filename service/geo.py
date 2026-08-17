@@ -1428,13 +1428,63 @@ def work_mode_predicate(profile: dict, alias: str = "p") -> tuple[str, list[Any]
     return f"({alias}.work_mode is null or {alias}.work_mode = any(%s))", [modes]
 
 
+def reach_predicate(countries: Iterable[str], alias: str = "p") -> tuple[str, list[Any]]:
+    """SQL: could someone *living in* `countries` actually hold this fully-remote posting?
+
+    The second half of "remote is two questions". `remote_signal` answers whether there is an
+    office; this answers where you may live while holding the job, from `remote_reach` +
+    `reach_countries`. Until 2026-08-17 nothing on the digest path asked it, and the
+    consequence was measured on the owner's own subscription: **all five jobs in one morning's
+    email were `remote_reach = 'country'` bound to Poland, India and the UK** — read as "100%
+    remote", scored 7-8, and impossible to take from Prague. Every component was behaving as
+    written; the field simply never reached either the gate or the model.
+
+    **It drops only what a posting positively states, and that asymmetry is the whole design.**
+    A `country`-reach row naming a country the subscriber did not pick is refused; everything
+    unprovable is KEPT and handed to the matcher, which reads the posting's own words:
+
+      * `remote_reach is null` — never classified (1 507 active remote rows). Kept.
+      * `remote_reach = 'region'` with no `reach_countries` — a macro-region word we could not
+        enumerate ("Europaweit"), so the subscriber's country is plausibly inside it. Kept.
+      * `remote_reach = 'country'` with a null `country_code` — bound to one country, and we do
+        not know which. Kept.
+      * `anywhere` (177 rows) — kept, obviously.
+
+    Sized before it was written, over the owner's two categories: 966 of 1 101 active remote
+    rows positively name another country, against 7 `anywhere`, 12 reaching CZ, 12 CZ-based and
+    104 unprovable. So this is not a trim — it is most of the remote pool, which is exactly
+    what the 82.1%-are-country-bound invariant predicts. The counterpart is that the shortlist
+    stops spending its 120 slots on rows the matcher would now refuse: a prompt-only fix would
+    have left retrieval unchanged and quietly emptied the digest as `exclude_sent` retired the
+    handful of local rows.
+
+    **A null `country_code` inside the array branch resolves to NULL, not false, on purpose.**
+    `x && y or country_code = any(...)` yields NULL when the array test fails and the country
+    is unknown, and the `coalesce(..., true)` below turns that into *keep* — the same
+    "unknown hands off, never drops" rule as an unresolved city in `location_predicate`.
+    """
+    cc = [c.upper() for c in countries]
+    sql = ("coalesce(case"
+           f" when {alias}.remote_reach is null then null"
+           f" when {alias}.remote_reach = 'anywhere' then true"
+           f" when coalesce(cardinality({alias}.reach_countries), 0) > 0"
+           f" then ({alias}.reach_countries && %s or {alias}.country_code = any(%s))"
+           f" when {alias}.remote_reach = 'country' and {alias}.country_code is not null"
+           f" then {alias}.country_code = any(%s)"
+           " else null end, true)")
+    return sql, [cc, cc, cc]
+
+
 def location_predicate(profile: dict, alias: str = "p") -> tuple[str, list[Any]]:
     """SQL fragment (plus params) restricting postings to a profile's chosen locations.
 
     The rule, in one place:
 
-      * **Fully remote** postings are judged only by the remote scope — their city is
-        irrelevant, which is the whole reason the two controls are separate.
+      * **Fully remote** postings are judged by the remote scope and by `reach_predicate` —
+        their *city* is irrelevant, which is the whole reason the two controls are separate,
+        but the countries they may be *held from* are not. A "100% remote" role that states it
+        is remote-within-Poland is no more available to a Prague subscriber than a Warsaw
+        office is; see `reach_predicate` for what it refuses and what it keeps.
       * **On-site or hybrid** postings must sit in a selected country, and — only for the
         countries where the subscriber actually named cities — in one of those cities.
         Naming no city for a country means "any city there". Hybrid belongs on this side
@@ -1518,4 +1568,16 @@ def location_predicate(profile: dict, alias: str = "p") -> tuple[str, list[Any]]
                        f" or ({alias}.country_code is null and {alias}.region = any(%s)))")
         params += [countries, countries, regions_for(countries, scope)]
 
-    return combine(f"({onsite} or ({remote} and {remote_gate}))", params)
+    # `reach_gate` is written LAST in the SQL text, so its params are appended last. Every
+    # comment in this function about positional binding applies here too: psycopg2 has no idea
+    # which fragment a `%s` came from, and the arrays are all `text[]`, so a slipped order
+    # filters by the wrong list and raises nothing. Text order == list order, always.
+    #
+    # It is ANDed for *every* scope rather than only `worldwide`. At `country` scope it is a
+    # no-op (`in_country` has already refused a foreign-bound row), and `eu` is where the leak
+    # actually lived — Poland is in the EEA, so a remote-within-Poland role passed that gate
+    # cleanly. One conjunct in one place cannot be applied at one scope and forgotten at
+    # another, which is the failure this module's docstring is about.
+    reach_gate, reach_params = reach_predicate(countries, alias)
+    return combine(f"({onsite} or ({remote} and {remote_gate} and {reach_gate}))",
+                   params + reach_params)

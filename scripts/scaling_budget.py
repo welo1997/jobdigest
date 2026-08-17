@@ -56,7 +56,7 @@ from pathlib import Path
 #: against the real exporter so a rename or an added field fails loudly here instead of
 #: silently shrinking every projection.
 CANDIDATE_FIELDS = (
-    "posting_id", "title", "company", "location", "city", "remote",
+    "posting_id", "title", "company", "location", "city", "remote", "reach",
     "work_mode", "education_min", "seniority", "work_type", "part_time", "salary",
     "description",
 )

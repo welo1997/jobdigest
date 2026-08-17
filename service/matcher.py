@@ -76,11 +76,29 @@ is NOT a mismatch, so judge them on overall fit like any other.
 line lists the countries the subscriber can work in and, where they named specific cities, \
 those cities. A posting that requires being somewhere else — another city, or a country they \
 did not pick — is not a fit however well the role matches: score it below 4. Being emailed an \
-on-site job in Brno when you live in Prague is the failure this rule exists to prevent. Only a \
-FULLY remote posting is exempt (those are marked `remote=yes`): "hybrid" is not remote, it \
-means being in that city most weeks. A candidate marked `city=?` is one whose location text we \
+on-site job in Brno when you live in Prague is the failure this rule exists to prevent. A \
+FULLY remote posting (marked `remote=yes`) is exempt from the *city* test, but not from the \
+`reach` rule below: "hybrid" is not remote, it means being in that city most weeks. A candidate \
+marked `city=?` is one whose location text we \
 could not parse — the prefilter deliberately lets those through, so read its location yourself \
 and judge it rather than assuming it fits.
+- "Remote" is TWO questions and `reach` is the second one. Whether there is an office is one \
+thing; which countries you may LIVE IN while holding the job is another, and in this inventory \
+"remote" overwhelmingly means work-from-home inside one single country. So every fully-remote \
+candidate carries a reach token: \
+`reach=anywhere` — they may live anywhere, so location is satisfied outright. \
+`reach=in-your-country` — the role's remote area includes a country the subscriber picked, so \
+it is genuinely open to them. \
+`reach=other-country-only` — remote, but only from a country they did NOT pick: this is not a \
+fit however perfectly the role, stack and seniority match, so score it below 4. \
+`reach=?` — we could not establish the breadth, so read the posting's own words and judge it; \
+do not assume it is open to them, and equally do not refuse it merely for being silent. \
+Emailing someone in Prague a "100% remote" job that turns out to mean work-from-home inside \
+Poland is the exact twin of the Brno failure above, and it is the one this rule prevents.
+- If the Locations line ends "plus fully remote roles worldwide", that means the subscriber is \
+willing to work remotely for an employer in ANY country. It does NOT mean they can relocate, \
+and it does not grant them the right to work anywhere — they still live in the countries named \
+on that line, so the `reach` rule applies to them unchanged.
 - Work schedule: if the profile says "part-time only", a posting that is full-time (or does \
 not offer a part-time option) is not what this person asked for. Score it at most 5 — it can \
 still appear on their matches page as a weaker option, but it must not headline their email. \
@@ -115,7 +133,8 @@ def _profile_block(p: dict) -> str:
         f"Target roles: {_join('role_categories')}",
         f"Skills / stack: {_join('stack')}",
         f"Seniority: {_join('seniorities')}",
-        f"Locations (on-site work must be in one of these): {locations}",
+        f"Locations — where the subscriber LIVES (on-site work must be in one of these, and "
+        f"remote work must be holdable from one of them): {locations}",
         f"Work types: {_join('work_types')}",
         f"Sectors of interest: {_join('sectors')}",
     ]
@@ -179,19 +198,81 @@ def _city_for_model(c: dict) -> str:
     return geo.CITIES.get(country, {}).get(slug) or slug.replace("-", " ")
 
 
-def _candidates_block(shortlist: list[dict]) -> tuple[str, dict[int, str]]:
-    """Render candidates for the prompt + return {index -> posting_id}."""
+def _subscriber_countries(profile: dict) -> set[str]:
+    """The ISO-2 countries the subscriber lives in, as `_reach_for_model` needs them.
+
+    Empty for a legacy profile carrying only coarse `regions` — and empty is load-bearing, not
+    a degenerate case: it is what makes every reach verdict `?` instead of "somewhere else".
+    `geo.location_predicate` returns before its reach gate for exactly those profiles, so the
+    prompt and the SQL agree about which subscribers this axis can be judged for at all."""
+    return {c.upper() for c in geo.clean_countries(profile.get("countries"))}
+
+
+def _reach_for_model(c: dict, countries: set[str]) -> str:
+    """Where the subscriber may live while holding this remote job — one token, or ''.
+
+    **The field the digest was missing.** `remote_signal` says there is no office;
+    `remote_reach`/`reach_countries` say which countries you may live in, and until
+    2026-08-17 neither reached the model. It read `remote=yes`, applied the location
+    exemption exactly as instructed, and emailed the owner five "100% remote" data-engineering
+    roles bound to Poland, India and the UK — all scored 7-8, none holdable from Prague.
+
+    Four answers, and `?` is one of them (the `city=?` precedent one function up):
+
+      * ``reach=anywhere``            — live anywhere; exempt from location outright.
+      * ``reach=in-your-country``     — its remote area covers a country they picked.
+      * ``reach=other-country-only``  — positively bound elsewhere. `geo.reach_predicate` now
+        refuses these in SQL, so a shortlist should hold none; it is still rendered because
+        the gate is not the only caller (`scripts/matcher_gate_eval.py` builds shortlists by
+        hand) and because a rule the model can apply is worth more than one it cannot see.
+      * ``reach=?``                   — unprovable, which is 104 of the owner's 1 101 remote
+        rows: never classified, a macro-region word we could not enumerate, or a single
+        unnamed country. The prompt says read the posting and judge, never assume either way.
+
+    Returns ``''`` for a posting that is not fully remote: its city and country are already the
+    hard test, and a reach token there would invite the model to re-litigate an on-site job on
+    the wrong axis.
+    """
+    if not c.get("remote_signal"):
+        return ""
+    if not countries:
+        return "reach=?"
+    reach = c.get("remote_reach")
+    if reach == "anywhere":
+        return "reach=anywhere"
+    named = {str(x).upper() for x in (c.get("reach_countries") or []) if x}
+    cc = (c.get("country_code") or "").upper()
+    if named:
+        return "reach=in-your-country" if (named & countries) or (cc and cc in countries) \
+            else "reach=other-country-only"
+    if reach == "country" and cc:
+        return "reach=in-your-country" if cc in countries else "reach=other-country-only"
+    return "reach=?"
+
+
+def _candidates_block(shortlist: list[dict],
+                      countries: set[str] | None = None) -> tuple[str, dict[int, str]]:
+    """Render candidates for the prompt + return {index -> posting_id}.
+
+    `countries` is the subscriber's own — the reach verdict is relative to where they live, so
+    it cannot be computed from the posting alone. Passing none means "unknown subscriber", and
+    every remote row then reads `reach=?`, which is the safe direction: the model judges from
+    the posting's text instead of being handed a verdict derived from an empty set.
+    """
+    countries = countries or set()
     index_map: dict[int, str] = {}
     rows = []
     for i, c in enumerate(shortlist):
         index_map[i] = c["posting_id"]
         desc = (c.get("description") or "").replace("\n", " ").strip()[:DESC_CHARS]
         salary = c.get("salary_raw") or ""
+        reach = _reach_for_model(c, countries)
         rows.append(
             f"[{i}] {c.get('title') or '?'} @ {c.get('company') or '?'}\n"
             f"    location={c.get('location') or '?'} city={_city_for_model(c)} "
             f"remote={'yes' if c.get('remote_signal') else 'no'} "
-            f"setup={c.get('work_mode') or 'unstated'} "
+            + (f"{reach} " if reach else "")
+            + f"setup={c.get('work_mode') or 'unstated'} "
             f"region={c.get('region') or '?'} "
             f"seniority={_seniority_for_model(c)} work={c.get('work_type') or '?'}"
             + (" part_time=yes" if c.get("is_part_time") else "")
@@ -219,25 +300,46 @@ def _accumulate_usage(acc: dict | None, resp) -> None:
 
 
 def match_profile(client, profile: dict, shortlist: list[dict],
-                  usage_acc: dict | None = None) -> list[dict]:
+                  usage_acc: dict | None = None, model: str | None = None,
+                  max_tokens: int = 1500) -> list[dict]:
     """Return [{posting_id, score, summary}] the model judged a genuine fit.
 
     `usage_acc`, when given, is updated in place with this call's token usage — the metered
-    path passes one so it can log the run's cost and honour an abort budget."""
-    candidates, index_map = _candidates_block(shortlist)
+    path passes one so it can log the run's cost and honour an abort budget.
+
+    `model` overrides `MODEL` for this one call. Nothing on the delivery path passes it: it
+    exists so `scripts/matcher_model_ab.py` can put the *same* prompt in front of two models
+    over one shortlist. Comparing model classes by monkeypatching the module global would work
+    until someone imported it by value, and the whole point of that harness is that it exercises
+    the real prompt rather than a copy of it. `max_tokens` is raised by that harness for a model
+    that thinks before answering, because thinking is billed out of the same ceiling as the JSON.
+    """
+    candidates, index_map = _candidates_block(shortlist, _subscriber_countries(profile))
     user = (
         f"SUBSCRIBER PROFILE:\n{_profile_block(profile)}\n\n"
         f"POSTINGS ({len(shortlist)}):\n{candidates}\n\n"
         f"Return the best fits (max {MAX_PICKS}) as JSON."
     )
     resp = client.messages.create(
-        model=MODEL,
-        max_tokens=1500,
+        model=model or MODEL,
+        max_tokens=max_tokens,
         system=[{"type": "text", "text": SYSTEM, "cache_control": {"type": "ephemeral"}}],
         messages=[{"role": "user", "content": user}],
     )
     _accumulate_usage(usage_acc, resp)
-    raw = resp.content[0].text.strip()
+    # The first *text* block, not `content[0]`. `MATCHER_MODEL` is a documented knob and the
+    # obvious thing to point it at is a stronger model — but every model above Haiku 4.5 thinks
+    # by default, and on those the response opens with a `thinking` block whose text is empty.
+    # Indexing position 0 therefore parsed "" as JSON, logged one warning, and returned zero
+    # picks for every subscriber: an empty digest that looks exactly like a quiet inventory day,
+    # which is the failure shape this repo keeps rediscovering. Skipping to the text block makes
+    # the env var mean what it says.
+    raw = next((b.text for b in resp.content
+                if getattr(b, "type", None) == "text" and getattr(b, "text", None)), "").strip()
+    if not raw:
+        logger.warning("profile %s: model %s returned no text block (%s)", profile.get("id"),
+                       model or MODEL, [getattr(b, "type", "?") for b in resp.content])
+        return []
     if raw.startswith("```"):
         raw = "\n".join(l for l in raw.split("\n") if not l.strip().startswith("```")).strip()
 
@@ -296,6 +398,20 @@ ROUTINE_INSTRUCTIONS = (
     "candidate with no \"remote\" field is not exempt. A candidate with no \"city\" did not "
     "resolve to a known city: read its \"location\" text and judge it yourself rather than "
     "assuming the prefilter checked it. "
+    "\"remote\" is TWO questions and \"reach\" is the second: whether there is an office is one "
+    "thing, which countries you may LIVE IN while holding the job is another, and in this "
+    "inventory \"remote\" overwhelmingly means work-from-home inside one single country. "
+    "\"reach\":\"anywhere\" means they may live anywhere, so location is satisfied outright. "
+    "\"reach\":\"in-your-country\" means the role's remote area covers a country the subscriber "
+    "picked, so it is genuinely open to them. \"reach\":\"other-country-only\" means remote but "
+    "only from a country they did NOT pick — not a fit however perfectly the role, stack and "
+    "seniority match (omit it / score it below 4). A candidate with NO \"reach\" key is one whose "
+    "breadth we could not establish: read the posting's own words and judge it, neither assuming "
+    "it is open to them nor refusing it merely for being silent. Emailing someone in Prague a "
+    "\"100% remote\" job that means work-from-home inside Poland is the twin of the Brno failure "
+    "above. And if the profile's \"locations\" line offers \"fully remote roles worldwide\", that "
+    "is a willingness to work for an employer in any country — NOT permission to relocate or to "
+    "live anywhere; they still live in the countries named, so this rule applies unchanged. "
     "If (and only if) the profile has a \"work_setup\" line, the subscriber has ruled some "
     "arrangements out: a candidate whose \"work_mode\" is not one they accept is not a fit "
     "(omit it / score it below 4). A candidate with no \"work_mode\" never stated an "
@@ -360,7 +476,7 @@ def _profile_export(p: dict) -> dict:
     return out
 
 
-def _candidate_export(c: dict) -> dict:
+def _candidate_export(c: dict, countries: set[str] | None = None) -> dict:
     """One posting as the routine reads it. **A field the posting never stated is absent, not
     null** — one rule, replacing five different spellings of "we don't know".
 
@@ -402,6 +518,17 @@ def _candidate_export(c: dict) -> dict:
     # missing key lands in the same branch `false` did.
     if c.get("remote_signal"):
         out["remote"] = True
+    # The second of the two questions "remote" asks — which countries the subscriber may LIVE in
+    # while holding it. Emitted right after `remote` because it qualifies it: `remote: true` on
+    # its own is what let five Poland-bound roles into a Prague inbox on 2026-08-17.
+    #
+    # Absent when the verdict is `?`, under this function's one rule — a reach we could not
+    # establish is unknown, and unknown is said by saying nothing. `ROUTINE_INSTRUCTIONS` and
+    # `SYSTEM` both have to teach that, because "no reach key" and "reach=other-country-only"
+    # must never collapse into one reading. See `_reach_for_model` for the four verdicts.
+    reach = _reach_for_model(c, countries or set())
+    if reach and reach != "reach=?":
+        out["reach"] = reach.split("=", 1)[1]
     # "remote"|"hybrid"|"onsite". `remote` above is the boolean the location rule keys on;
     # this is the finer answer, and its absence is the common case, not a special one.
     if c.get("work_mode"):
@@ -509,7 +636,7 @@ def export_shortlists(path: str, email: str | None = None, limit_profiles: int |
         entry = {
             "profile_id": str(p["id"]),
             "profile": _profile_export(p),
-            "candidates": [_candidate_export(c) for c in shortlist],
+            "candidates": [_candidate_export(c, _subscriber_countries(p)) for c in shortlist],
         } if shortlist else None
         # Recorded before the `continue` below: a profile that exports nothing is exactly the
         # case worth alerting on, and skipping the write would make the worst outcome the one
@@ -750,7 +877,7 @@ def run(email: str | None = None, limit_profiles: int | None = None,
             shortlist, meta = store.query_shortlist_meta(p, limit=shortlist_size)
             already = store.already_sent_ids(p["id"]) if p.get("id") else set()
             shortlist = [c for c in shortlist if c["posting_id"] not in already]
-            cand, _ = _candidates_block(shortlist)
+            cand, _ = _candidates_block(shortlist, _subscriber_countries(p))
             logger.info("profile %s (%s): %d candidates (dry run, no API call)",
                         p.get("id"), p.get("email"), len(shortlist))
             print(f"\n--- SYSTEM ---\n{SYSTEM}\n--- USER (first 1500 chars) ---")

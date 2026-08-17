@@ -416,6 +416,7 @@ def query_candidates(profile: dict, limit: int = 100) -> list[dict]:
         select distinct on (coalesce(p.dedup_key, p.posting_id))
                p.posting_id, p.source, p.title, p.company, p.url, p.location,
                p.city, p.country_code, p.remote_signal, p.work_mode, p.education_min,
+               p.remote_reach, p.reach_countries,
                p.region, p.eligibility, p.seniority, p.work_type, p.is_part_time,
                p.role_category, p.salary_raw, p.posted_at, p.description
         from postings p
@@ -646,7 +647,7 @@ def query_shortlist_meta(profile: dict, limit: int = 120) -> tuple[list[dict], d
                  else "d.first_seen_at desc, d.rotation")
         sql = f"""
             select posting_id, source, title, company, url, location, city, country_code,
-                   remote_signal, work_mode, education_min,
+                   remote_signal, work_mode, remote_reach, reach_countries, education_min,
                    region, eligibility, seniority, work_type, is_part_time,
                    role_category, salary_raw, currency, posted_at, description
             from (
@@ -660,6 +661,12 @@ def query_shortlist_meta(profile: dict, limit: int = 120) -> tuple[list[dict], d
                     select distinct on (coalesce(p.dedup_key, p.posting_id))
                            p.posting_id, p.source, p.title, p.company, p.url, p.location,
                            p.city, p.country_code, p.remote_signal, p.work_mode,
+                           -- Read by `matcher._reach_for_model`, not by this WHERE (the gate
+                           -- using them is `geo.reach_predicate`, via `_hard_gate`). Selecting
+                           -- them is what lets the model see *why* a remote row is admissible;
+                           -- without them it read `remote=yes` and had no field that could say
+                           -- "remote from within Poland only".
+                           p.remote_reach, p.reach_countries,
                            p.education_min,
                            p.region, p.eligibility, p.seniority, p.work_type, p.is_part_time,
                            p.role_category, p.salary_raw, p.currency, p.posted_at,

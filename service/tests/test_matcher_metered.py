@@ -94,6 +94,70 @@ def test_match_one_without_a_key_raises(monkeypatch):
         matcher.match_one({"id": "solo", "email": "solo@x"})
 
 
+class _Block:
+    """One response content block: `type` plus whatever text it carries."""
+
+    def __init__(self, type_: str, text: str = ""):
+        self.type = type_
+        self.text = text
+
+
+class _FakeClient:
+    """A client whose `messages.create` returns a fixed block list. Records the kwargs it got."""
+
+    def __init__(self, blocks: list[_Block]):
+        self.blocks = blocks
+        self.calls: list[dict] = []
+        self.messages = self
+
+    def create(self, **kwargs):
+        self.calls.append(kwargs)
+        return type("Resp", (), {"content": self.blocks, "usage": None})()
+
+
+_SHORTLIST = [{"posting_id": "job-1", "title": "Junior Dev", "company": "Acme"}]
+_PICK_JSON = '{"picks": [{"i": 0, "score": 9, "reason": "fits"}]}'
+
+
+def test_picks_are_read_from_the_first_text_block_not_position_zero():
+    """`MATCHER_MODEL` must be safe to point at a model that thinks before it answers.
+
+    Every model above Haiku 4.5 thinks by default, and on those the response *opens* with a
+    `thinking` block whose text is empty. Reading `content[0]` parsed "" as JSON and returned
+    zero picks for every subscriber — an empty digest indistinguishable from a quiet inventory
+    day, with one warning line as the only trace.
+    """
+    client = _FakeClient([_Block("thinking", ""), _Block("text", _PICK_JSON)])
+
+    picks = matcher.match_profile(client, {"id": "p"}, _SHORTLIST)
+
+    assert [p["posting_id"] for p in picks] == ["job-1"]
+
+
+def test_a_response_with_no_text_block_returns_no_picks_and_does_not_raise():
+    # Truncated mid-thinking (`max_tokens` spent before any answer). One subscriber's picks are
+    # lost; the run must not be.
+    client = _FakeClient([_Block("thinking", "")])
+
+    assert matcher.match_profile(client, {"id": "p"}, _SHORTLIST) == []
+
+
+def test_model_and_max_tokens_overrides_reach_the_api_call():
+    # The comparison harness (scripts/matcher_model_ab.py) depends on both: a different model
+    # over the same prompt, and a ceiling wide enough that thinking does not eat the JSON.
+    client = _FakeClient([_Block("text", _PICK_JSON)])
+
+    matcher.match_profile(client, {"id": "p"}, _SHORTLIST,
+                          model="claude-sonnet-5", max_tokens=8000)
+
+    assert client.calls[0]["model"] == "claude-sonnet-5"
+    assert client.calls[0]["max_tokens"] == 8000
+    # Defaults still come from the module, so production is unaffected by the new parameters.
+    matcher.match_profile(client, {"id": "p"}, _SHORTLIST)
+    assert client.calls[1]["model"] == matcher.MODEL
+    assert client.calls[1]["max_tokens"] == 1500
+
+
 def test_pipeline_matches_only_due_subscribers(monkeypatch):
     """The token-saving guarantee: `--match` reranks the due set, not every sendable profile."""
     now = datetime.now(timezone.utc)

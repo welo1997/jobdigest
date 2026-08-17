@@ -228,12 +228,28 @@ def _allowed_location(cand: dict, profile: dict) -> bool:
     """Mirror of `geo.location_predicate`'s intent, applied to a retrieved row.
 
     Recomputed rather than re-run so a bug in the SQL cannot also hide itself in the check.
-    Three rules, all of which have been broken: fully-remote is exempt (scope is the SQL's
-    job), an unknown country or city is KEPT for the model to judge, and hybrid is not remote.
+    Four rules, all of which have been broken: fully-remote is exempt from the *city* test but
+    not from `reach` (2026-08-17 — five Poland-bound "100% remote" roles in one email), an
+    unknown country, city or reach is KEPT for the model to judge, and hybrid is not remote.
     """
-    if cand.get("remote_signal"):
-        return True
     countries = [c.upper() for c in (profile.get("countries") or [])]
+    if cand.get("remote_signal"):
+        # Mirror of `geo.reach_predicate`: refuse only a reach the posting positively states,
+        # and only when it excludes every country the subscriber lives in. A null reach, a
+        # region we could not enumerate, or an unnamed single country all stay admissible —
+        # so this flags the leak the SQL is supposed to prevent, not the unknowns it keeps.
+        if not countries:
+            return True
+        reach = cand.get("remote_reach")
+        named = {str(x).upper() for x in (cand.get("reach_countries") or []) if x}
+        cc = (cand.get("country_code") or "").upper()
+        if reach == "anywhere" or reach is None:
+            return True
+        if named:
+            return bool(named.intersection(countries)) or (cc in countries)
+        if reach == "country" and cc:
+            return cc in countries
+        return True
     if not countries:
         return True
     cc = cand.get("country_code")
@@ -337,7 +353,8 @@ def export(path: str, audit_path: str | None = None) -> dict:
         payload["profiles"].append({
             "profile_id": str(row["id"]),
             "profile": matcher._profile_export(row),
-            "candidates": [matcher._candidate_export(c) for c in shortlist],
+            "candidates": [matcher._candidate_export(c, matcher._subscriber_countries(row))
+                           for c in shortlist],
         })
 
     with open(path, "w", encoding="utf-8") as fh:

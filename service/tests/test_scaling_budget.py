@@ -96,18 +96,19 @@ def test_candidate_fields_match_the_real_export():
     stated, so a half-empty row would ship a subset and this guard would pass while quietly
     measuring less than the maximal payload. Every value here has to be one that survives
     omission — note the title names a level, or `_seniority_for_model` reports 'unstated' and
-    drops the key.
+    drops the key. Same reason for `remote_reach` plus a matching `countries` argument: an
+    unestablished reach is omitted, so without both the `reach` key would never be measured.
     """
     from service import matcher
 
     row = {
         "posting_id": "a" * 32, "title": "Senior Data Engineer", "company": "c",
         "location": "l", "city": "prague", "country_code": "CZ",
-        "remote_signal": True, "work_mode": "hybrid",
+        "remote_signal": True, "work_mode": "hybrid", "remote_reach": "country",
         "education_min": "bachelor", "seniority": "senior", "work_type": "fulltime",
         "is_part_time": True, "salary_raw": "x", "description": "d" * 1000,
     }
-    shipped = set(matcher._candidate_export(row).keys())
+    shipped = set(matcher._candidate_export(row, {"CZ"}).keys())
     assert shipped == set(sb.CANDIDATE_FIELDS), (
         "scaling_budget.CANDIDATE_FIELDS has drifted from matcher._candidate_export; "
         f"missing={shipped - set(sb.CANDIDATE_FIELDS)} extra={set(sb.CANDIDATE_FIELDS) - shipped}"

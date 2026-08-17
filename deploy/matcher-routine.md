@@ -53,7 +53,8 @@ DB is Supabase). The routine only ever touches the two files.
       "candidates": [
         {"posting_id": "md5…", "title": "...", "company": "...", "location": "...",
          "city": "Brno", "work_mode": "hybrid", "seniority": "lead",
-         "work_type": "permanent", "remote": true, "part_time": true,
+         "work_type": "permanent", "remote": true, "reach": "in-your-country",
+         "part_time": true,
          "education_min": "bachelor",
          "salary": "45 000 – 90 000 Kč", "description": "…≤320 chars…"}
       ]
@@ -66,7 +67,10 @@ DB is Supabase). The routine only ever touches the two files.
 a candidate carries **only the fields its posting actually stated**: a field the posting never
 gave is *absent*, not null or `false` or `"?"`. Most candidates are therefore much smaller than
 the example. `education_min` is absent on 90.6% of active postings, `salary` on ~65%,
-`work_mode` on most, and `remote` / `part_time` appear only when true. That removed
+`work_mode` on most, and `remote` / `part_time` appear only when true. `reach` follows the same
+rule and is the one field that is *derived against the subscriber* rather than stated by the
+posting — absent means we could not establish which countries the job may be held from, never
+that it may be held from any. That removed
 ~100-125 bytes per candidate — 117 candidates per subscriber per day — but the reason it is
 *better* is that null used to mean three different things (unread, never-stated, not-claimed)
 taught field by field, and absence means one thing everywhere, including on fields nobody has
@@ -150,12 +154,31 @@ always emits them, which is why `ROUTINE_INSTRUCTIONS` has no such clause.
 > city is written `"cz:prague"`). A posting that requires being anywhere else — another city,
 > or a country they did not pick — is not a fit however well the role matches: omit it, or
 > score it below 4. Being emailed an on-site job in Brno when you live in Prague is the
-> failure this rule exists to prevent. **Only candidates carrying `"remote": true` are
-> exempt** — `"hybrid"` is not remote, it means being in that city most weeks, and a candidate
+> failure this rule exists to prevent. **Candidates carrying `"remote": true` are exempt from
+> the *city* test only, not from `reach` below** — `"hybrid"` is not remote, it means being in
+> that city most weeks, and a candidate
 > with no `remote` field is not exempt. A candidate with **no `city` field** did not resolve to
 > a city we recognise: the prefilter deliberately lets those through, so read its `location`
 > text and judge it yourself rather than assuming it was checked. Naming no city for a country
 > means any city in that country.
+>
+> **`reach` — "remote" is two questions.** Whether there is an office is one; which countries
+> you may *live in* while holding the job is another, and in this inventory "remote"
+> overwhelmingly means work-from-home inside one single country. `"reach": "anywhere"` — they
+> may live anywhere, location satisfied outright. `"reach": "in-your-country"` — the role's
+> remote area covers a country the subscriber picked, so it is genuinely open to them.
+> `"reach": "other-country-only"` — remote, but only from a country they did **not** pick: not a
+> fit however perfectly the role, stack and seniority match (omit it, or score it below 4).
+> **No `reach` field** means we could not establish the breadth — read the posting's own words
+> and judge it, neither assuming it is open to them nor refusing it for being silent. And a
+> `locations` line offering "fully remote roles worldwide" is a willingness to work for an
+> employer in any country, **not** permission to relocate or to live anywhere: they still live
+> in the countries named, so this rule applies unchanged.
+>
+> Emailing someone in Prague a "100% remote" job that means work-from-home inside Poland is the
+> twin of the Brno failure above. It happened on 2026-08-17 on the live metered path — five such
+> roles in one email, scored 7-8 — because `remote_reach` reached neither the SQL gate nor the
+> prompt. See `service/tests/test_reach_gate_sql.py`.
 >
 > **Work setup**: `"work_modes"` / `"work_setup"` appear on a profile **only when the
 > subscriber has ruled some arrangements out** — most have not, and their absence means
@@ -299,6 +322,30 @@ sudo systemctl daemon-reload && sudo systemctl enable --now jobdigest-pipeline.t
 - **On-demand:** `POST /digest/run` (webapp, subscriber-authenticated, POST-only) re-matches one
   subscriber and emails them, bounded by `ONDEMAND_COOLDOWN_MIN` (default 360 = 6h) via
   `store.claim_ondemand_run`. The `api` container therefore also needs `ANTHROPIC_API_KEY`.
+- **Raising `MATCHER_MODEL` was a silent no-op until 2026-08-17, and the failure was empty
+  digests.** Every model above Haiku 4.5 thinks by default, so its response *opens* with a
+  `thinking` block whose text is empty; `match_profile` read `content[0].text`, parsed `""` as
+  JSON, logged one warning and returned **zero picks for every subscriber**. Nothing downstream
+  can tell that apart from a quiet inventory day — `digest_runs.picks_n` is 0 either way and the
+  watchdog needs three days. It now takes the first *text* block and returns `[]` loudly if there
+  is none (`test_matcher_metered.py`). The knob is safe to turn; a model *change* still needs the
+  measurement below rather than an argument.
+- **"Is Haiku as good as the routine was?" is a measurement, and there are two harnesses for it.**
+  Neither writes anything — no `matches` row, no `digest_runs` row, no email — and both call the
+  real `match_profile`, not a copy of the prompt:
+  - `scripts/matcher_gate_eval.py` — a synthetic, adversarial fixture with a **known answer key**,
+    so a model is graded rather than compared. It exists because the hard gates are where being
+    wrong is expensive and where nothing else checks: **seniority has no SQL gate on the digest
+    path at all**, so the model is the whole enforcement, and `seniority=unstated` is 70% of the
+    corpus, so over-applying the rule is as bad as under-applying it. No database, no subscriber
+    data, a few cents a pass.
+  - `scripts/matcher_model_ab.py` — the live version: builds each subscriber's shortlist **once**
+    so several models read byte-identical input, then reports hard-rule violations, the strong
+    picks the cheaper model missed, and score drift. Run it on the box (the DB is there);
+    `--repeat 2` measures each model's agreement with *itself*, which is the noise floor any
+    cross-model overlap has to beat — `match_profile` sets no temperature, so a single pass is a
+    single sample. Its location audit reads `postings.reach_countries`, because a posting naming
+    twelve countries is not an out-of-country pick.
 - **Cost lever, not yet built:** the Anthropic Batch API is 50% off and fits the daily window —
   pull it when subscriber count makes token cost binding, the same measured gate as the vector
   shortlist. Synchronous is right at current scale.

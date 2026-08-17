@@ -148,6 +148,22 @@ Each of these has been broken in production at least once. Reasoning and measure
 - **A source's `remote_signal` is a claim, not a fact** — `is_fully_remote` checks the
   posting's own words. Only a *named* schedule or policy disqualifies. Changing detection
   means re-running `python -m service.backfill_geo`.
+- **The digest gate reads `remote_reach`, and until 2026-08-17 it did not.** A fully-remote
+  posting was exempt from the location test outright, so the owner's own subscription was
+  emailed five "100% remote" data-engineering roles bound to Poland, India and the UK, scored
+  7-8, none holdable from Prague. Nothing was broken: the gate exempted them, the prompt taught
+  the exemption, the model obeyed, `digest_runs` looked healthy and the watchdog stayed silent.
+  Two halves now close it and **they must move together** — `geo.reach_predicate` (ANDed into
+  `location_predicate`'s remote arm at *every* scope, because `eu` leaked identically: Poland is
+  in the EEA) and the `reach` token `matcher._reach_for_model` renders into both prompts. **It
+  refuses only what a posting positively states**: a null reach, an unenumerable macro-region,
+  or a `country` reach whose country is unknown are all KEPT and handed to the model as
+  `reach=?`, and a subscriber with no `countries` at all gets `?` on every row rather than a
+  refusal on every row — the failure that would empty a legacy profile's shortlist entirely.
+  Sized before it shipped: 966 of 1 101 active remote rows in the owner's two categories name
+  another country, against 7 `anywhere`. Do not "simplify" it into a check on `remote_signal`
+  alone, and do not gate it in the prompt only — a prompt-only fix makes the model reject 90% of
+  its own shortlist and the digest goes quiet as `exclude_sent` retires the local rows.
 - **"Remote" is two questions, and `remote_signal` only answers one.** Whether there is an
   office is `work_mode`; **where you may live while holding the job is `postings.remote_reach`**
   — `anywhere | region | country | NULL`, one definition in `geo.remote_reach`, backfilled by
