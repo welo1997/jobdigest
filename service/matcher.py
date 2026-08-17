@@ -238,6 +238,13 @@ def _reach_for_model(c: dict, countries: set[str]) -> str:
     if not countries:
         return "reach=?"
     reach = c.get("remote_reach")
+    # Arm-for-arm with `geo.reach_predicate`'s `case`, in the same order — the two are one rule
+    # in two languages and a test asserts they agree row by row. In particular an unclassified
+    # `remote_reach` wins over a populated `reach_countries`: that array is "countries this
+    # posting named", filled whether or not the job is remote, so on a row whose breadth was
+    # never classified it is not an eligibility enumeration and must not be read as one.
+    if reach is None:
+        return "reach=?"
     if reach == "anywhere":
         return "reach=anywhere"
     named = {str(x).upper() for x in (c.get("reach_countries") or []) if x}

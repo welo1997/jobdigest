@@ -1458,17 +1458,33 @@ def reach_predicate(countries: Iterable[str], alias: str = "p") -> tuple[str, li
     have left retrieval unchanged and quietly emptied the digest as `exclude_sent` retired the
     handful of local rows.
 
-    **A null `country_code` inside the array branch resolves to NULL, not false, on purpose.**
-    `x && y or country_code = any(...)` yields NULL when the array test fails and the country
-    is unknown, and the `coalesce(..., true)` below turns that into *keep* — the same
-    "unknown hands off, never drops" rule as an unresolved city in `location_predicate`.
+    **The `coalesce(country_code = any(...), false)` inside the array branch is the whole
+    difference between this working and not.** Written as a bare disjunct it shipped a bug that
+    survived a green test suite and a production before/after measurement: `reach_countries &&
+    ARRAY['CZ']` is `false`, `country_code = any(ARRAY['CZ'])` on a null country is `NULL`, and
+    `false or NULL` is `NULL` — which the outer coalesce then read as *keep*. Six rows walked
+    through the gate on the first deploy, **including the Dataiku "Data Engineer I" that the
+    2026-08-17 email led with**. `country_code` is null on every one of them, because a scope
+    that enumerates its countries usually has no single home country to store. An enumerated
+    list is a positive statement about where the job may be held, so a definite miss must decide
+    the row rather than being swallowed by an unknown beside it.
+
+    The NULLs that *do* mean keep are the ones with their own `when` arm above and the `else`
+    below — an unclassified reach, and a `country` reach whose country we never resolved. That
+    is the difference between "we do not know" and "we know, and it is not you".
+
+    **The branch order is load-bearing and `matcher._reach_for_model` mirrors it exactly**, arm
+    for arm, including `remote_reach is null` winning over a populated `reach_countries`. Those
+    two are one rule expressed in two languages, and `test_reach_gate_sql.py` asserts they agree
+    on every row rather than trusting that they do — which is how the bug above was found.
     """
     cc = [c.upper() for c in countries]
     sql = ("coalesce(case"
            f" when {alias}.remote_reach is null then null"
            f" when {alias}.remote_reach = 'anywhere' then true"
            f" when coalesce(cardinality({alias}.reach_countries), 0) > 0"
-           f" then ({alias}.reach_countries && %s or {alias}.country_code = any(%s))"
+           f" then ({alias}.reach_countries && %s"
+           f"       or coalesce({alias}.country_code = any(%s), false))"
            f" when {alias}.remote_reach = 'country' and {alias}.country_code is not null"
            f" then {alias}.country_code = any(%s)"
            " else null end, true)")

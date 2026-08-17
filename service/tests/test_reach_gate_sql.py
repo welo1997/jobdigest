@@ -76,6 +76,17 @@ ROWS = [
     # Emailed to the owner at score 8 on 2026-08-17 as "Data Engineer I" — an exact seniority hit
     # he could not have taken.
     ("region-no-cz",       "DE", None,     "eu", True,  "region",   ["DE", "ES", "GB", "NL"]),
+    # **The same shape as it actually occurs in production: `country_code` is NULL.** A scope that
+    # enumerates six countries usually has no single home country to store, so the row above —
+    # with its tidy 'DE' — was the unrealistic one, and its tidiness hid a live bug for a whole
+    # deploy: `false or NULL` is NULL, and the gate's outer coalesce read that as keep. Six rows
+    # walked through, Dataiku's among them. Any fixture for this predicate needs a null-country
+    # twin.
+    ("region-no-cz-null",  None, None,     "eu", True,  "region",   ["DE", "ES", "GB", "NL"]),
+    # An unclassified reach that nonetheless carries a country list. `reach_countries` is filled
+    # whether or not a posting is remote, so on a row whose breadth was never classified it is not
+    # an eligibility enumeration — the `remote_reach is null` arm wins, in both languages.
+    ("reach-null-array",   None, None,     "eu", True,  None,       ["DE", "GB"]),
     # "Europaweit" — a macro-region word we could not enumerate. Czechia is plausibly inside it.
     ("region-no-list",     "IT", None,     "eu", True,  "region",   None),
     # Never classified at all.
@@ -92,8 +103,8 @@ ROWS = [
 ]
 
 REMOTE_KEPT_FOR_CZ = {"cz-only", "anywhere", "region-with-cz", "region-no-list",
-                      "reach-null", "country-unknown-cc", "pl-plus-cz-array"}
-REMOTE_REFUSED_FOR_CZ = {"pl-only", "region-no-cz"}
+                      "reach-null", "reach-null-array", "country-unknown-cc", "pl-plus-cz-array"}
+REMOTE_REFUSED_FOR_CZ = {"pl-only", "region-no-cz", "region-no-cz-null"}
 
 
 @pytest.fixture(scope="module", autouse=True)
@@ -154,7 +165,36 @@ def test_an_enumerated_region_that_excludes_you_is_refused():
     """`region` is not a free pass — Dataiku's {DE,ES,GB,NL} names four countries and none is CZ."""
     found = matching(CZ_WORLDWIDE)
     assert "region-no-cz" not in found
+    assert "region-no-cz-null" not in found      # the production shape: no country_code
     assert "region-with-cz" in found
+
+
+def test_the_sql_gate_and_the_prompt_agree_on_every_row():
+    """**The strongest test here, and the one that was missing.** The gate and
+    `matcher._reach_for_model` are one rule written twice — SQL three-valued logic on one side,
+    Python truthiness on the other — and everything downstream assumes they agree: the gate
+    decides which rows spend a shortlist slot, the token decides what the model does with them.
+    Drift is silent in both directions. A row the SQL keeps and the prompt calls
+    `other-country-only` wastes a slot on a job the model will refuse; the reverse hands the model
+    a job the gate meant to delete and tells it the reach is fine.
+
+    This is not a hypothetical. Both halves were written together, reviewed together, tested
+    together and deployed together — and diverged on six live rows, because `false or NULL` is
+    NULL in Postgres and `False or None` is falsy in Python. The production shortlist is what
+    caught it; this is what should have."""
+    from service import matcher
+
+    found = matching(CZ_WORLDWIDE)
+    for pid, cc, _city, _region, remote, reach, reach_countries in ROWS:
+        if not remote:
+            continue                     # the reach rule does not apply to a job with an office
+        verdict = matcher._reach_for_model(
+            {"remote_signal": True, "remote_reach": reach,
+             "reach_countries": reach_countries, "country_code": cc}, {"CZ"})
+        admitted = pid in found
+        assert admitted == (verdict != "reach=other-country-only"), (
+            f"{pid}: the SQL gate {'admits' if admitted else 'refuses'} it while the prompt says "
+            f"{verdict} — the two halves have drifted")
 
 
 def test_the_eu_scope_is_where_this_leaked():
