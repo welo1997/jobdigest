@@ -1,3 +1,11 @@
+# **RETIRED 2026-08-17 — retained as the fallback, NOT enabled.**
+# The scheduled path is now jobdigest-categorize.timer, which classifies the residue on the
+# box with the metered ANTHROPIC_API_KEY in one phase. This unit's whole reason for existing
+# was the absence of that key (notes/categorization/PLAN.md item 4). Do not enable it
+# alongside the metered timer: both write `title_categories`, and two schedules answering the
+# same residue would look like a routine that had stopped running rather than an error.
+#   sudo systemctl disable --now jobdigest-categorize-import.timer
+#
 # JobDigest title classification — Phase 2: pull the routine's answers and validate them.
 # Installed together with jobdigest-categorize-export.service (see its header).
 [Unit]

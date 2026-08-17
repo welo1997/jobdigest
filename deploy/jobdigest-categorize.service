@@ -1,0 +1,35 @@
+# JobDigest title classification — the metered API path (LIVE since 2026-08-17).
+#
+# One phase, on the box: uncategorised titles -> Claude (metered ANTHROPIC_API_KEY) ->
+# validate every answer against taxonomy.CATEGORIES -> `title_categories`. No Drive
+# round-trip, no claude.ai routine, no second timer to keep in step with the first.
+#
+# This REPLACES jobdigest-categorize-export.timer + jobdigest-categorize-import.timer, which
+# implemented the same job over a file exchange because the project had no API key
+# (notes/categorization/PLAN.md item 4, "No API key. Decided 2026-08-09"). The matcher
+# retired its routine on the same premise the same day; the export/import code and units are
+# retained as the fallback but are no longer enabled.
+#
+# Install (once):
+#   sudo cp deploy/jobdigest-categorize.{service,timer} /etc/systemd/system/
+#   sudo chmod +x deploy/jobdigest-categorize.sh
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now jobdigest-categorize.timer
+#   # retire the two-phase Drive timers (deploy.sh copies units but never enables/disables):
+#   sudo systemctl disable --now jobdigest-categorize-export.timer #                                jobdigest-categorize-import.timer
+#
+# Requires ANTHROPIC_API_KEY in deploy/.env — compose passes it to the pipeline container via
+# env_file, the same way the daily matcher gets it. No rclone, no RCLONE_CONFIG.
+[Unit]
+Description=JobDigest title classification (metered API -> title_categories)
+After=docker.service
+Requires=docker.service
+# A failure here is invisible otherwise: the residue simply stops shrinking, which looks
+# exactly like a taxonomy that has already caught everything it can. A missing or revoked
+# ANTHROPIC_API_KEY is the likeliest cause and it exits non-zero on purpose.
+OnFailure=jobdigest-alert@%n.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/jobdigest/deploy
+ExecStart=/opt/jobdigest/deploy/jobdigest-categorize.sh classify

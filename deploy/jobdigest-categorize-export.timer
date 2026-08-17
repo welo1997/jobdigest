@@ -1,3 +1,8 @@
+# **RETIRED 2026-08-17 — superseded by jobdigest-categorize.timer (metered API). Not
+# enabled.** Kept so the free-tier fallback can be turned back on as a pair without
+# rewriting it. Note it shares this slot with the metered timer, which is fine only
+# because exactly one of them is ever enabled.
+#
 # Sunday 09:30 UTC — deliberately outside the digest window and after it.
 #
 # The daily pipeline runs 03:00 (export) -> ~06:00 (routine) -> 07:00 (import + send), with

@@ -1,0 +1,24 @@
+# Sunday 09:30 UTC — weekly, and deliberately nowhere near the digest.
+#
+# **Weekly rather than daily, and off the digest path, are both still deliberate after the
+# move to the metered key.** The daily 05:00 pipeline (ingest -> AI match -> send) is what
+# real subscribers are waiting on; an enrichment added to that window does not make a digest
+# late, it makes it *miss*, silently, for everyone. This job has no such deadline: the
+# residue shrinks a week later instead of a day later and nobody is waiting on it. 09:30 also
+# clears the 08:00 source watchdog, the 08:30 categorisation watchdog and the 09:00 digest
+# watchdog, so it contends with none of them for RAM or for Postgres.
+#
+# Steady state is ~2 400 genuinely new titles a week's worth of ingests; the one-off backlog
+# on cutover was ~15 100 distinct titles, which the default CATEGORIZE_LIMIT (8 000) drains
+# over the first couple of runs, commonest-titles-first. At Haiku 4.5 rates that whole
+# backlog is well under a dollar — cost is not what sets this cadence.
+[Unit]
+Description=JobDigest title classification, weekly on Sunday at 09:30
+
+[Timer]
+OnCalendar=Sun *-*-* 09:30:00
+Persistent=true
+Unit=jobdigest-categorize.service
+
+[Install]
+WantedBy=timers.target

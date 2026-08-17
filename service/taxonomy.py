@@ -212,6 +212,24 @@ PATTERNS: tuple[tuple[str, "re.Pattern[str]"], ...] = (
         r"sociální pracovn|sociáln[íy] prác|"
         r"socialsekreterare|socialarbetare|socialpedagog|\bkurator\b|behandlingsassistent|"
         r"boendestödjare|biståndshandläggare|socionom|"
+        # `personlig assistent` is LSS disability support, and it is here because the Swedish
+        # social occupation field was wired up on 2026-08-17: of its 3 762 ads, 1 673 are the
+        # `Personliga assistenter` group — 45% of the field — and every one of them was landing
+        # in `other_tech_function` on that pattern's bare, unbounded `assistent`. A title
+        # pattern beats the SSYK hint in `classify`, so no adapter-side change could reach it.
+        # The consequence was not a wrong digest but *no* digest: no chip maps to
+        # `other_tech_function` (`ROLE_ID_FOR_CATEGORY` is display-only, one way), so those rows
+        # were reachable by nobody. A residual bucket is a coverage hole, not a misroute.
+        #
+        # SWEDISH ONLY, and the false friend is the whole reason: English "Personal Assistant"
+        # is an executive admin and stays `other_tech_function` on this same pattern's
+        # `(?:executive|administrative|office|personal) assistant` — two near-identical strings,
+        # two unrelated jobs. `assistent` (Swedish/Czech) is not `assistant` (English).
+        # The boundary is the publisher's, not ours: SSYK files this group under *social*, which
+        # is how `gehandicaptenzorg` was decided below. Residual after this: 200 bare
+        # `assistent`/`nattassistent`/`kvällsassistent` titles, left as declines rather than
+        # bounding `assistent` itself, which is a wider blast radius than this field warrants.
+        r"personlig[at]?\s+assistent(?:er)?|personlig\s+assistans|"
         r"(?<!uitvoerings)begeleid(?:st)?er|maatschappelijk werk|jeugdhulp|jongerenwerk|"      # nl
         r"sociaal werker|welzijnswerk|"
         # --- wave 2 -------------------------------------------------------------
@@ -751,6 +769,26 @@ PATTERNS: tuple[tuple[str, "re.Pattern[str]"], ...] = (
         r"quality engineer|qualitätsingenieur|ingénieur\w*\s+qualité|"
         r"inżynier\w*\s+jakości|ingeniero\w*\s+de\s+calidad|kvalitetsingenjör|"
         r"supplier quality|quality engineering|"
+        # The same defect the quality fold above fixed, two families later — and the file had
+        # ALREADY decided both of these, in other languages. German `Sicherheitsingenieur` and
+        # Swedish `HSE-ingenjör` reach here through `ingenieur`/`ingenjör`, and `skilled_trades`
+        # carries `instandhalt(?!ungsingenieur)` for the sole purpose of releasing the German
+        # maintenance ENGINEER to this pattern. Only the English strings were missing, so 76
+        # English rows sat in software subscribers' shortlists.
+        #
+        # The keys agree, and they are why there is no 29th category: STYRK 3119 grades
+        # safety/preparedness roles `engineering`, ISCO 2149 is where safety engineers live, and
+        # SSYK's own group for them ("Arbetsmiljöingenjörer") is OUT_OF_SCOPE — the register
+        # declines to give them a better home too.
+        #
+        # Both anchored guards are measured, not decorative. Unguarded, `safety engineer` pulls
+        # "Trust & Safety Engineer" and "Fullstack Engineer, Safety Engineering" out of
+        # software_engineering, and `maintenance engineer` pulls "AI Application Operations &
+        # Maintenance Engineer (Azure)" — the exact title `_FR_ROLE`'s docstring records as
+        # having been rescued from this pattern family once already.
+        r"^(?!.*(?:trust\s*(?:and|&)\s*safety|software|full[- ]?stack)).*\bsafety engineer|"
+        r"\b(?:hse|ehs)[\s-]*engineer|"
+        r"^(?!.*(?:software|application)).*\bmaintenance engineer|"
         # `essais` = trials/testing. The lookahead keeps *essais cliniques* (clinical trials)
         # out — that is research, not engineering.
         rf"{_FR_ROLE}[^|]{{0,20}}?essais?\b(?![^|]{{0,14}}clinique)|"   # fr-2
@@ -780,6 +818,34 @@ PATTERNS: tuple[tuple[str, "re.Pattern[str]"], ...] = (
         # ("Software Engr I", "Application Engr II") — 25 postings in one production sample,
         # invisible to `\bengineer\b`. `solutions?` because the plural is the commoner form
         # and `solution architect` alone matched none of it.
+        # **The guard is on the CATCH-ALL only, and it is POSITIONAL, not whole-title.** Every
+        # specific term in this pattern stays unguarded; only the bare `\bengineer(?:ing)?\b`
+        # declines. It has to decline rather than be out-competed: `sales` and `customer_support`
+        # run AFTER this pattern, so an "X Engineer" whose home is one of them cannot be rescued
+        # by appending anywhere — the catch-all has already answered. Declining lets the later
+        # pattern claim it, which is how `pre[- ]?sales` (added to `sales` in wave 2, and dead
+        # ever since for any title containing "Engineer") finally becomes reachable.
+        # The keys decide the destinations: ISCO 2433/2434 -> sales, ISCO 351/3512 and SSYK
+        # "Supporttekniker, IT" -> customer_support.
+        #
+        # A LOOKBEHIND, not `^(?!.*sales)`, and that distinction is measured — it is the
+        # `georgia` rule in a new costume. The whole-title form passes ALL FIVE answer keys with
+        # byte-identical numbers, so the keys cannot tell the two apart; only the corpus can. It
+        # moves a further 147 postings the wrong way, led by **`Senior Salesforce Engineer`**,
+        # because "sales" is inside SALESFORCE, plus `Sr. Systems Engineer, Sales & Marketing`
+        # and `Desktop Engineer (2nd Line Support)`. `test_f` exists to pin exactly that, which
+        # is why it is kept even though it passes unpatched.
+        #
+        # The `-` variants are load-bearing: ads write "Pre-Sales Engineer" and "IT-Support
+        # Engineer" with a hyphen, which `(?<!sales )` cannot see.
+        #
+        # `support engineer` is deliberately NOT added to `customer_support` to catch the 129
+        # released declines (`Application Support Engineer`, `Cloud Support Engineer`). Measured:
+        # identical on all five slices, and it would convert 129 honest declines into a
+        # confident answer on the most arguable member of the family. The only safe error is a
+        # miss, and a decline still reaches the AI matcher on the keyword path. Decided
+        # 2026-08-17; reopen it with numbers, not intuition.
+        r"(?<!sales )(?<!sales-)(?<!support )(?<!support-)"
         r"\bengineer(?:ing)?\b|\bengr\b|qa engineer|\bsdet\b|"
         r"solutions? architect|enterprise architect|"
         r"vývojá[řr]|vývojárk|programátor|programátork|softwarov|softvérov|"

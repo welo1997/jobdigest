@@ -1,3 +1,6 @@
+# **RETIRED 2026-08-17 — superseded by jobdigest-categorize.timer (metered API). Not
+# enabled.** Kept so the free-tier fallback can be turned back on as a pair.
+#
 # Monday 09:30 UTC — a full day after the export, which is the slack this job is entitled to.
 #
 # The matcher gives its routine one hour because a subscriber is waiting for the email. Here

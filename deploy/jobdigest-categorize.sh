@@ -1,21 +1,28 @@
 #!/usr/bin/env bash
-# JobDigest title classification — VPS side (no metered API; free tier).
+# JobDigest title classification — VPS side.
 #
-# The same two-phase shape as jobdigest-match.sh, for a different question: what role
-# category do the titles carry that neither the patterns nor the publishers' occupation
-# codes could read. JSON travels via the same private Drive folder, in its own subfolder.
+# What role category do the titles carry that neither the patterns nor the publishers'
+# occupation codes could read? Since 2026-08-17 that is answered on the box with the metered
+# ANTHROPIC_API_KEY, in one phase:
+#
+#   classify : uncategorised titles -> Claude (metered) -> validate -> `title_categories`
+#
+# The Drive round-trip below it is RETAINED but NO LONGER SCHEDULED — the same shape the
+# matcher's retirement took (deploy/matcher-routine.md). It is the fallback and the audited
+# trust boundary; `service/categorize_exchange.py` runs the *same* validation on both paths,
+# so the guarantees do not depend on which one ran.
 #
 #   export : uncategorised titles -> titles.json -> Drive/categorize/
 #   (routine, weekly: reads titles.json -> writes categories.json to Drive/categorize/)
 #   import : pull categories.json -> validate every row -> `title_categories`
 #
-# **This is deliberately NOT part of the daily digest window.** That window runs 03:00 ->
-# ~06:00 and its deadline is the matcher routine, not the import: work added to it does not
-# make the digest late, it makes the digest *miss*, silently, for every subscriber. This runs
-# weekly, hours away from it, and a total failure here costs a slower-shrinking residue and
-# nothing else — no digest, no subscriber, no email depends on it.
+# **This is deliberately NOT part of the daily digest window, and the metered key did not
+# change that.** The digest runs at 05:00 and is what real people are waiting on; work added
+# to that window does not make a digest late, it makes the digest *miss*, silently, for every
+# subscriber. This runs weekly, hours away from it, and a total failure here costs a
+# slower-shrinking residue and nothing else — no digest, no subscriber, no email depends on it.
 #
-# Usage:  jobdigest-categorize.sh export | import
+# Usage:  jobdigest-categorize.sh classify | export | import
 set -euo pipefail
 
 cd /opt/jobdigest/deploy
@@ -32,13 +39,36 @@ chown 1000:1000 "$EX"
 chmod 700 "$EX"
 
 case "${1:-}" in
+  classify)
+    # The live path since 2026-08-17. No rclone, no Drive, no second phase: the residue goes
+    # to Claude in batches, every answer is validated against `taxonomy.CATEGORIES` and
+    # against the batch's own indices, and what validates is stored per batch.
+    #
+    # No `exchange/` volume is needed and nothing is written to disk — a run that fails
+    # leaves no half-file for a later run to mistake for fresh answers, which is what the
+    # `import` phase below needs its staleness check for.
+    #
+    # ANTHROPIC_API_KEY comes from deploy/.env via compose's env_file (the same key the
+    # matcher uses). It is never echoed here: a missing key surfaces as a KeyError from
+    # `service.categorize_exchange`, and systemd's OnFailure alerter mails that.
+    #
+    # The corpus does not move here. `upsert_postings` rewrites `role_category` on conflict
+    # and every active posting is re-seen daily, so newly-cached answers reach the postings
+    # table on the next 05:00 ingest and `categorization_daily` records the drop the morning
+    # after. Nothing needs backfilling, and nothing should be run here to hurry it.
+    $COMPOSE run --rm pipeline python -m service.categorize_exchange classify
+    echo "categorize classify: answers loaded (see the log line for count and cost)"
+    ;;
   export)
+    # RETAINED, NOT SCHEDULED. Phase 1 of the claude.ai routine fallback.
     $COMPOSE run --rm pipeline python -m service.categorize_exchange \
       export /exchange/titles.json
     rclone copyto "$EX/titles.json" "$REMOTE/titles.json"
     echo "categorize export: titles.json pushed to $REMOTE"
     ;;
   import)
+    # RETAINED, NOT SCHEDULED. Phase 2 of the claude.ai routine fallback.
+    #
     # Drive permits duplicate filenames and the routine writes a NEW file each run rather
     # than overwriting, so copies accumulate — collapse to the newest before pulling, or
     # `copyto` picks one non-deterministically. (Learned on the matcher, 2026-07-20.)
@@ -81,7 +111,8 @@ case "${1:-}" in
     # the morning after. Nothing needs backfilling, and nothing should be run here to hurry it.
     ;;
   *)
-    echo "usage: $0 export|import" >&2
+    echo "usage: $0 classify|export|import   (classify is the scheduled path;" >&2
+    echo "       export/import are the retained, unscheduled Drive fallback)" >&2
     exit 2
     ;;
 esac

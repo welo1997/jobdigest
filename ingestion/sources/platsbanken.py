@@ -51,14 +51,17 @@ A window that returns no ad not already seen ends the field, which is what stops
 single timestamp from looping forever.
 
 **Scope is SSYK occupation field, the same call MPSV's ISCO 1–3 filter makes.** The register
-is the whole Swedish labour market — 36 992 ads, the largest single field being healthcare
-(5 012), then hotel and restaurant, transport and warehousing, construction. Loading all of
-it would put manual and care work into a corpus whose matcher knows nine mostly-technical
-categories, and `query_shortlist_meta`'s widened path drops the recall predicate entirely, so
-anyone tripping `SHORTLIST_FLOOR` would get a shortlist of jobs they never asked about. The
-seven fields kept are the managers-professionals-technicians analogue: Data/IT, technical,
-administration/economics/law, sales/purchasing/marketing, managers, culture/media/design and
-natural science — **15 736 of 36 992**.
+is the whole Swedish labour market — 38 417 ads (re-measured 2026-08-17), the largest single
+field being healthcare (5 612). Loading all of it would put work into the corpus that no
+category can rank, and `query_shortlist_meta`'s widened path drops the recall predicate
+entirely, so anyone tripping `SHORTLIST_FLOOR` would get a shortlist of jobs they never asked
+about. So the scope is "every field the taxonomy can rank", which is now **16 of the 21
+fields**; the per-field counts are the trailing comments on `OCCUPATION_FIELDS`. The five left
+out — sanitation, security, agriculture, beauty and military — hold **2 536 ads between them**.
+
+Do not read a total off those comments. The `occupation-field` facet counts by SSYK *code* and
+two codes share the `Installation, drift, underhåll` concept id, so the column does not sum to
+the register; each line is the count for that field, measured on its own.
 
 **Country comes from the posting and is written in Swedish.** `workplace_address.country` is
 `"Sverige"` for almost everything but not all — `"Schweiz"` turned up in a 100-ad sample — so
@@ -102,14 +105,29 @@ BASE_URL = "https://jobsearch.api.jobtechdev.se/search"
 #: logistics_transport and manufacturing_production, and `SSYK_FIELD_CATEGORIES` already maps
 #: every field to one of them — so eight more fields are now *rankable* and are added here.
 #:
-#: **Six fields are still excluded, and the reason is the same invariant as before.** They map
-#: to no current category (`social work`, `sanitation`, `security`, `agriculture`, `beauty`,
-#: `military`), so ingesting them would land ~6 100 ads in `uncategorised` — and the widened
+#: **`Yrken med social inriktning` joined on 2026-08-17, when its reason to be absent expired.**
+#: It was excluded on 2026-08-09 because "the taxonomy has no category for them"; `social_care`
+#: was created on 2026-08-10 and names this exact field in its own comment, so the exclusion
+#: outlived its cause by a week. Concept id `GazW_2TU_kJw` (SSYK code 16) was read off the API's
+#: own `occupation-field` facet and confirmed by round-trip — filtering on it returns ads whose
+#: own `occupation_field.concept_id` is that id — because a guessed id is not an error, it is an
+#: empty field, which is this repo's "round, plausible number" failure with no number at all.
+#:
+#: **Five fields are still excluded, and the reason is the same invariant as before.** They map
+#: to no current category (`sanitation`, `security`, `agriculture`, `beauty`, `military` —
+#: 2 536 ads), so ingesting them would land all of it in `uncategorised` — and the widened
 #: shortlist path drops the recall predicate under `SHORTLIST_FLOOR`, so a subscriber tripping
 #: it would be shown jobs no category could have matched. Adding rankable inventory is the win;
 #: adding unrankable inventory to the widened path is the harm the first exclusion guarded
 #: against. Do not add these without a category to rank them (this repo's "no category without
 #: inventory, no inventory without a category" rule).
+#:
+#: An `occupation-field` filter is **not** a partition: it matches related occupation concepts
+#: too, so the social field's first page carried 11 ads whose own field is `Pedagogik`
+#: (`Fritidspedagoger`, `Barnskötare`), and Data/IT's carried one from `Installation, drift,
+#: underhåll`. That is a property of the API, not a wrong id — it was reproduced on two ids
+#: already shipping here. It costs nothing because `_ssyk_category` reads the **ad's own**
+#: `occupation_field`, never the id that was queried, and `fetch` keys on ad id.
 OCCUPATION_FIELDS: list[tuple[str, str]] = [
     # The original seven (managers / professionals / technicians).
     ("RPTn_bxG_ExZ", "Försäljning, inköp, marknadsföring"),   # 3 747
@@ -128,6 +146,11 @@ OCCUPATION_FIELDS: list[tuple[str, str]] = [
     ("wTEr_CBC_bqh", "Industriell tillverkning"),             # 1 877  -> manufacturing_production
     ("j7Cq_ZJe_GkT", "Bygg och anläggning"),                  # 1 873  -> construction
     ("PaxQ_o1G_wWH", "Hantverk"),                             #   180  -> skilled_trades
+    # Added 2026-08-17 — `social_care` (2026-08-10) is the category the 2026-08-09 exclusion
+    # was waiting for. Count measured by paging the field, not read off the facet: 3 762 ads
+    # received, which the facet also claims, and it is over the 2 100 query ceiling so it only
+    # arrives whole because of the date windows below.
+    ("GazW_2TU_kJw", "Yrken med social inriktning"),          # 3 762  -> social_care
 ]
 
 #: The API's own maximum. Asking for more is a 400, not a silent truncation — but page by the
@@ -138,16 +161,30 @@ OCCUPATION_FIELDS: list[tuple[str, str]] = [
 #: canonical category (the 2026-08-08 hint guard). So the register's own answer was fetched
 #: every run and thrown away, and 74% of this source sat in `uncategorised`.
 #:
-#: **Deliberately covers all 21 fields, not the 7 in `OCCUPATION_FIELDS`.** The exclusion of
+#: **Covers every field that means one thing, whether or not it is ingested.** The exclusion of
 #: healthcare, pedagogy, restaurant, transport, construction and manufacturing was made when
 #: the taxonomy had no category for them; it now does. Mapping them here costs nothing and
 #: means no second change is needed if that exclusion is lifted.
+#:
+#: It claimed to cover all 21 fields and did not: `Yrken med social inriktning` was missing on
+#: 2026-08-17, so lifting its exclusion *was* a second change after all. The claim was the
+#: problem — a docstring cannot promise coverage a test does not check, which is why
+#: `test_a_field_is_never_ingested_without_a_way_to_rank_it` now checks it for every entry in
+#: `OCCUPATION_FIELDS` rather than for a hand-written list.
 SSYK_FIELD_CATEGORIES: dict[str, str] = {
     # The whole technical field is engineering (mechanical / electrical / civil / process),
     # mapped 2026-08-09 when the `engineering` category was added. 2 495 ads — a title still
     # wins, so a software-adjacent title inside it is unaffected.
     "Yrken med teknisk inriktning": "engineering",
     "Hälso- och sjukvård": "healthcare",
+    # Mapped 2026-08-17. `social_care`'s own comment in `taxonomy.py` names this field as its
+    # origin, and the register's coding is what settles the healthcare/social boundary here
+    # rather than argument: SSYK files `Personliga assistenter` (2 010 of the field's 3 762 ads,
+    # LSS disability support) under *social*, not under healthcare — and the taxonomy already
+    # ruled the same way when it moved `gehandicaptenzorg` across on the grounds that disability
+    # care is social care. The six groups inside this field that the default is wrong for
+    # decline instead; see `SSYK_GROUP_UNMAPPED`.
+    "Yrken med social inriktning": "social_care",
     "Pedagogik": "education",
     "Pedagogiskt arbete": "education",
     "Hotell, restaurang, storhushåll": "hospitality",
@@ -198,8 +235,21 @@ SSYK_GROUP_CATEGORIES: dict[str, str] = {
 #: "I don't know" and hand off, never name a category that is not true. Mirrored by
 #: `scripts/categorization_score.OUT_OF_SCOPE_GROUPS`, which excludes them from the answer key
 #: for the same reason.
+#:
+#: The 2026-08-17 additions are the same rule inside `Yrken med social inriktning`. That field
+#: maps to `social_care` and 3 695 of its 3 762 ads belong there, but it also carries the church
+#: (`Präster` 32, `Diakoner` 5), funeral and crematorium staff (9), wellness and health educators
+#: (8), tour guides (2) and a residual service group (11) — 67 ads, 1.8%, for which `social_care`
+#: is simply untrue and nothing else is true either. None of them is rescued by a title pattern
+#: (all 67 classify `uncategorised` on title alone, measured), so without a veto the field
+#: default is the answer, and a priest would enter the digest of everyone who asked for social
+#: work. `Övriga yrken inom socialt arbete` and `Fritidsledare m.fl.` are deliberately *not*
+#: here — other social-work occupations and youth leaders are what the category is for.
 SSYK_GROUP_UNMAPPED: frozenset[str] = frozenset({
     "Fastighetsförvaltare", "Planeringsarkitekter m.fl.", "Arkitekter m.fl.",
+    "Präster", "Diakoner", "Begravnings- och krematoriepersonal",
+    "Friskvårdskonsulenter och hälsopedagoger m.fl.", "Guider och reseledare",
+    "Övrig servicepersonal",
 })
 
 
@@ -241,8 +291,8 @@ SORT_NEWEST = "pubdate-desc"
 MAX_PAGES_PER_WINDOW = MAX_OFFSET // PAGE_SIZE + 1
 
 #: Date windows per field before giving up. Each window yields up to 2 100 ads, so this is
-#: ~21 000 for one field — far above the largest here (3 750) and low enough that a paging
-#: bug ends the run instead of hammering the API.
+#: ~21 000 for one field — far above the largest here (healthcare, 5 612 on 2026-08-17) and low
+#: enough that a paging bug ends the run instead of hammering the API.
 MAX_WINDOWS = 10
 
 _TIMEOUT = 40
@@ -409,7 +459,7 @@ class PlatsbankenSource(BaseSource):
     def fetch(self) -> list[dict]:
         # `politeness.throttle` spaces every request a second apart on a single host, and
         # this is ~160 pages, so run sequentially it is dominated by round-trips rather than
-        # by the throttle. Pooling the seven fields lets that latency overlap. Paging stays
+        # by the throttle. Pooling the fields lets that latency overlap. Paging stays
         # sequential *within* a field, because each page decides whether there is another and
         # each window depends on the one before. Same shape as Workday's list stage.
         found: dict[str, dict] = {}

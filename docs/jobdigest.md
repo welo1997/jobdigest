@@ -9,13 +9,23 @@ behind them.
 ## Flow
 
 ```
-03:00 UTC  export   ingest sources → Postgres → embed new rows → shortlists.json → Drive
-~06:00     routine  claude.ai reads shortlists.json → writes picks.json      (no DB, no key)
-07:00 UTC  import   pull picks.json → validate → matches → build + send digests
+05:00 UTC  digest   ingest sources → Postgres → AI match (metered API, due subs only) → send
 08:00 UTC  sources  per-source freshness + churn → alert if a source silently died
 09:00 UTC  watchdog digest_runs → alert if any subscriber has had nothing for 3 days
 01:30 UTC  backup   pg_dump → encrypt → off-box
+
+Sun 09:30  categorize  uncategorised titles → Claude (metered) → validate → title_categories
+                       (weekly, off the digest path on purpose — deploy/categorize-routine.md)
 ```
+
+**This block described the retired three-stage Drive routine until 2026-08-17** — a 03:00
+export to `shortlists.json`, a claude.ai routine at ~06:00, and a 07:00 import of `picks.json`.
+Both halves of that shape are gone: matching moved onto the box with a metered
+`ANTHROPIC_API_KEY`, and title categorisation followed it. The export/import/Drive code is
+**retained but no longer scheduled** in both cases, which is exactly why a stale flow diagram
+here is worse than none — the functions it names still exist and still run if invoked, so the
+diagram reads as current rather than as archaeology. `deploy/matcher-routine.md` and
+`deploy/categorize-routine.md` are the live descriptions.
 
 Retrieve-then-rerank: a cheap full-text prefilter builds a ~120-posting shortlist per
 subscriber, then one Claude call reads the whole shortlist in context and picks what fits.
@@ -691,6 +701,61 @@ Host `deploy` and the container's `app` user are **both uid 1000**, which is why
   `unmet_demand_terms()`, so writing a curated map becomes evidence-driven. **Writing one is
   deliberately open**, gated on whether the vector path replaces the recall predicate that
   would consume it; the measured labels are in `notes/2026-08-08-role-category-hint-guard.md`.
+
+### The residue is classified by a model, on the box, weekly (metered since 2026-08-17)
+
+Patterns and occupation codes leave a long multilingual tail no regex reaches: **17 770 active
+postings across 15 139 distinct titles** (2026-08-17) — **1.17 postings per title**, which is
+the number that decides the design. A tail that flat cannot be attacked by writing more
+vocabulary; it needs something that can read an arbitrary title once and remember the answer,
+which is what `title_categories` (migration 019) is. Operational detail is in
+`deploy/categorize-routine.md`; what belongs here is why it looks the way it does.
+
+**It was a file exchange for eight days, and it stopped running.** Built 2026-08-09 for one
+recorded reason — `notes/categorization/PLAN.md` item 4, *"No API key. Decided 2026-08-09"* —
+it exported `titles.json` to Drive, a weekly claude.ai routine answered, and an import
+validated. The premise expired on 2026-08-17 when matching moved to a metered key. The
+measured consequence of leaving it in place: production held **250 rows, newest 2026-08-10**.
+Nothing was broken. The residue simply stopped shrinking, and **a residue that stops shrinking
+is indistinguishable from a taxonomy that has caught everything it can** — no error, no failed
+timer, no alert. The one check that could see it is the hit rate the ingest logs, which
+`PLAN.md` item 4 set at >95% and which 250 cached titles against a 15 139-title residue puts
+near zero.
+
+`service.categorize_exchange classify` now does it in one phase on the box.
+`CATEGORIZE_MODEL` defaults to `claude-haiku-4-5`, mirroring `MATCHER_MODEL`; the backlog is
+**$1–2 in total** at list rates and steady state a few tens of cents a week, so **cost is not
+a design constraint here** — it is logged the way the matcher logs its run because an unlogged
+cost is one nobody notices changing, not because it is close to mattering. Five things are
+load-bearing:
+
+- **Both paths run one validator.** `_validated_rows` is called by `import_categories` *and*
+  `classify_batch`, and a test reads their source to keep it that way. The guarantees were
+  written against a claude.ai routine and a returned value is untrusted input **whoever
+  produced it** — an API response no less than a file off cloud storage. Two copies would
+  drift, and a wrong category raises nothing: it files a job in a stranger's digest. This is
+  the 2026-08-08 hint-guard lesson arriving by a third door.
+- **Answers arrive by integer index, and the indices are local to the batch.** So a model
+  cannot answer for a title it was not shown, nor reach one from another batch. `True` is
+  excluded explicitly, because `True == 1` in Python and an unguarded `isinstance(idx, int)`
+  would let `{"i": true}` answer for title 1.
+- **A batch is the unit of failure, not the run.** Each batch is stored as soon as it
+  validates; a transient API error, a truncated reply, or a failed write is logged and
+  skipped. `import_picks`' rule, and the case for it is stronger here — nobody is waiting on
+  this, so a partial answer is strictly better than none.
+- **Weekly and off the digest path, unchanged by the key.** The 05:00 pipeline is what real
+  people wait on and work added there makes a digest *miss* rather than run late. Sunday 09:30
+  also clears the 08:00, 08:30 and 09:00 watchdogs.
+- **The export/import/Drive code is retained and unscheduled**, the same treatment
+  `deploy/matcher-routine.md` gave the matcher's routine. It is the fallback and the origin of
+  the shared validation. **Never enable both schedules** — they write one table, and two paths
+  answering one residue reads as a routine that stopped rather than as an error.
+
+The output ceiling is **derived from the batch size** (`512 + 48×n`) rather than fixed, because
+one answer is ~18 tokens and a fixed number is either waste on a small batch or a silent
+truncation bug on a large one. Truncation is named as truncation in the log for the reason
+`matcher` found on 2026-08-17: a reply cut off mid-object is invalid JSON, so it otherwise
+surfaces as "bad JSON" and sends the next reader to the parser instead of to the budget.
 
 ---
 

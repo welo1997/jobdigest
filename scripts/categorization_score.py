@@ -137,8 +137,18 @@ OUT_OF_SCOPE: frozenset[str] = frozenset({
 #: declining to call a property manager an engineer scores it against a wrong answer key and
 #: rewards guessing — the same failure the field-level exclusion exists to prevent. Mirrored in
 #: `platsbanken.SSYK_GROUP_UNMAPPED`, so the shipped hint declines on exactly these groups too.
+#:
+#: The six added on 2026-08-17 sit inside `Yrken med social inriktning`, which the shipped hint
+#: now maps to `social_care` — clergy, funeral staff, wellness educators, tour guides and a
+#: residual service group, for which that default is untrue. **They do not move the score**: the
+#: field itself is still in `OUT_OF_SCOPE` above and `truth_for` returns None either way. They
+#: are here because this set is the mirror of a shipped decision, and a mirror that only copies
+#: the entries that happen to change a number is not a mirror.
 OUT_OF_SCOPE_GROUPS: frozenset[str] = frozenset({
     "Fastighetsförvaltare", "Planeringsarkitekter m.fl.", "Arkitekter m.fl.",
+    "Präster", "Diakoner", "Begravnings- och krematoriepersonal",
+    "Friskvårdskonsulenter och hälsopedagoger m.fl.", "Guider och reseledare",
+    "Övrig servicepersonal",
 })
 
 

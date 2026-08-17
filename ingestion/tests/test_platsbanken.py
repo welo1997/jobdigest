@@ -406,11 +406,11 @@ def test_an_unknown_field_returns_none_rather_than_a_guess():
     assert platsbanken._ssyk_category({}) is None
 
 
-# The eight care/manual fields un-excluded on 2026-08-09, each with the category the label
-# resolves to. The original seven fields are heterogeneous (a field like "Administration,
-# ekonomi, juridik" spans finance, HR, legal and admin) and resolve per-ad via title patterns
-# and SSYK *group* mappings, so they deliberately have no field-level default — this list is
-# only the newly-rankable homogeneous fields, which is exactly the set that must map.
+# The care/manual fields un-excluded on 2026-08-09, plus the social field on 2026-08-17, each
+# with the category the label resolves to. The heterogeneous fields (one like "Administration,
+# ekonomi, juridik" spans finance, HR, legal and admin) resolve per-ad via title patterns and
+# SSYK *group* mappings, so they deliberately have no field-level default — this list is only
+# the homogeneous sector fields, which is exactly the set that must map.
 _NEWLY_RANKABLE = {
     "Hälso- och sjukvård": "healthcare",
     "Transport, distribution, lager": "logistics_transport",
@@ -420,11 +420,24 @@ _NEWLY_RANKABLE = {
     "Industriell tillverkning": "manufacturing_production",
     "Bygg och anläggning": "construction",
     "Hantverk": "skilled_trades",
+    # 2026-08-17: excluded on 2026-08-09 for want of a category, which arrived on 2026-08-10.
+    "Yrken med social inriktning": "social_care",
 }
+
+# Fields deliberately carrying no field-level default, because they mean several things. Naming
+# them is what lets the guard below be a rule over `OCCUPATION_FIELDS` rather than a second copy
+# of it: a field added without a mapping fails unless someone consciously declares it plural.
+_HETEROGENEOUS_FIELDS = frozenset({
+    "Försäljning, inköp, marknadsföring",
+    "Administration, ekonomi, juridik",
+    "Chefer och verksamhetsledare",
+    "Kultur, media, design",
+    "Naturvetenskap",
+})
 
 
 def test_the_un_excluded_fields_all_map_to_a_real_category():
-    """Every care/manual field added on 2026-08-09 must map — via its label — to a real
+    """Every sector field un-excluded since 2026-08-09 must map — via its label — to a real
     `role_category`, or it would land in `uncategorised` and reach the widened shortlist path,
     which is the harm the original exclusion guarded against. Fails if one of these is added to
     `OCCUPATION_FIELDS` without its `SSYK_FIELD_CATEGORIES` mapping (or the mapping is renamed
@@ -437,13 +450,76 @@ def test_the_un_excluded_fields_all_map_to_a_real_category():
         assert expected in taxonomy.CATEGORIES
 
 
+def test_a_field_is_never_ingested_without_a_way_to_rank_it():
+    """The general form of the test above, and the one that would have caught the 2026-08-17 gap.
+
+    `SSYK_FIELD_CATEGORIES` claimed in prose to cover all 21 fields and did not cover
+    `Yrken med social inriktning`, so un-excluding that field was a two-file change that read
+    like a one-line one. A docstring cannot promise coverage; this asserts it over whatever
+    `OCCUPATION_FIELDS` actually holds, so the next field cannot be ingested with no way to rank
+    it unless someone adds it to `_HETEROGENEOUS_FIELDS` on purpose.
+    """
+    from service import taxonomy
+    for _, label in platsbanken.OCCUPATION_FIELDS:
+        if label in _HETEROGENEOUS_FIELDS:
+            assert label not in platsbanken.SSYK_FIELD_CATEGORIES, (
+                f"{label!r} is declared plural but carries a field-level default — one of the "
+                f"two is wrong"
+            )
+            continue
+        category = platsbanken.SSYK_FIELD_CATEGORIES.get(label)
+        assert category, f"{label!r} is ingested with no field-level category to rank it"
+        assert category in taxonomy.CATEGORIES, f"{label!r} -> {category!r} is not a category"
+
+
+def test_the_social_field_is_ingested_under_its_verified_concept_id():
+    """A wrong concept id is not an error, it is an empty field.
+
+    `GazW_2TU_kJw` (SSYK code 16) came off the JobSearch API's own `occupation-field` facet and
+    was confirmed by round-trip — filtering on it returns ads whose own
+    `occupation_field.concept_id` is that id. Pinned so an edit to the literal has to be
+    deliberate, since nothing offline can tell a live id from a plausible one.
+    """
+    assert ("GazW_2TU_kJw", "Yrken med social inriktning") in platsbanken.OCCUPATION_FIELDS
+
+
+def test_the_social_fields_wrong_groups_decline_rather_than_guess():
+    """The field maps to `social_care`, and for 67 of its 3 762 ads that is untrue.
+
+    Clergy, funeral staff, wellness educators, tour guides and a residual service group sit
+    inside `Yrken med social inriktning`; none of them is a social worker and none of them has a
+    category. All 67 classify `uncategorised` on title alone, so the field default *is* the
+    answer unless the group vetoes it — which is how a priest would otherwise reach the digest
+    of everyone who asked for social work. Same rule, and same test, as
+    `Fastighetsförvaltare` inside the technical field.
+    """
+    field = {"occupation_field": {"label": "Yrken med social inriktning"}}
+    assert platsbanken._ssyk_category(
+        {**field, "occupation_group": {"label": "Socialsekreterare"}}) == "social_care"
+    for group in ("Präster", "Diakoner", "Begravnings- och krematoriepersonal",
+                  "Friskvårdskonsulenter och hälsopedagoger m.fl.", "Guider och reseledare",
+                  "Övrig servicepersonal"):
+        assert group in platsbanken.SSYK_GROUP_UNMAPPED, group
+        assert platsbanken._ssyk_category(
+            {**field, "occupation_group": {"label": group}}) is None, group
+    # Not vetoed: these are what the category is for.
+    for group in ("Övriga yrken inom socialt arbete", "Fritidsledare m.fl."):
+        assert platsbanken._ssyk_category(
+            {**field, "occupation_group": {"label": group}}) == "social_care", group
+
+
 def test_the_unrankable_fields_are_deliberately_left_out():
-    """Six fields (social work, sanitation, security, agriculture, beauty, military) map to no
-    current category, so they stay excluded rather than pour ~6 100 uncategorised ads into the
-    widened path. Pinned so a future 'ingest everything' edit has to confront the reason."""
+    """Five fields (sanitation, security, agriculture, beauty, military) map to no current
+    category, so they stay excluded rather than pour 2 536 uncategorised ads into the widened
+    path. Pinned so a future 'ingest everything' edit has to confront the reason.
+
+    `Yrken med social inriktning` left this list on 2026-08-17: it was here for want of a
+    category and `social_care` was created on 2026-08-10, so the exclusion outlived its cause.
+    That is the shape to copy — a field leaves when a category arrives, not when the digest
+    looks thin.
+    """
     ingested = {name for _, name in platsbanken.OCCUPATION_FIELDS}
-    for label in ("Yrken med social inriktning", "Sanering och renhållning",
-                  "Säkerhet och bevakning", "Naturbruk", "Kropps- och skönhetsvård",
-                  "Militära yrken"):
+    for label in ("Sanering och renhållning", "Säkerhet och bevakning", "Naturbruk",
+                  "Kropps- och skönhetsvård", "Militära yrken"):
         assert label not in ingested, f"{label!r} was ingested but maps to no category"
         assert label not in platsbanken.SSYK_FIELD_CATEGORIES

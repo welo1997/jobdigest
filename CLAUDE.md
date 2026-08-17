@@ -67,9 +67,9 @@ you touch that rule.
 09:00 UTC  watchdog digest_runs → alert if any subscriber has had nothing for 3 days
 01:30 UTC  backup   pg_dump → encrypt → off-box
 
-Sun 09:30  categorize export  uncategorised titles → titles.json → Drive
-Mon 09:30  categorize import  validated answers → title_categories  (weekly, off the digest
-                              path on purpose — see deploy/categorize-routine.md)
+Sun 09:30  categorize        uncategorised titles → Claude (metered) → validate →
+                             title_categories   (weekly, off the digest path on purpose —
+                             see deploy/categorize-routine.md)
 ```
 
 Retrieve-then-rerank: a cheap full-text prefilter builds a ~120-posting shortlist per
@@ -248,14 +248,23 @@ Each of these has been broken in production at least once. Reasoning and measure
 - **`postings.eligibility` is a subscriber-specific judgement in a posting-level column**, so
   a constant allowlist over it is always wrong for somebody. `store.eligibility_allowlist`
   derives from `profile["countries"]`, shared by both call sites.
-- **There are two file exchanges and both are trust boundaries.** The second one
-  (`titles.json` → `categories.json`, weekly) classifies the titles no pattern or occupation
-  code could read; `import_categories` drops an answer for a title it never asked about and
-  any category not in `taxonomy.CATEGORIES`, stores `uncategorised` as a *recorded decline*
-  so the same unreadable titles are not re-exported forever, and is keyed on
-  `categorize_exchange.normalise_title` — the one definition, deliberately never re-expressed
-  in SQL. The cache is consulted **only where patterns and codes both decline**, so it can
-  add a category but never change one. Its export carries **titles and integer indices only**.
+- **A returned value is untrusted input, whoever produced it — and the title classifier is
+  where that is now proved twice.** It classifies the titles no pattern or occupation code
+  could read, and **since 2026-08-17 it runs on the box with the metered key**
+  (`service.categorize_exchange classify`, weekly); the `titles.json` → `categories.json`
+  Drive exchange is **retained but no longer scheduled**, the same treatment the matcher's
+  routine got, and **both schedules must never be enabled together**. Both paths reach the DB
+  through **one validator** (`_validated_rows`) and a test reads both callers' source to keep
+  it that way: an answer for a title that was not asked about is dropped, any category not in
+  `taxonomy.CATEGORIES` is dropped, a malformed record is skipped rather than costing the
+  batch, and `uncategorised` is stored as a *recorded decline* so the same unreadable titles
+  are not re-asked forever. Keyed on `categorize_exchange.normalise_title` — the one
+  definition, deliberately never re-expressed in SQL. The cache is consulted **only where
+  patterns and codes both decline**, so it can add a category but never change one. The
+  payload carries **titles and integer indices only**, indices are local to the batch, and a
+  batch is the unit of failure — a failed batch costs its own titles, never the run.
+  `CATEGORIZE_MODEL` defaults to `claude-haiku-4-5`; the whole 15k-title backlog is ~$1–2, so
+  cost is not a constraint here and is logged anyway.
 - **The file exchange is a trust boundary.** Nothing in `picks.json` is trusted:
   `import_picks` validates both sides of every match against the DB, clamps scores, and skips
   a malformed record rather than aborting everyone's digest. **`shortlists.json` must never

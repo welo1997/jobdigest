@@ -176,8 +176,23 @@ export const CV_ROLE_ID: Record<string, string> = {
 
 /**
  * Stored `role_categories` -> a representative chip, for reopening /preferences on what the
- * filter is actually doing. `other_tech_function` is a bucket (Marketing and Finance both map
- * into it); we show Marketing and accept the lossiness, as the label-keyed version did.
+ * filter is actually doing. `other_tech_function` has no chip of its own (see the note on
+ * `ROLE_OPTIONS` above), so reopening a subscription that carries it needs *something* to
+ * render; we show Marketing and accept the lossiness, as the label-keyed version did.
+ *
+ * **This map runs one way only, and the direction matters.** It is display — stored category
+ * back to a chip for the /preferences UI. It is NOT selection: the forward path is
+ * `ROLE_OPTIONS`, where `marketing` -> `marketing` and `finance` -> `finance_accounting`
+ * (neither points at `other_tech_function`), and `store._search_where`'s recall predicate is
+ * built from those categories. So a posting classified `other_tech_function` is reachable by
+ * no chip at all — it is invisible, not misdirected at Marketing subscribers.
+ *
+ * That distinction is not hypothetical: on 2026-08-17 this docstring's previous wording
+ * ("Marketing and Finance both map into it") was read as describing the forward path, and a
+ * batch of misclassified Swedish personal-assistant ads was reported as about to land in
+ * Marketing subscribers' digests. The real defect was the opposite — those rows reach nobody.
+ * A residual bucket is a coverage hole, and the fix belongs in `service/taxonomy.py`, never
+ * here.
  */
 export const ROLE_ID_FOR_CATEGORY: Record<string, string> = {
   data_engineering: "data_engineer",
@@ -236,9 +251,16 @@ export const SKILL_OPTS = [
  *
  * A fixed row of ten was a poor question: it showed Figma to a DevOps engineer and Kubernetes
  * to nobody, so the useful words were the ones a visitor had to type. Keying on the chip id
- * rather than on `category` is deliberate — several ids share a category (Marketing and Finance
- * are both `other_tech_function`) and their skills have nothing in common, so the coarser key
- * would suggest SEO to an accountant.
+ * rather than on `category` is deliberate, and `ml_engineer` is why: it carries
+ * `category: null`, so a category-keyed map has no key to file its skills under at all and the
+ * chip would silently offer nothing. Keying on the id also survives the reverse — two chips
+ * collapsing onto one category later — without the coarser key suggesting SEO to an
+ * accountant.
+ *
+ * (This note used to cite "Marketing and Finance are both `other_tech_function`" as the
+ * example. That was true of the tech-only taxonomy and stopped being true on 2026-08-09/08-10,
+ * when the categories those two chips point at were added: the mapping is 1:1 today. The rule
+ * is unchanged; only its evidence moved.)
  *
  * Three rules these lists have to obey, and the first two are not style:
  *

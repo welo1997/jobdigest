@@ -939,3 +939,116 @@ def test_every_searchable_category_has_a_label_in_every_catalogue():
             f"{path.name} labels {sorted(unknown)}, which is not a role_category — a label "
             "nothing can ever render."
         )
+
+
+# --------------------------------------------------------------------------------------
+# The `\bengineer\b` catch-all, and the Swedish `assistent` residual.  Added 2026-08-17.
+#
+# Both are the same shape of defect: a broad pattern answering confidently for titles it
+# does not understand.  `software_engineering`'s bare catch-all was claiming 718 active rows
+# of sales, IT-support, safety and maintenance engineers, and `other_tech_function`'s bare
+# `assistent` was claiming 1 673 Swedish personal-assistant ads.  A misfile is worse than a
+# miss: a miss still reaches the AI matcher on the keyword path, a misfile does not.
+#
+# Every title below is a real production string, from the corpus dump or an answer key —
+# `test_education.py`'s rule, and the reason these read oddly specific.
+# --------------------------------------------------------------------------------------
+
+
+def test_a_sales_engineer_is_a_sales_job():
+    """The catch-all must DECLINE so `sales`, which runs later, can answer."""
+    for title in ("Sales Engineer", "Graduate Sales Engineer",
+                  "Senior Sales Engineer Data Center (m/w/d)", "Presales Engineer",
+                  "Pre-Sales Engineer (M/Ž)", "Sr Adv Appl/Sys Sales Engineer"):
+        assert taxonomy.classify(title) == "sales", title
+    # The neighbour that must NOT move: a software engineer working *on* the sales platform.
+    assert taxonomy.classify("Senior Software Engineer - Sales Tech") == "software_engineering"
+
+
+def test_b_support_engineer_reaches_customer_support():
+    for title in ("Technical Support Engineer", "IT Support Engineer",
+                  "Customer Support Engineer", "Technical Support Engineer (m/w/d)",
+                  "Senior Technical Support Engineer, Observe by Snowflake"):
+        assert taxonomy.classify(title) == "customer_support", title
+
+
+def test_c_application_support_engineer_is_a_decline():
+    """A decline pinned as a DECISION, not an oversight.
+
+    Adding `support engineer` to `customer_support` would claim these (measured: identical on
+    all five answer-key slices).  It was declined on 2026-08-17 because it converts an honest
+    miss into a confident answer on the most arguable member of the family.  If that is ever
+    reopened, this test is the one that should fail first and be changed deliberately.
+    """
+    for title in ("Application Support Engineer", "Support Engineer"):
+        assert taxonomy.classify(title) == "uncategorised", title
+
+
+def test_d_safety_engineering_is_engineering():
+    for title in ("Functional Safety Engineer", "Safety Engineer", "Sr HSE Engineer",
+                  "Jr EHS Engineer", "Environmental Health and Safety Engineer",
+                  "Senior Fire Safety Engineer (all genders)"):
+        assert taxonomy.classify(title) == "engineering", title
+    # The guards, each a real title that must stay in software.
+    for title in ("Trust & Safety Engineer", "Fullstack Engineer, Safety Engineering",
+                  "Software Functional Safety Engineer – Automotive"):
+        assert taxonomy.classify(title) == "software_engineering", title
+
+
+def test_e_maintenance_engineer_is_engineering_not_software():
+    for title in ("Maintenance Engineer", "Predictive Maintenance Engineer Antwerpen",
+                  "JUNIOR MECHANICAL MAINTENANCE ENGINEER"):
+        assert taxonomy.classify(title) == "engineering", title
+    # The title `_FR_ROLE`'s docstring records as having been rescued from this family once
+    # already — now pinned by a test rather than by a French stem's shape.
+    assert taxonomy.classify(
+        "AI Application Operations & Maintenance Engineer (Azure)") == "software_engineering"
+    # `skilled_trades` runs earlier and must keep the technicians.
+    for title in ("Maintenance Technician", "Senior Underhållstekniker"):
+        assert taxonomy.classify(title) == "skilled_trades", title
+
+
+def test_f_the_catch_all_still_claims_everything_else():
+    """The guard is POSITIONAL; this is what a whole-title guard would have broken.
+
+    `^(?!.*(?:sales|support|...))` passes all five answer keys with byte-identical numbers, so
+    the keys cannot distinguish it from the lookbehind — only the corpus can.  It moves 147
+    further postings the wrong way, led by `Senior Salesforce Engineer`, because "sales" is
+    inside SALESFORCE.  That is the `georgia` rule.  This test passes against the unpatched
+    file too; it earns its place by failing against the *wrong fix*.
+    """
+    for title in ("Systems Engineer", "Principal Engineer", "Staff Engineer",
+                  "IT Operations Engineer", "Engineering Manager, Growth", "Legal Engineer",
+                  "Customer Success Engineer", "Value Engineer", "Software Engr I",
+                  "Senior Salesforce Engineer", "Salesforce Ads Systems Engineer",
+                  "Sr. Systems Engineer, Sales & Marketing",
+                  "Desktop Engineer (2nd Line Support)", "Support Operations Engineer"):
+        assert taxonomy.classify(title) == "software_engineering", title
+
+
+def test_g_swedish_personal_assistant_is_social_care():
+    """45% of the SSYK social field, and it was reaching nobody.
+
+    `other_tech_function` has no chip (`ROLE_ID_FOR_CATEGORY` is display-only, one way), so
+    these were invisible rather than misrouted.  A title pattern beats the SSYK hint in
+    `classify`, so this could not be fixed from the adapter.
+    """
+    for title in ("Personlig assistent", "Personliga assistenter",
+                  "Personlig assistent till kvinna i Solna",
+                  "Personlig assistans till man i Göteborg"):
+        assert taxonomy.classify(title) == "social_care", title
+
+
+def test_h_the_english_personal_assistant_is_not_a_care_worker():
+    """The false friend that makes the fix Swedish-only.
+
+    English "Personal Assistant" is an executive admin; Swedish "personlig assistent" is LSS
+    disability support.  Two near-identical strings, two unrelated jobs — and the `-assistent`
+    compounds must keep their own categories, which is why `assistent` was not simply bounded.
+    """
+    for title in ("Personal Assistant", "Executive Assistant",
+                  "Personal Assistant to the CEO"):
+        assert taxonomy.classify(title) == "other_tech_function", title
+    assert taxonomy.classify("Ekonomiassistent") == "finance_accounting"
+    assert taxonomy.classify("Löneassistent") == "finance_accounting"
+    assert taxonomy.classify("Elevassistent") == "education"
