@@ -74,7 +74,17 @@ _IT_ROLE = (r"(?:addett\w+(?:/\w{1,8})?|tecnic\w+(?:/\w{1,8})?|operai\w+(?:/\w{1
 #: The bounded gap `[^|]{0,20}?` is what reads the French inclusive forms for free —
 #: `Technicien(ne)`, `Technicien.ne`, `Technicien/ne`, `Chargé(e)` — which `_IT_ROLE` needed
 #: explicit `(?:/\w{1,8})?` syntax to do.
-_FR_ROLE = (r"(?:technicien(?:ne)?s?|charg[ée]e?s?|responsable|chef(?:fe)?s?|"
+#: **The leading `\b` was added 2026-08-17 and it closes a hazard, at a cost of one row.**
+#: Without it these heads matched INSIDE compounds in other languages: `chef` reached into the
+#: Swedish `Sektionschef`, so a French pattern was reading Swedish morphology and — by luck —
+#: landing on a defensible answer. Measured over 110k rows, hardening costs exactly one live
+#: row (`Sektionschef Production Quality Industrialisation`, `manufacturing_production` ->
+#: `uncategorised`) and all five answer-key slices stay flat. An accidental match is not a
+#: feature: it is a pattern that will keep reading languages nobody measured it against, and
+#: the French wave-3 agent declined its own `…transport` binding rather than build on it.
+#: If that row matters, the fix is to teach Swedish `sektionschef` explicitly, not to reopen
+#: the boundary.
+_FR_ROLE = (r"\b(?:technicien(?:ne)?s?|charg[ée]e?s?|responsable|chef(?:fe)?s?|"
             r"assistant(?:e)?s?|directeur|directrice|agent(?:e)?s?|"
             r"coordinateur|coordinatrice|coordonnateur|coordonnatrice|"
             r"op[ée]rat(?:eur|rice)s?|conduct(?:eur|rice)s?|gestionnaire|pilote|"
@@ -201,6 +211,19 @@ PATTERNS: tuple[tuple[str, "re.Pattern[str]"], ...] = (
         r"\bmedewerk(?:er|ster)s?\s+(?:\w+[\s&-]+){0,2}zorg\b|"         # nl-2
         # --- Norwegian, 2026-08-11 (N1, N2, N3, N4, N5, N6, N7, N8, N9) — graded against NAV STYRK-08 ---
         r"helsefagarbeid|s[yj]ukeplei|verneplei|\blege\b|(?:over|fast|tann|øye|fylkes|sykehjems|bedrifts|kommune|smittevern|turnus)lege\b|tannplei|tannhelse|tannklinikk|helsesekretær|legesekretær|farmasøyt|jordmor|hjelpepleier|pleiemedarbeider|pleieassistent|omsorgsarbeider|sykehjem|omsorgssenter|hjemmetjeneste|heimeteneste|"
+        # --- wave 3 (2026-08-17) ---
+        # sv-04  sv — roles-sv-w3.md
+        r"^(?!.*receptionist).*vårdcentral|"
+        # sv-12  sv — roles-sv-w3.md
+        r"dietist|"
+        # sv-17  sv — roles-sv-w3.md
+        r"allmänmedicin|"
+        # cs-01  cs — roles-cs-w3.md
+        r"^(?!.*pedagog).*psycholo(?:g(?![iy])|ž)|"
+        # cs-06  cs — roles-cs-w3.md
+        r"optometrist|hygienist|^(?!.*prodava).*oční optik|"
+        # en-10  en — roles-en-w3.md
+        r"\bmedical (?:director|reviewer|writer|advisor)\b|"
         r"wijkzorg|verpleegzorg|zorgprofessional|zorgverlener|zorgstudent|geneeskunde", re.I)),
     # Social work, added 2026-08-10 — the register's "Yrken med social inriktning" and Czech
     # ISCO 2635/3412, ~130+ postings the answer keys used to mark out of scope. AFTER healthcare
@@ -244,6 +267,13 @@ PATTERNS: tuple[tuple[str, "re.Pattern[str]"], ...] = (
         # `Trabajador/a Social` — the slash is the whole fix.
         # --- Norwegian, 2026-08-11 (N10, N12) — graded against NAV STYRK-08 ---
         r"sosionom|barnevern|støttekontakt|jobbspesialist|"
+        # --- wave 3 (2026-08-17) ---
+        # sv-07  sv — roles-sv-w3.md
+        r"arbetskonsulent|"
+        # cs-02  cs — roles-cs-w3.md
+        r"sociáln\w*\s+služb|"
+        # cs-03  cs — roles-cs-w3.md
+        r"sociáln[ěe]\s*[- ]?\s*práv\w*\s+ochran|"
         r"trabajador[a-z]*(?:/[ao])?\s+social|animaci[óo]n\s+sociocultural", re.I)), # es-2
     ("education", re.compile(
         r"teacher|lecturer|professor|educator|\btutor\b|kindergarten|preschool|"
@@ -274,6 +304,13 @@ PATTERNS: tuple[tuple[str, "re.Pattern[str]"], ...] = (
         r"\bonderwijs(?!instelling)|"                                   # nl-2
         # --- Norwegian, 2026-08-11 (N13, N14, N15, N16, N17) — graded against NAV STYRK-08 ---
         r"lærer|lærar|barnehage|ungdomsarbeider|ungdomsarbeidar|\bforsker|\bforskar|stipendiat|postdoktor|førsteamanuensis|\brektor|\bsfo\b|"
+        # --- wave 3 (2026-08-17) ---
+        # cs-04  cs — roles-cs-w3.md
+        r"tren[ée]r|"
+        # cs-05  cs — roles-cs-w3.md
+        r"instruktor|"
+        # de-08  de — roles-de-w3.md
+        r"lehrkraft|lehrbeauftragt|dozent|"
         r"\bprofesor", re.I)),                                          # es-2
     # "chef" is deliberately absent: in Swedish it means *manager* (Restaurangchef, IT-chef,
     # Ekonomichef), so a bare match would misfile every Swedish leadership title into
@@ -304,6 +341,11 @@ PATTERNS: tuple[tuple[str, "re.Pattern[str]"], ...] = (
         rf"{_NL_ROLE}\s+bediening|"
         # --- Norwegian, 2026-08-11 (N18, N19, N20) — graded against NAV STYRK-08 ---
         r"kokk(?:e|en|er|ene|ar|ane)?\b|servitør|resepsjonist|kjøkken\s?(?:medarbeid|assistent|hjelp|sjef|ansvarlig|personale|team)|gatekjøkken|"
+        # --- wave 3 (2026-08-17) ---
+        # sv-18  sv — roles-sv-w3.md
+        r"kallskänk|"
+        # cs-10  cs — roles-cs-w3.md
+        r"cukrá[řr]|"
         r"cociner[oa]|camarer[oa]", re.I)),                             # es-2
     # Construction comes BEFORE skilled_trades, and that ordering was measured rather than
     # assumed (2026-08-09-c: +4.4 points on the Czech key, Swedish unchanged). A building-site
@@ -346,6 +388,11 @@ PATTERNS: tuple[tuple[str, "re.Pattern[str]"], ...] = (
         # --- wave 2 ---
         # --- Norwegian, 2026-08-11 (N21, N22, N23) — graded against NAV STYRK-08 ---
         r"tømrer|tømrar|\bmaler(?!i)|flislegg|blikkenslager|\bmurer|maskinfører|"
+        # --- wave 3 (2026-08-17) ---
+        # sv-09  sv — roles-sv-w3.md
+        r"kalkylator|"
+        # de-06  de — roles-de-w3.md
+        r"tiefbau|hochbau|bauhandwerker|galabau|\bmaurer\b|bauprojekt|baumanager|"
         r"wegbeheer", re.I)),                                           # nl-2
     # `elkonstruktör` left this pattern on 2026-08-09: an electrical *designer* is an engineer,
     # and it only lived here because `engineering` did not exist yet. `konstruktör` picks it up.
@@ -415,6 +462,19 @@ PATTERNS: tuple[tuple[str, "re.Pattern[str]"], ...] = (
         # guard beat the bound-role form head to head (the binding won 0 and still stole).
         # --- Norwegian, 2026-08-11 (N24) — graded against NAV STYRK-08 ---
         r"rørlegger|røyrleggjar|"
+        # --- wave 3 (2026-08-17) ---
+        # sv-02  sv — roles-sv-w3.md
+        r"\bservicerådgivare|"
+        # sv-13  sv — roles-sv-w3.md
+        r"fordonstekniker|"
+        # sv-14  sv — roles-sv-w3.md
+        r"fastighetstekniker|"
+        # sv-15  sv — roles-sv-w3.md
+        r"fibertekniker|"
+        # sv-19  sv — roles-sv-w3.md
+        r"^(?!.*(?:devops|\bit\b|linux|windows|server)).*drifttekniker|"
+        # fr-02  fr — roles-fr-w3.md
+        r"\br[ée]parat(?:eur|rice|ion)|"
         r"^(?!.*ingenier).*mec[áa]nic[oa]s?\b", re.I)),                 # es-2
     ("logistics_transport", re.compile(
         r"warehouse|forklift|truck driver|delivery driver|courier|dispatcher|"
@@ -562,6 +622,13 @@ PATTERNS: tuple[tuple[str, "re.Pattern[str]"], ...] = (
         r"kontrol\w*\s+jako[śs]ci|kontroler\w*\s+jako[śs]ci|jako[śs]ci dostawc|" # pl-2
         # --- Norwegian, 2026-08-11 (N26) — graded against NAV STYRK-08 ---
         r"produksjons(?:medarbeid|leder|leiar|operatør|tekniker|sjef|arbeider|assistent)|"
+        # --- wave 3 (2026-08-17) ---
+        # sv-10  sv — roles-sv-w3.md
+        r"däckskift|"
+        # sv-16  sv — roles-sv-w3.md
+        r"lackerare|"
+        # de-04  de — roles-de-w3.md
+        r"qualit[äa]tspr[üu]f|"
         r"\bmontaje\b|\btejidos\b", re.I)),                             # es-2
     # --- tech --------------------------------------------------------------------------
     ("data_engineering", re.compile(
@@ -614,6 +681,9 @@ PATTERNS: tuple[tuple[str, "re.Pattern[str]"], ...] = (
         r"cyberbezpiecze|"                                              # pl-2
         # --- Norwegian, 2026-08-11 (N37) — graded against NAV STYRK-08 ---
         r"informasjonssikkerhet|cybersikkerhet|it-sikkerhet|sikkerhetsanalytiker|sikkerhetsarkitekt|"
+        # --- wave 3 (2026-08-17) ---
+        # fr-03  fr — roles-fr-w3.md
+        r"analyste\w*\s+(?:en\s+)?(?:s[ée]curit[ée]|cybers)|"
         r"ciberseguridad", re.I)),                                      # es-2
     # Science / R&D — the applied, industry science the ATS boards carry (pharma, life sciences,
     # labs), added 2026-08-10 (~300 uncategorised). AFTER machine_learning so "Data Scientist"
@@ -639,18 +709,42 @@ PATTERNS: tuple[tuple[str, "re.Pattern[str]"], ...] = (
         # names the finance profession itself ("Senior ekonom", "Ekonomichef"), and the residual
         # bucket was the wrong home for it once finance_accounting existed. `(?!ick)` keeps the
         # Czech adjective "ekonomický" out.
-        r"revisor|redovisning|ekonom(?!ick)|lönespecialist|"
+        # `(?<!m)` is a two-character guard against an EMPLOYER NAME, added 2026-08-17: bare
+        # `ekonom` was reading **Mekonomen**, the Swedish car-parts chain, and filing its
+        # service advisers as accountants (`FORDONSTEKNIKER (MEKONOMEN)` among 3 rows). That is
+        # the `georgia` rule in a place CLAUDE.md's note on company names does not look — the
+        # collision is inside the *classifier*, not inside `search_tsv`.
+        #
+        # A leading `\b` is the obvious fix and it is the WRONG one, measured: it moves 28 rows,
+        # only 3 of them Mekonomen, and the 25 casualties are exactly the Swedish compounds this
+        # pattern exists for — `Bolagsekonom`, `Hälsoekonom`, `Förvaltningsekonom`,
+        # `Projektekonom`, `Verksamhetsekonom`. A prefix census over 122 208 titles is what
+        # settles it: the prefixes before `ekonom` are `''` 423, `redovisnings` 83, **`m` 10**,
+        # `projekt` 10, `fastighets` 4, `bolags` 3, `företags` 3, `national` 2 — `m` is the only
+        # one that is not a Swedish compound morpheme, and all 10 of its occurrences are
+        # Mekonomen. A whole-title `mekonomen` exclusion loses `Ekonomiassistent till Mekonomen`,
+        # which is genuinely finance; the lookbehind keeps it. Same shape as the engineer guard:
+        # positional beats whole-title, and the answer keys cannot tell them apart.
+        #
+        # Known residual, stated rather than hidden: this would also block a Swedish
+        # `hemekonom` (home economist). Zero occurrences in the corpus, so it is untestable
+        # today and gets no test — the `mozo`/`Mozambique` situation.
+        r"revisor|redovisning|(?<!m)ekonom(?!ick)|lönespecialist|"
         r"löne(?:administratör|assistent|konsult)|"
         # The French `comptab` lookbehinds keep "cabinet comptable" (an accounting *firm* named
-        # in a title for some other role) out. Polish `finansow` cannot separate "financial"
-        # from "financed" — it is 3 of 4 right and is the weakest term in this pass.
+        # in a title for some other role) out. The Polish term is now `finans[oó]w` (widened in
+        # place by wave 3, 2026-08-17): Polish writes the genitive *finansów* with an acute o,
+        # and the unaccented `finansow` this comment used to name simply never matched it — the
+        # accented form is the one that appears in `Dyrektor Finansów`. It still cannot separate
+        # "financial" from "financed", so it remains 3 of 4 right and the weakest term here;
+        # widening the spelling did not make it sharper, only reachable.
         r"(?<!cabinet )(?<!cabinets )comptab|contr[ôo]l\w*\s+de\s+gestion|"     # fr
         r"contr[ôo]leur\w*\s+interne|"
         r"contabil|"                                                            # it
         r"controlling|"                                                         # de
         r"boekhoud|fiscalist|fiscaal|financie|salarisadministra|accountancy|"   # nl
         r"crediteuren|debiteuren|"
-        r"finansow|"                                                            # pl
+        r"finans[oó]w|"                                                            # pl
         # **Bound by the integrator, not by the proposal.** The proposal offered a bare
         # `\bpaie\b`; measured across every corpus it claimed 5 payroll titles correctly and
         # stole "Data Analyst H/F - Equipe Paie / Facturation" from `data_analysis`, which
@@ -673,6 +767,13 @@ PATTERNS: tuple[tuple[str, "re.Pattern[str]"], ...] = (
         r"n[óo]minas?\b|\bfinanzas?\b|(?<!conciliaci[óo]n )\bcontable|" # es-2
         # --- Norwegian, 2026-08-11 (N30, N31, N32) — graded against NAV STYRK-08 ---
         r"regnskap|økonomi(?:rådgiver|rådgjevar|medarbeider|konsulent|sjef|leder|ansvarlig|avdeling|styring)|lønns(?:medarbeider|konsulent|ansvarlig|rådgiver|sjef|kontor)|seksjon for lønn|finanssjef|"
+        # --- wave 3 (2026-08-17) ---
+        # en-13  en — roles-en-w3.md
+        r"investor relations|"
+        # de-01  de — roles-de-w3.md
+        r"buchhalt|"
+        # de-05  de — roles-de-w3.md
+        r"rechnungswesen|"
         r"nale[żz]no[śs]ci",                                            # pl-2 (receivables)
         re.I)),                                                                 # fr-2
     ("data_analysis", re.compile(
@@ -685,6 +786,9 @@ PATTERNS: tuple[tuple[str, "re.Pattern[str]"], ...] = (
         # --- wave 2 --- both bound: bare `datos` takes `Centro de Datos` and
         # `Protección de Datos` (legal), bare `análisis` takes `Análisis Clínicos` (a
         # hospital lab).
+        # --- wave 3 (2026-08-17) ---
+        # fr-04  fr — roles-fr-w3.md
+        r"\banalyste\b|"
         r"an[áa]lisis\s+de\s+datos|gobierno\s+del?\s+dato", re.I)),     # es-2
     ("devops_platform", re.compile(
         r"devops|platform engineer|site reliability|\bsre\b|cloud engineer|"
@@ -696,6 +800,11 @@ PATTERNS: tuple[tuple[str, "re.Pattern[str]"], ...] = (
         r"systeembeheerder|netwerkbeheerder|applicatiebeheer|"                  # nl
         r"functioneel beheerder|"
         # --- wave 2 ---
+        # --- wave 3 (2026-08-17) ---
+        # sv-20  sv — roles-sv-w3.md
+        r"drifttekniker|"
+        # de-03  de — roles-de-w3.md
+        r"systemadministra|"
         r"systems? administrator|\bsysadmin\b", re.I)),                 # en
     ("product", re.compile(
         r"product manager|product owner|product lead|product management|\btpm\b|program manager|"
@@ -703,12 +812,18 @@ PATTERNS: tuple[tuple[str, "re.Pattern[str]"], ...] = (
         # --- wave 2 ---
         # --- Norwegian, 2026-08-11 (N36) — graded against NAV STYRK-08 ---
         r"produktsjef|"
+        # --- wave 3 (2026-08-17) ---
+        # en-19  en — roles-en-w3.md
+        r"programme (?:manager|lead|director)|"
         r"scrum master", re.I)),                                        # en
     ("design", re.compile(
         r"designer|\bux\b|\bui\b|user experience|user interface|design lead|"
         r"designér|dizajnér|grafik|grafičk|návrhá[řr]|formgivare|grafisk|"
         # --- wave 2 ---
         r"art director|creative director|"                              # en
+        # --- wave 3 (2026-08-17) ---
+        # en-06  en — roles-en-w3.md
+        r"^(?!.*\bengineer).*\bproduct design\b(?!\s*(?:engineer|&\s*research))|"
         r"grafisch ontwerp|grafisch vormgev", re.I)),                   # nl-2
     # Non-software engineering — mechanical, electrical, civil, process. MUST precede
     # software_engineering, whose bare `\bengineer\b` catch-all would otherwise file
@@ -793,13 +908,33 @@ PATTERNS: tuple[tuple[str, "re.Pattern[str]"], ...] = (
         # out — that is research, not engineering.
         rf"{_FR_ROLE}[^|]{{0,20}}?essais?\b(?![^|]{{0,14}}clinique)|"   # fr-2
         # --- wave 2 -------------------------------------------------------------
-        # THE `chemielaborant` verdict. A >=4-letter compound PREFIX is what makes this
-        # safe: it keeps all 13 German `-laborant` wins and drops BOTH Czech key hits,
-        # because the prefix is mandatory and the standalone Czech `Laborant/ka` cannot
-        # reach it. Category is `engineering`, not `science_research`, and that AGREES
-        # with the Czech key rather than hiding from it: ISCO grades 3111/3119 lab
-        # technicians as engineering and reserves science for 211x.
-        r"[a-zäöüß]{4,}laborant|"                                       # de-2
+        # THE `laborant` verdict, REVERSED on 2026-08-17 — and the reversal is the lesson.
+        #
+        # This shipped in wave 1 as `[a-zäöüß]{4,}laborant`, and the mandatory compound
+        # prefix was described here as "what makes this safe": it kept the 13 German
+        # `-laborant` wins while the standalone Czech `Laborant/ka` could not reach it.
+        # Wave 2 inherited that verdict without re-running it. Wave 3's German agent
+        # re-tested it under the corrected gate and found the collision **does not exist
+        # against this category** — it declined to claim the win itself, having no
+        # `laborant` titles in its own corpus, and handed it over.
+        #
+        # Re-measured through the joint harness: **CZ 1586 -> 1588 (+2, 0 lost), CZ
+        # majors 1-3 256 -> 258, SE and NO flat.** Reaching `Laborant/ka` is now the
+        # POINT, not the hazard the prefix was defending against. Both steals are Czech
+        # and both move toward the answer ISCO itself assigns.
+        #
+        # **A term rejected against category A is not rejected; it is untested against
+        # B.** Wave 1 was right about the collision and wrong about the category. That is
+        # why the prefix is gone rather than tightened, and why this comment records the
+        # reversal instead of being deleted — the next pass needs to know the prefix was
+        # tried and found to be defending nothing.
+        #
+        # Category is `engineering`, not `science_research`, and that AGREES with the
+        # Czech key rather than hiding from it: ISCO grades 3111/3119 lab technicians as
+        # engineering and reserves science for 211x. The `# de-2` marker it carried was
+        # wrong even in wave 2 — the term is cs/de, and it is now a cross-language term
+        # nobody proposed as one, the same shape as `tren[ée]r` reading Norwegian.
+        r"laborant|"                                       # cs/de, wave 1 -> w3
         # `anwendungstechnik` is safe as a FIELD word where `gebäudetechnik` was not,
         # because engineering runs AFTER skilled_trades and manufacturing.
         r"anwendungstechnik|messtechniker|"
@@ -807,6 +942,9 @@ PATTERNS: tuple[tuple[str, "re.Pattern[str]"], ...] = (
         # being filed as SOFTWARE by `software_engineering`'s bare `\bengineer\b` — the
         # exact failure the `engineering` category exists to prevent, in Dutch.
         r"civiel|geotechniek|geohydrolo|ontwerper|kunstwerken|"         # nl-2
+        # --- wave 3 (2026-08-17) ---
+        # en-15  en — roles-en-w3.md
+        r"quality (?:manager|assurance manager|systems? (?:manager|specialist|engineer)|specialist)|"
         r"telecomunicaciones|redes\s+el[ée]ctricas", re.I)),            # es-2
     ("software_engineering", re.compile(
         r"software engineer|software developer|back[- ]?end|front[- ]?end|full[- ]?stack|"
@@ -867,6 +1005,18 @@ PATTERNS: tuple[tuple[str, "re.Pattern[str]"], ...] = (
         # PT. Portuguese for `developer`; Spanish is `desarrollador`, so no collision.
         # --- Norwegian, 2026-08-11 (N34, N35) — graded against NAV STYRK-08 ---
         r"(?<=[a-zæøå]{3})(?<!forretnings)(?<!produkt)(?<!elektronikk)(?<!organisasjons)(?<!tjeneste)utvikl(?:er|ar)\b|testleder|testansvarlig|"
+        # --- wave 3 (2026-08-17) ---
+        # cs-08  cs — roles-cs-w3.md
+        r"(?:it|enterprise|solution|software|datov\w+|cloud\w*|síťov\w+|technick\w+)[- ]?\s*architekt|"
+        # de-07  de — roles-de-w3.md
+        r"softwareentwickl|wirtschaftsinformatik|informatiker|"
+        # nl-01  nl — roles-nl-w3.md
+        r"(?<!product)(?<!beleids)ontwikkelaar|"
+        # es-01  es — roles-es-w3.md
+        r"\bprogramador(?:a|es|as|/a|es/as)?\b|"
+        # no-01  fi — roles-nordic-w3.md FIN-1
+        r"ohjelmisto|"
+        r"(?:ohjelmisto|sovellus|algoritmi|pilvi|web|full ?stack|back ?end|front ?end|järjestelmä|js-|\.js-)kehittäj|"
         r"\bdesenvolvedor", re.I)),                                     # pt
     # Must precede other_tech_function: nearly every social title also says "marketing" or
     # "content", so without this it lands in the catch-all and a subscriber who asked for
@@ -897,6 +1047,15 @@ PATTERNS: tuple[tuple[str, "re.Pattern[str]"], ...] = (
         # --- wave 2 ---
         r"communications? (?:manager|specialist|lead|director|officer|intern)|" # en
         r"brand (?:activation|marketing|strategist|director|lead)|"
+        # --- wave 3 (2026-08-17) ---
+        # cs-07  cs — roles-cs-w3.md
+        r"^(?!.*business development).*\bppc\b|"
+        # en-01  en — roles-en-w3.md
+        r"(?:director|head|vp|vice president)[^|]{0,24}?\bcommunications?\b|"
+        # en-02  en — roles-en-w3.md
+        r"demand gen(?:eration)?\b|"
+        # en-05  en — roles-en-w3.md
+        r"^(?!.*recruit).*\bevents?\s+(?:manager|coordinator|producer|specialist|lead|director|associate|marketer)|"
         r"public affairs|government affairs|corporate affairs", re.I)),
     ("sales", re.compile(
         r"\bsales\b|account executive|account manager|key account|business development|"
@@ -964,10 +1123,23 @@ PATTERNS: tuple[tuple[str, "re.Pattern[str]"], ...] = (
         r"winkelbediende|"                                              # nl-2
         # --- Norwegian, 2026-08-11 (N27, N28, N29) — graded against NAV STYRK-08 ---
         r"selger|selgar|salg|kunderådgiver|kundekonsulent|"
+        # --- wave 3 (2026-08-17) ---
+        # sv-06  sv — roles-sv-w3.md
+        r"affärsutvecklare|"
+        # sv-08  sv — roles-sv-w3.md
+        r"merchandiser|"
+        # en-11  en — roles-en-w3.md
+        r"^(?!.*counsel).*(?:\bdeal desk\b|\brenewals?\s+(?:manager|specialist|analyst|lead|associate|representative))|"
+        # en-12  en — roles-en-w3.md
+        r"(?:sales|gtm|revenue|partner|customer|commercial)\s+enablement|"
+        # fr-05  fr — roles-fr-w3.md
+        r"d[ée]veloppement commercial|repr[ée]sentant\w*\s+commercial|"
+        # nl-02  nl — roles-nl-w3.md
+        r"accountmanager|"
         r"\bvendas\b", re.I)),                                          # pt
     ("hr_recruiting", re.compile(
         r"recruit|talent acquisition|people ops|people partner|people operations|"
-        r"human resources|\bhr\b|rekryter|"
+        r"human resources|(?<!\d/)\bhr\b|rekryter|"
         r"personalist|nábor|náborář|mzdov[áý] účetní|"
         # French `recrut` is NOT reachable from the existing English `recruit`: recrutement has
         # no i. The two words diverge at the fifth letter — the same near-miss as
@@ -984,6 +1156,18 @@ PATTERNS: tuple[tuple[str, "re.Pattern[str]"], ...] = (
         # ES: all two-word phrases, because bare `selección` is selection in general and
         # bare `formación` is also a company department.
         r"selecci[óo]n\s+(?:de\s+)?personal|atracci[óo]n\s+de\s+talento|" # es-2
+        # --- wave 3 (2026-08-17) ---
+        # en-03  en — roles-en-w3.md
+        r"talent (?:management|development|attraction|partner)|"
+        # en-07  en — roles-en-w3.md
+        r"(?<!workers )(?<!workers. )\bcompensation\b|"
+        # en-08  en — roles-en-w3.md
+        r"\bsourcer\b|"
+        # en-09  en — roles-en-w3.md
+        r"^(?!.*counsel).*(?:\bpeople (?:partner|team|experience)\b|employee (?:experience|relations|engagement))|"
+        # de-09  de — roles-de-w3.md
+        r"personalreferent|personalsachbearbeit|personalentwickl|personalleit|personalwesen|"
+        r"personalabteilung|personalberat|"
         r"selecci[óo]n\s+y\s+formaci[óo]n", re.I)),
     ("legal", re.compile(
         # `lawyer` and `attorney` — the plain English words were both absent, so "Immigration
@@ -1004,6 +1188,9 @@ PATTERNS: tuple[tuple[str, "re.Pattern[str]"], ...] = (
         # PT. Swedish `juridik`/`juridisk` is `jurid-i-s-k` and does not match `...dic`.
         # --- Norwegian, 2026-08-11 (N33) — graded against NAV STYRK-08 ---
         r"advokat|juridisk|"
+        # --- wave 3 (2026-08-17) ---
+        # en-14  en — roles-en-w3.md
+        r"\bcontracts?\s+(?:manager|specialist|administrator|analyst|lead|director)\b|"
         r"jur[íi]dic", re.I)),                                          # pt
     ("customer_support", re.compile(
         r"customer (?:support|service|care)|help ?desk|technical support|support specialist|"
@@ -1018,6 +1205,12 @@ PATTERNS: tuple[tuple[str, "re.Pattern[str]"], ...] = (
         # --- wave 2 --- bound: bare `client`/`gestione` is meaningless alone, and
         # `sales` must keep running BEFORE this so a `commerciale` title is not
         # swallowed by the customer-relations reading.
+        # --- wave 3 (2026-08-17) ---
+        # cs-09  cs — roles-cs-w3.md
+        r"(?:it|ict)\s*[- ]?\s*podpor|uživatelsk\w+\s+podpor|"
+        r"^(?!.*(?:síť|servis|manažer|manažér|nákup)).*technick\w+\s+podpor|"
+        # de-02  de — roles-de-w3.md
+        r"kundenservice|"
         rf"{_IT_ROLE}[^|]{{0,20}}?(?:gestione|consulenza)\s+client",    # it-2
         re.I)),
     ("operations", re.compile(
@@ -1034,6 +1227,11 @@ PATTERNS: tuple[tuple[str, "re.Pattern[str]"], ...] = (
         # --- wave 2 --- English words the file already knows in other languages.
         r"\bbuyer\b|purchasing|facilit(?:y|ies) manager|"               # en
         r"continuous improvement|operational excellence|\blean\b|"
+        # --- wave 3 (2026-08-17) ---
+        # sv-01  sv — roles-sv-w3.md
+        r"verksamhetsutvecklare|"
+        # sv-03  sv — roles-sv-w3.md
+        r"upphandl|"
         r"(?:demand|supply|material|capacity) plann?(?:er|ing)", re.I)),
     # Residual for a business function at a tech company that none of the above names.
     # Deliberately last of the business group and much narrower than it was.
@@ -1053,6 +1251,21 @@ PATTERNS: tuple[tuple[str, "re.Pattern[str]"], ...] = (
         r"partnership|business process|"                                # en
         # --- Norwegian, 2026-08-11 (N38) — graded against NAV STYRK-08 ---
         r"\bsekretær|"
+        # --- wave 3 (2026-08-17) ---
+        # sv-05  sv — roles-sv-w3.md
+        r"projektadministratör|"
+        # en-16  en — roles-en-w3.md
+        r"implementation (?:consultant|manager|specialist|lead)|"
+        # en-17  en — roles-en-w3.md
+        r"chief of staff|"
+        # en-18  en — roles-en-w3.md
+        r"technical writer|\bdocumentation\s+(?:specialist|manager|lead|engineer)|"
+        # it-01  it — roles-it-w3.md
+        r"analista\s+funzional|"
+        # it-02  it — roles-it-w3.md
+        r"amministrativ|"
+        # es-02  es — roles-es-w3.md
+        r"analista\s+funcional|"
         r"administratie", re.I)),                                       # nl-2
 )
 

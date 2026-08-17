@@ -115,7 +115,12 @@ OPAQUE = "Något Oklassificerbart"
     ("Mekanikkonstruktör till Nord-Lock", "engineering"),   # SE spelling of konstruktér
     ("Elkonstruktör", "engineering"),          # was skilled_trades before engineering existed
     ("Senior Java-utvecklare", "software_engineering"),
-    ("Affärsutvecklare", "uncategorised"),     # ...but business development is not software
+    # Was pinned `uncategorised` until 2026-08-17, and the pin's point was the one kept below:
+    # business development is not SOFTWARE, which is what `(?<!affärs)utvecklare` guarantees.
+    # Wave 3 (sv-06) gave it a home in `sales` rather than leaving it homeless — the file had
+    # carved the word out of software and never put it anywhere, so 60+ live rows were
+    # uncategorised by construction. `uncategorised` was the absence of a decision, not one.
+    ("Affärsutvecklare", "sales"),
     ("It-supporttekniker | Skövde", "customer_support"),
     ("Löneadministratör", "finance_accounting"),
     ("Senior ekonom", "finance_accounting"),   # moved out of the other_tech_function residual
@@ -340,9 +345,15 @@ def test_multilingual_stems_stay_inside_their_own_language(title, expected, trap
      "ES `dental` unbounded sits inside BUCODENTAL, and this is a TEACHER"),
     ("manufacturing_production", "Projektleiter Infrastruktur",
      "DE `fräs` unbounded sits inside INFRASTRUKTUR"),
-    ("engineering", "Laborant/ka",
-     "DE `laborant` must be compound-prefix-bound: the Czech key writes it standalone, "
-     "and the bare term took both of those rows in wave 1"),
+    # `("engineering", "Laborant/ka", ...)` lived here from wave 1 until 2026-08-17, asserting
+    # that `laborant` stayed compound-prefix-bound so the standalone Czech title could not reach
+    # it.  **That guarantee was deliberately withdrawn**, not lost: wave 3 re-tested the verdict
+    # under the corrected gate and the collision does not exist against `engineering` — CZ
+    # 1586 -> 1588, CZ majors 1-3 256 -> 258, SE and NO flat.  Reaching `Laborant/ka` is now the
+    # point.  `test_laborant_reaches_the_standalone_czech_title` asserts the opposite and is its
+    # replacement; the reasoning is on the pattern itself.  A term rejected against category A
+    # is not rejected, it is untested against B — so this entry is removed rather than relaxed,
+    # and the next pass should not re-add a bound without re-running the measurement.
     ("cybersecurity", "Specjalista ds. bezpieczeństwa i higieny pracy",
      "PL bare `bezpiecze` eats BHP — occupational health & safety, which has NO category, "
      "so a safety officer would file as a security engineer"),
@@ -1052,3 +1063,115 @@ def test_h_the_english_personal_assistant_is_not_a_care_worker():
     assert taxonomy.classify("Ekonomiassistent") == "finance_accounting"
     assert taxonomy.classify("Löneassistent") == "finance_accounting"
     assert taxonomy.classify("Elevassistent") == "education"
+
+
+# --------------------------------------------------------------------------------------
+# Wave-3 integration guards, and two employer/currency collisions.  Added 2026-08-17.
+#
+# Every title below is a real production row, verified to exist exactly once in a 122 208-row
+# corpus dump.  Three of these tests pin the *shape* of a guard rather than merely that it
+# works, because in each case the answer keys could not tell the right fix from the wrong one
+# — all five slices are identical under both — and only the corpus separates them.  That is
+# the same lesson as the `\bengineer\b` lookbehind above, arriving three more times.
+# --------------------------------------------------------------------------------------
+
+
+def test_czech_psycholog_does_not_read_the_english_word_psychology():
+    """`healthcare` is pattern #1, so a leak here outranks everything.
+
+    The Czech fragment is `psycholo(?:g(?!i)|ž)`; the `(?!i)` stops Czech *psychologie* but
+    English *Psychology* ends `-gy`, so it slipped through.  Guard is `(?![iy])`.
+    """
+    assert taxonomy.classify(
+        "Podcaster and Content Creator Psychology Today") == "social_media"
+    assert taxonomy.classify(
+        "Assessment Scientist: Masters in Psychology; Psychometrists") == "science_research"
+    # The Czech rows the fragment exists for must still land.
+    assert taxonomy.classify("Psycholog") == "healthcare"
+
+
+def test_product_design_guard_reads_the_word_before_not_only_after():
+    r"""`\bproduct design\b(?!\s*engineer)` guarded the word AFTER; a Swedish row puts it before."""
+    assert taxonomy.classify(
+        "Mechanical Engineer  Handheld R&D Product Design  Husqvarna Group") == "engineering"
+    assert taxonomy.classify("Product Designer") == "design"
+
+
+def test_vardcentral_does_not_take_the_clinic_receptionist():
+    """Swedish broke a decision the file had already made in Spanish.
+
+    `healthcare`'s Spanish arm carries `^(?!.*(?:recepcionista|professional))` precisely to keep
+    a clinic receptionist in `hospitality`.  `vårdcentral` re-broke it in Swedish, so it carries
+    the same anchor now.
+    """
+    assert taxonomy.classify("Receptionist till vårdcentralen Skärvet") == "hospitality"
+    assert taxonomy.classify("Distriktssköterska till vårdcentralen") == "healthcare"
+
+
+def test_hr_is_not_an_hourly_rate():
+    """101 active rows were filed `hr_recruiting` because the title quoted a rate.
+
+    `georgia` in a currency string.  Declining lets the right pattern answer, exactly as with
+    the engineer catch-all: `hr_recruiting` runs before `legal`, `operations` and
+    `other_tech_function`, so 9 rows reach `legal`, 5 `operations`, and 83 become honest
+    declines.
+    """
+    assert taxonomy.classify(
+        "Legal Research Specialist - Fully Remote | Upto $120/hr") == "legal"
+    for title in ("Voice Narrator - Fully Remote | Upto $50/hr",
+                  "AI Safety Specialist - Fully Remote | Upto $70/hr"):
+        assert taxonomy.classify(title) == "uncategorised", title
+
+
+def test_the_hr_guard_is_positional_not_whole_title():
+    r"""Pins the SHAPE.  A whole-title `^(?!.*\d\s*/\s*hr\b)` throws away a real HR job that
+    happens to quote its own rate, and a bare `(?<!/)` throws away a Swedish compound.  All
+    three forms are identical on all five answer-key slices; only these two rows separate them.
+    """
+    # Dies under the whole-title form.
+    assert taxonomy.classify("HR Leader - Fully Remote | Upto $80/hr") == "hr_recruiting"
+    # Dies under a bare `(?<!/)`.  U+2011 non-breaking hyphen — copied from production, not typed.
+    assert taxonomy.classify("L\u00f6n/HR\u2011administrat\u00f6r - J\u00f6nk\u00f6ping") \
+        == "hr_recruiting"
+
+
+def test_ekonom_does_not_read_the_employer_mekonomen():
+    """A role stem matching a company name inside the classifier, not inside `search_tsv`."""
+    for title in ("Kundmottagare sökes omgående till Mekonomen Noret Mora",
+                  "FORDONSTEKNIKER (MEKONOMEN)"):
+        assert taxonomy.classify(title) != "finance_accounting", title
+
+
+def test_the_ekonom_guard_is_a_lookbehind_not_a_word_boundary():
+    r"""Pins the SHAPE, and this is the one where the obvious fix is measurably wrong.
+
+    A leading `\b` moves 28 rows and only 3 are Mekonomen; the 25 casualties are the Swedish
+    compounds this pattern exists for.  A prefix census over the corpus is what settles it: `m`
+    is the only prefix before `ekonom` that is not a compound morpheme, and all 10 of its
+    occurrences are Mekonomen.
+    """
+    for title in ("Bolagsekonom till TidX Förvaltning AB, Göteborg",
+                  "Hälsoekonom som vill arbeta med läkemedel och medicinteknik",
+                  "Verksamhetsekonom till Söderhamns kommun"):
+        assert taxonomy.classify(title) == "finance_accounting", title
+    # A whole-title `mekonomen` exclusion would lose this; the lookbehind keeps it.
+    assert taxonomy.classify("Ekonomiassistent till Mekonomen") == "finance_accounting"
+
+
+def test_laborant_reaches_the_standalone_czech_title():
+    """The wave-1 verdict, reversed — reaching this row is now the point, not the hazard.
+
+    A term rejected against category A is not rejected; it is untested against B.
+    """
+    assert taxonomy.classify("Laborant/ka") == "engineering"
+    assert taxonomy.classify("Chemielaborant") == "engineering"
+
+
+def test_fr_role_heads_do_not_match_inside_foreign_compounds():
+    r"""The leading `\b` on `_FR_ROLE`.  `chef` used to reach into Swedish `Sektionschef`."""
+    assert not taxonomy._FR_ROLE.startswith("(?:"), (
+        "_FR_ROLE lost its leading \b — French heads will match inside compounds in every "
+        "other language the corpus contains, which is how a French pattern came to be reading "
+        "Swedish morphology."
+    )
+    assert taxonomy.classify("Chef de Projet") != "manufacturing_production"
