@@ -410,7 +410,54 @@ These are not style preferences. Breaking one has consequences outside this repo
 - Shell scripts and systemd units are LF-only (`.gitattributes`) — CRLF breaks them on the
   VPS in ways that look like unrelated failures.
 - Commits: conventional (`feat:` `fix:` `chore:` `docs:` `refactor:` `analysis:`).
-  Explain *why*, and name the failure the change prevents.
+  Explain *why*, and name the failure the change prevents. Branch and PR rules are in
+  **Git workflow** below.
+
+---
+
+## Git workflow
+
+**Code changes go on a branch and through a PR. Docs and notes may go straight to `master`.**
+The split is not ceremony — it is what makes CI run before the code can reach anyone, and what
+keeps a session's work visible off this machine.
+
+| Touches | Route |
+|---|---|
+| `service/`, `web/`, `ingestion/`, `deploy/`, `dbt/`, `scripts/`, `search_jobs.py`, `.github/` | branch → PR → squash-merge |
+| `docs/`, `notes/`, `CLAUDE.md`, `README.md`, `PLAN.md` | commit on `master` is fine |
+
+A change that is *mostly* a note but edits one line of `service/` is a code change. When in
+doubt, branch — the cost is one `gh pr create`.
+
+- **Branch names are `<type>/<slug>`**, same vocabulary as the commit prefixes:
+  `feat/reach-countries`, `fix/matcher-token-cap`, `chore/bump-next`.
+- **The PR is what runs CI.** `.github/workflows/tests.yml` runs on push *and* PR, in the two
+  jobs split along the code's own boundary (`jobdigest`, `market-intel`). Merging without it
+  green is how a SQL-backed test that silently stopped running gets shipped — the exact failure
+  the skip-check exists to prevent.
+- **Squash-merge**, and let the PR title be the commit subject. The branch's intermediate
+  commits are session archaeology; `notes/` is where that belongs.
+- **Sync a stale branch by merging `origin/master` into it, not by rebasing.** A rebase
+  rewrites shas that may already be in `.deployed-sha` on the box.
+- **`master` must never be behind `origin/master` at the end of a session.** On 2026-08-02
+  nine commits sat on local `master` with no off-machine copy, and the session that found them
+  was not the session that wrote them (`notes/2026-08-02-deployed-is-not-running.md`).
+- **When you read code to decide something, know which branch you read.** On 2026-07-29 a
+  Dependabot *branch's* tree was quoted as if it described `master`, and nearly produced the
+  wrong fix (`notes/2026-07-29-guards-that-were-wired-to-nothing.md`).
+
+### Where this meets the box
+
+`deploy/deploy.sh` already enforces half of it and cannot be talked out of it: it refuses a
+**dirty** tree, and refuses a HEAD that is not an ancestor of `origin/<current-branch>` —
+"deployed-but-unpushed is how a box ends up running code nobody else can see."
+
+It will happily deploy *from a feature branch*, and that is allowed for verifying a change
+against production before merge. But it writes that branch's sha into `.deployed-sha`, and a
+squash-merge does not preserve it — so **after merging, deploy again from `master`**, or the
+box's recorded rollback target is a commit that no longer exists on any branch. Rolling back is
+`deploy/deploy.sh --sha <sha>`; that sha has to still be reachable when you need it, which is
+the one moment nobody has time to go looking.
 
 ---
 
