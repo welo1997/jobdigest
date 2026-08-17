@@ -105,14 +105,18 @@ class _Block:
 class _FakeClient:
     """A client whose `messages.create` returns a fixed block list. Records the kwargs it got."""
 
-    def __init__(self, blocks: list[_Block]):
+    def __init__(self, blocks: list[_Block], stop_reason: str | None = "end_turn"):
         self.blocks = blocks
+        self.stop_reason = stop_reason
         self.calls: list[dict] = []
         self.messages = self
 
     def create(self, **kwargs):
         self.calls.append(kwargs)
-        return type("Resp", (), {"content": self.blocks, "usage": None})()
+        # `stop_reason` is on the real response object, so the fake carries it too — a fake that
+        # omitted the field would make the truncation branch untestable *and* look correct.
+        return type("Resp", (), {"content": self.blocks, "usage": None,
+                                 "stop_reason": self.stop_reason})()
 
 
 _SHORTLIST = [{"posting_id": "job-1", "title": "Junior Dev", "company": "Acme"}]
@@ -140,6 +144,36 @@ def test_a_response_with_no_text_block_returns_no_picks_and_does_not_raise():
     client = _FakeClient([_Block("thinking", "")])
 
     assert matcher.match_profile(client, {"id": "p"}, _SHORTLIST) == []
+
+
+def test_a_truncated_reply_is_named_as_truncation_not_as_bad_json(caplog):
+    """A response cut off at `max_tokens` is invalid JSON, so before this it surfaced only as
+    "bad JSON from model" — which points the next reader at the parser or the prompt, never at the
+    budget that actually caused it. Raising the ceiling makes truncation rarer; this is what makes
+    it *legible*. Mutation-check: drop the `stop_reason` branch in `match_profile` and the
+    `max_tokens` assertion below goes red while the bad-JSON warning still fires, which is exactly
+    the misdiagnosis being fixed."""
+    truncated = '{"picks": [{"i": 0, "score": 9, "reason": "fits but the reply stops mid-obj'
+    client = _FakeClient([_Block("text", truncated)], stop_reason="max_tokens")
+
+    with caplog.at_level("ERROR", logger="service.matcher"):
+        picks = matcher.match_profile(client, {"id": "p"}, _SHORTLIST)
+
+    assert picks == []                     # unchanged: a bad reply costs picks, never an exception
+    assert "max_tokens" in caplog.text
+    # The remedy has to be in the message: whoever reads this at 05:00 needs the knob's name, and
+    # the reason a wider ceiling is not a cost decision.
+    assert "MATCHER_MAX_OUTPUT_TOKENS" in caplog.text
+    assert "MATCHER_MODEL" in caplog.text
+
+
+def test_an_ordinary_reply_logs_no_truncation_error(caplog):
+    """The other half — a guard that fires on every call is noise, and noise in the one log line
+    that means "a subscriber lost their picks" is worse than no line at all."""
+    client = _FakeClient([_Block("text", _PICK_JSON)], stop_reason="end_turn")
+    with caplog.at_level("ERROR", logger="service.matcher"):
+        assert len(matcher.match_profile(client, {"id": "p"}, _SHORTLIST)) == 1
+    assert "max_tokens" not in caplog.text
 
 
 def test_model_and_max_tokens_overrides_reach_the_api_call():

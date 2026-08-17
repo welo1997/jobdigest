@@ -356,6 +356,21 @@ def match_profile(client, profile: dict, shortlist: list[dict],
     # picks for every subscriber: an empty digest that looks exactly like a quiet inventory day,
     # which is the failure shape this repo keeps rediscovering. Skipping to the text block makes
     # the env var mean what it says.
+    # Named before parsing, because the ceiling is the one cause the parse error cannot point at.
+    # A response cut off at `max_tokens` is invalid JSON, so it surfaced below as "bad JSON from
+    # model" — which sends the next reader to the parser or the prompt, not to the budget. This is
+    # the tripwire `max_tokens` exists to trip: raising the ceiling makes truncation rarer, only a
+    # log line makes it *legible*. Two knobs are usually the cause and they are a pair —
+    # `MATCHER_MODEL` pointed at a thinking model bills its thinking out of this same ceiling, so
+    # moving one without `MATCHER_MAX_OUTPUT_TOKENS` is how the budget gets eaten before the JSON
+    # starts. It stays `error`, not `warning`: this subscriber just lost the day's fresh picks.
+    if getattr(resp, "stop_reason", None) == "max_tokens":
+        logger.error("profile %s: model %s hit max_tokens=%d — the reply is truncated and will not "
+                     "parse, so this subscriber gets no fresh picks. Raise "
+                     "MATCHER_MAX_OUTPUT_TOKENS (a ceiling, not a reservation — unused headroom "
+                     "is free), and check whether MATCHER_MODEL is a thinking model billing its "
+                     "thinking out of the same budget.", profile.get("id"), model or MODEL,
+                     max_tokens)
     raw = next((b.text for b in resp.content
                 if getattr(b, "type", None) == "text" and getattr(b, "text", None)), "").strip()
     if not raw:
