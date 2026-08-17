@@ -305,9 +305,22 @@ def _candidates_block(shortlist: list[dict],
 def _accumulate_usage(acc: dict | None, resp) -> None:
     """Fold one response's token usage into a run-level accumulator (in place, never raises).
 
-    Purely for the metered path's cost log and abort budget — the SYSTEM block is prompt-cached
-    (`cache_control` below), so `cache_read` is where most input tokens go after the first
-    subscriber in a run, and the log separates the two so a cache regression is visible."""
+    Purely for the metered path's cost log and abort budget.
+
+    **`cache_read` is 0 on Haiku 4.5 and always has been — that is not a regression.** The
+    `cache_control` on the SYSTEM block below is silently ignored, because Haiku 4.5's minimum
+    cacheable prefix is **4 096 tokens** and SYSTEM measures ~1 250. Under the minimum the API
+    writes no cache entry and reports none; there is no error to notice. Measured on production
+    2026-08-17: one subscriber call is 17 499 input / 967 output tokens, `cache_read` 0, $0.0223.
+
+    Not worth engineering around: SYSTEM is ~7% of the input (the 109-candidate block is the other
+    93%, and it differs per subscriber, so nothing there is a shared prefix). Caching it would save
+    ~0.1¢ per call after the first.
+
+    **Keep the `cache_control` anyway** — the minimum is not monotonic across models (4 096 on
+    Haiku 4.5, 1 024 on Sonnet 5, 512 on Opus 5), so the same block that cannot cache here starts
+    caching the moment `MATCHER_MODEL` moves up. The log keeps `input` and `cache_read` separate so
+    that transition is visible rather than inferred."""
     if acc is None:
         return
     u = getattr(resp, "usage", None)
