@@ -40,6 +40,19 @@ DESC_CHARS = 320           # per-candidate description budget (keeps input token
 # Store any pick scoring >= this. The email keeps a higher bar (digest.EMAIL_MIN_SCORE);
 # the extra 4-5s are surfaced on the "all matches" web page, not emailed.
 MATCH_FLOOR = int(os.environ.get("MATCH_FLOOR", "4"))
+# Output ceiling for one subscriber's pick list. **A ceiling, not a reservation** — output is
+# billed per token actually generated, so raising this costs nothing until the model uses it, and
+# nothing about a wider ceiling makes it write more. The realistic response is ~600 tokens
+# (~$0.003 on Haiku 4.5 at $5/MTok), and it bills the same under 1500 or 4000.
+#
+# What the old 1500 bought was a tail risk, flagged on 2026-08-17 and hit nothing: `summary` is
+# truncated to 280 chars *after* parsing, so nothing stops the model emitting 20 picks × 280-char
+# reasons ≈ 1800 tokens. Past the ceiling the JSON stops mid-object, `json.loads` raises, and
+# `match_profile` logs one warning and returns [] — that subscriber loses the day's fresh picks and
+# the outcome is indistinguishable from a quiet inventory day. Likelier on Czech text (worse
+# tokenisation) and on Haiku (more verbose than a bigger model), which is exactly the live
+# configuration. A free change that removes a silent-failure mode is not a trade-off.
+MAX_TOKENS = int(os.environ.get("MATCHER_MAX_OUTPUT_TOKENS", "4000"))
 # Metered-path abort budget. 0 = no ceiling (the default). When >0, a run stops matching
 # further subscribers once accumulated tokens (input + output) cross it, so a bug that
 # inflates a shortlist or loops can never run up unbounded API spend before anyone notices.
@@ -308,7 +321,7 @@ def _accumulate_usage(acc: dict | None, resp) -> None:
 
 def match_profile(client, profile: dict, shortlist: list[dict],
                   usage_acc: dict | None = None, model: str | None = None,
-                  max_tokens: int = 1500) -> list[dict]:
+                  max_tokens: int = MAX_TOKENS) -> list[dict]:
     """Return [{posting_id, score, summary}] the model judged a genuine fit.
 
     `usage_acc`, when given, is updated in place with this call's token usage — the metered
@@ -318,8 +331,10 @@ def match_profile(client, profile: dict, shortlist: list[dict],
     exists so `scripts/matcher_model_ab.py` can put the *same* prompt in front of two models
     over one shortlist. Comparing model classes by monkeypatching the module global would work
     until someone imported it by value, and the whole point of that harness is that it exercises
-    the real prompt rather than a copy of it. `max_tokens` is raised by that harness for a model
-    that thinks before answering, because thinking is billed out of the same ceiling as the JSON.
+    the real prompt rather than a copy of it. `max_tokens` defaults to `MAX_TOKENS` and is raised
+    by the harnesses for a model that thinks before answering, because thinking is billed out of
+    the same ceiling as the JSON — a thinking model can spend the whole budget before the answer
+    starts, which grades the box rather than the judgement.
     """
     candidates, index_map = _candidates_block(shortlist, _subscriber_countries(profile))
     user = (

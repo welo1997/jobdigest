@@ -155,7 +155,13 @@ def test_model_and_max_tokens_overrides_reach_the_api_call():
     # Defaults still come from the module, so production is unaffected by the new parameters.
     matcher.match_profile(client, {"id": "p"}, _SHORTLIST)
     assert client.calls[1]["model"] == matcher.MODEL
-    assert client.calls[1]["max_tokens"] == 1500
+    assert client.calls[1]["max_tokens"] == matcher.MAX_TOKENS
+    # ...and the ceiling is wide enough to be one. `summary` is truncated to 280 chars *after*
+    # parsing, so 20 picks × 280-char reasons is ~1800 tokens; under the old hardcoded 1500 the
+    # JSON stopped mid-object, `json.loads` raised, and that subscriber lost the day's picks with
+    # nothing but a warning. `max_tokens` is a ceiling, not a reservation — output is billed per
+    # token generated — so the headroom is free and the only reason to narrow it would be a bug.
+    assert matcher.MAX_TOKENS >= 4000
 
 
 def test_pipeline_matches_only_due_subscribers(monkeypatch):

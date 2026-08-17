@@ -15,6 +15,12 @@ picks" — it is a specific wrong pick that no other check in this repo can see:
   Being emailed an on-site job in Brno when you live in Prague is the failure the rule names.
 - **Part-time-only is a ceiling, not a drop**: a full-time posting may score at most 5, so it can
   still appear on /matches without headlining an email.
+- **"Remote" is two questions, and `reach` is the second.** `geo.reach_predicate` refuses a
+  provably-bound-elsewhere remote role in SQL, so the model is *not* the only enforcement here —
+  but it is the only thing that can read an unestablished reach, which is a third of a live
+  shortlist. Both directions are in the key: a posting whose own text says "UK residents only"
+  must be dropped, and one that simply says nothing must NOT be, for the same reason unstated
+  seniority is not a mismatch.
 
 Every candidate below is tagged `keep`, `drop` or `cap5`, and the grade is how many of those the
 model got right. Costs a few cents per model per pass; the fixture is ~2k input tokens.
@@ -48,11 +54,13 @@ logger = logging.getLogger("matcher_gate_eval")
 
 
 def token_budget(model: str) -> int:
-    """`max_tokens` for this model's call. Haiku 4.5 answers directly; every model above it
-    thinks by default, and thinking is billed out of the *same* ceiling as the JSON — so the
-    production 1500 can be spent before the answer starts, truncating it. Widening it for those
-    models keeps this a comparison of judgement rather than of who fits in the box."""
-    return 1500 if model.startswith("claude-haiku") else 8000
+    """`max_tokens` for this model's call. Haiku 4.5 answers directly, so it runs on **the
+    production ceiling read from `matcher.MAX_TOKENS`** — hardcoding the number here is how an
+    eval quietly stops grading the shipped configuration the day production changes. Every model
+    above Haiku thinks by default, and thinking is billed out of the *same* ceiling as the JSON,
+    so a production-sized budget can be spent before the answer starts. Widening it for those
+    keeps this a comparison of judgement rather than of who fits in the box."""
+    return matcher.MAX_TOKENS if model.startswith("claude-haiku") else 8000
 
 
 def _cand(pid: str, title: str, company: str, **kw) -> dict:
@@ -62,6 +70,9 @@ def _cand(pid: str, title: str, company: str, **kw) -> dict:
            "location": kw.get("location"), "city": kw.get("city"),
            "country_code": kw.get("country_code", "CZ"),
            "remote_signal": kw.get("remote", False), "work_mode": kw.get("work_mode"),
+           # Where the job may be *held from*, which is a different question to whether there is
+           # an office. Absent = never classified, which the renderer turns into `reach=?`.
+           "remote_reach": kw.get("reach"), "reach_countries": kw.get("reach_countries"),
            "region": kw.get("region", "cz"), "seniority": kw.get("seniority"),
            "work_type": kw.get("work_type", "full_time"),
            "is_part_time": kw.get("part_time", False), "salary_raw": kw.get("salary"),
@@ -147,6 +158,65 @@ CASES: list[dict] = [
                    seniority="entry_level", desc="Graduate scheme, SQL basics."), "drop"),
             (_cand("c4", "Data Engineer", "Delta", location="Praha", city="prague",
                    desc="dbt and Snowflake, mature data platform, IC role."), "keep"),
+        ],
+    },
+    {
+        # The 2026-08-17 production failure, as a graded fixture. The owner's own digest carried
+        # five "100% remote" data-engineering roles bound to Poland, India and the UK — scored 7-8,
+        # none holdable from Prague. `geo.reach_predicate` now refuses the provable ones in SQL, so
+        # `other-country-only` should not reach the model on the delivery path at all; grading it
+        # here is defence in depth. **The cases SQL can never catch are d6 and d7** — an
+        # unestablished reach, which is 34 of the owner's 109 live candidates. Both directions are
+        # in the key, because "assume it's fine" and "refuse anything unproven" are both wrong and
+        # only one of them is visible in a picks count.
+        "name": "Prague data engineer, worldwide remote scope (the reach rule)",
+        "profile": {
+            "id": "fixture-d", "label": "Data engineer, Prague",
+            "role_categories": ["data_engineering"], "stack": ["Python", "dbt", "Snowflake"],
+            "seniorities": ["junior", "mid"], "countries": ["CZ"], "cities": ["cz:prague"],
+            # `worldwide` is what renders "plus fully remote roles worldwide" into the profile
+            # block — the phrase that, read literally, undoes this whole rule from the profile
+            # side. Keeping it in the fixture is what tests the clause that explains it.
+            "remote_scope": "worldwide", "work_types": ["full_time"], "sectors": [],
+        },
+        "candidates": [
+            # Remote — from inside Poland only. The exact shape that shipped.
+            (_cand("d1", "Data Engineer (100% remote)", "Alpha", location="Polska",
+                   country_code="PL", remote=True, work_mode="remote", reach="country",
+                   region="eu", desc="Fully remote, dbt and Snowflake, modern data stack."),
+             "drop"),
+            # Live anywhere: 0.5% of the corpus, and the case everyone imagines "remote" means.
+            (_cand("d2", "Data Engineer", "Beta", location="Remote (worldwide)",
+                   country_code=None, remote=True, work_mode="remote", reach="anywhere",
+                   region="worldwide", desc="Hire from anywhere, async team, Python and dbt."),
+             "keep"),
+            # A region that enumerates its countries and includes Czechia.
+            (_cand("d3", "Data Engineer", "Gamma", location="Remote, EU", country_code="DE",
+                   remote=True, work_mode="remote", reach="region",
+                   reach_countries=["AT", "CZ", "DE", "PL"], region="eu",
+                   desc="Remote across our EU entities. Airflow, dbt, Snowflake."), "keep"),
+            # The Dataiku shape, with the null country_code it actually carries in production.
+            (_cand("d4", "Data Engineer I", "Delta", location="Remote, Europe",
+                   country_code=None, remote=True, work_mode="remote", reach="region",
+                   reach_countries=["DE", "ES", "GB", "NL"], region="eu",
+                   desc="Entry-level data engineering, dbt and Python."), "drop"),
+            # Control: an ordinary Prague on-site job. A reach rule that eats local inventory has
+            # made the digest worse, not better — and that is the failure a picks count hides.
+            (_cand("d5", "Data Engineer", "Epsilon", location="Praha", city="prague",
+                   desc="Prague office, Snowflake and dbt, product data team."), "keep"),
+            # Reach never classified, but the posting says it in its own words. Nothing in SQL can
+            # read this — the model is the only thing that can.
+            (_cand("d6", "Data Engineer — Remote", "Zeta", location="Remote",
+                   country_code=None, remote=True, work_mode="remote", region="eu",
+                   desc="Remote role. Applicants must be resident in the United Kingdom and "
+                        "hold existing UK work authorisation."), "drop"),
+            # Reach never classified and the posting says nothing. **The expensive false negative:**
+            # refusing this is refusing a third of the live shortlist for being silent, which is
+            # the same class of mistake as treating unstated seniority as a mismatch.
+            (_cand("d7", "Data Engineer", "Eta", location="Remote", country_code=None,
+                   remote=True, work_mode="remote", region="eu",
+                   desc="Remote data engineering role. Python, dbt, Snowflake, Airflow."),
+             "keep"),
         ],
     },
 ]
@@ -254,7 +324,10 @@ def run(models: list[str], repeat: int) -> int:
         print("\nNothing was graded — fix the failures above and re-run.")
         return 1
     print("\nA leak is the number that costs subscribers: nothing downstream of the model "
-          "re-checks seniority, so a leaked lead role lands in an inbox.")
+          "re-checks seniority or the part-time ceiling, so a leaked lead role lands in an inbox. "
+          "\nReach has a SQL gate behind it, so a leaked d1/d4 is defence-in-depth failing rather "
+          "than an inbox — but a MISSED d7 has no backstop at all: refusing an unprovable reach "
+          "silently deletes a third of a real shortlist.")
     return 0
 
 
