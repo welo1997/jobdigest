@@ -902,7 +902,8 @@ def matched_jobs(profile_id: str, limit: int = 50, offset: int = 0,
                  categories: list[str] | None = None,
                  countries: list[str] | None = None,
                  cities: list[str] | None = None,
-                 seniorities: list[str] | None = None) -> list[dict]:
+                 seniorities: list[str] | None = None,
+                 holdable_from: list[str] | None = None) -> list[dict]:
     """AI-picked jobs for a profile (matches join postings), best fit first.
 
     Read side for the digest: returns only active postings the matcher selected
@@ -940,13 +941,45 @@ def matched_jobs(profile_id: str, limit: int = 50, offset: int = 0,
     hidden (`updated_at`), because "what did I just hide" is the question it answers; a bulk
     hide stamps one `now()` across the batch, so `posting_id` breaks the tie and keeps the
     ordering total for paging here too.
+
+    **`holdable_from` is the reach rule applied at the point of use, opt-in for exactly the same
+    reasons `exclude_sent` is.** `geo.reach_predicate` gates *retrieval*, so from 2026-08-17 no
+    new pick can be a remote job bound to a country the subscriber did not choose — but `matches`
+    is a historical table and `build_digest` reads out of it. On the day the gate shipped one
+    profile held **49 unsent, still-active, score-6-to-8 picks that the new rule refuses**, led by
+    the same Poland-only "Data Engineer pharma; 100% remote" that had scored 8 that morning.
+    Tomorrow's email would have been almost identical to the one that started the investigation,
+    with the gate working perfectly upstream of it.
+
+    It also covers a case retrieval cannot: `python -m service.backfill_remote_reach` can
+    *reclassify* a posting after it was matched, so admissibility at match time is not
+    admissibility at send time. Re-checking on read is the only place that holds.
+
+    **In Python instead of SQL it would be worse than useless.** `build_digest` cuts a `limit * 6`
+    window and filters afterwards; dropping 49 rows below the window is precisely the failure the
+    2026-08-07 measurement above is about, with a different predicate.
+
+    **Deliberately NOT added to `match_count`**, which the lockstep rule above would otherwise
+    demand. `/matches` stays the complete record — an unusable job is still a job the matcher
+    picked, and the page is the audit trail — so the count heading it is the count of that page.
+    The digest is a different surface with a stricter promise: the same split `exclude_sent`
+    already makes.
     """
     # The web-path display filters (skill chips, work-setup menu, "great fits only"), built
     # once in `_match_filters` and applied identically by `match_count` — see that docstring
     # for why they cannot be two hand-built strings.
     filt, filt_params = _match_filters(skills_filter, work_modes, min_score, q,
                                        categories, countries, cities, seniorities)
-    params: list = [profile_id, HIDDEN_STATUS] + filt_params + [limit, offset]
+    # A non-remote match is out of scope: it was admitted on its country and city, and asking
+    # where its holder may *live* is the category error `reach_predicate` refuses to make. Written
+    # after `filt` in the SQL text below, so its params sit between `filt_params` and the
+    # limit/offset pair — positional binding, the same rule as everywhere else in this module.
+    reach_sql, reach_params = "", []
+    if holdable_from:
+        predicate, reach_params = geo.reach_predicate(holdable_from, alias="p")
+        reach_sql = f"and (coalesce(p.remote_signal, false) = false or {predicate})"
+    params: list = ([profile_id, HIDDEN_STATUS] + filt_params + reach_params
+                    + [limit, offset])
     with cursor() as cur:
         cur.execute(
             f"""
@@ -965,6 +998,7 @@ def matched_jobs(profile_id: str, limit: int = 50, offset: int = 0,
                                   where d.profile_id = m.profile_id
                                     and d.posting_id = m.posting_id)'''
                if exclude_sent else ''}
+              {reach_sql}
             order by {'m.updated_at desc, p.posting_id'
                       if hidden else
                       'm.score desc, p.posted_at desc nulls last, p.posting_id'}

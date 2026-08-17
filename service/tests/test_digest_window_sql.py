@@ -105,6 +105,78 @@ def _send(profile_id: str, postings: list[str]) -> None:
 # --------------------------------------------------------------------------------------
 
 
+#: A remote job bound to Poland, a remote job whose scope names Czechia, and an ordinary Prague
+#: on-site job. Their own profile and their own matches, so the 40-row window calibration above is
+#: untouched — mixing them in would push these ids past `POSTINGS[:30]` and the assertions would
+#: pass without testing anything.
+REACH_ROWS = [
+    (PREFIX + "reach-pl", "PL", None, True, "country", None),
+    (PREFIX + "reach-cz", None, None, True, "region", ["CZ", "DE"]),
+    (PREFIX + "reach-onsite", "CZ", "prague", False, None, None),
+]
+
+
+@pytest.fixture
+def reach_profile():
+    """A Prague subscriber matched to all three, every one a strong fit."""
+    email = f"{PREFIX}reach@example.test"
+    with store.cursor(commit=True) as cur:
+        for pid, cc, city, remote, reach, reach_countries in REACH_ROWS:
+            cur.execute(
+                "insert into postings (posting_id, source, url, title, company, city,"
+                " country_code, region, eligibility, work_type, role_category, dedup_key,"
+                " remote_signal, remote_reach, reach_countries, is_active)"
+                " values (%s,'test',%s,%s,%s,%s,%s,'eu','eligible','permanent',"
+                "  'data_analysis',%s,%s,%s,%s,true)"
+                " on conflict (posting_id) do nothing",
+                (pid, f"https://x.test/{pid}", f"Role {pid}", f"Employer {pid}", city, cc,
+                 pid, remote, reach, reach_countries))
+        cur.execute("delete from profiles where email = %s", (email,))
+        cur.execute("insert into profiles (email, label, countries, remote_scope)"
+                    " values (%s,'reach test',array['CZ'],'worldwide')"
+                    " returning id::text as id", (email,))
+        pid = cur.fetchone()["id"]
+    for row in REACH_ROWS:
+        store.upsert_match(pid, row[0], SCORE, "why")
+    return {"id": pid, "email": email, "countries": ["CZ"]}
+
+
+def test_a_now_unreachable_match_is_not_emailed(reach_profile):
+    """**The gap the retrieval gate could not close.** `geo.reach_predicate` stops new picks, but
+    `matches` is history: when it shipped, one live subscriber still held 49 unsent score-6-to-8
+    picks bound to other countries, and the next digest would have led with the same Poland-only
+    role that started the investigation. The rule has to hold where the email is built, not only
+    where candidates are retrieved."""
+    ids = [j["posting_id"] for j in digest.build_digest(reach_profile, limit=5)]
+    assert PREFIX + "reach-pl" not in ids
+    # Both halves, or a predicate that refused everything remote would pass the line above.
+    assert PREFIX + "reach-cz" in ids
+    assert PREFIX + "reach-onsite" in ids
+
+
+def test_the_matches_page_still_shows_an_unreachable_match(reach_profile):
+    """The duality this file exists for, with a second predicate. `/matches` is the complete
+    record — an unusable job is still a job the matcher picked, and the page is the audit trail —
+    so `holdable_from` is opt-in and the web path must never pass it. `match_count` is deliberately
+    left out of lockstep for the same reason: it heads that page, not the email."""
+    page = store.matched_jobs(reach_profile["id"], limit=50)
+    assert PREFIX + "reach-pl" in [j["posting_id"] for j in page]
+    assert store.match_count(reach_profile["id"]) == len(REACH_ROWS)
+    # ...and the digest's own read of the same table disagrees, which is the point.
+    gated = store.matched_jobs(reach_profile["id"], limit=50, holdable_from=["CZ"])
+    assert PREFIX + "reach-pl" not in [j["posting_id"] for j in gated]
+
+
+def test_a_subscriber_with_no_countries_keeps_every_match(reach_profile):
+    """`build_digest` passes `clean_countries(profile["countries"])`, which is empty for a legacy
+    `regions`-only profile — and empty must mean "cannot judge", not "refuse everything". Same
+    guard as the empty-country-set case in the prompt renderer and the early return in
+    `location_predicate`; getting it wrong here would silently stop those subscribers' email."""
+    ids = [j["posting_id"] for j in store.matched_jobs(reach_profile["id"], limit=50,
+                                                       holdable_from=[])]
+    assert PREFIX + "reach-pl" in ids
+
+
 def test_sent_jobs_do_not_consume_the_candidate_window(profile):
     """The regression itself: 30 sent jobs must not starve a digest of 10 unsent ones.
 

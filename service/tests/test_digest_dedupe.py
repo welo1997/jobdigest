@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import pytest
 
-from service import digest
+from service import digest, matcher
 
 
 def _job(pid: str, score: int, company: str = "Acme", title: str = "Data Analyst",
@@ -31,12 +31,21 @@ def _job(pid: str, score: int, company: str = "Acme", title: str = "Data Analyst
 def patched(monkeypatch):
     state: dict = {"picks": [], "already": set(), "sent_keys": []}
 
-    def matched_jobs(pid, limit=50, offset=0, hidden=False, exclude_sent=False):
-        """Mirrors the real signature *and* what `exclude_sent` does in SQL — see the same
-        fake in test_digest_fallback.py for why it honours the flag rather than ignoring it."""
+    def matched_jobs(pid, limit=50, offset=0, hidden=False, exclude_sent=False,
+                     holdable_from=None):
+        """Mirrors the real signature *and* what `exclude_sent` / `holdable_from` do in SQL — see
+        the same fake in test_digest_fallback.py for why it honours the flags rather than
+        ignoring them."""
         picks = list(state["picks"])
         if exclude_sent:
             picks = [j for j in picks if j["posting_id"] not in state["already"]]
+        if holdable_from:
+            # Mirrored through `matcher._reach_for_model` rather than reimplemented: it and
+            # `geo.reach_predicate` are one rule in two languages, and a third copy here would be
+            # a third thing to drift.
+            countries = {c.upper() for c in holdable_from}
+            picks = [j for j in picks
+                     if matcher._reach_for_model(j, countries) != "reach=other-country-only"]
         return picks[:limit]
 
     monkeypatch.setattr(digest.store, "matched_jobs", matched_jobs)

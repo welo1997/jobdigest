@@ -30,7 +30,7 @@ from datetime import datetime
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from service import i18n, links, store, taxonomy  # noqa: E402
+from service import geo, i18n, links, store, taxonomy  # noqa: E402
 
 DEFAULT_LIMIT = 5            # curated highlights in the email; the rest live on /matches
 EMAIL_MIN_SCORE = 6         # a "strong" fit — a digest of these is the normal, headline case
@@ -166,7 +166,14 @@ def build_digest(profile: dict, limit: int = DEFAULT_LIMIT) -> list[dict]:
     # *candidates*, not 30 rows of which most are already in the subscriber's inbox. Without
     # it the window silently tightened as someone's history grew — 21 of 30 slots spent on
     # sent jobs after 15 days, and a 1-job email where 5 were available (see store.py).
-    picks = store.matched_jobs(profile["id"], limit=limit * 6, exclude_sent=True)
+    # `holdable_from` re-checks the reach rule at send time. The retrieval gate
+    # (`geo.reach_predicate`, 2026-08-17) stops new picks that are remote-but-bound-to-another-
+    # country, but `matches` is history: on the day it shipped one subscriber still held 49
+    # unsent, score-6-to-8 picks the rule refuses, so the next email would have looked like the
+    # one that prompted the fix. It also catches a posting `backfill_remote_reach` reclassified
+    # after it was matched. In SQL for the same reason `exclude_sent` is — see store.py.
+    picks = store.matched_jobs(profile["id"], limit=limit * 6, exclude_sent=True,
+                               holdable_from=geo.clean_countries(profile.get("countries")))
     # Kept deliberately: this is the guarantee ("a job is never emailed twice"), and it must
     # not depend on an optimisation flag staying switched on. It is now a no-op, and a
     # cheap one — if it ever drops a row again, the SQL above regressed.
