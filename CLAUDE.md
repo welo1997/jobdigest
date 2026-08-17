@@ -172,7 +172,21 @@ Each of these has been broken in production at least once. Reasoning and measure
   means work from home in one country: 82.1% `country`, 5.4% `region`, 0.5% `anywhere` — 83
   postings — and 12% NULL** (all 16 296 active remote rows, 2026-08-14) — so *do not build a
   feature on the assumption that fully-remote-abroad inventory is large*, and do not re-argue
-  the size of it from intuition. **The signal is a board's structured field first, location text second, prose
+  the size of it from intuition.
+  **That denominator is known to be inflated and is being corrected (2026-08-17).** `ashby` was the
+  corpus's largest remote claimant — 5 320 of its 9 598 active rows — and it read Ashby's derived
+  `isRemote` boolean while ignoring the employer's own single-valued `workplaceType`. Sampled over
+  14 live boards, **64% of its remote claims (882 of 1 378) are actually `Hybrid`** — on the order of
+  **~3 400 rows, about a fifth of the 16 296, were never fully remote.** Fixed at the source;
+  `remote_signal` comes from the adapter, so no backfill can recompute it and the rows correct
+  themselves over the ingest window. **The percentages are ratios and are not invalidated — the
+  reach classifier never read `isRemote` — but every absolute count resting on "active remote rows"
+  is, including the EU-International / North America-International figures below. Re-measure once
+  the window has turned over; do not re-derive them by argument.** The lesson is the invariant
+  itself arriving through a new door: a `remote_signal` is a *claim*, and a publisher's own
+  structured field beats a boolean the publisher derived. `is_fully_remote` cannot catch this class —
+  it re-reads the posting's prose, and `workplaceType` is a field, so the word "hybrid" appears
+  nowhere for it to find. **The signal is a board's structured field first, location text second, prose
   last.** Reading description prose alone found 5.8% and looked unprovable; that was the wrong
   layer. `JobPosting.scope_raw` carries the publisher's own scope field verbatim — it is a
   *claim*, like `remote_signal`, and the reason a classifier change can be backfilled without
