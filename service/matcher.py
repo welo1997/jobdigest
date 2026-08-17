@@ -84,7 +84,13 @@ fit perfectly; give it a score below 4 so it is dropped. Note that senior and le
 different kinds of job rather than adjacent rungs: someone targeting senior wants deeper \
 individual work, and a "Head of" role is not a promotion they asked for. Candidates whose \
 level the posting never stated are marked `seniority=unstated` — that is 70% of postings and \
-is NOT a mismatch, so judge them on overall fit like any other.
+is NOT a mismatch, so judge them on overall fit like any other. But `unstated` means only that \
+the posting's TITLE named no level; it is never a claim that the role has none. The description \
+frequently states one — "seeking a Senior Data Engineer", "you will have 6+ years", "graduate \
+scheme" — and where it clearly does, THAT is the posting's level and the hard filter above \
+applies to it in full. Read the description before concluding a level is unstated, exactly as \
+you read the location text of a `city=?` candidate. Where the description names no level either, \
+it is genuinely unstated and you judge it on overall fit.
 - Location is a HARD filter for anything that is not fully remote. The profile's "Locations" \
 line lists the countries the subscriber can work in and, where they named specific cities, \
 those cities. A posting that requires being somewhere else — another city, or a country they \

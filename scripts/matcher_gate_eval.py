@@ -117,6 +117,19 @@ CASES: list[dict] = [
             (_cand("a10", "Python Developer (Hybrid)", "Kappa", location="Ostrava",
                    city="ostrava", work_mode="hybrid",
                    desc="Hybrid, three days a week in our Ostrava office."), "drop"),
+            # **The level is in the prose, not the title.** `search_jobs.seniority()` reads titles,
+            # so this stores NULL and renders `seniority=unstated` — and the model then reported
+            # "unstated seniority" and scored a senior contract role 7 for an entry/junior
+            # subscriber. Reported from a real digest on 2026-08-17 (Pearson Carter, "Data Engineer
+            # - Remote - £70,000", whose description opens "seeking a Senior Data Engineer").
+            # The pairing with a6 above is the whole point: a6 says nothing about level and must be
+            # KEPT, this one says it plainly and must be DROPPED. A rule that cannot tell them
+            # apart either leaks senior roles or deletes 70% of the corpus.
+            (_cand("a11", "Python Developer - Remote - CZK 120,000 - Contract", "Lambda",
+                   location="Praha", city="prague",
+                   desc="An established client is seeking a Senior Python Engineer on an initial "
+                        "6-month contract. You will own the platform and mentor the team."),
+             "drop"),
         ],
     },
     {

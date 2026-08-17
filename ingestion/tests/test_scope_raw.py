@@ -163,6 +163,52 @@ def test_ashby_captures_the_secondary_locations():
     assert geo.remote_reach(posting.scope_raw) == "region"
 
 
+# --- Ashby: `workplaceType` outranks `isRemote`, because on a hybrid role they disagree -----
+
+
+def test_ashby_hybrid_is_not_remote_even_when_isremote_is_true():
+    """The live `lovable` Sales "Analytics Engineer", 2026-08-17: `isRemote: true` alongside
+    `workplaceType: "Hybrid"`, Stockholm with secondaries in Boston and New York.
+
+    Reading the boolean alone stored `remote_signal=true`, `geo.work_mode` resolved that to
+    `remote`, and a fully-remote posting is exempt from the city test — so a job that means three
+    days a week in Stockholm reached a Prague subscriber's matches labelled "EU / Remote".
+
+    **Nothing downstream could catch it.** `is_fully_remote` re-reads the posting's own words, but
+    `workplaceType` is a structured field: the string "hybrid" appears nowhere in that description.
+    A false claim has to be corrected where it is made.
+    """
+    items = [{
+        "jobUrl": "https://jobs.ashbyhq.com/lovable/analytics-engineer",
+        "title": "Analytics Engineer",
+        "location": "Stockholm",
+        "secondaryLocations": [{"location": "Boston"}, {"location": "New York"}],
+        "isRemote": True, "workplaceType": "Hybrid", "isListed": True, "_org": "lovable",
+        "descriptionPlain": "Own the data foundations that fuel the GTM teams. dbt, Snowflake.",
+    }]
+    posting, = AshbySource().normalize(items)
+    assert posting.remote_signal is False
+    # The scope is still captured — where the job may be *held* is a separate question from
+    # whether it has an office, and Boston/New York remain true of it either way.
+    assert posting.scope_raw == "Stockholm, Boston, New York"
+
+
+def test_ashby_reads_workplace_type_in_both_directions():
+    """A genuine remote role must survive the same rule, or the fix trades one silent loss for
+    another — and a board that predates the field must keep working on `isRemote` alone."""
+    def one(**kw):
+        item = {"jobUrl": "https://jobs.ashbyhq.com/x/y", "title": "T", "location": "L",
+                "isListed": True, "_org": "x", **kw}
+        return AshbySource().normalize([item])[0]
+
+    assert one(isRemote=True, workplaceType="Remote").remote_signal is True
+    assert one(isRemote=False, workplaceType="OnSite").remote_signal is False
+    # `workplaceType` present but unrecognised, and absent entirely: fall back to the boolean
+    # rather than dropping genuine remote inventory on a field we failed to parse.
+    assert one(isRemote=True).remote_signal is True
+    assert one(isRemote=True, workplaceType="").remote_signal is True
+
+
 def test_ashby_never_lets_a_secondary_location_reach_the_location_column():
     """This is the whole reason `scope_raw` is a separate field.
 

@@ -314,7 +314,7 @@ class AshbySource(BaseSource):
                     description=item.get("descriptionHtml") or item.get("descriptionPlain"),
                     location=item.get("location"),
                     country_code=self._country(item),
-                    remote_signal=bool(item.get("isRemote")),
+                    remote_signal=self._is_remote(item),
                     salary_raw=None,
                     currency=None,
                     posted_at=self._parse(item.get("publishedAt")),
@@ -324,6 +324,33 @@ class AshbySource(BaseSource):
         logger.info("Ashby: normalised %d postings (%d carrying a scope)",
                     len(postings), sum(1 for p in postings if p.scope_raw))
         return postings
+
+    @staticmethod
+    def _is_remote(item: dict) -> bool:
+        """Fully remote per the publisher's own fields — `workplaceType` first, `isRemote` only
+        as the fallback.
+
+        **Ashby publishes both, and on a hybrid role they disagree.** Measured on the live
+        `lovable` board 2026-08-17: its Sales "Analytics Engineer" carries
+        `isRemote: true` with `workplaceType: "Hybrid"`, location Stockholm and secondaries in
+        Boston and New York. Reading the boolean alone stored it as `remote_signal=true`, which
+        `geo.work_mode` then resolved to `remote` — and a fully-remote posting is exempt from the
+        city test, so a hybrid Stockholm job reached a Prague subscriber's matches described as
+        "EU / Remote". Hybrid is not remote; it is three days a week in Stockholm.
+
+        **Nothing downstream could have caught it.** `is_fully_remote` re-reads the posting's own
+        words, but `workplaceType` is a structured field — the string "hybrid" appears nowhere in
+        that description, so the prose check had nothing to find. The claim has to be corrected
+        where the claim is made.
+
+        Positive detection, in this module's usual direction: only `Remote` means remote. An
+        absent or unrecognised `workplaceType` falls back to `isRemote`, because some boards
+        predate the field and refusing them would silently drop genuine remote inventory.
+        """
+        workplace = str(item.get("workplaceType") or "").strip().lower()
+        if workplace:
+            return workplace == "remote"
+        return bool(item.get("isRemote"))
 
     @staticmethod
     def _scope(item: dict) -> Optional[str]:
