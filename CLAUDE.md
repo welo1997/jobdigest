@@ -62,9 +62,7 @@ you touch that rule.
 ### Flow
 
 ```
-03:00 UTC  export   ingest sources → Postgres → embed new rows → shortlists.json → Drive
-~06:00     routine  claude.ai reads shortlists.json → writes picks.json      (no DB, no key)
-07:00 UTC  import   pull picks.json → validate → matches → build + send digests
+05:00 UTC  digest   ingest sources → Postgres → AI match (metered API, due subs only) → send
 08:00 UTC  sources  per-source freshness + churn → alert if a source silently died
 09:00 UTC  watchdog digest_runs → alert if any subscriber has had nothing for 3 days
 01:30 UTC  backup   pg_dump → encrypt → off-box
@@ -79,10 +77,14 @@ subscriber, then one Claude call reads the whole shortlist in context and picks 
 Cost scales with subscribers, not inventory. Candidates go to the model by integer index —
 posting IDs never round-trip — and invented indices are dropped.
 
-**The export's deadline is the ~06:00 routine, not the 07:00 import.** An export still
-running at 06:00 does not delay the routine, it *misses* it, and every subscriber gets
-yesterday's file or none — with no error anywhere. The 2026-08-07 run took 39m40s of a
-3-hour window. Re-measure after any change that adds N+1 work, and keep an hour of slack.
+**Matching runs on the box with a metered `ANTHROPIC_API_KEY` (since 2026-08-17), not the old
+claude.ai routine.** `service.matcher.run()` reranks only the subscribers `pipeline._is_due`
+will actually email today — a weekly subscriber is not billed on the five off days — and
+`match_one` powers an on-demand `POST /digest/run` (6h cooldown). Using a personal Claude/Codex
+subscription as a headless backend was ruled out on terms (Anthropic Consumer Terms + OpenAI
+ToS both forbid commercial + automated subscription use); the licensed path is the API key. The
+`export_shortlists`/`import_picks`/Drive/`shortlist_shadow`/embed code is retained but **no
+longer scheduled** — do not treat the routine as live. See `deploy/matcher-routine.md`.
 
 ### The invariants
 

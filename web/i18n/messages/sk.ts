@@ -359,6 +359,15 @@ const sk: Messages = {
     searchPlaceholder: "Pozícia, zručnosť alebo firma",
     greatFitsOnly: "Len najlepšie ponuky",
     clearFilter: "Zrušiť",
+    refreshNow: "Aktualizovať ponuky",
+    refreshBusy: "Aktualizujem…",
+    refreshSent: {
+      one: "Do vašej schránky bola odoslaná {n} nová ponuka.",
+      few: "Do vašej schránky boli odoslané {n} nové ponuky.",
+      other: "Do vašej schránky bolo odoslaných {n} nových ponúk.",
+    },
+    refreshNone: "Zatiaľ žiadne nové ponuky — skúste to neskôr.",
+    refreshFailed: "Aktualizácia sa teraz nepodarila — skúste to o chvíľu.",
   },
 
   hidden: {

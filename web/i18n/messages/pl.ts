@@ -365,6 +365,16 @@ const pl: Messages = {
     searchPlaceholder: "Stanowisko, umiejętność lub firma",
     greatFitsOnly: "Tylko najlepsze oferty",
     clearFilter: "Wyczyść",
+    refreshNow: "Odśwież dopasowania",
+    refreshBusy: "Odświeżanie…",
+    refreshSent: {
+      one: "Wysłano {n} nową ofertę na Twoją skrzynkę.",
+      few: "Wysłano {n} nowe oferty na Twoją skrzynkę.",
+      many: "Wysłano {n} nowych ofert na Twoją skrzynkę.",
+      other: "Wysłano {n} nowych ofert na Twoją skrzynkę.",
+    },
+    refreshNone: "Na razie brak nowych dopasowań — zajrzyj później.",
+    refreshFailed: "Nie udało się odświeżyć — spróbuj za chwilę.",
   },
 
   hidden: {

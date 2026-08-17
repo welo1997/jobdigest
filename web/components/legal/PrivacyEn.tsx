@@ -86,7 +86,8 @@ export default function PrivacyEn() {
             processes nothing.</li>
         </ul>
         <p>Choosing which jobs fit you is done by an AI matching step, and that step runs outside
-          the EU. Once a day we send it a file containing, for each subscriber:</p>
+          the EU. Each day — and again whenever you press &quot;refresh matches now&quot; on your
+          matches page — we send it, for each subscriber:</p>
         <ul>
           <li>a random identifier — <b>not your email address, and not your name</b>;</li>
           <li>your stated preferences (roles, skills, the countries and cities you chose, the
@@ -95,14 +96,13 @@ export default function PrivacyEn() {
           <li>your CV-derived summary line, if you uploaded one (section 4);</li>
           <li>the public job listings we are asking it to rank.</li>
         </ul>
-        <p>That file is transferred via <b>Google Drive</b> (Google Ireland Ltd / Google LLC) and read
-          by <b>Anthropic</b> (Claude), both of which may process it in the United States. Transfers
-          rely on the European Commission&apos;s Standard Contractual Clauses and the EU–US Data
-          Privacy Framework. The file deliberately contains <b>no email address and no name</b>, so it
-          does not directly identify you. It is <b>pseudonymised, not anonymous</b> — it remains
-          personal data, and we treat it as such, which is why the transfer relies on the safeguards
-          above; your address itself never leaves our EU database. The results come back as a list of
-          job matches against that same random identifier.</p>
+        <p>This is sent <b>directly from our EU server to Anthropic</b> (Claude), which may process it
+          in the United States. The transfer relies on the European Commission&apos;s Standard
+          Contractual Clauses and the EU–US Data Privacy Framework. It deliberately contains <b>no
+          email address and no name</b>, so it does not directly identify you. It is <b>pseudonymised,
+          not anonymous</b> — it remains personal data, and we treat it as such, which is why the
+          transfer relies on the safeguards above; your address itself never leaves our EU database.
+          The results come back as a list of job matches against that same random identifier.</p>
 
         <h2>6. Cookies &amp; usage statistics</h2>
         <p>The site sets <b>no advertising or analytics cookies</b>. It sets one

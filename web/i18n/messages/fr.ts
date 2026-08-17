@@ -329,6 +329,14 @@ const fr: Messages = {
     searchPlaceholder: "Poste, compétence ou entreprise",
     greatFitsOnly: "Meilleures offres uniquement",
     clearFilter: "Effacer",
+    refreshNow: "Actualiser les offres",
+    refreshBusy: "Actualisation…",
+    refreshSent: {
+      one: "{n} nouvelle offre envoyée dans votre boîte mail.",
+      other: "{n} nouvelles offres envoyées dans votre boîte mail.",
+    },
+    refreshNone: "Aucune nouvelle offre pour l'instant — revenez plus tard.",
+    refreshFailed: "Impossible d'actualiser pour le moment — réessayez dans un instant.",
   },
 
   hidden: {

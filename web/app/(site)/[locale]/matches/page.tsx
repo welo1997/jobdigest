@@ -4,7 +4,7 @@ import { Suspense, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { Nav, Footer } from "@/components/SiteChrome";
 import { MatchCard, SelectionBar } from "@/components/MatchCard";
-import { setMatchesHidden } from "@/lib/api";
+import { setMatchesHidden, runDigestNow } from "@/lib/api";
 import { track } from "@/lib/analytics";
 import { useMatchList } from "@/lib/useMatchList";
 import { categoryLabel } from "@/lib/options";
@@ -147,6 +147,26 @@ function Inner() {
   const [picked, setPicked] = useState<Set<string>>(new Set());
   const [hiding, setHiding] = useState(false);
   const [hideErr, setHideErr] = useState(false);
+  // On-demand "run my digest now": re-match this subscriber and email a fresh digest, then
+  // refetch so the new picks appear in place. The server owns the cooldown — a 429 surfaces
+  // as `e.message` (English), the same as every other API error the UI shows.
+  const [refreshing, setRefreshing] = useState(false);
+  const [refreshMsg, setRefreshMsg] = useState("");
+
+  const refreshNow = async () => {
+    if (refreshing) return;
+    setRefreshing(true);
+    setRefreshMsg("");
+    try {
+      const res = await runDigestNow(list.token || undefined);
+      setRefreshMsg(res.sent ? count(res.jobs, t.matches.refreshSent) : t.matches.refreshNone);
+      list.reload();   // the run rewrote `matches` — show the new picks without a full reload
+    } catch (e) {
+      setRefreshMsg(e instanceof Error ? e.message : t.matches.refreshFailed);
+    } finally {
+      setRefreshing(false);
+    }
+  };
 
   const toggle = (id: string) =>
     setPicked((prev) => {
@@ -437,6 +457,14 @@ function Inner() {
         <span className="label">{t.matches.label}</span>
         <h1>{data.count > 0 ? count(data.count, t.matches.countTitle) : t.matches.noneTitle}</h1>
         <p>{rich(t.matches.intro, [<b key="e">{data.email}</b>])}</p>
+        <div className="row" style={{ marginTop: 12, alignItems: "center", gap: 12 }}>
+          <button type="button" className="btn" onClick={refreshNow} disabled={refreshing}>
+            {refreshing ? t.matches.refreshBusy : t.matches.refreshNow}
+          </button>
+          {refreshMsg && (
+            <span className="hint" role="status" aria-live="polite">{refreshMsg}</span>
+          )}
+        </div>
       </div>
 
       {data.count === 0 && !filtering ? (

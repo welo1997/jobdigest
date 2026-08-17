@@ -101,7 +101,8 @@ export default function PrivacyCs() {
             nepoužijete, Google nezpracovává nic.</li>
         </ul>
         <p>Výběr nabídek, které vám sedí, provádí krok párování s využitím AI, a ten běží mimo
-          EU. Jednou denně mu posíláme soubor obsahující ke každému odběrateli:</p>
+          EU. Každý den — a znovu pokaždé, když na stránce svých shod stisknete
+          „aktualizovat nabídky“ — mu posíláme ke každému odběrateli:</p>
         <ul>
           <li>náhodný identifikátor — <b>nikoli vaši e-mailovou adresu a nikoli vaše jméno</b>;</li>
           <li>vámi uvedené předvolby (pozice, dovednosti, zvolené země a města, formy práce,
@@ -110,15 +111,14 @@ export default function PrivacyCs() {
           <li>shrnutí odvozené z vašeho životopisu, pokud jste jej nahráli (oddíl 4);</li>
           <li>veřejné pracovní nabídky, které má seřadit.</li>
         </ul>
-        <p>Tento soubor se přenáší přes <b>Google Drive</b> (Google Ireland Ltd / Google LLC) a
-          čte jej <b>Anthropic</b> (Claude); obě společnosti jej mohou zpracovávat ve Spojených
-          státech. Přenosy se opírají o standardní smluvní doložky Evropské komise a rámec
-          EU–USA pro ochranu osobních údajů (Data Privacy Framework). Soubor záměrně neobsahuje
-          <b> žádnou e-mailovou adresu ani jméno</b>, takže vás přímo neidentifikuje. Jde o údaje
-          <b> pseudonymizované, nikoli anonymní</b> — zůstávají osobními údaji a jako s takovými
-          s nimi nakládáme, což je důvod, proč se přenos opírá o výše uvedené záruky; samotná vaše
-          adresa nikdy neopustí naši databázi v EU. Výsledky se vracejí jako seznam odpovídajících
-          nabídek k témuž náhodnému identifikátoru.</p>
+        <p>Tyto údaje posíláme <b>přímo z našeho serveru v EU společnosti Anthropic</b> (Claude),
+          která je může zpracovávat ve Spojených státech. Přenos se opírá o standardní smluvní
+          doložky Evropské komise a rámec EU–USA pro ochranu osobních údajů (Data Privacy
+          Framework). Záměrně neobsahují <b>žádnou e-mailovou adresu ani jméno</b>, takže vás přímo
+          neidentifikují. Jde o údaje <b>pseudonymizované, nikoli anonymní</b> — zůstávají osobními
+          údaji a jako s takovými s nimi nakládáme, což je důvod, proč se přenos opírá o výše
+          uvedené záruky; samotná vaše adresa nikdy neopustí naši databázi v EU. Výsledky se
+          vracejí jako seznam odpovídajících nabídek k témuž náhodnému identifikátoru.</p>
 
         <h2>6. Cookies a statistiky používání</h2>
         <p>Web nenastavuje <b>žádné reklamní ani analytické cookies</b>. Nastavuje jednu

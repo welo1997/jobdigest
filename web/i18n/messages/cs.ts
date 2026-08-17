@@ -360,6 +360,15 @@ const cs: Messages = {
     searchPlaceholder: "Pozice, dovednost nebo firma",
     greatFitsOnly: "Jen nejlepší nabídky",
     clearFilter: "Zrušit",
+    refreshNow: "Aktualizovat nabídky",
+    refreshBusy: "Aktualizuji…",
+    refreshSent: {
+      one: "Do vaší schránky byla odeslána {n} nová nabídka.",
+      few: "Do vaší schránky byly odeslány {n} nové nabídky.",
+      other: "Do vaší schránky bylo odesláno {n} nových nabídek.",
+    },
+    refreshNone: "Zatím žádné nové nabídky — zkuste to později.",
+    refreshFailed: "Aktualizace se teď nezdařila — zkuste to za chvíli.",
   },
 
   hidden: {

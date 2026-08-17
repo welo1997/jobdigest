@@ -40,6 +40,17 @@ DESC_CHARS = 320           # per-candidate description budget (keeps input token
 # Store any pick scoring >= this. The email keeps a higher bar (digest.EMAIL_MIN_SCORE);
 # the extra 4-5s are surfaced on the "all matches" web page, not emailed.
 MATCH_FLOOR = int(os.environ.get("MATCH_FLOOR", "4"))
+# Metered-path abort budget. 0 = no ceiling (the default). When >0, a run stops matching
+# further subscribers once accumulated tokens (input + output) cross it, so a bug that
+# inflates a shortlist or loops can never run up unbounded API spend before anyone notices.
+# It is a *safety cap*, not a per-day cost target — set it well above a healthy run's usage.
+MAX_RUN_TOKENS = int(os.environ.get("MATCHER_MAX_TOKENS", "0"))
+# Haiku 4.5 list price ($/token), for the end-of-run cost line only — never a gate.
+_PRICE_IN, _PRICE_OUT, _PRICE_CACHE_READ = 1.0e-6, 5.0e-6, 0.10e-6
+
+
+def _run_cost_usd(u: dict) -> float:
+    return u["input"] * _PRICE_IN + u["output"] * _PRICE_OUT + u["cache_read"] * _PRICE_CACHE_READ
 
 SYSTEM = """You are the matching engine for JobDigest, a daily job-alert product. You are \
 given ONE subscriber's profile and a numbered list of current job postings that a cheap \
@@ -190,8 +201,29 @@ def _candidates_block(shortlist: list[dict]) -> tuple[str, dict[int, str]]:
     return "\n".join(rows), index_map
 
 
-def match_profile(client, profile: dict, shortlist: list[dict]) -> list[dict]:
-    """Return [{posting_id, score, summary}] the model judged a genuine fit."""
+def _accumulate_usage(acc: dict | None, resp) -> None:
+    """Fold one response's token usage into a run-level accumulator (in place, never raises).
+
+    Purely for the metered path's cost log and abort budget — the SYSTEM block is prompt-cached
+    (`cache_control` below), so `cache_read` is where most input tokens go after the first
+    subscriber in a run, and the log separates the two so a cache regression is visible."""
+    if acc is None:
+        return
+    u = getattr(resp, "usage", None)
+    if u is None:
+        return
+    acc["input"] += getattr(u, "input_tokens", 0) or 0
+    acc["output"] += getattr(u, "output_tokens", 0) or 0
+    acc["cache_read"] += getattr(u, "cache_read_input_tokens", 0) or 0
+    acc["calls"] += 1
+
+
+def match_profile(client, profile: dict, shortlist: list[dict],
+                  usage_acc: dict | None = None) -> list[dict]:
+    """Return [{posting_id, score, summary}] the model judged a genuine fit.
+
+    `usage_acc`, when given, is updated in place with this call's token usage — the metered
+    path passes one so it can log the run's cost and honour an abort budget."""
     candidates, index_map = _candidates_block(shortlist)
     user = (
         f"SUBSCRIBER PROFILE:\n{_profile_block(profile)}\n\n"
@@ -204,6 +236,7 @@ def match_profile(client, profile: dict, shortlist: list[dict]) -> list[dict]:
         system=[{"type": "text", "text": SYSTEM, "cache_control": {"type": "ephemeral"}}],
         messages=[{"role": "user", "content": user}],
     )
+    _accumulate_usage(usage_acc, resp)
     raw = resp.content[0].text.strip()
     if raw.startswith("```"):
         raw = "\n".join(l for l in raw.split("\n") if not l.strip().startswith("```")).strip()
@@ -643,63 +676,107 @@ def import_picks(path: str) -> int:
     return total
 
 
+def _match_and_store(client, profile: dict, shortlist_size: int = SHORTLIST_SIZE,
+                     usage_acc: dict | None = None) -> int:
+    """Match one subscriber against their shortlist and write the picks to `matches`.
+
+    The single per-subscriber unit, shared by the daily batch (`run`) and the on-demand
+    endpoint (`match_one`). Records `shortlist_n`/`widened` then `picks_n` on `digest_runs`
+    *before* any early return, so a subscriber the retrieval found nothing for still leaves a
+    trace (the watchdog's `RETRIEVAL` case). Returns the number of picks stored — 0 if the
+    shortlist was empty or the match call failed. A failed call is logged, never raised, so one
+    bad subscriber can never abort the rest of a batch."""
+    pid = profile.get("id")
+    shortlist, meta = store.query_shortlist_meta(profile, limit=shortlist_size)
+    already = store.already_sent_ids(pid) if pid else set()
+    shortlist = [c for c in shortlist if c["posting_id"] not in already]
+    store.record_digest_run(pid, shortlist_n=len(shortlist), widened=bool(meta.get("widened")))
+    if not shortlist:
+        logger.warning("profile %s (%s): no fresh candidates (retrieval found %d)",
+                       pid, profile.get("email"), meta["n"])
+        return 0
+    try:
+        picks = match_profile(client, profile, shortlist, usage_acc=usage_acc)
+    except Exception:
+        logger.exception("profile %s: match call failed, skipping", pid)
+        return 0
+    for pk in picks:
+        store.upsert_match(pid, pk["posting_id"], pk["score"], pk["summary"])
+    store.record_digest_run(pid, picks_n=len(picks))
+    logger.info("profile %s (%s): %d candidates -> %d picks",
+                pid, profile.get("email"), len(shortlist), len(picks))
+    return len(picks)
+
+
+def match_one(profile: dict, shortlist_size: int = SHORTLIST_SIZE) -> int:
+    """Match a single, already-resolved subscriber synchronously — the on-demand path.
+
+    Creates its own metered client, matches just this profile, writes the picks, and returns
+    the count. Raises only if `ANTHROPIC_API_KEY` is unset (a misconfigured box, which the
+    caller turns into a 5xx); a transient API failure is swallowed by `_match_and_store` and
+    returns 0, so the endpoint then simply sends from whatever is already in `matches`."""
+    import anthropic
+    client = anthropic.Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
+    return _match_and_store(client, profile, shortlist_size)
+
+
 def run(email: str | None = None, limit_profiles: int | None = None,
-        shortlist_size: int = SHORTLIST_SIZE, dry_run: bool = False) -> None:
-    if email:
-        # Match a single subscriber by email — any status, so it works before confirm too.
-        with store.cursor() as cur:
-            cur.execute("select * from profiles where lower(email) = %s order by created_at desc limit 1",
-                        (email.lower(),))
-            row = cur.fetchone()
-            profiles = [dict(row)] if row else []
-    else:
-        profiles = store.sendable_profiles()
+        shortlist_size: int = SHORTLIST_SIZE, dry_run: bool = False,
+        profiles: list[dict] | None = None) -> None:
+    """Match subscribers and write picks to `matches` (the metered daily batch).
+
+    `profiles` lets the caller pass an explicit set — the pipeline passes only the subscribers
+    it will actually send to today (`_is_due`), so a weekly subscriber is not matched, and
+    billed, on the five days no digest goes out. With no list given it falls back to a single
+    `email`, or to every `sendable_profile` (the old behaviour)."""
+    if profiles is None:
+        if email:
+            # Match one subscriber by email — any status, so it works before confirm too.
+            with store.cursor() as cur:
+                cur.execute("select * from profiles where lower(email) = %s order by created_at desc limit 1",
+                            (email.lower(),))
+                row = cur.fetchone()
+                profiles = [dict(row)] if row else []
+        else:
+            profiles = store.sendable_profiles()
     if limit_profiles:
         profiles = profiles[:limit_profiles]
 
     logger.info("Matching %d profile(s) with model %s%s",
                 len(profiles), MODEL, " [DRY RUN]" if dry_run else "")
 
-    client = None
-    if not dry_run:
-        import anthropic
-        client = anthropic.Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
-
-    total_picks = 0
-    for p in profiles:
-        shortlist, meta = store.query_shortlist_meta(p, limit=shortlist_size)
-        already = store.already_sent_ids(p["id"]) if p.get("id") else set()
-        shortlist = [c for c in shortlist if c["posting_id"] not in already]
-        if not dry_run:
-            store.record_digest_run(p.get("id"), shortlist_n=len(shortlist),
-                                    widened=bool(meta.get("widened")))
-        if not shortlist:
-            logger.warning("profile %s (%s): no fresh candidates (retrieval found %d)",
-                           p.get("id"), p.get("email"), meta["n"])
-            continue
-
-        if dry_run:
+    if dry_run:
+        for p in profiles:
+            shortlist, meta = store.query_shortlist_meta(p, limit=shortlist_size)
+            already = store.already_sent_ids(p["id"]) if p.get("id") else set()
+            shortlist = [c for c in shortlist if c["posting_id"] not in already]
             cand, _ = _candidates_block(shortlist)
             logger.info("profile %s (%s): %d candidates (dry run, no API call)",
                         p.get("id"), p.get("email"), len(shortlist))
             print(f"\n--- SYSTEM ---\n{SYSTEM}\n--- USER (first 1500 chars) ---")
             print((f"SUBSCRIBER PROFILE:\n{_profile_block(p)}\n\nPOSTINGS ({len(shortlist)}):\n{cand}")[:1500])
-            continue
+        return
 
-        try:
-            picks = match_profile(client, p, shortlist)
-        except Exception:
-            logger.exception("profile %s: match call failed, skipping", p.get("id"))
-            continue
+    import anthropic
+    client = anthropic.Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
+    usage = {"input": 0, "output": 0, "cache_read": 0, "calls": 0}
 
-        for pk in picks:
-            store.upsert_match(p["id"], pk["posting_id"], pk["score"], pk["summary"])
-        total_picks += len(picks)
-        store.record_digest_run(p.get("id"), picks_n=len(picks))
-        logger.info("profile %s (%s): %d candidates -> %d picks",
-                    p.get("id"), p.get("email"), len(shortlist), len(picks))
+    total_picks = matched = 0
+    for p in profiles:
+        # Abort budget, checked before each call: a bug that inflated a shortlist or looped
+        # stops here rather than after billing every subscriber. 0 disables it (the default).
+        if MAX_RUN_TOKENS and (usage["input"] + usage["output"]) >= MAX_RUN_TOKENS:
+            logger.error("Matcher ABORT BUDGET hit (%d tokens >= MATCHER_MAX_TOKENS=%d) after "
+                         "%d/%d subscribers — stopping to avoid unbounded spend",
+                         usage["input"] + usage["output"], MAX_RUN_TOKENS, matched, len(profiles))
+            break
+        total_picks += _match_and_store(client, p, shortlist_size, usage_acc=usage)
+        matched += 1
 
-    logger.info("Matcher done: %d picks across %d profiles", total_picks, len(profiles))
+    logger.info("Matcher done: %d picks across %d/%d profiles; tokens in=%d cache_read=%d "
+                "out=%d over %d call(s) ~ $%.4f", total_picks, matched, len(profiles),
+                usage["input"], usage["cache_read"], usage["output"], usage["calls"],
+                _run_cost_usd(usage))
 
 
 def main() -> None:

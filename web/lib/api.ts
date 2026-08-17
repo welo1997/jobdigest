@@ -348,6 +348,17 @@ export function resume(token?: string) {
   });
 }
 
+// On-demand "run my digest now": re-match this subscriber and email them a fresh digest.
+// POST because it spends a metered API call and sends mail — never a GET a scanner could
+// fire. `sent` is false with `jobs: 0` when the matcher found nothing new (not an error).
+// A 429 means the per-subscriber cooldown is still active; the caller shows that message.
+export function runDigestNow(token?: string) {
+  return req<{ ok: boolean; matched: number; sent: boolean; jobs: number }>("/digest/run", {
+    method: "POST",
+    body: JSON.stringify(token ? { token } : {}),
+  });
+}
+
 // Logged-in unsubscribe: no token, authenticated by the session cookie. The backend tears
 // down every session for the profile and clears the cookie, so we send it form-encoded
 // (the endpoint parses form fields) with no token and no `confirm` -> JSON reply.

@@ -1,9 +1,14 @@
-# Fire the digest pipeline every morning at 07:00 local time.
+# Fire the full daily digest (ingest + match + send) at 05:00 UTC.
+#
+# One unit now does everything on the box, so there is no export→routine→import window to
+# straddle — the old 03:00 export / ~06:00 routine / 07:00 import schedule is gone. 05:00 keeps
+# it clear of the 01:30 backup and the 08:00/09:00 watchdogs, and leaves the source-watchdog at
+# 08:00 looking at a corpus this run has already refreshed.
 [Unit]
-Description=Run JobDigest pipeline daily at 07:00
+Description=Run the JobDigest daily digest at 05:00 UTC
 
 [Timer]
-OnCalendar=*-*-* 07:00:00
+OnCalendar=*-*-* 05:00:00
 Persistent=true
 Unit=jobdigest-pipeline.service
 

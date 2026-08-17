@@ -54,6 +54,41 @@ def _is_due(profile: dict, now: datetime) -> bool:
     return True
 
 
+def send_one(profile: dict, base_url: str = BASE_URL, dry_run: bool = False) -> dict:
+    """Build and send one subscriber's digest. Returns {"sent": bool, "n": int}.
+
+    The single per-subscriber send unit, shared by the daily loop and the on-demand endpoint.
+    `build_digest` reads the matcher's picks from `matches` and drops anything already emailed
+    (`digest_sends`), so an on-demand send can never repeat a job the daily run already sent —
+    the dedup guarantee holds across both paths for free. On a real send it records
+    `digest_sends` + `last_digest_at`, which is also why an on-demand run earlier in the day
+    stops that day's automatic run from sending the same subscriber twice (`_is_due`)."""
+    jobs = digestmod.build_digest(profile, limit=digestmod.DEFAULT_LIMIT)
+    if not dry_run:
+        # Recorded before the empty-return: "this subscriber had nothing to send" is the
+        # outcome most worth seeing, and the one that otherwise leaves no trace anywhere.
+        store.record_digest_run(profile["id"], sendable_n=len(jobs))
+    if not jobs:
+        return {"sent": False, "n": 0}
+
+    total = store.match_count(profile["id"])         # all matches, for the "see all N" CTA
+    subject = digestmod.subject_line(profile, jobs)
+    html = digestmod.render_html(profile, jobs, base_url=base_url, total_matches=total)
+    text = digestmod.render_text(profile, jobs, base_url=base_url, total_matches=total)
+    unsub = digestmod._manage_url(profile, "unsub")
+
+    if dry_run:
+        logger.info("[dry-run] would send %d jobs to %s (%s)", len(jobs), profile["email"], subject)
+        return {"sent": True, "n": len(jobs)}
+
+    ref = mailer.send(profile["email"], subject, html, text, list_unsubscribe=unsub)
+    store.record_sends(profile["id"], [(j["posting_id"], j["score"]) for j in jobs])
+    store.mark_digest_sent(profile["id"])
+    store.record_digest_run(profile["id"], sent=True)
+    logger.info("Sent %d jobs to %s -> %s", len(jobs), profile["email"], ref)
+    return {"sent": True, "n": len(jobs)}
+
+
 def run(ingest: bool = False, cz: bool = False, match: bool = False,
         limit: int | None = None, dry_run: bool = False, prune: bool = True) -> dict:
     now = datetime.now(timezone.utc)
@@ -85,47 +120,29 @@ def run(ingest: bool = False, cz: bool = False, match: bool = False,
                     rolled, events, RETENTION_EVENT_DAYS,
                     unsubbed, RETENTION_UNSUB_DAYS, sessions, intents)
 
-    if match:
-        from service.matcher import run as match_run
-        logger.info("Matching subscribers (AI rerank)...")
-        match_run(limit_profiles=limit)
-
+    # Compute the send set once. `due` is who actually gets an email today (frequency +
+    # not-already-sent), and it is what the matcher is pointed at — matching only the due
+    # subscribers is what stops a weekly subscriber being AI-matched, and billed, on the five
+    # days no digest goes out for them. `nulls-first` priority order is preserved.
     profiles = store.sendable_profiles()
     if limit:
         profiles = profiles[:limit]
-    logger.info("%d sendable profiles", len(profiles))
+    due = [p for p in profiles if _is_due(p, now)]
+    skipped_notdue = len(profiles) - len(due)
+    logger.info("%d sendable profiles, %d due today", len(profiles), len(due))
 
-    sent = skipped_nojobs = skipped_notdue = 0
-    for p in profiles:
-        if not _is_due(p, now):
-            skipped_notdue += 1
-            continue
-        jobs = digestmod.build_digest(p, limit=digestmod.DEFAULT_LIMIT)
-        if not dry_run:
-            # Recorded before the skip: "this subscriber had nothing to send" is the outcome
-            # most worth seeing, and it is the one that otherwise leaves no trace anywhere.
-            store.record_digest_run(p["id"], sendable_n=len(jobs))
-        if not jobs:
-            skipped_nojobs += 1                        # only when the matcher found nothing new
-            continue
+    if match:
+        from service.matcher import run as match_run
+        logger.info("Matching %d due subscriber(s) (AI rerank)...", len(due))
+        match_run(profiles=due, dry_run=dry_run)
 
-        total = store.match_count(p["id"])           # all matches, for the "see all N" CTA
-        subject = digestmod.subject_line(p, jobs)
-        html = digestmod.render_html(p, jobs, base_url=BASE_URL, total_matches=total)
-        text = digestmod.render_text(p, jobs, base_url=BASE_URL, total_matches=total)
-        unsub = digestmod._manage_url(p, "unsub")
-
-        if dry_run:
-            logger.info("[dry-run] would send %d jobs to %s (%s)", len(jobs), p["email"], subject)
+    sent = skipped_nojobs = 0
+    for p in due:
+        r = send_one(p, base_url=BASE_URL, dry_run=dry_run)
+        if r["sent"]:
             sent += 1
-            continue
-
-        ref = mailer.send(p["email"], subject, html, text, list_unsubscribe=unsub)
-        store.record_sends(p["id"], [(j["posting_id"], j["score"]) for j in jobs])
-        store.mark_digest_sent(p["id"])
-        store.record_digest_run(p["id"], sent=True)
-        sent += 1
-        logger.info("Sent %d jobs to %s -> %s", len(jobs), p["email"], ref)
+        else:
+            skipped_nojobs += 1                        # only when the matcher found nothing new
 
     summary = {"sendable": len(profiles), "sent": sent,
                "skipped_no_matches": skipped_nojobs, "skipped_not_due": skipped_notdue}

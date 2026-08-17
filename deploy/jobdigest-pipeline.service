@@ -1,14 +1,26 @@
-# Daily digest run (systemd timer fallback for cron). Install:
+# JobDigest daily digest — the whole run in one unit: ingest → AI match (metered API) → send.
+#
+# This replaced the two-phase claude.ai routine on 2026-08-17. Matching now runs on the box
+# with ANTHROPIC_API_KEY (see deploy/.env), so there is no Drive round-trip and no ~06:00
+# routine deadline — `--match` reranks only the subscribers due today (see service/pipeline.py)
+# and `service.matcher` bills per subscriber (~3c/day on Haiku). The old
+# jobdigest-match-export/import timers and the claude.ai routine are retired; disable them:
+#   sudo systemctl disable --now jobdigest-match-export.timer jobdigest-match-import.timer
+#
+# Install:
 #   sudo cp deploy/jobdigest-pipeline.* /etc/systemd/system/
-#   edit WorkingDirectory below to the repo's deploy/ path, then:
 #   sudo systemctl daemon-reload && sudo systemctl enable --now jobdigest-pipeline.timer
+# Requires ANTHROPIC_API_KEY in deploy/.env (compose passes it to the pipeline container).
 [Unit]
-Description=JobDigest daily digest pipeline
+Description=JobDigest daily digest (ingest + AI match + send)
 After=docker.service
 Requires=docker.service
+# Email an alert if the run fails — a failed match/send is a day with no digests, and it must
+# not be silent. Same alerter the watchdogs use (deploy/jobdigest-alert@.service).
+OnFailure=jobdigest-alert@%n.service
 
 [Service]
 Type=oneshot
 WorkingDirectory=/opt/jobdigest/deploy
-# Builds today's digests from existing postings and sends them (dedup + not-twice-a-day).
-ExecStart=/usr/bin/docker compose run --rm pipeline
+# ingest fresh postings (incl. Czech), AI-rerank the due subscribers, then build + send.
+ExecStart=/usr/bin/docker compose run --rm pipeline python -m service.pipeline --ingest --cz --match

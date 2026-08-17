@@ -1,6 +1,17 @@
 # JobDigest — the daily matching routine (no-API, free tier)
 
-Free-tier matching runs inside a **claude.ai cloud routine** so it uses Claude subscription
+> **DECOMMISSIONED 2026-08-17.** Matching now runs **on the VPS with a metered
+> `ANTHROPIC_API_KEY`** — `service.matcher.run()` reranks the due subscribers inside the daily
+> `jobdigest-pipeline` unit (`python -m service.pipeline --ingest --cz --match`). There is no
+> Drive exchange, no claude.ai routine, and no ~06:00 deadline. Using a personal Claude/Codex
+> subscription as a headless backend was ruled out on terms (Anthropic Consumer Terms + OpenAI
+> ToS both forbid commercial + automated use of the subscription). This file is kept as the
+> record of how the free-tier routine worked; the `export_shortlists` / `import_picks` code in
+> `matcher.py` stays for debugging but is no longer scheduled. **To operate the live system read
+> `deploy/jobdigest-pipeline.service` and the "Metered API path (live)" section at the bottom of
+> this file — everything between here and there describes the retired flow.**
+
+Free-tier matching ran inside a **claude.ai cloud routine** so it used Claude subscription
 compute, not metered API credits. The routine sandbox has only a git checkout + Google
 connectors — **no DB access, no API key** — so it works purely on two JSON files:
 
@@ -259,8 +270,35 @@ from GitHub Actions). Two systemd timers bracket the routine; `rclone` moves the
 
 Run a phase by hand any time: `deploy/jobdigest-match.sh export` / `import`.
 
-## Premium / paid tier (metered API, optional)
+## Metered API path (live)
 
-Paid users can skip the routine and match inline with the API:
-`docker compose run --rm pipeline python -m service.pipeline --ingest --cz --match`
-(needs `ANTHROPIC_API_KEY` in `deploy/.env`; `MATCHER_MODEL` defaults to `claude-haiku-4-5`).
+This is the production path since 2026-08-17. One systemd unit does the whole run on the box.
+
+**One-time cutover on the VPS:**
+
+```bash
+# 1. Put the key on the box — directly, never through a chat/commit (security rule 2):
+printf 'ANTHROPIC_API_KEY=%s\n' 'sk-ant-...' >> /opt/jobdigest/deploy/.env   # paste your key
+
+# 2. Apply migration 024 (schema.sql only runs on an empty data dir, so add the column by hand):
+sudo docker compose exec -T db psql -U jobmatch -d jobmatch \
+  -c 'alter table profiles add column if not exists last_ondemand_at timestamptz;'
+
+# 3. Swap the schedule: retire the routine's two-phase timers, run the single daily unit.
+sudo systemctl disable --now jobdigest-match-export.timer jobdigest-match-import.timer
+sudo cp deploy/jobdigest-pipeline.* /etc/systemd/system/
+sudo systemctl daemon-reload && sudo systemctl enable --now jobdigest-pipeline.timer
+
+# 4. Delete the claude.ai routine trigger (personal account) so nothing writes a stale picks.json.
+```
+
+- **Daily run:** `jobdigest-pipeline` at 05:00 UTC → `python -m service.pipeline --ingest --cz
+  --match`. `--match` reranks only the **due** subscribers (a weekly subscriber is not billed on
+  the five off days). `MATCHER_MODEL` defaults to `claude-haiku-4-5` (~3c/subscriber/day);
+  `MATCHER_MAX_TOKENS` (default 0 = off) is a per-run abort budget.
+- **On-demand:** `POST /digest/run` (webapp, subscriber-authenticated, POST-only) re-matches one
+  subscriber and emails them, bounded by `ONDEMAND_COOLDOWN_MIN` (default 360 = 6h) via
+  `store.claim_ondemand_run`. The `api` container therefore also needs `ANTHROPIC_API_KEY`.
+- **Cost lever, not yet built:** the Anthropic Batch API is 50% off and fits the daily window —
+  pull it when subscriber count makes token cost binding, the same measured gate as the vector
+  shortlist. Synchronous is right at current scale.

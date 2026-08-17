@@ -338,6 +338,14 @@ const de: Messages = {
     searchPlaceholder: "Position, Kenntnis oder Unternehmen",
     greatFitsOnly: "Nur Top-Treffer",
     clearFilter: "Zurücksetzen",
+    refreshNow: "Treffer jetzt aktualisieren",
+    refreshBusy: "Wird aktualisiert…",
+    refreshSent: {
+      one: "{n} neuer Job an dein Postfach gesendet.",
+      other: "{n} neue Jobs an dein Postfach gesendet.",
+    },
+    refreshNone: "Momentan keine neuen Treffer – schau später wieder vorbei.",
+    refreshFailed: "Aktualisierung gerade nicht möglich – bitte gleich erneut versuchen.",
   },
 
   hidden: {

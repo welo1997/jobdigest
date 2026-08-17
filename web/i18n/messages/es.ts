@@ -327,6 +327,14 @@ const es: Messages = {
     searchPlaceholder: "Puesto, competencia o empresa",
     greatFitsOnly: "Solo las mejores coincidencias",
     clearFilter: "Borrar",
+    refreshNow: "Actualizar coincidencias ahora",
+    refreshBusy: "Actualizando…",
+    refreshSent: {
+      one: "Se envió {n} empleo nuevo a tu correo.",
+      other: "Se enviaron {n} empleos nuevos a tu correo.",
+    },
+    refreshNone: "No hay coincidencias nuevas por ahora; vuelve más tarde.",
+    refreshFailed: "No se pudo actualizar ahora mismo; inténtalo de nuevo en un momento.",
   },
 
   hidden: {

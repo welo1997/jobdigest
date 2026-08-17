@@ -327,6 +327,14 @@ const en: Messages = {
     searchPlaceholder: "Job title, skill or company",
     greatFitsOnly: "Great fits only",
     clearFilter: "Clear",
+    refreshNow: "Refresh matches now",
+    refreshBusy: "Refreshing…",
+    refreshSent: {
+      one: "Sent {n} new job to your inbox.",
+      other: "Sent {n} new jobs to your inbox.",
+    },
+    refreshNone: "No new matches right now — check back later.",
+    refreshFailed: "Couldn't refresh just now — try again shortly.",
   },
 
   hidden: {

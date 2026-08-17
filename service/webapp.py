@@ -93,6 +93,10 @@ SUBSCRIBE_COOLDOWN_MIN = int(os.environ.get("SUBSCRIBE_COOLDOWN_MIN", "10"))
 # /manage-link (the passwordless "email me my settings link" recovery path). This cooldown is
 # the primary abuse control there: it caps a victim's inbox at one such email per window.
 MANAGE_LINK_COOLDOWN_MIN = int(os.environ.get("MANAGE_LINK_COOLDOWN_MIN", "30"))
+# Minutes before a subscriber may trigger their own on-demand match+send again (POST
+# /digest/run). Each run is a metered Anthropic API call plus an email, so this cooldown is
+# both the cost guard and the abuse guard — `store.claim_ondemand_run` enforces it atomically.
+ONDEMAND_COOLDOWN_MIN = int(os.environ.get("ONDEMAND_COOLDOWN_MIN", "360"))  # 6h
 
 # --- login sessions (persisted magic links) ------------------------------------
 # JobDigest is still passwordless: clicking a magic link is the only way to authenticate. A
@@ -1482,6 +1486,41 @@ def resume(body: TokenIn, request: Request) -> dict:
         raise HTTPException(404, "Unknown or expired link.")
     store.resume_subscription(profile["manage_token"])
     return {"ok": True, "status": "active"}
+
+
+@app.post("/digest/run")
+def run_digest_now(body: TokenIn, request: Request) -> dict:
+    """On-demand: re-match this subscriber and email them a fresh digest immediately.
+
+    A mutating action, so it is POST (never GET — a link scanner or prefetch must not spend a
+    metered API call, security rule 3) and cookie callers must carry the CSRF header. It acts
+    ONLY on the authenticated profile: `_resolve_subscriber` resolves the caller's own
+    subscription, and every step below is keyed to `profile["id"]`, so one subscriber can never
+    trigger another's run.
+
+    Order matters:
+      1. A misconfigured box (no key) 503s *before* the cooldown is claimed, so a server fault
+         never burns the subscriber's 6-hour window.
+      2. `claim_ondemand_run` claims the slot atomically — two rapid clicks can't both match.
+      3. `match_one` re-runs the AI matcher for just this profile (metered, ~3c); a transient
+         API failure returns 0 and we still send from whatever is already in `matches`.
+      4. `send_one` builds + emails the digest, dropping anything already sent — so this can
+         never duplicate the daily run — and `/matches` reflects the new picks automatically.
+    """
+    profile = _resolve_subscriber(request, body.token, mutating=True)
+    if not profile:
+        raise HTTPException(404, "Unknown or expired link.")
+    if not os.environ.get("ANTHROPIC_API_KEY"):
+        # Don't consume the cooldown on a box that can't match — this is a deploy fault to fix.
+        raise HTTPException(503, "On-demand matching is temporarily unavailable.")
+    if not store.claim_ondemand_run(profile["id"], ONDEMAND_COOLDOWN_MIN):
+        hrs = max(1, ONDEMAND_COOLDOWN_MIN // 60)
+        raise HTTPException(429, f"You can refresh again in a little while (once every {hrs}h).")
+
+    from service import matcher, pipeline
+    picks = matcher.match_one(profile)
+    result = pipeline.send_one(profile)
+    return {"ok": True, "matched": picks, "sent": result["sent"], "jobs": result["n"]}
 
 
 # --------------------------------------------------------------- unsubscribe ---

@@ -36,6 +36,9 @@ export interface MatchList {
   /** Locale-prefixed href that carries the token when there is one. */
   linkTo: (path: string) => string;
   removeJobs: (ids: string[], counts: { visible_count: number; hidden_count: number }) => void;
+  /** Refetch the first page from scratch under the current filters. Used after an on-demand
+   *  run rewrites `matches`, so the new picks appear without a full page reload. */
+  reload: () => void;
 }
 
 export function useMatchList(
@@ -72,6 +75,10 @@ export function useMatchList(
   const [loadingMore, setLoadingMore] = useState(false);
   const [moreErr, setMoreErr] = useState(false);
   const [err, setErr] = useState("");
+  // Bumped by `reload()` to force a fresh first-page fetch (after an on-demand run rewrites
+  // this subscriber's matches). It is an effect dep, so incrementing it re-runs the load.
+  const [reloadKey, setReloadKey] = useState(0);
+  const reload = useCallback(() => setReloadKey((k) => k + 1), []);
 
   useEffect(() => {
     let cancelled = false;
@@ -113,7 +120,7 @@ export function useMatchList(
     load();
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [urlToken, hidden, filterKey]);
+  }, [urlToken, hidden, filterKey, reloadKey]);
 
   const jobs = data ? [...data.jobs, ...more] : [];
   const hasMore = !!data && jobs.length < data.count;
@@ -165,5 +172,5 @@ export function useMatchList(
   const linkTo = (to: string) =>
     token ? href(`${to}?token=${encodeURIComponent(token)}`) : href(to);
 
-  return { data, jobs, err, hasMore, loadingMore, moreErr, loadMore, token, linkTo, removeJobs };
+  return { data, jobs, err, hasMore, loadingMore, moreErr, loadMore, token, linkTo, removeJobs, reload };
 }

@@ -190,6 +190,7 @@ create table if not exists profiles (
     paused_until    timestamptz,
     unsubscribed_at timestamptz,
     manage_link_sent_at timestamptz,   -- rate-limits the "email me my settings link" path (migration 007)
+    last_ondemand_at    timestamptz,   -- rate-limits the on-demand "run my digest now" path (migration 024)
 
     -- CV-derived signals (parse & discard: the raw CV file is never stored)
     has_cv           boolean not null default false,

@@ -1823,6 +1823,35 @@ def request_manage_link(email: str, cooldown_min: int) -> Optional[dict]:
         return dict(row) if row else None
 
 
+def claim_ondemand_run(profile_id: str, cooldown_min: int) -> bool:
+    """Atomically claim the right to run one on-demand match+send for this profile.
+
+    Returns True only when the run *should* proceed, else False (still within the cooldown
+    window, or not a live subscription). Same one-UPDATE, no-check-then-act shape as
+    `request_manage_link`: two clients racing the button can never both claim the slot, so an
+    on-demand run costs at most one metered API call per `cooldown_min` window regardless of
+    how fast a browser re-posts.
+
+    `profile_id` is the *resolved* subscriber (the endpoint has already authenticated the
+    caller to this profile), and `cooldown_min` is a server-controlled int, never user input.
+    Restricted to `active`/`paused` so an unsubscribed row can never be re-activated by the
+    button."""
+    with cursor(commit=True) as cur:
+        cur.execute(
+            """
+            update profiles
+               set last_ondemand_at = now()
+             where id = %s
+               and status in ('active', 'paused')
+               and (last_ondemand_at is null
+                    or last_ondemand_at < now() - make_interval(mins => %s))
+            returning id
+            """,
+            (profile_id, int(cooldown_min)),
+        )
+        return cur.fetchone() is not None
+
+
 def _get_by(field: str, token: str) -> Optional[dict]:
     with cursor() as cur:
         cur.execute(f"select * from profiles where {field} = %s", (token,))

@@ -290,6 +290,16 @@ export interface Messages {
     searchPlaceholder: string;
     greatFitsOnly: string;
     clearFilter: string;
+    /** On-demand "run my digest now": re-match this subscriber and email a fresh digest
+     *  immediately. Bounded by a per-subscriber cooldown the server owns — while it is active
+     *  the API returns an English message surfaced via `e.message`, the same as every other
+     *  API error. `refreshSent` is pluralised on how many jobs were emailed; `refreshNone` is
+     *  the "matcher found nothing new" case (not a failure). */
+    refreshNow: string;
+    refreshBusy: string;
+    refreshSent: PluralForms;
+    refreshNone: string;
+    refreshFailed: string;
   };
 
   /** `/hidden` — the jobs the subscriber hid. Errors, paging and the tick-box strings are

@@ -328,6 +328,14 @@ const it: Messages = {
     searchPlaceholder: "Ruolo, competenza o azienda",
     greatFitsOnly: "Solo le migliori offerte",
     clearFilter: "Cancella",
+    refreshNow: "Aggiorna gli annunci ora",
+    refreshBusy: "Aggiornamento…",
+    refreshSent: {
+      one: "Inviato {n} nuovo annuncio alla tua email.",
+      other: "Inviati {n} nuovi annunci alla tua email.",
+    },
+    refreshNone: "Nessun nuovo annuncio al momento — riprova più tardi.",
+    refreshFailed: "Impossibile aggiornare adesso — riprova tra poco.",
   },
 
   hidden: {
