@@ -146,6 +146,34 @@ def test_a_response_with_no_text_block_returns_no_picks_and_does_not_raise():
     assert matcher.match_profile(client, {"id": "p"}, _SHORTLIST) == []
 
 
+@pytest.mark.parametrize("reply,why", [
+    (_PICK_JSON + "\n\nI hope these are helpful! Let me know if you'd like more.",
+     "prose after the object — observed on a graded pass 2026-08-17, cost every pick"),
+    (_PICK_JSON + "\n" + _PICK_JSON, "the whole object emitted twice"),
+    ("Here are the best fits:\n" + _PICK_JSON, "prose before the object, unfenced"),
+    ("```json\n" + _PICK_JSON + "\n```", "the markdown form, already handled — pinned so it stays"),
+])
+def test_picks_survive_a_model_that_keeps_talking(reply, why, caplog):
+    """`json.loads` rejects the *entire* reply on trailing data, so a complete and perfectly good
+    picks object followed by "I hope these are helpful!" yielded zero picks, one warning, and a
+    subscriber's day lost — an outcome indistinguishable from a quiet inventory day. The prompt
+    says STRICT JSON and the model usually obeys; the parser must not stake the day on it."""
+    client = _FakeClient([_Block("text", reply)])
+    with caplog.at_level("WARNING", logger="service.matcher"):
+        picks = matcher.match_profile(client, {"id": "p"}, _SHORTLIST)
+    assert len(picks) == 1, why
+    assert picks[0]["score"] == 9
+
+
+def test_a_reply_that_is_not_json_at_all_still_returns_empty(caplog):
+    """The other side: leniency about *surrounding* text must not turn into inventing picks out of
+    a reply that never contained an object."""
+    client = _FakeClient([_Block("text", "I could not find any good matches for this person.")])
+    with caplog.at_level("WARNING", logger="service.matcher"):
+        assert matcher.match_profile(client, {"id": "p"}, _SHORTLIST) == []
+    assert "bad JSON" in caplog.text
+
+
 def test_a_truncated_reply_is_named_as_truncation_not_as_bad_json(caplog):
     """A response cut off at `max_tokens` is invalid JSON, so before this it surfaced only as
     "bad JSON from model" — which points the next reader at the parser or the prompt, never at the

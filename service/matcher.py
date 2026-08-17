@@ -399,8 +399,30 @@ def match_profile(client, profile: dict, shortlist: list[dict],
     if raw.startswith("```"):
         raw = "\n".join(l for l in raw.split("\n") if not l.strip().startswith("```")).strip()
 
+    # Prose *before* the object: "Here are the picks: {...}". The fenced-block strip above catches
+    # the markdown form; this catches the bare one. Only when the reply does not already start with
+    # the object, so a well-formed reply is never touched.
+    if not raw.startswith("{"):
+        brace = raw.find("{")
+        if brace > 0:
+            raw = raw[brace:]
     try:
-        picks = json.loads(raw).get("picks", [])
+        # `raw_decode`, not `loads`. The prompt says "STRICT JSON, no prose" and the model usually
+        # obliges — but on 2026-08-17 a graded pass came back as a complete, valid picks object
+        # followed by more content, and `json.loads` rejects the *whole* reply on trailing data
+        # ("Extra data: line 26 column 1"). That cost the entire pass: 0 picks, one warning, and an
+        # outcome indistinguishable from a quiet inventory day — for a reply whose picks were
+        # perfectly good. `raw_decode` reads the first complete JSON value and reports where it
+        # ended, so the answer survives whatever follows it.
+        obj, end = json.JSONDecoder().raw_decode(raw)
+        picks = obj.get("picks", [])
+        trailing = raw[end:].strip()
+        if trailing:
+            # Logged, not swallowed: the picks are usable, but a model that keeps talking after
+            # being told not to is worth seeing before it starts doing something worse.
+            logger.warning("profile %s: model %s emitted %d chars after the JSON object; the "
+                           "object parsed fine and the extra was ignored: %s", profile.get("id"),
+                           model or MODEL, len(trailing), trailing[:120])
     except (json.JSONDecodeError, AttributeError) as exc:
         logger.warning("profile %s: bad JSON from model (%s): %s", profile.get("id"), exc, raw[:200])
         return []
