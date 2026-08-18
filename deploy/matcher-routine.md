@@ -315,7 +315,7 @@ sudo systemctl daemon-reload && sudo systemctl enable --now jobdigest-pipeline.t
 # 4. Delete the claude.ai routine trigger (personal account) so nothing writes a stale picks.json.
 ```
 
-- **Daily run:** `jobdigest-pipeline` at 05:00 UTC → `python -m service.pipeline --ingest --cz
+- **Daily run:** `jobdigest-pipeline` at 03:00 UTC → `python -m service.pipeline --ingest --cz
   --match`. `--match` reranks only the **due** subscribers (a weekly subscriber is not billed on
   the five off days). `MATCHER_MODEL` defaults to `claude-haiku-4-5` (~3c/subscriber/day);
   `MATCHER_MAX_TOKENS` (default 0 = off) is a per-run abort budget.

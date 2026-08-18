@@ -9,7 +9,8 @@ behind them.
 ## Flow
 
 ```
-05:00 UTC  digest   ingest sources → Postgres → AI match (metered API, due subs only) → send
+03:00 UTC  digest   ingest sources → Postgres → AI match (metered API, due subs only) → send
+                    (~4.5 h end-to-end; finishes ~07:30 — the 08:00 watchdog depends on that)
 08:00 UTC  sources  per-source freshness + churn → alert if a source silently died
 09:00 UTC  watchdog digest_runs → alert if any subscriber has had nothing for 3 days
 01:30 UTC  backup   pg_dump → encrypt → off-box
@@ -743,7 +744,7 @@ load-bearing:
   validates; a transient API error, a truncated reply, or a failed write is logged and
   skipped. `import_picks`' rule, and the case for it is stronger here — nobody is waiting on
   this, so a partial answer is strictly better than none.
-- **Weekly and off the digest path, unchanged by the key.** The 05:00 pipeline is what real
+- **Weekly and off the digest path, unchanged by the key.** The 03:00 pipeline is what real
   people wait on and work added there makes a digest *miss* rather than run late. Sunday 09:30
   also clears the 08:00, 08:30 and 09:00 watchdogs.
 - **The export/import/Drive code is retained and unscheduled**, the same treatment

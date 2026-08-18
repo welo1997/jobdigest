@@ -17,7 +17,7 @@
 #   import : pull categories.json -> validate every row -> `title_categories`
 #
 # **This is deliberately NOT part of the daily digest window, and the metered key did not
-# change that.** The digest runs at 05:00 and is what real people are waiting on; work added
+# change that.** The digest runs at 03:00 and is what real people are waiting on; work added
 # to that window does not make a digest late, it makes the digest *miss*, silently, for every
 # subscriber. This runs weekly, hours away from it, and a total failure here costs a
 # slower-shrinking residue and nothing else — no digest, no subscriber, no email depends on it.
@@ -54,7 +54,7 @@ case "${1:-}" in
     #
     # The corpus does not move here. `upsert_postings` rewrites `role_category` on conflict
     # and every active posting is re-seen daily, so newly-cached answers reach the postings
-    # table on the next 05:00 ingest and `categorization_daily` records the drop the morning
+    # table on the next 03:00 ingest and `categorization_daily` records the drop the morning
     # after. Nothing needs backfilling, and nothing should be run here to hurry it.
     $COMPOSE run --rm pipeline python -m service.categorize_exchange classify
     echo "categorize classify: answers loaded (see the log line for count and cost)"

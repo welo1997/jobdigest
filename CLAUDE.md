@@ -62,7 +62,8 @@ you touch that rule.
 ### Flow
 
 ```
-05:00 UTC  digest   ingest sources → Postgres → AI match (metered API, due subs only) → send
+03:00 UTC  digest   ingest sources → Postgres → AI match (metered API, due subs only) → send
+                    (~4.5 h end-to-end; finishes ~07:30 — the 08:00 watchdog depends on that)
 08:00 UTC  sources  per-source freshness + churn → alert if a source silently died
 09:00 UTC  watchdog digest_runs → alert if any subscriber has had nothing for 3 days
 01:30 UTC  backup   pg_dump → encrypt → off-box

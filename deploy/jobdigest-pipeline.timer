@@ -1,14 +1,19 @@
-# Fire the full daily digest (ingest + match + send) at 05:00 UTC.
+# Fire the full daily digest (ingest + match + send) at 03:00 UTC.
 #
-# One unit now does everything on the box, so there is no export→routine→import window to
-# straddle — the old 03:00 export / ~06:00 routine / 07:00 import schedule is gone. 05:00 keeps
-# it clear of the 01:30 backup and the 08:00/09:00 watchdogs, and leaves the source-watchdog at
-# 08:00 looking at a corpus this run has already refreshed.
+# One unit does everything on the box, so there is no export→routine→import window to
+# straddle — but the start time is still 03:00, and that is measured, not inherited habit:
+# the run takes ~4.5 h end-to-end (~2.5 h fetch, dominated by nva's ~73-minute throttled
+# crawl of the Latvian register, then ~1.6 h of per-row classification over ~98k postings).
+# The cutover briefly moved this to 05:00 on the belief the run would be done before the
+# 08:00 source-watchdog; on 2026-08-18, the first scheduled firing, nothing had been
+# upserted by 08:00, every source read as SILENT ZERO, and the watchdog alerted on a
+# healthy mid-flight run. 03:00 finishes ~07:30: clear of the 01:30 backup, done before
+# the 08:00/09:00 watchdogs, and the digest lands at its usual morning hour.
 [Unit]
-Description=Run the JobDigest daily digest at 05:00 UTC
+Description=Run the JobDigest daily digest at 03:00 UTC
 
 [Timer]
-OnCalendar=*-*-* 05:00:00
+OnCalendar=*-*-* 03:00:00
 Persistent=true
 Unit=jobdigest-pipeline.service
 

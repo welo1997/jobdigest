@@ -40,7 +40,7 @@ because a third-party string was trusted to be a category. A model's answer is a
 third-party string too.
 
 **Nothing here is on the digest's critical path, and that did not change with the key.** The
-digest runs at 05:00 and is what real people are waiting on; an enrichment added to that
+digest runs at 03:00 and is what real people are waiting on; an enrichment added to that
 window does not make a digest late, it makes it *miss*. This runs on its own weekly timer, a
 failed batch costs that batch and not the run, and a failed run costs a slower-shrinking
 residue and nothing else.

@@ -26,7 +26,7 @@ uncategorised titles  ──▶  Claude (metered, batched)  ──▶  validate 
 
 Nothing reads `title_categories` until the next ingest: `upsert_postings` rewrites
 `role_category` on conflict and every active posting is re-seen daily, so answers stored on
-Sunday reach the corpus at Monday 05:00 and show up in `categorization_daily` on Monday
+Sunday reach the corpus at Monday 03:00 and show up in `categorization_daily` on Monday
 morning. **There is deliberately no backfill step** — the same reason classifier changes need
 none.
 
@@ -145,7 +145,7 @@ than as an error.
 ## Why weekly, and why nowhere near the digest
 
 **This survived the move to the metered key unchanged, and it is the one design decision here
-that is not about billing.** The daily pipeline runs at 05:00 (ingest → AI match → send) and
+that is not about billing.** The daily pipeline runs at 03:00 (ingest → AI match → send) and
 is what real subscribers are waiting on; work added to that window does not make a digest
 late, it makes it *miss*, silently, for every subscriber (`CLAUDE.md`). This job has no such
 deadline: the residue shrinks a week later instead of a day later, and nobody is waiting on
@@ -257,7 +257,7 @@ create third-party access, and it is not needed.
 | When | Where | What |
 |---|---|---|
 | Sun 09:30 | VPS (`jobdigest-categorize`) | uncategorised titles → Claude (metered) → validate → `title_categories` |
-| Mon 05:00 | VPS (`jobdigest-pipeline`) | the corpus picks the answers up; `categorization_daily` records it Monday 08:30 |
+| Mon 03:00 | VPS (`jobdigest-pipeline`) | the corpus picks the answers up; `categorization_daily` records it Monday 08:30 |
 
 Run it by hand any time: `deploy/jobdigest-categorize.sh classify`.
 

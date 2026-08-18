@@ -1,7 +1,7 @@
 # Sunday 09:30 UTC — weekly, and deliberately nowhere near the digest.
 #
 # **Weekly rather than daily, and off the digest path, are both still deliberate after the
-# move to the metered key.** The daily 05:00 pipeline (ingest -> AI match -> send) is what
+# move to the metered key.** The daily 03:00 pipeline (ingest -> AI match -> send) is what
 # real subscribers are waiting on; an enrichment added to that window does not make a digest
 # late, it makes it *miss*, silently, for everyone. This job has no such deadline: the
 # residue shrinks a week later instead of a day later and nobody is waiting on it. 09:30 also
