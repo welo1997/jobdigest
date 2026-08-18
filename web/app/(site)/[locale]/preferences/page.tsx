@@ -6,16 +6,19 @@ import Link from "next/link";
 import { Nav, Footer } from "@/components/SiteChrome";
 import { useToast } from "@/components/useToast";
 import {
-  establishSession, getPreferences, logout, pause, Preferences, resume,
+  establishSession, getPreferences, logout, parseCV, pause, Preferences, resume,
   unsubscribeSession, unsubscribeUrl, updatePreferences,
 } from "@/lib/api";
 import { cap } from "@/lib/preview";
+import { track } from "@/lib/analytics";
 import { LocationPicker, LocationValue } from "@/components/LocationPicker";
 import { EducationPicker, EducationValue } from "@/components/EducationPicker";
 import { REMOTE_SCOPES, RemoteScope, WORK_MODES, cleanWorkModes } from "@/lib/geo";
-import { EDUCATION_LEVELS, cleanEducationField, cleanEducationLevels } from "@/lib/education";
 import {
-  DEFAULT_ROLE_IDS, ROLE_ID_FOR_CATEGORY, SENIORITY_IDS, SKILL_OPTS,
+  EDUCATION_LEVELS, cleanEducationField, cleanEducationLevels, levelsUpTo,
+} from "@/lib/education";
+import {
+  CV_ROLE_ID, DEFAULT_ROLE_IDS, ROLE_ID_FOR_CATEGORY, SENIORITY_IDS, SKILL_OPTS,
   prettifyCategory, roleCategory, roleKeyword,
 } from "@/lib/options";
 import { fmt } from "@/i18n/config";
@@ -97,6 +100,8 @@ function Inner() {
   // Years of experience as the input's raw string: "" is a real state ("no preference",
   // stored as NULL) and a number input's value must round-trip what was typed.
   const [years, setYears] = useState("");
+  const [cvBusy, setCvBusy] = useState(false);
+  const cvInputRef = useRef<HTMLInputElement | null>(null);
 
   type SetSetter = (updater: (prev: Set<string>) => Set<string>) => void;
   const toggleInSet = (setter: SetSetter, o: string) =>
@@ -182,6 +187,68 @@ function Inner() {
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [urlToken]);
+
+  // --- CV re-upload -> POST /cv/parse -> REPLACE the form state -----------------------
+  // Replace, not union — "reset, set new according to CV" is the point of re-uploading —
+  // but only for the axes the CV actually speaks to: a CV that names no seniority must not
+  // wipe an explicit choice (the parser's only safe error is a miss, and this is its UI
+  // face). Nothing is saved here: the replaced state sits in the form for review, and Save
+  // is what persists it. The file itself is parsed in memory and discarded (privacy page).
+  const startCvUpload = () => {
+    if (window.confirm(t.prefs.cvReplaceConfirm)) cvInputRef.current?.click();
+  };
+  const onCVFile = async (file?: File | null) => {
+    if (!file) return;
+    track("cv_upload_attempted");
+    if (!/\.(pdf|docx)$/i.test(file.name)) {
+      track("cv_parse_failed", { reason: "wrong_type" });
+      return show(t.landing.toast.cvWrongType);
+    }
+    if (file.size > 8 * 1024 * 1024) {
+      track("cv_parse_failed", { reason: "too_large" });
+      return show(t.landing.toast.cvTooLarge);
+    }
+    setCvBusy(true);
+    try {
+      const sig = await parseCV(file);
+      const roleIds = (sig.role_categories || []).map((c) => CV_ROLE_ID[c]).filter(Boolean);
+      if (roleIds.length) {
+        setRoleOpts([...new Set([...DEFAULT_ROLE_IDS, ...roleIds])]);
+        setRoleSet(new Set(roleIds));
+      }
+      const skillLabels = (sig.skills || []).map((s) => cap(s));
+      if (skillLabels.length) {
+        setSkillOpts([...new Set([...SKILL_OPTS, ...skillLabels])]);
+        setSkillSet(new Set(skillLabels));
+      }
+      const sectorLabels = (sig.sectors || []).map((s) => cap(s));
+      if (sectorLabels.length) {
+        setSectorOpts([...new Set([...SECTOR_SUGGESTIONS, ...sectorLabels])]);
+        setSectorSet(new Set(sectorLabels));
+      }
+      const cvLevels = (sig.seniorities || [])
+        .filter((c) => (SENIORITY_IDS as readonly string[]).includes(c));
+      if (cvLevels.length) setLevels(new Set(cvLevels));
+      if (sig.years_experience != null) setYears(String(sig.years_experience));
+      // Same mapping as signup: a detected bachelor's becomes "levels such a person can
+      // apply for", visibly, in chips the subscriber can correct before saving.
+      if (sig.education || sig.education_field) {
+        setEdu({
+          levels: sig.education ? levelsUpTo(sig.education) : [],
+          field: sig.education_field || "",
+        });
+      }
+      track("cv_parse_ok", { skills: (sig.skills || []).length });
+      show(t.landing.toast.cvOk);
+    } catch (e) {
+      track("cv_parse_failed", { reason: "server_rejected" });
+      show(e instanceof Error ? e.message : t.landing.toast.cvUnreadable);
+    } finally {
+      setCvBusy(false);
+      // Reset so picking the same file again still fires onChange.
+      if (cvInputRef.current) cvInputRef.current.value = "";
+    }
+  };
 
   const save = async () => {
     setSaving(true);
@@ -308,9 +375,19 @@ function Inner() {
       </div>
       <div className="panel">
         <div className="card">
-          {prefs.has_cv && prefs.cv_summary && (
-            <div className="note" style={{ margin: "0 0 16px" }}>{prefs.cv_summary}</div>
-          )}
+          {/* The "Detected: …" summary sentence used to sit here — removed 2026-08-18: the
+              CV's findings live in the editable chips below, and a sentence restating them
+              (often stale, never editable) claimed an authority the chips are the truth of.
+              Re-uploading replaces the form state for review; Save is what persists it. */}
+          <div className="field" style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <button type="button" className="btn secondary" onClick={startCvUpload}
+              disabled={cvBusy}>
+              {cvBusy ? t.landing.cvReading : t.prefs.uploadCv}
+            </button>
+            <input ref={cvInputRef} type="file" accept=".pdf,.docx"
+              style={{ display: "none" }} aria-hidden
+              onChange={(e) => onCVFile(e.target.files?.[0])} />
+          </div>
           <div className="field">
             <label>{t.prefs.roles}</label>
             <div className="chips">

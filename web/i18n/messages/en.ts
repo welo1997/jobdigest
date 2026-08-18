@@ -256,6 +256,12 @@ const en: Messages = {
     addSectorPlaceholder: "Add an industry…",
     addSectorAria: "Add an industry",
     seniorityLabel: "Seniority — we only send roles at the levels you pick",
+    uploadCv: "Upload a CV",
+    cvReplaceConfirm:
+      "This will replace your current selections (roles, skills, sectors, seniority, years "
+      + "of experience, education) with what we detect in the CV. Nothing changes until you "
+      + "press Save — you can review and adjust first. The file is read once and discarded. "
+      + "Continue?",
     yearsExperience: "Years of experience",
     yearsExperienceHint:
       "We skip roles that require more years than you have. Roles that don't state a "

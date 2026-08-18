@@ -262,6 +262,12 @@ const de: Messages = {
     addSectorPlaceholder: "Branche hinzufügen…",
     addSectorAria: "Branche hinzufügen",
     seniorityLabel: "Level — wir schicken nur Stellen auf den Leveln, die du wählst",
+    uploadCv: "Lebenslauf hochladen",
+    cvReplaceConfirm:
+      "Deine aktuellen Angaben (Rollen, Skills, Branchen, Level, Jahre Berufserfahrung, "
+      + "Ausbildung) werden durch das ersetzt, was wir im Lebenslauf erkennen. Gespeichert "
+      + "wird erst, wenn du auf Speichern klickst — du kannst vorher alles prüfen und "
+      + "anpassen. Die Datei wird einmal gelesen und verworfen. Fortfahren?",
     yearsExperience: "Jahre Berufserfahrung",
     yearsExperienceHint:
       "Stellen, die mehr Jahre verlangen, als du hast, lassen wir weg. Stellen ohne Angabe "

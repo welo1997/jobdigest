@@ -212,6 +212,12 @@ export interface Messages {
     addSectorPlaceholder: string;
     addSectorAria: string;
     seniorityLabel: string;
+    /** CV re-upload: the button, and the confirm shown BEFORE the file picker opens —
+     *  it must say plainly that the CV's findings will replace the current selections
+     *  (roles, skills, sectors, seniority, years, education), that nothing is saved until
+     *  Save, and that the file itself is read once and discarded. */
+    uploadCv: string;
+    cvReplaceConfirm: string;
     /** Years of professional experience (`profiles.years_experience`) — a number input.
      *  Feeds the digest's experience gate: roles demanding more years are filtered out,
      *  roles that state nothing always pass, and the hint must say both. Empty = no

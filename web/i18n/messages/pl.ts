@@ -274,6 +274,12 @@ const pl: Messages = {
     addSectorPlaceholder: "Dodaj branżę…",
     addSectorAria: "Dodaj branżę",
     seniorityLabel: "Poziom — wysyłamy tylko oferty na wybranych przez Ciebie poziomach",
+    uploadCv: "Wgraj CV",
+    cvReplaceConfirm:
+      "Twoje obecne wybory (role, umiejętności, branże, poziom, lata doświadczenia, "
+      + "wykształcenie) zostaną zastąpione tym, co wykryjemy w CV. Nic nie zostanie zapisane, "
+      + "dopóki nie klikniesz Zapisz — najpierw możesz wszystko sprawdzić i poprawić. Plik "
+      + "odczytujemy raz i usuwamy. Kontynuować?",
     yearsExperience: "Lata doświadczenia",
     yearsExperienceHint:
       "Pomijamy oferty wymagające więcej lat doświadczenia, niż masz. Oferty, które tego "

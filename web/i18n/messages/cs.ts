@@ -274,6 +274,12 @@ const cs: Messages = {
     addSectorPlaceholder: "Přidat obor…",
     addSectorAria: "Přidat obor",
     seniorityLabel: "Úroveň — posíláme jen nabídky na úrovních, které vyberete",
+    uploadCv: "Nahrát životopis",
+    cvReplaceConfirm:
+      "Nahrazením se vaše současné volby (role, dovednosti, obory, úroveň, roky praxe, "
+      + "vzdělání) přepíšou tím, co v životopisu najdeme. Nic se neuloží, dokud nestisknete "
+      + "Uložit — vše si nejdřív můžete zkontrolovat a upravit. Soubor přečteme jednou a "
+      + "smažeme. Pokračovat?",
     yearsExperience: "Roky praxe",
     yearsExperienceHint:
       "Nabídky vyžadující více let praxe, než máte, vynecháme. Nabídky, které délku praxe "

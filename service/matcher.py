@@ -198,8 +198,14 @@ def _profile_block(p: dict) -> str:
             f"Years experience: {experience.describe(p['years_experience'])}, but most "
             "postings never state a requirement — do not infer one that is not written "
             "down, and do not exclude a posting merely for being silent")
-    if p.get("cv_summary"):
-        lines.append(f"CV summary: {p['cv_summary']}")
+    # `cv_summary` is deliberately NOT rendered (removed 2026-08-18). Everything the CV
+    # detected was merged into the preferences at signup — roles, stack, sectors, seniority,
+    # years — and each reaches the prompt as its own line above. The summary sentence was a
+    # second, *invisible* copy of the same facts: it kept whispering the CV's original story
+    # after the subscriber edited their chips, and nothing on /preferences showed that it
+    # still spoke. The CV influences matching only through preferences the subscriber can
+    # see and edit. (The column stays stored: it is the audit of what a parse detected, and
+    # the embedding shadow still reads it — a measurement, not the live ranking.)
     return "\n".join(lines)
 
 

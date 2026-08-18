@@ -273,6 +273,12 @@ const sk: Messages = {
     addSectorPlaceholder: "Pridať odvetvie…",
     addSectorAria: "Pridať odvetvie",
     seniorityLabel: "Úroveň — posielame len ponuky na úrovniach, ktoré vyberiete",
+    uploadCv: "Nahrať životopis",
+    cvReplaceConfirm:
+      "Nahraním sa vaše súčasné voľby (roly, zručnosti, odbory, úroveň, roky praxe, "
+      + "vzdelanie) prepíšu tým, čo v životopise nájdeme. Nič sa neuloží, kým nestlačíte "
+      + "Uložiť — všetko si najprv môžete skontrolovať a upraviť. Súbor prečítame raz a "
+      + "zmažeme. Pokračovať?",
     yearsExperience: "Roky praxe",
     yearsExperienceHint:
       "Ponuky vyžadujúce viac rokov praxe, než máte, vynecháme. Ponuky, ktoré dĺžku praxe "

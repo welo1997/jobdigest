@@ -255,6 +255,12 @@ const it: Messages = {
     addSectorPlaceholder: "Aggiungi un settore…",
     addSectorAria: "Aggiungi un settore",
     seniorityLabel: "Livello — inviamo solo posizioni ai livelli che scegli",
+    uploadCv: "Carica un CV",
+    cvReplaceConfirm:
+      "Le tue selezioni attuali (ruoli, competenze, settori, livello, anni di esperienza, "
+      + "istruzione) saranno sostituite da ciò che rileviamo nel CV. Nulla viene salvato "
+      + "finché non premi Salva — puoi prima controllare e correggere tutto. Il file viene "
+      + "letto una volta e scartato. Continuare?",
     yearsExperience: "Anni di esperienza",
     yearsExperienceHint:
       "Escludiamo le offerte che richiedono più anni di quelli che hai. Quelle che non lo "

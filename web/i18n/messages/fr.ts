@@ -256,6 +256,12 @@ const fr: Messages = {
     addSectorPlaceholder: "Ajouter un secteur…",
     addSectorAria: "Ajouter un secteur",
     seniorityLabel: "Niveau — nous n'envoyons que des postes aux niveaux choisis",
+    uploadCv: "Importer un CV",
+    cvReplaceConfirm:
+      "Vos sélections actuelles (postes, compétences, secteurs, niveau, années d'expérience, "
+      + "formation) seront remplacées par ce que nous détectons dans le CV. Rien n'est "
+      + "enregistré avant d'appuyer sur Enregistrer — vous pouvez tout vérifier et ajuster "
+      + "d'abord. Le fichier est lu une fois puis supprimé. Continuer ?",
     yearsExperience: "Années d'expérience",
     yearsExperienceHint:
       "Nous écartons les offres exigeant plus d'années d'expérience que vous n'en avez. "
