@@ -273,6 +273,10 @@ const sk: Messages = {
     addSectorPlaceholder: "Pridať odvetvie…",
     addSectorAria: "Pridať odvetvie",
     seniorityLabel: "Úroveň — posielame len ponuky na úrovniach, ktoré vyberiete",
+    yearsExperience: "Roky praxe",
+    yearsExperienceHint:
+      "Ponuky vyžadujúce viac rokov praxe, než máte, vynecháme. Ponuky, ktoré dĺžku praxe "
+      + "neuvádzajú, chodia ďalej. Prázdne pole = bez preferencie.",
     frequency: "Frekvencia",
     freqDaily: "Denne",
     freqWeekdays: "Len cez pracovné dni",
@@ -358,6 +362,18 @@ const sk: Messages = {
     searchLabel: "Hľadať vo vašich ponukách",
     searchPlaceholder: "Pozícia, zručnosť alebo firma",
     greatFitsOnly: "Len najlepšie ponuky",
+    filterByExperience: "Prax",
+    maxExpAny: "Bez obmedzenia praxe",
+    maxExpOption: {
+      one: "Max. {n} rok praxe",
+      few: "Max. {n} roky praxe",
+      other: "Max. {n} rokov praxe",
+    },
+    tagExperience: {
+      one: "{n}+ rok",
+      few: "{n}+ roky",
+      other: "{n}+ rokov",
+    },
     clearFilter: "Zrušiť",
     refreshNow: "Aktualizovať ponuky",
     refreshBusy: "Aktualizujem…",

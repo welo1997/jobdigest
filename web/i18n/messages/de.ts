@@ -262,6 +262,10 @@ const de: Messages = {
     addSectorPlaceholder: "Branche hinzufügen…",
     addSectorAria: "Branche hinzufügen",
     seniorityLabel: "Level — wir schicken nur Stellen auf den Leveln, die du wählst",
+    yearsExperience: "Jahre Berufserfahrung",
+    yearsExperienceHint:
+      "Stellen, die mehr Jahre verlangen, als du hast, lassen wir weg. Stellen ohne Angabe "
+      + "kommen weiterhin durch. Leer lassen = keine Präferenz.",
     frequency: "Häufigkeit",
     freqDaily: "Täglich",
     freqWeekdays: "Nur werktags",
@@ -337,6 +341,16 @@ const de: Messages = {
     searchLabel: "Ihre Treffer durchsuchen",
     searchPlaceholder: "Position, Kenntnis oder Unternehmen",
     greatFitsOnly: "Nur Top-Treffer",
+    filterByExperience: "Berufserfahrung",
+    maxExpAny: "Jede Erfahrungsstufe",
+    maxExpOption: {
+      one: "Höchstens {n} Jahr gefordert",
+      other: "Höchstens {n} Jahre gefordert",
+    },
+    tagExperience: {
+      one: "{n}+ Jahr",
+      other: "{n}+ Jahre",
+    },
     clearFilter: "Zurücksetzen",
     refreshNow: "Treffer jetzt aktualisieren",
     refreshBusy: "Wird aktualisiert…",

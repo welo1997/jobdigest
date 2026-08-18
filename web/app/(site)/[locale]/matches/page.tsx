@@ -135,10 +135,14 @@ function Inner() {
   const [countries, setCountries] = useState<string[]>([]);
   const [cities, setCities] = useState<string[]>([]);
   const [seniorities, setSeniorities] = useState<string[]>([]);
+  // "Hide roles demanding more than N years" — single-valued, null = off. Roles that state
+  // no requirement are always kept (server rule); the copy in the menu must not oversell it.
+  const [maxExp, setMaxExp] = useState<number | null>(null);
   const list = useMatchList({
     hidden: false,
     path: "/matches",
-    filters: { skills, workModes, greatFits, q, categories, countries, cities, seniorities },
+    filters: { skills, workModes, greatFits, q, categories, countries, cities, seniorities,
+               maxExperience: maxExp ?? undefined },
     // How many matches the page actually had — a page that routinely shows 0 or 1 is
     // a product problem, not a UI one.
     onLoaded: (d, token) => track("matches_viewed", { count: d.count }, token || undefined),
@@ -271,7 +275,7 @@ function Inner() {
   const levelOpts = asOpts(data.facets?.seniorities);
   const filtering = skills.length > 0 || workModes.length > 0 || greatFits ||
     Boolean(q) || categories.length > 0 || countries.length > 0 || cities.length > 0 ||
-    seniorities.length > 0;
+    seniorities.length > 0 || maxExp != null;
 
   // Each control appears only when it can actually discriminate. A subscriber's own
   // preferences already pin most of these axes — someone who asked for remote-only work has
@@ -374,6 +378,21 @@ function Inner() {
           {greatFitCount !== null && <span className="c"> {greatFitCount}</span>}
         </button>
       )}
+      {/* Single-valued (a ceiling, not a set), so a native select rather than a FilterMenu.
+          Rows that state no requirement always pass — the option copy says "required" so a
+          smaller number reads as tightening what is *stated*, not as hiding the silent
+          majority. */}
+      <select
+        className={`skill sel${maxExp != null ? " on" : ""}`}
+        aria-label={t.matches.filterByExperience}
+        value={maxExp ?? ""}
+        onChange={(e) => setMaxExp(e.target.value === "" ? null : Number(e.target.value))}
+      >
+        <option value="">{t.matches.maxExpAny}</option>
+        {[1, 2, 3, 5, 10].map((n) => (
+          <option key={n} value={n}>{count(n, t.matches.maxExpOption)}</option>
+        ))}
+      </select>
       {/* The ticked values stay on the row as removable chips. A tick can fall out of its own
           menu once the other filters narrow past it, so the chip — not the menu — is what
           guarantees a filter is always removable. */}

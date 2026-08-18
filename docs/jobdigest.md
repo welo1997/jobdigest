@@ -433,6 +433,43 @@ Three consequences, which still hold on their own terms:
 Changing the patterns means re-running `python -m service.backfill_education`, or stored rows
 keep the old answer while new ingests use the new one and the column means two things at once.
 
+**Years of experience is the fifth axis (migration 025), built on education's chassis with one
+inversion: here the raw shape is everywhere and mostly means something else.** The
+number+years pattern appears in **34.7% of active rows** (44 817 of 129 226, measured
+2026-08-18) — against education's 4.6% — but the same grammar carries employer anniversaries
+("we have 25 years of experience"), contract durations, age limits, benefit schedules ("paid
+month off after 4 years") and strategy horizons ("you will set the 3-5 year roadmap"). On a
+400-row random sample of the mentioning rows, ~80% state a genuine binding requirement; the
+mode sits at 3 and 5 years. Consequences, each carried by a real sample case in
+`test_experience.py`:
+
+- **A mention counts only with a tenure signal beside it** — an experience word within 60
+  normalised characters, or the "N years as/in/doing X" shape. Education's 140-character
+  window would bridge bullet points here and let a neighbouring line's "experience" validate
+  a contract duration.
+- **The guards are positional, not windowed.** The first draft searched `\bour\b`,
+  `\bbusiness\b`, `\bteam\b` in a wide window and wrongly declined "12 years of experience in
+  healthcare operations" and "4 years in business intelligence" — real postings. Possessives
+  are checked immediately *before* the number, market/history complements right *after* the
+  phrase, and a "Minimum requirements:" header directly before the phrase overrides softener
+  words leaking in from the previous bullet (greenhouse boilerplate does exactly that).
+- **`MAX_YEARS` (15) is itself a blurb guard**: genuine demands above 15 are effectively
+  absent from this corpus while 20+/25+/30+ anniversaries are everywhere.
+- **A range demands its floor** ("3–5 years" is 3), "up to N years" demands nothing, and
+  where several tenures are named the lowest wins — same reading as the generic degree.
+- **Null passes every gate on both ends.** `experience.experience_predicate` filters nothing
+  for a profile that never stated its years (every pre-CV subscriber), and keeps every
+  posting whose requirement is unknown; `test_experience_sql.py` executes both against a real
+  Postgres, narrow and widened path, plus the /matches display filter — whose polarity is
+  **exclusion** (unknowns are KEPT), the opposite of the seniority equality filters, because
+  "drop roles demanding more than N" says nothing about roles that state no demand.
+- The subscriber side is the existing `profiles.years_experience` — CV-detected or typed, and
+  **editable on /preferences since this change** (it was set-once-at-signup before). Clearing
+  it travels as `""` because the API's `exclude_none` would drop a literal null.
+
+Changing the patterns means re-running `python -m service.backfill_experience`, same contract
+as every axis here.
+
 **A source's `remote_signal` is a claim, not a fact — `is_fully_remote` checks the posting's
 own words before trusting it.** `remote_signal` exempts a posting from the location gate
 entirely, so a wrong one is not a cosmetic error: it is an on-site job in the wrong country

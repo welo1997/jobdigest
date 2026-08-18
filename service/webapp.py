@@ -52,7 +52,7 @@ import urllib.parse
 import urllib.request
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta, timezone
-from typing import Optional
+from typing import Optional, Union
 
 from fastapi import FastAPI, Form, HTTPException, Query, Request, Response, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
@@ -66,8 +66,8 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 # for has to agree with it by construction. Same reasoning as `source_watchdog` reading
 # `search_jobs.source_classes`. The file is in this image (`Dockerfile` COPYs it explicitly).
 from search_jobs import SENIORITY_LEVELS  # noqa: E402
-from service import (cvparse, education, geo, i18n, links, mailer, store, taxonomy,  # noqa: E402
-                     transactional)
+from service import (cvparse, education, experience, geo, i18n, links, mailer,  # noqa: E402
+                     store, taxonomy, transactional)
 # Aliased because the /matches endpoint has a `skills` query parameter that would otherwise
 # shadow the module inside that function.
 from service import skills as skill_gazetteer  # noqa: E402
@@ -377,6 +377,17 @@ def _check_education_levels(v: Optional[list[str]]) -> Optional[list[str]]:
 def _check_education_field(v: Optional[str]) -> Optional[str]:
     """Trim and cap the free-text field of study. Never raises: it is prose, not a vocabulary."""
     return education.clean_field(v) if v is not None else v
+
+
+def _check_years_experience(v):
+    """Clamp years to what `experience.clean_years` accepts; `""` survives as the clear
+    sentinel (the store turns it into NULL — see `PreferencesIn.years_experience`)."""
+    if v is None or (isinstance(v, str) and not v.strip()):
+        return v
+    cleaned = experience.clean_years(v)
+    if cleaned is None:
+        raise ValueError("years_experience must be a whole number of years")
+    return cleaned
 
 
 class LocationFieldsMixin(BaseModel):
@@ -969,6 +980,11 @@ class PreferencesIn(BaseModel):
     # Changing the site language updates which language the emails arrive in too — the two
     # being different is the thing this whole change exists to stop.
     language: Optional[str] = None
+    # Editable since migration 025 gave it a gate to feed; previously CV-set-once. The union
+    # with str is how a subscriber *clears* it: `exclude_none=True` below means a None never
+    # reaches the store, so "no preference" travels as "" and `experience.clean_years` turns
+    # it into NULL — the exact shape `education_field` already uses.
+    years_experience: Optional[Union[int, str]] = None
 
     _valid_roles = field_validator("role_categories")(_check_role_categories)
     _valid_countries = field_validator("countries")(_check_countries)
@@ -977,6 +993,7 @@ class PreferencesIn(BaseModel):
     _valid_work_modes = field_validator("work_modes")(_check_work_modes)
     _valid_education = field_validator("education_levels")(_check_education_levels)
     _valid_education_field = field_validator("education_field")(_check_education_field)
+    _valid_years = field_validator("years_experience")(_check_years_experience)
 
 
 class SessionIn(BaseModel):
@@ -1268,6 +1285,8 @@ def _match_view(j: dict) -> dict:
         "seniority": j.get("seniority"),
         "work_type": j.get("work_type"),
         "work_mode": j.get("work_mode"),
+        # The parsed tenure requirement (migration 025); null = the ad never said.
+        "experience_min": j.get("experience_min"),
         "role_category": j.get("role_category"),
         "salary": j.get("salary_raw"),
         "score": j.get("score"),
@@ -1285,7 +1304,8 @@ def get_matches(request: Request, token: Optional[str] = None, offset: int = 0,
                 work_modes: Optional[str] = None, great_fits: bool = False,
                 q: Optional[str] = None, categories: Optional[str] = None,
                 countries: Optional[str] = None, cities: Optional[str] = None,
-                seniorities: Optional[str] = None) -> dict:
+                seniorities: Optional[str] = None,
+                max_experience: Optional[int] = None) -> dict:
     """One page of everything the matcher found for this subscriber (not just the emailed
     few), ranked best-first. Authenticated by the private magic-link token or the session
     cookie.
@@ -1337,6 +1357,9 @@ def get_matches(request: Request, token: Optional[str] = None, offset: int = 0,
                     if m in geo.WORK_MODES]
     modes_filter = picked_modes or None
     min_score = GREAT_FIT_MIN_SCORE if great_fits else None
+    # Dropped-not-422'd like every filter on this page; negative or absurd values mean "no
+    # filter", never an error. Unknown postings are KEPT by the filter (see `_match_filters`).
+    max_exp = max_experience if max_experience is not None and 0 <= max_experience <= 50 else None
 
     # The four filters this page gained on 2026-08-12, so it offers the same axes as the
     # public feed. Dropped rather than 400'd when unknown, like every other filter here and
@@ -1354,7 +1377,7 @@ def get_matches(request: Request, token: Optional[str] = None, offset: int = 0,
     narrowing = dict(skills_filter=skills_filter, work_modes=modes_filter,
                      min_score=min_score, q=term, categories=picked_cats or None,
                      countries=picked_countries or None, cities=picked_cities or None,
-                     seniorities=picked_levels or None)
+                     seniorities=picked_levels or None, max_experience=max_exp)
 
     jobs = store.matched_jobs(profile["id"], limit=MATCHES_PAGE_LIMIT, offset=offset,
                               hidden=hidden, **narrowing)
@@ -1392,6 +1415,7 @@ def get_matches(request: Request, token: Optional[str] = None, offset: int = 0,
         "seniorities": picked_levels,
         "great_fits": great_fits,
         "great_fit_score": GREAT_FIT_MIN_SCORE,
+        "max_experience": max_exp,
         "facets": facets,
         "skill_facets": facets["skills"],   # legacy alias — see the docstring
         "jobs": [_match_view(j) for j in jobs],

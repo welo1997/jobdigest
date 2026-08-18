@@ -256,6 +256,10 @@ const fr: Messages = {
     addSectorPlaceholder: "Ajouter un secteur…",
     addSectorAria: "Ajouter un secteur",
     seniorityLabel: "Niveau — nous n'envoyons que des postes aux niveaux choisis",
+    yearsExperience: "Années d'expérience",
+    yearsExperienceHint:
+      "Nous écartons les offres exigeant plus d'années d'expérience que vous n'en avez. "
+      + "Celles qui ne précisent rien continuent d'arriver. Laissez vide si sans préférence.",
     frequency: "Fréquence",
     freqDaily: "Quotidien",
     freqWeekdays: "Jours ouvrés uniquement",
@@ -328,6 +332,16 @@ const fr: Messages = {
     searchLabel: "Rechercher dans vos offres",
     searchPlaceholder: "Poste, compétence ou entreprise",
     greatFitsOnly: "Meilleures offres uniquement",
+    filterByExperience: "Expérience",
+    maxExpAny: "Toute expérience",
+    maxExpOption: {
+      one: "{n} an d'expérience max",
+      other: "{n} ans d'expérience max",
+    },
+    tagExperience: {
+      one: "{n}+ an",
+      other: "{n}+ ans",
+    },
     clearFilter: "Effacer",
     refreshNow: "Actualiser les offres",
     refreshBusy: "Actualisation…",

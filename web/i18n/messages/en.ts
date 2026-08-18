@@ -256,6 +256,10 @@ const en: Messages = {
     addSectorPlaceholder: "Add an industry…",
     addSectorAria: "Add an industry",
     seniorityLabel: "Seniority — we only send roles at the levels you pick",
+    yearsExperience: "Years of experience",
+    yearsExperienceHint:
+      "We skip roles that require more years than you have. Roles that don't state a "
+      + "requirement still come through. Leave empty for no preference.",
     frequency: "Frequency",
     freqDaily: "Daily",
     freqWeekdays: "Weekdays only",
@@ -326,6 +330,16 @@ const en: Messages = {
     searchLabel: "Search your matches",
     searchPlaceholder: "Job title, skill or company",
     greatFitsOnly: "Great fits only",
+    filterByExperience: "Experience",
+    maxExpAny: "Any experience level",
+    maxExpOption: {
+      one: "Up to {n} year required",
+      other: "Up to {n} years required",
+    },
+    tagExperience: {
+      one: "{n}+ year",
+      other: "{n}+ years",
+    },
     clearFilter: "Clear",
     refreshNow: "Refresh matches now",
     refreshBusy: "Refreshing…",

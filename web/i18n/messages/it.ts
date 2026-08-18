@@ -255,6 +255,10 @@ const it: Messages = {
     addSectorPlaceholder: "Aggiungi un settore…",
     addSectorAria: "Aggiungi un settore",
     seniorityLabel: "Livello — inviamo solo posizioni ai livelli che scegli",
+    yearsExperience: "Anni di esperienza",
+    yearsExperienceHint:
+      "Escludiamo le offerte che richiedono più anni di quelli che hai. Quelle che non lo "
+      + "indicano continuano ad arrivare. Lascia vuoto per nessuna preferenza.",
     frequency: "Frequenza",
     freqDaily: "Ogni giorno",
     freqWeekdays: "Solo nei giorni feriali",
@@ -327,6 +331,16 @@ const it: Messages = {
     searchLabel: "Cerca nelle tue offerte",
     searchPlaceholder: "Ruolo, competenza o azienda",
     greatFitsOnly: "Solo le migliori offerte",
+    filterByExperience: "Esperienza",
+    maxExpAny: "Qualsiasi esperienza",
+    maxExpOption: {
+      one: "Max {n} anno richiesto",
+      other: "Max {n} anni richiesti",
+    },
+    tagExperience: {
+      one: "{n}+ anno",
+      other: "{n}+ anni",
+    },
     clearFilter: "Cancella",
     refreshNow: "Aggiorna gli annunci ora",
     refreshBusy: "Aggiornamento…",

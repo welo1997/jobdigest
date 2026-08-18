@@ -182,7 +182,7 @@ class _FakeStore:
     # blanking the right positional argument, which is the same reason the real builder took
     # a `skip` parameter instead of growing to eight positions.
     _MATCH_FILTERS = ("skills_filter", "work_modes", "min_score", "q", "categories",
-                      "countries", "cities", "seniorities")
+                      "countries", "cities", "seniorities", "max_experience")
 
     def _apply_match_filters(self, rows, skip="", **f):
         def on(name):
@@ -208,6 +208,12 @@ class _FakeStore:
             rows = [j for j in rows if (j.get("country_code"), j.get("city")) in pairs]
         if on("seniorities"):
             rows = [j for j in rows if j.get("seniority") in set(f["seniorities"])]
+        if f.get("max_experience") is not None and skip != "max_experience":
+            # Exclusion polarity: an unknown requirement is KEPT, exactly as the real
+            # `(experience_min is null or experience_min <= %s)` keeps it.
+            rows = [j for j in rows
+                    if j.get("experience_min") is None
+                    or j["experience_min"] <= f["max_experience"]]
         if f.get("min_score") is not None and skip != "min_score":
             rows = [j for j in rows if (j.get("score") or 0) >= f["min_score"]]
         return rows

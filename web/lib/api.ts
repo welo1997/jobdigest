@@ -41,6 +41,10 @@ export interface SubscribePayload {
   sectors?: string[];
   min_score?: number;
   frequency?: string;
+  /** Years of professional experience. On the preferences form this feeds the digest's
+   *  experience gate; send "" (empty string) to clear it — a literal null is dropped by the
+   *  server's exclude_none, the same convention as education_field. */
+  years_experience?: number | "";
   /** The locale the visitor signed up under. Decides which language every email to them is
    *  written in — the digest runs from a timer with no browser, so it cannot be inferred
    *  later. See service/db/migration_013_language.sql. */
@@ -93,6 +97,9 @@ export interface MatchJob {
   /** Carried since /matches gained Country and City filters (2026-08-12). */
   country_code: string | null;
   city: string | null;
+  /** Minimum years of experience the ad demands (migration 025); null = it never said,
+   *  which is most postings. */
+  experience_min: number | null;
   role_category: string | null;
   salary: string | null;
   score: number | null;
@@ -134,6 +141,10 @@ export interface MatchesResponse {
    *  renders it but must never decide it. */
   great_fits: boolean;
   great_fit_score: number;
+  /** The experience ceiling currently applied ("hide roles demanding more than N years"),
+   *  or null. Postings that state no requirement are always kept — the filter can only
+   *  drop a stated demand, never punish silence. */
+  max_experience: number | null;
   /** Each filter menu's options, counted with the *other* filters applied but never its
    *  own — so no single tick can empty the menu it came from. `great_fit_count` is how many
    *  the toggle would leave; null when the server was not asked. */
@@ -296,6 +307,8 @@ export interface MatchFilters {
   countries?: string[];
   cities?: string[];
   seniorities?: string[];
+  /** Hide roles demanding more than this many years; roles stating nothing are kept. */
+  maxExperience?: number;
 }
 
 export function getMatches(token?: string, offset = 0, hidden = false,
@@ -312,6 +325,7 @@ export function getMatches(token?: string, offset = 0, hidden = false,
   if (filters.countries?.length) q.set("countries", filters.countries.join(","));
   if (filters.cities?.length) q.set("cities", filters.cities.join(","));
   if (filters.seniorities?.length) q.set("seniorities", filters.seniorities.join(","));
+  if (filters.maxExperience != null) q.set("max_experience", String(filters.maxExperience));
   const s = q.toString();
   return req<MatchesResponse>(`/matches${s ? `?${s}` : ""}`);
 }
@@ -327,7 +341,13 @@ export function setMatchesHidden(postingIds: string[], hidden: boolean, token?: 
   });
 }
 
-export function updatePreferences(changes: Partial<Preferences>, token?: string) {
+// `years_experience` widens to allow "": the clear sentinel (stored NULL server-side) — a
+// literal null would be dropped by the API's exclude_none and the old value would survive.
+export function updatePreferences(
+  changes: Partial<Omit<Preferences, "years_experience">>
+    & { years_experience?: number | "" },
+  token?: string,
+) {
   return req<Preferences>("/preferences", {
     method: "POST",
     body: JSON.stringify(token ? { token, ...changes } : changes),

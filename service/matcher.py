@@ -29,7 +29,7 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from service import education, geo, store  # noqa: E402
+from service import education, experience, geo, store  # noqa: E402
 
 logger = logging.getLogger("service.matcher")
 
@@ -122,6 +122,11 @@ on that line, so the `reach` rule applies to them unchanged.
 not offer a part-time option) is not what this person asked for. Score it at most 5 — it can \
 still appear on their matches page as a weaker option, but it must not headline their email. \
 Candidates offering part-time are marked `part_time=yes`; prefer them.
+- Experience: where the profile states years of experience, a posting whose DESCRIPTION \
+demands clearly more ("at least 8 years", "min. 5 let praxe") is not a fit — score it below 4. \
+A `min_experience=Ny` token is the requirement we parsed from the ad; a candidate without one \
+never stated a requirement, which is most of them and is NOT a mismatch — judge those on \
+overall fit, and never infer a tenure demand the ad did not write down.
 - Postings may be in Czech, Slovak, or English — judge them equally; a "Vývojář" is a \
 developer, "Obchodní zástupce" is a sales rep, "Účetní" is an accountant.
 - Rank best-first and be honest with the scores: a 9-10 is an excellent fit, a 6-7 solid, \
@@ -184,8 +189,15 @@ def _profile_block(p: dict) -> str:
     # prefilter — subscribers who ticked "part-time only" were being emailed full-time roles.
     if p.get("part_time_only"):
         lines.append("Work schedule: PART-TIME ONLY (a full-time role is not what they asked for)")
-    if p.get("years_experience") is not None:
-        lines.append(f"Years experience: {p['years_experience']}")
+    # The tenure rule mirrors the education one two branches up, including its caution: the
+    # SQL gate (`experience.experience_predicate`) already refuses candidates whose *parsed*
+    # requirement exceeds this, so what reaches the model is rows whose `exp=` token passed
+    # or was never stated — the instruction is for the ones only the prose states.
+    if experience.clean_years(p.get("years_experience")) is not None:
+        lines.append(
+            f"Years experience: {experience.describe(p['years_experience'])}, but most "
+            "postings never state a requirement — do not infer one that is not written "
+            "down, and do not exclude a posting merely for being silent")
     if p.get("cv_summary"):
         lines.append(f"CV summary: {p['cv_summary']}")
     return "\n".join(lines)
@@ -301,6 +313,11 @@ def _candidates_block(shortlist: list[dict],
             + f"setup={c.get('work_mode') or 'unstated'} "
             f"region={c.get('region') or '?'} "
             f"seniority={_seniority_for_model(c)} work={c.get('work_type') or '?'}"
+            # Rendered only when the ad stated one — an absent token is "never said", the
+            # same contract as seniority=unstated and reach=?, and the profile line tells
+            # the model what to do with silence.
+            + (f" min_experience={c['experience_min']}y"
+               if c.get("experience_min") is not None else "")
             + (" part_time=yes" if c.get("is_part_time") else "")
             + (f" salary={salary}" if salary else "")
             + (f"\n    {desc}" if desc else "")

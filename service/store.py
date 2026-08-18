@@ -26,7 +26,7 @@ from psycopg2.pool import ThreadedConnectionPool
 # dependency at import time — fastembed and numpy load inside `embed._load()` / `embed_texts`,
 # neither of which the API ever calls. Only `to_pgvector` is used below, and it stays the one
 # definition of how a vector is rendered for Postgres.
-from service import education, embed, geo, i18n, taxonomy
+from service import education, embed, experience, geo, i18n, taxonomy
 
 _POOL: Optional[ThreadedConnectionPool] = None
 
@@ -68,7 +68,7 @@ _UPSERT_SQL = """
 insert into postings (
     posting_id, source, title, company, url, description, location, country_code, city,
     remote_signal, work_mode, scope_raw, remote_reach, reach_areas, reach_countries,
-    education_min,
+    education_min, experience_min,
     salary_raw, currency, posted_at,
     role_category, region, eligibility, seniority, work_type, is_part_time, dedup_key, skills,
     last_seen_at, is_active
@@ -95,6 +95,7 @@ on conflict (posting_id) do update set
     reach_areas = excluded.reach_areas,
     reach_countries = excluded.reach_countries,
     education_min = excluded.education_min,
+    experience_min = excluded.experience_min,
     salary_raw = excluded.salary_raw,
     currency = excluded.currency,
     posted_at = excluded.posted_at,
@@ -122,7 +123,7 @@ def upsert_postings(rows: Iterable[dict]) -> int:
             # Empty list -> NULL for the same reason as `skills` below: psycopg2 renders `[]` as an
             # untyped empty array Postgres cannot coerce, and null/empty are equivalent here.
             r.get("reach_areas") or None, r.get("reach_countries") or None,
-            r.get("education_min"),
+            r.get("education_min"), r.get("experience_min"),
             r.get("salary_raw"), r.get("currency"),
             r.get("posted_at"),
             r.get("role_category"), r.get("region"), r.get("eligibility"),
@@ -136,14 +137,15 @@ def upsert_postings(rows: Iterable[dict]) -> int:
     ]
     if not values:
         return 0
-    # 27 placeholders for the 27 columns above `last_seen_at`. Counted, not eyeballed: these
+    # 28 placeholders for the 28 columns above `last_seen_at`. Counted, not eyeballed: these
     # bind by position, so one missing %s shifts every column after it by one and psycopg2
     # cannot tell — it would write `skills` into `dedup_key` and fail on the type, or
     # worse, not fail at all. The assert below is cheap and turns that into a loud error —
-    # and it earned its keep on 2026-08-15, when `reach_countries` reached the column list and
-    # the values tuple but not this string.
+    # it earned its keep on 2026-08-15, when `reach_countries` reached the column list and
+    # the values tuple but not this string, and again on 2026-08-18 when `experience_min` did
+    # exactly the same thing and the assert caught it in the first local test run.
     template = ("(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,"
-                "%s,now(), true)")
+                "%s,%s,now(), true)")
     assert template.count("%s") == len(values[0]), (
         f"upsert template has {template.count('%s')} placeholders "
         f"for {len(values[0])} values")
@@ -399,6 +401,10 @@ def query_candidates(profile: dict, limit: int = 100) -> list[dict]:
     if edu_sql != "true":
         where.append(edu_sql)
         params.extend(edu_params)
+    exp_sql, exp_params = experience.experience_predicate(profile)
+    if exp_sql != "true":
+        where.append(exp_sql)
+        params.extend(exp_params)
     if profile.get("seniorities"):
         where.append("p.seniority = any(%s)")
         params.append(profile["seniorities"])
@@ -416,7 +422,7 @@ def query_candidates(profile: dict, limit: int = 100) -> list[dict]:
         select distinct on (coalesce(p.dedup_key, p.posting_id))
                p.posting_id, p.source, p.title, p.company, p.url, p.location,
                p.city, p.country_code, p.remote_signal, p.work_mode, p.education_min,
-               p.remote_reach, p.reach_countries,
+               p.experience_min, p.remote_reach, p.reach_countries,
                p.region, p.eligibility, p.seniority, p.work_type, p.is_part_time,
                p.role_category, p.salary_raw, p.posted_at, p.description
         from postings p
@@ -533,6 +539,13 @@ def _hard_gate(profile: dict) -> tuple[list[str], list[Any]]:
     if edu_sql != "true":
         where.append(edu_sql)
         params.extend(edu_params)
+    # Fifth axis, same argument arm for arm: a posting demanding more years than the
+    # subscriber has is inadmissible however wide retrieval goes; an unknown requirement or a
+    # profile that never stated its years filters nothing (see experience.experience_predicate).
+    exp_sql, exp_params = experience.experience_predicate(profile)
+    if exp_sql != "true":
+        where.append(exp_sql)
+        params.extend(exp_params)
     if profile.get("eligible_only", True):
         where.append("p.eligibility = any(%s)")
         params.append(eligibility_allowlist(profile))
@@ -648,6 +661,7 @@ def query_shortlist_meta(profile: dict, limit: int = 120) -> tuple[list[dict], d
         sql = f"""
             select posting_id, source, title, company, url, location, city, country_code,
                    remote_signal, work_mode, remote_reach, reach_countries, education_min,
+                   experience_min,
                    region, eligibility, seniority, work_type, is_part_time,
                    role_category, salary_raw, currency, posted_at, description
             from (
@@ -667,7 +681,7 @@ def query_shortlist_meta(profile: dict, limit: int = 120) -> tuple[list[dict], d
                            -- without them it read `remote=yes` and had no field that could say
                            -- "remote from within Poland only".
                            p.remote_reach, p.reach_countries,
-                           p.education_min,
+                           p.education_min, p.experience_min,
                            p.region, p.eligibility, p.seniority, p.work_type, p.is_part_time,
                            p.role_category, p.salary_raw, p.currency, p.posted_at,
                            p.description, p.last_seen_at, p.first_seen_at,
@@ -821,6 +835,7 @@ def _match_filters(skills_filter: list[str] | None = None,
                    countries: list[str] | None = None,
                    cities: list[str] | None = None,
                    seniorities: list[str] | None = None,
+                   max_experience: Optional[int] = None,
                    *, skip: str = "") -> tuple[str, list]:
     """The /matches display filters, as one SQL fragment and its params.
 
@@ -887,6 +902,13 @@ def _match_filters(skills_filter: list[str] | None = None,
     if seniorities and skip != "seniorities":
         clauses.append("and p.seniority = any(%s)")
         params.append(list(seniorities))
+    if max_experience is not None and skip != "max_experience":
+        # Exclusion semantics, the opposite polarity of the equality filters above: the ask
+        # is "drop roles demanding more than N years", so an unknown requirement is KEPT —
+        # excluding it would hide ~75% of matches behind a filter that says nothing about
+        # them. Same null rule as the digest gate (experience.experience_predicate).
+        clauses.append("and (p.experience_min is null or p.experience_min <= %s)")
+        params.append(int(max_experience))
     if min_score is not None and skip != "min_score":
         clauses.append("and m.score >= %s")
         params.append(int(min_score))
@@ -903,6 +925,7 @@ def matched_jobs(profile_id: str, limit: int = 50, offset: int = 0,
                  countries: list[str] | None = None,
                  cities: list[str] | None = None,
                  seniorities: list[str] | None = None,
+                 max_experience: Optional[int] = None,
                  holdable_from: list[str] | None = None) -> list[dict]:
     """AI-picked jobs for a profile (matches join postings), best fit first.
 
@@ -969,7 +992,8 @@ def matched_jobs(profile_id: str, limit: int = 50, offset: int = 0,
     # once in `_match_filters` and applied identically by `match_count` — see that docstring
     # for why they cannot be two hand-built strings.
     filt, filt_params = _match_filters(skills_filter, work_modes, min_score, q,
-                                       categories, countries, cities, seniorities)
+                                       categories, countries, cities, seniorities,
+                                       max_experience)
     # A non-remote match is out of scope: it was admitted on its country and city, and asking
     # where its holder may *live* is the category error `reach_predicate` refuses to make. Written
     # after `filt` in the SQL text below, so its params sit between `filt_params` and the
@@ -986,7 +1010,7 @@ def matched_jobs(profile_id: str, limit: int = 50, offset: int = 0,
             select p.posting_id, p.source, p.title, p.company, p.url, p.location,
                    p.region, p.city, p.country_code,
                    p.eligibility, p.seniority, p.work_type, p.is_part_time,
-                   p.remote_signal, p.work_mode,
+                   p.remote_signal, p.work_mode, p.experience_min,
                    p.role_category, p.salary_raw, p.currency, p.posted_at, p.skills,
                    m.score, m.summary
             from matches m
@@ -1017,7 +1041,8 @@ def match_count(profile_id: str, hidden: bool = False,
                 categories: list[str] | None = None,
                 countries: list[str] | None = None,
                 cities: list[str] | None = None,
-                seniorities: list[str] | None = None) -> int:
+                seniorities: list[str] | None = None,
+                max_experience: Optional[int] = None) -> int:
     """How many active matches this profile has (same filter as matched_jobs) — used to
     show 'see all N matches' in the email and the page header.
 
@@ -1026,7 +1051,8 @@ def match_count(profile_id: str, hidden: bool = False,
     list that can only ever reach 124. Both now route through `_match_filters`, so the two
     cannot disagree by construction rather than by remembering to edit both."""
     filt, filt_params = _match_filters(skills_filter, work_modes, min_score, q,
-                                       categories, countries, cities, seniorities)
+                                       categories, countries, cities, seniorities,
+                                       max_experience)
     params: list = [profile_id, HIDDEN_STATUS] + filt_params
     with cursor() as cur:
         cur.execute(
@@ -1049,7 +1075,8 @@ def match_facets(profile_id: str, hidden: bool = False,
                  categories: list[str] | None = None,
                  countries: list[str] | None = None,
                  cities: list[str] | None = None,
-                 seniorities: list[str] | None = None) -> dict:
+                 seniorities: list[str] | None = None,
+                 max_experience: Optional[int] = None) -> dict:
     """The options each /matches filter menu offers, with counts.
 
     **Every facet is computed with the other filters applied but never its own.** That is
@@ -1079,7 +1106,7 @@ def match_facets(profile_id: str, hidden: bool = False,
     # `_match_filters`' `skip` note for the bug this shape replaces.
     active = dict(skills_filter=skills_filter, work_modes=work_modes, min_score=min_score,
                   q=q, categories=categories, countries=countries, cities=cities,
-                  seniorities=seniorities)
+                  seniorities=seniorities, max_experience=max_experience)
 
     def where(skip: str) -> tuple[str, list]:
         return _match_filters(**active, skip=skip)
@@ -2128,8 +2155,15 @@ def update_subscription(manage_token: str, data: dict) -> Optional[dict]:
         data = {**data, "education_field": education.clean_field(data["education_field"])}
     if "language" in data:
         data = {**data, "language": i18n.clean_locale(data["language"])}
+    # `""` is how a client clears it (the webapp's exclude_none drops a literal null);
+    # clean_years turns it into NULL, which is "no preference" and widens the gate.
+    if "years_experience" in data:
+        data = {**data, "years_experience": experience.clean_years(data["years_experience"])}
     sets, params = [], []
-    for f in _SUBSCRIBER_FIELDS:
+    # `years_experience` is updatable but deliberately NOT in _SUBSCRIBER_FIELDS: the create
+    # path inserts it via `cv_cols`, and listing it in both would duplicate the column in
+    # that INSERT. Update-only extension is the narrow fix.
+    for f in [*_SUBSCRIBER_FIELDS, "years_experience"]:
         if f in data:
             sets.append(f"{f} = %s")
             params.append(data[f])

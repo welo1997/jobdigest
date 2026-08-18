@@ -24,7 +24,7 @@ from search_jobs import (  # noqa: E402
     dedup_key, eligibility, gather, is_part_time,
     seniority, work_region, work_type,
 )
-from service import education, geo, skills, store, taxonomy  # noqa: E402
+from service import education, experience, geo, skills, store, taxonomy  # noqa: E402
 
 logger = logging.getLogger("service.ingest")
 
@@ -110,6 +110,9 @@ def build_row(p, title_cache: dict[str, str] | None = None,
         # (jobs.cz, profesia, cocuma). See service/education.py before reading anything into
         # a low count here.
         "education_min": education.classify_requirement(p.description, p.title),
+        # Fifth axis, same design: null whenever the ad states no tenure requirement, which
+        # is ~75% of postings. See service/experience.py before reading anything into it.
+        "experience_min": experience.classify_requirement(p.description, p.title),
         "salary_raw": p.salary_raw,
         "currency": p.currency, "posted_at": p.posted_at,
         "role_category": _classify(p.title, getattr(p, "source_category", None),

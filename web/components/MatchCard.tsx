@@ -45,7 +45,7 @@ export function MatchCard(
     onToggle: (id: string) => void;
   }
 ) {
-  const { t } = useI18n();
+  const { t, count } = useI18n();
   const score = j.score ?? 0;
   const strong = score >= 6;
   // Feed URLs are untrusted; a non-http(s) scheme (javascript:, data:) renders no link.
@@ -77,6 +77,12 @@ export function MatchCard(
           {jobTags(j, t).map((tag, i) => (
             <span key={i} className={`tag${tag.fl ? " fl" : ""}`}>{tag.text}</span>
           ))}
+          {/* Rendered here rather than in jobTags because it pluralises: "{n}+ years" needs
+              the locale's plural rules (count), which jobTags' (job, messages) signature does
+              not carry. Absent when the ad stated nothing — an absence is not a fact. */}
+          {j.experience_min != null && (
+            <span className="tag">{count(j.experience_min, t.matches.tagExperience)}</span>
+          )}
         </div>
         {/* Skill chips: canonical tool names (data, not translated copy), read-only. Capped so
             a keyword-stuffed ad cannot blow out the card. */}

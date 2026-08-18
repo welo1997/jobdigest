@@ -274,6 +274,10 @@ const pl: Messages = {
     addSectorPlaceholder: "Dodaj branżę…",
     addSectorAria: "Dodaj branżę",
     seniorityLabel: "Poziom — wysyłamy tylko oferty na wybranych przez Ciebie poziomach",
+    yearsExperience: "Lata doświadczenia",
+    yearsExperienceHint:
+      "Pomijamy oferty wymagające więcej lat doświadczenia, niż masz. Oferty, które tego "
+      + "nie podają, nadal przychodzą. Zostaw puste, jeśli bez preferencji.",
     frequency: "Częstotliwość",
     freqDaily: "Codziennie",
     freqWeekdays: "Tylko w dni robocze",
@@ -364,6 +368,20 @@ const pl: Messages = {
     searchLabel: "Szukaj wśród swoich ofert",
     searchPlaceholder: "Stanowisko, umiejętność lub firma",
     greatFitsOnly: "Tylko najlepsze oferty",
+    filterByExperience: "Doświadczenie",
+    maxExpAny: "Dowolne doświadczenie",
+    maxExpOption: {
+      one: "Wymagany maks. {n} rok",
+      few: "Wymagane maks. {n} lata",
+      many: "Wymagane maks. {n} lat",
+      other: "Wymagane maks. {n} roku",
+    },
+    tagExperience: {
+      one: "{n}+ rok",
+      few: "{n}+ lata",
+      many: "{n}+ lat",
+      other: "{n}+ roku",
+    },
     clearFilter: "Wyczyść",
     refreshNow: "Odśwież dopasowania",
     refreshBusy: "Odświeżanie…",

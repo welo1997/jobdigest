@@ -212,6 +212,12 @@ export interface Messages {
     addSectorPlaceholder: string;
     addSectorAria: string;
     seniorityLabel: string;
+    /** Years of professional experience (`profiles.years_experience`) — a number input.
+     *  Feeds the digest's experience gate: roles demanding more years are filtered out,
+     *  roles that state nothing always pass, and the hint must say both. Empty = no
+     *  preference. */
+    yearsExperience: string;
+    yearsExperienceHint: string;
     frequency: string;
     freqDaily: string;
     freqWeekdays: string;
@@ -289,6 +295,15 @@ export interface Messages {
     searchLabel: string;
     searchPlaceholder: string;
     greatFitsOnly: string;
+    /** The experience ceiling select: `filterByExperience` is the trigger, `maxExpAny` the
+     *  no-filter option, `maxExpOption` one option ("≤ {n} yrs" in spirit — each language
+     *  phrases it naturally, pluralised on {n}). A card's stated requirement renders through
+     *  `tagExperience` ("{n}+ yrs"), also pluralised. Roles that state nothing are always
+     *  kept by the filter, and the UI copy must not promise otherwise. */
+    filterByExperience: string;
+    maxExpAny: string;
+    maxExpOption: PluralForms;
+    tagExperience: PluralForms;
     clearFilter: string;
     /** On-demand "run my digest now": re-match this subscriber and email a fresh digest
      *  immediately. Bounded by a per-subscriber cooldown the server owns — while it is active

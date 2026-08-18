@@ -94,6 +94,9 @@ function Inner() {
     levels: [...EDUCATION_LEVELS], field: "",
   });
   const [levels, setLevels] = useState<Set<string>>(new Set());
+  // Years of experience as the input's raw string: "" is a real state ("no preference",
+  // stored as NULL) and a number input's value must round-trip what was typed.
+  const [years, setYears] = useState("");
 
   type SetSetter = (updater: (prev: Set<string>) => Set<string>) => void;
   const toggleInSet = (setter: SetSetter, o: string) =>
@@ -142,6 +145,7 @@ function Inner() {
       });
       setLevels(new Set((p.seniorities || [])
         .filter((c) => (SENIORITY_IDS as readonly string[]).includes(c))));
+      setYears(p.years_experience == null ? "" : String(p.years_experience));
     };
 
     const load = async () => {
@@ -212,6 +216,10 @@ function Inner() {
         education_levels: cleanEducationLevels(edu.levels),
         education_field: cleanEducationField(edu.field),
         seniorities: seniorities.length ? seniorities : ["junior", "mid", "senior"],
+        // "" clears it server-side (stored NULL = no preference) — a literal null would be
+        // dropped by the API's exclude_none and the old value would silently survive.
+        years_experience: years.trim() === "" ? ""
+          : Math.max(0, Math.min(50, Math.round(Number(years)) || 0)),
         // Saving from /cs/preferences/ means "write to me in Czech". There is no separate
         // language control on purpose: a subscriber who switched the site to their language
         // and then kept getting English mail is the bug this closes, and a second setting
@@ -359,6 +367,15 @@ function Inner() {
                   onClick={() => toggleInSet(setLevels, o)}>{t.seniorities[o]}</button>
               ))}
             </div>
+          </div>
+          <div className="field">
+            <label htmlFor="p-years">{t.prefs.yearsExperience}</label>
+            <input id="p-years" type="number" inputMode="numeric" min={0} max={50} step={1}
+              value={years} style={{ maxWidth: 120 }}
+              onChange={(e) => setYears(e.target.value)} />
+            <p style={{ color: "var(--muted)", fontSize: "var(--fs-sm)", marginTop: 6 }}>
+              {t.prefs.yearsExperienceHint}
+            </p>
           </div>
           <LocationPicker value={loc} onChange={setLoc} idPrefix="p" />
 

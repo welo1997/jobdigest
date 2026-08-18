@@ -117,7 +117,8 @@ POSTINGS: list[tuple[str, str, str, str, str | None]] = [
      "dbt, BigQuery, Looker. On-site in our Brno office.", "70 000 - 90 000 CZK"),
     ("Senior Data Engineer", "Zalando SE", "Berlin, Germany",
      "Spark, Kafka, AWS. A Master's degree in Computer Science or a related field is "
-     "required.", "€75,000 - €95,000"),
+     "required, and 5 years of professional data engineering experience.",
+     "€75,000 - €95,000"),
     ("Data Platform Engineer", "Bolt", "Tallinn, Estonia",
      "Terraform, Airflow, Snowflake. This role is fully remote.", None),
 
@@ -153,7 +154,8 @@ POSTINGS: list[tuple[str, str, str, str, str | None]] = [
     ("Junior Java Developer", "Ness Digital", "Ostrava, Czechia",
      "Spring Boot, Oracle. Vyučen v oboru IT nebo praxe.", None),
     ("Senior Software Engineer", "GitLab", "Remote, Worldwide",
-     "All-remote company. Ruby, Go.", "$140,000 - $180,000"),
+     "All-remote company. Ruby, Go. Requirements: at least 8 years of experience building "
+     "production systems.", "$140,000 - $180,000"),
     ("QA Engineer", "Y Soft", "Brno, Czechia (hybrid)",
      "Test automation in Playwright.", None),
 
@@ -340,6 +342,7 @@ def report(rows: list[dict]) -> None:
     print(f"  role_category   {dist('role_category')}")
     print(f"  work_mode       {dist('work_mode')}")
     print(f"  education_min   {dist('education_min')}")
+    print(f"  experience_min  {dist('experience_min')}")
     print(f"  country_code    {dist('country_code')}")
     print(f"  city            {dist('city')}")
 

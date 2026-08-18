@@ -55,6 +55,11 @@ create table if not exists postings (
     -- inventory, which carries no description text at all — the gate keeps nulls and defers to
     -- the AI matcher. See service/education.py before relying on this.
     education_min  text,
+    -- Minimum years of experience the ad demands (migration 025): null = never said, and the
+    -- gate keeps nulls and defers to the AI matcher — the same design, for the same reasons,
+    -- as education_min above. Roughly a quarter of active rows carry a value (measured
+    -- 2026-08-18). See service/experience.py before relying on this.
+    experience_min smallint,
     salary_raw     text,
     currency       text,
     posted_at      date,
@@ -112,6 +117,8 @@ create index if not exists idx_postings_eligibility on postings (eligibility);
 create index if not exists idx_postings_dedup       on postings (dedup_key);
 -- Partial: only ~3% of rows carry a requirement, and the null-majority path never needs it.
 create index if not exists idx_postings_education   on postings (education_min) where education_min is not null;
+-- Partial (migration 025), same shape: the interesting rows are the ones with a value.
+create index if not exists idx_postings_experience  on postings (experience_min) where experience_min is not null;
 -- Partial (migration 021): only ever set for fully-remote rows, and every query that reads it is
 -- already filtering on remote.
 create index if not exists idx_postings_remote_reach on postings (remote_reach)

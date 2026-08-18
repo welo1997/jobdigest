@@ -255,6 +255,10 @@ const es: Messages = {
     addSectorPlaceholder: "Añadir un sector…",
     addSectorAria: "Añadir un sector",
     seniorityLabel: "Nivel — solo enviamos puestos en los niveles que elijas",
+    yearsExperience: "Años de experiencia",
+    yearsExperienceHint:
+      "Omitimos las ofertas que exigen más años de los que tienes. Las que no lo indican "
+      + "siguen llegando. Déjalo vacío si no tienes preferencia.",
     frequency: "Frecuencia",
     freqDaily: "Diario",
     freqWeekdays: "Solo días laborables",
@@ -326,6 +330,16 @@ const es: Messages = {
     searchLabel: "Buscar en tus coincidencias",
     searchPlaceholder: "Puesto, competencia o empresa",
     greatFitsOnly: "Solo las mejores coincidencias",
+    filterByExperience: "Experiencia",
+    maxExpAny: "Cualquier experiencia",
+    maxExpOption: {
+      one: "Máx. {n} año requerido",
+      other: "Máx. {n} años requeridos",
+    },
+    tagExperience: {
+      one: "{n}+ año",
+      other: "{n}+ años",
+    },
     clearFilter: "Borrar",
     refreshNow: "Actualizar coincidencias ahora",
     refreshBusy: "Actualizando…",

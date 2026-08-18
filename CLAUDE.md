@@ -146,6 +146,17 @@ Each of these has been broken in production at least once. Reasoning and measure
   definition (mirrored in `web/lib/education.ts`). Null is 90.6% of rows and **always passes
   the gate**; the classifier's only safe error is a miss; a CV never narrows this
   server-side. Changing the patterns means `python -m service.backfill_education`.
+- **Years of experience is the fifth axis, and its blurb problem is worse than education's.**
+  `service/experience.py` is the one definition; `postings.experience_min` (migration 025) is
+  the parsed demand, `profiles.years_experience` the subscriber side, and null passes every
+  gate on both ends — a profile that never stated its years filters nothing. The number+years
+  shape appears in **34.7% of active rows** but only ~80% of those are requirements: "we have
+  25 years of experience" wears the exact grammar of a demand, which is why `MAX_YEARS` (15)
+  is itself a blurb guard and why a mention needs a tenure word or shape *beside* it. **A
+  range demands its floor** ("3–5 years" is 3), "up to N years" demands nothing, and the
+  /matches `max_experience` filter KEEPS unknowns (exclusion polarity — dropping them would
+  hide the silent majority). Changing the patterns means
+  `python -m service.backfill_experience`.
 - **A source's `remote_signal` is a claim, not a fact** — `is_fully_remote` checks the
   posting's own words. Only a *named* schedule or policy disqualifies. Changing detection
   means re-running `python -m service.backfill_geo`.
