@@ -338,6 +338,15 @@ button.nav-link{background:none;border:0;padding:0;cursor:pointer;font-family:in
 .skill-opt .c{flex:none;font-size:var(--fs-xs);color:var(--muted);font-variant-numeric:tabular-nums;}
 .skill-menu-foot{border-top:1px solid var(--line-soft);margin-top:5px;padding:7px 9px 3px;}
 
+/* Score and experience are single-valued (a floor / a ceiling), so they are native <select>s
+   rather than tick-box menus — but they share the filter row with the menus and must read as
+   the same control. They borrow `.skill-menu-btn`'s size, weight and shape and add only what a
+   native select needs: the browser arrow suppressed and replaced with the menus' own ▾ caret,
+   with room reserved for it. */
+.skill-menu-btn.fsel{appearance:none;-webkit-appearance:none;padding-right:32px;
+  background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 10 10'><path d='M1 3l4 4 4-4' fill='none' stroke='%239aa' stroke-width='1.5'/></svg>");
+  background-repeat:no-repeat;background-position:right 13px center;background-size:10px;}
+
 /* Removable chip for a ticked skill, sitting on the row beside the trigger. */
 .skill.sel{cursor:pointer;font-family:var(--font-sans);font-size:11px;letter-spacing:0;
   text-transform:none;color:var(--ink);background:var(--surface-2);border:1px solid var(--line);}

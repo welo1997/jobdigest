@@ -373,7 +373,7 @@ function Inner() {
           Single-valued (a floor, not a set), so a native select like the experience one below.
           "8+" is the old great-fits bar; below it the page shows more of the record. */}
       <select
-        className={`skill sel${scoreFloor != null ? " on" : ""}`}
+        className={`skill-menu-btn fsel${scoreFloor != null ? " on" : ""}`}
         aria-label={t.matches.scoreFilterAria}
         value={scoreFloor ?? ""}
         onChange={(e) => setScoreFloor(e.target.value === "" ? null : Number(e.target.value))}
@@ -388,7 +388,7 @@ function Inner() {
           smaller number reads as tightening what is *stated*, not as hiding the silent
           majority. */}
       <select
-        className={`skill sel${maxExp != null ? " on" : ""}`}
+        className={`skill-menu-btn fsel${maxExp != null ? " on" : ""}`}
         aria-label={t.matches.filterByExperience}
         value={maxExp ?? ""}
         onChange={(e) => setMaxExp(e.target.value === "" ? null : Number(e.target.value))}
