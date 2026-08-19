@@ -3,7 +3,7 @@
    canonical design). Keep visual parity with that file and service/digest.py palette. */
 :root {
   --paper:#FBFAF6; --surface:#FFFFFF; --surface-2:#F4F2EC;
-  --ink:#182233; --muted:#5B6472; --faint:#8A93A1;
+  --ink:#182233; --muted:#5B6472; --faint:#6C7482;
   --brand:#0E7C6B; --brand-deep:#0A5C50; --brand-tint:#E3F0ED;
   --gold:#C98A18; --gold-soft:#F5E7C6;
   --line:#E7E4DC; --line-soft:#EFEDE6;
@@ -18,16 +18,16 @@
   --r-sm:8px; --r-md:12px; --r-lg:20px; --r-pill:999px; --maxw:1120px;
 }
 @media (prefers-color-scheme: dark){:root{
-  --paper:#0E1420;--surface:#151C2B;--surface-2:#1A2231;--ink:#EDEFF2;--muted:#A2ACBB;--faint:#727D8C;
+  --paper:#0E1420;--surface:#151C2B;--surface-2:#1A2231;--ink:#EDEFF2;--muted:#A2ACBB;--faint:#8892A1;
   --brand:#2DD4BF;--brand-deep:#5EEAD4;--brand-tint:#12332E;--gold:#F0B84A;--gold-soft:#3A2F16;
   --line:#26303F;--line-soft:#1E2836;--shadow:0 1px 2px rgba(0,0,0,.4),0 8px 24px rgba(0,0,0,.35);
   --shadow-lg:0 18px 50px rgba(0,0,0,.55);}}
 :root[data-theme="light"]{--paper:#FBFAF6;--surface:#FFFFFF;--surface-2:#F4F2EC;--ink:#182233;--muted:#5B6472;
-  --faint:#8A93A1;--brand:#0E7C6B;--brand-deep:#0A5C50;--brand-tint:#E3F0ED;--gold:#C98A18;--gold-soft:#F5E7C6;
+  --faint:#6C7482;--brand:#0E7C6B;--brand-deep:#0A5C50;--brand-tint:#E3F0ED;--gold:#C98A18;--gold-soft:#F5E7C6;
   --line:#E7E4DC;--line-soft:#EFEDE6;--shadow:0 1px 2px rgba(24,34,51,.05),0 8px 24px rgba(24,34,51,.07);
   --shadow-lg:0 18px 50px rgba(24,34,51,.14);}
 :root[data-theme="dark"]{--paper:#0E1420;--surface:#151C2B;--surface-2:#1A2231;--ink:#EDEFF2;--muted:#A2ACBB;
-  --faint:#727D8C;--brand:#2DD4BF;--brand-deep:#5EEAD4;--brand-tint:#12332E;--gold:#F0B84A;--gold-soft:#3A2F16;
+  --faint:#8892A1;--brand:#2DD4BF;--brand-deep:#5EEAD4;--brand-tint:#12332E;--gold:#F0B84A;--gold-soft:#3A2F16;
   --line:#26303F;--line-soft:#1E2836;--shadow:0 1px 2px rgba(0,0,0,.4),0 8px 24px rgba(0,0,0,.35);
   --shadow-lg:0 18px 50px rgba(0,0,0,.55);}
 
@@ -77,6 +77,11 @@ button{font-family:inherit;}
 .nav-actions{margin-left:auto;display:flex;align-items:center;gap:14px;}
 .nav-link{font-size:var(--fs-sm);font-weight:600;color:var(--muted);white-space:nowrap;}
 .nav-link:hover{color:var(--brand);text-decoration:none;}
+/* The current page's link. `aria-current="page"` is the accessible half; `.active` carries the
+   colour + underline so a sighted visitor can see where they are in the bar too. */
+.nav-link.active{color:var(--ink);}
+.nav-link.active::after{content:"";display:block;height:2px;margin-top:2px;border-radius:2px;
+  background:var(--brand);}
 /* a <button> that should look and sit like a nav link / inline text link */
 button.nav-link{background:none;border:0;padding:0;cursor:pointer;font-family:inherit;}
 .linkbtn{background:none;border:0;padding:0;cursor:pointer;font-family:inherit;font-weight:600;
@@ -109,7 +114,7 @@ button.nav-link{background:none;border:0;padding:0;cursor:pointer;font-family:in
 .langsel:focus-visible{outline:2px solid var(--brand);outline-offset:2px;}
 
 /* ============================================================= HERO */
-.hero{padding:52px 0 30px;}
+.hero{padding:36px 0 30px;}
 .hero-top{max-width:760px;margin:0 auto;text-align:center;}
 .hero .lede{margin-left:auto;margin-right:auto;}
 .eyebrow{display:inline-flex;align-items:center;gap:8px;margin-bottom:16px;}
@@ -442,6 +447,11 @@ button.nav-link{background:none;border:0;padding:0;cursor:pointer;font-family:in
    product, not like a lesser page. */
 .match.feed{gap:0;}
 .match.feed .bd .feed-where{font-size:var(--fs-sm);color:var(--muted);margin:0 0 2px;}
+/* The /jobs hero shares `.page-head` with the manage/state pages, but its content column
+   (search, filters, results, CTA) is the 720px reading column below — not the full 1120 wrap.
+   Left on the wide axis the heading started ~200px left of everything under it, so the page
+   read as two different left edges. Match it to the column it introduces. */
+.feed-head{max-width:720px;}
 .feed-search{max-width:720px;margin-top:20px;}
 /* The filter row shares `.skill-filter`'s flex layout with /matches but not its width: that
    page sits in the full wrap, this one has to line up with the 720px card column above and
@@ -537,4 +547,10 @@ a.hidden-link:hover{color:var(--brand);text-decoration:underline;}
      hold them — the signed-out "Log in" fits on one line; the signed-in trio wraps on narrow
      phones. */
   .nav .wrap{flex-wrap:wrap;height:auto;row-gap:8px;column-gap:12px;padding-top:10px;padding-bottom:10px;}
-  .nav-actions{gap:12px;flex-wrap:wrap;justify-content:flex-end;}}
+  .nav-actions{gap:12px;flex-wrap:wrap;justify-content:flex-end;}
+  /* The CV drop-zone is a row of icon + text + button. On a ~300px card the button steals so
+     much width that "Drop your CV — we'll fill this in" wrapped to one or two words per line.
+     Stack it on phones: icon, then the copy, then a full-width button — nothing gets crushed. */
+  .cvzone{flex-direction:column;align-items:stretch;text-align:center;gap:10px;}
+  .cvzone .cvic{margin:0 auto;}
+  .cvzone .cvbtn{width:100%;padding-top:10px;padding-bottom:10px;}}

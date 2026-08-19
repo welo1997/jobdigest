@@ -6,6 +6,7 @@ import AuthNav from "./AuthNav";
 import LocaleSwitcher from "./LocaleSwitcher";
 import { useI18n } from "@/i18n/context";
 import { legalHref } from "@/i18n/config";
+import { useNavActive } from "@/lib/useNavActive";
 
 /**
  * Shared top bar (dawn gradient + brand + language + theme toggle) used on every translated
@@ -17,6 +18,7 @@ import { legalHref } from "@/i18n/config";
  */
 export function Nav() {
   const { t, href } = useI18n();
+  const active = useNavActive();
   return (
     <>
       <div className="dawnbar" />
@@ -30,7 +32,9 @@ export function Nav() {
             {/* The public feed, offered to everyone including signed-out visitors — it is the
                 free tier's front door, so it sits before the account links rather than among
                 them. */}
-            <Link className="nav-link" href={href("/jobs")}>
+            <Link className={`nav-link${active(href("/jobs"))}`}
+              aria-current={active(href("/jobs")) ? "page" : undefined}
+              href={href("/jobs")}>
               {t.jobs.navLink}
             </Link>
             <AuthNav />

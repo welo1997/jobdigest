@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { getSession, logout } from "@/lib/api";
 import { useI18n } from "@/i18n/context";
+import { useNavActive } from "@/lib/useNavActive";
 
 /**
  * The auth affordance in the top bar. JobDigest is passwordless, so "logging in" means
@@ -16,6 +17,7 @@ import { useI18n } from "@/i18n/context";
  */
 export default function AuthNav() {
   const { t, href } = useI18n();
+  const active = useNavActive();
   const [state, setState] = useState<"loading" | "in" | "out">("loading");
 
   useEffect(() => {
@@ -44,8 +46,12 @@ export default function AuthNav() {
       <>
         {/* No token on these: a signed-in browser rides the session cookie, and both pages
             fall back to their own `?token=` only when a magic link supplied one. */}
-        <Link className="nav-link" href={href("/matches")}>{t.nav.myMatches}</Link>
-        <Link className="nav-link" href={href("/preferences")}>{t.nav.myPreferences}</Link>
+        <Link className={`nav-link${active(href("/matches"))}`}
+          aria-current={active(href("/matches")) ? "page" : undefined}
+          href={href("/matches")}>{t.nav.myMatches}</Link>
+        <Link className={`nav-link${active(href("/preferences"))}`}
+          aria-current={active(href("/preferences")) ? "page" : undefined}
+          href={href("/preferences")}>{t.nav.myPreferences}</Link>
         <button type="button" className="nav-link" onClick={doLogout}>{t.nav.logOut}</button>
       </>
     );

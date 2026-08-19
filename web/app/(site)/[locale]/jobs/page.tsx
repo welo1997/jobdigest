@@ -383,7 +383,7 @@ function Inner() {
 
   return (
     <>
-      <div className="wrap page-head">
+      <div className="wrap page-head feed-head">
         <span className="label">{t.jobs.label}</span>
         <h1>{t.jobs.title}</h1>
         <p>{t.jobs.intro}</p>
