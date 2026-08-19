@@ -236,12 +236,16 @@ function Inner() {
       if (cvLevels.length) setLevels(new Set(cvLevels));
       if (sig.years_experience != null) setYears(String(sig.years_experience));
       // Same mapping as signup: a detected bachelor's becomes "levels such a person can
-      // apply for", visibly, in chips the subscriber can correct before saving.
+      // apply for", visibly, in chips the subscriber can correct before saving. Level and
+      // field are *independent* silences: replace each only when the CV actually names it, so
+      // a CV that states a level but no field of study does not blank a field the subscriber
+      // set — the same "an axis the CV is silent on keeps the explicit choice" rule skills and
+      // years already follow (PR #58). Before this, a fieldless CV wiped "Economics".
       if (sig.education || sig.education_field) {
-        setEdu({
-          levels: sig.education ? levelsUpTo(sig.education) : [],
-          field: sig.education_field || "",
-        });
+        setEdu((prev) => ({
+          levels: sig.education ? levelsUpTo(sig.education) : prev.levels,
+          field: sig.education_field ? sig.education_field : prev.field,
+        }));
       }
       track("cv_parse_ok", { skills: (sig.skills || []).length });
       show(t.landing.toast.cvOk);

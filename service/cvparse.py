@@ -206,13 +206,20 @@ def _sectors(text: str) -> list[str]:
 # — "Ing." is a master's, "Bc." a bachelor's — and without those a Czech CV reads as no
 # education at all.
 _CV_EDUCATION: tuple[tuple[str, "re.Pattern[str]"], ...] = (
+    # An abbreviated Czech/Slovak title is followed by a name far more often than glued to a
+    # word, so the trailing guard is `\.(?!\w)` — "not followed by a word char" — NOT `\.\b`.
+    # `\b` after a literal dot only matches when a *word* char follows, so `\bing\.\b` could
+    # never match "Ing. Novak" (space) or a bare "Ing." at line end — exactly how these titles
+    # appear on a real CV, so a Czech CV carrying only "Ing." read as no education at all. Every
+    # mandatory-dot abbreviation here had the same latent bug (`csc.`, `rndr.`, `mga.`, `bc.`).
     ("doctorate", re.compile(
-        r"\bph\.?\s?d\.?\b|\bdoctorate\b|\bdoctoral\b|\bdoktor\w*|\bcsc\.\b|\brndr\.\b", re.I)),
+        r"\bph\.?\s?d\.?\b|\bdoctorate\b|\bdoctoral\b|\bdoktor\w*|\bcsc\.(?!\w)|\brndr\.(?!\w)",
+        re.I)),
     ("master", re.compile(
         r"\bmaster'?s?\b|\bm\.?sc\.?\b|\bm\.?a\.?\b|\bmba\b|\bmagistr\w*|\bmgr\.?\b|"
-        r"\bing\.\b|\bmga\.\b|\bdipl\.?[- ]ing\b", re.I)),
+        r"\bing\.(?!\w)|\bmga\.(?!\w)|\bdipl\.?[- ]ing\b", re.I)),
     ("bachelor", re.compile(
-        r"\bbachelor'?s?\b|\bb\.?sc\.?\b|\bb\.?a\.?\b|\bbakal[áa][řr]\w*|\bbc\.\b", re.I)),
+        r"\bbachelor'?s?\b|\bb\.?sc\.?\b|\bb\.?a\.?\b|\bbakal[áa][řr]\w*|\bbc\.(?!\w)", re.I)),
     ("vocational", re.compile(
         r"\bapprenticeship\b|\bvocational\b|\bberufsausbildung\b|\bvyu[čc]en\w*|"
         r"\bv[ýy]u[čc]n[íi]\s+list\b|\bst[řr]edn[íi]\s+odborn\w*", re.I)),

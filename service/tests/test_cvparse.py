@@ -144,6 +144,29 @@ def test_r_is_still_detected_when_it_is_the_language(text):
     assert "r" in cvparse.extract_signals(text)["skills"]
 
 
+# ---------------------------------------------------------- abbreviated CV titles --
+# Czech and Slovak CVs mostly carry the abbreviated academic title ("Ing.", "Bc.") rather
+# than the word. The title is followed by the holder's name, so there is a space after the
+# dot — and `\bing\.\b` could never match that (a `\b` after a literal dot needs a *word*
+# char next). Such a CV read as no education at all. The guard is now `\.(?!\w)`.
+
+@pytest.mark.parametrize("text,level", [
+    ("Ing. Jan Novák, datový analytik", "master"),      # title + a name after the dot
+    ("Jan Novák, Ing.", "master"),                       # title at the end of a line
+    ("Bc. Petra Nová", "bachelor"),
+    ("RNDr. Jan Novák", "doctorate"),
+    ("Mga. Eva Dvořáková", "master"),
+])
+def test_abbreviated_czech_titles_are_read_even_with_a_space_after_the_dot(text, level):
+    # Mutation check: put the trailing guard back to `\.\b` and every one of these reads None.
+    assert cvparse.extract_signals(text)["education"] == level
+
+
+def test_a_dotted_title_glued_to_a_word_is_not_read_as_a_degree():
+    # The deliberate trade: only a *separated* title counts. "Ing.novak" (no space) is not one.
+    assert cvparse.extract_signals("Ing.novak")["education"] is None
+
+
 def test_a_czech_social_media_cv_reads_as_social_media():
     """The profile behind the "Detected: r" bug: nothing in CV_RULES matched a social/
     community CV, so the parse contributed one wrong skill and no role at all."""
