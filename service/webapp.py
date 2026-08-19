@@ -1292,6 +1292,11 @@ def _match_view(j: dict) -> dict:
         "salary": j.get("salary_raw"),
         "score": j.get("score"),
         "summary": j.get("summary"),
+        # When the matcher last scored this row. Surfaced so a subscriber can see that a high
+        # score is old — routine-era scores (before the 2026-08-17 metered cutover) and
+        # metered-era ones are otherwise indistinguishable on the card.
+        "scored_at": (sc.isoformat() if hasattr((sc := j.get("scored_at")), "isoformat")
+                      else sc),
         # Extracted tech/tool facet (migration 020), read-only chips. Null/empty -> [] so the
         # web can always `.map` it. Canonical names are proper nouns, rendered untranslated.
         "skills": j.get("skills") or [],
@@ -1303,6 +1308,7 @@ def _match_view(j: dict) -> dict:
 def get_matches(request: Request, token: Optional[str] = None, offset: int = 0,
                 hidden: bool = False, skills: Optional[str] = None,
                 work_modes: Optional[str] = None, great_fits: bool = False,
+                score_floor: Optional[int] = None,
                 q: Optional[str] = None, categories: Optional[str] = None,
                 countries: Optional[str] = None, cities: Optional[str] = None,
                 seniorities: Optional[str] = None,
@@ -1330,7 +1336,9 @@ def get_matches(request: Request, token: Optional[str] = None, offset: int = 0,
       `work_modes`  comma-separated `remote` / `hybrid` / `onsite`. A posting whose ad never
                     said is excluded — this is an explicit request for a named setup, not the
                     matcher's keep-unknown rule, and the facet never offers null as an option.
-      `great_fits`  keeps only scores >= GREAT_FIT_MIN_SCORE.
+      `score_floor` keeps only matches scoring >= this (the min-score dropdown, 0..10).
+      `great_fits`  legacy alias for `score_floor = GREAT_FIT_MIN_SCORE`, honoured only when
+                    `score_floor` is absent — a cached old bundle still sends it.
 
     **Values outside the controlled vocabulary are dropped, not 422'd.** A hand-edited param
     should show fewer results, never break the page (the same forgiving rule as `offset`).
@@ -1357,7 +1365,14 @@ def get_matches(request: Request, token: Optional[str] = None, offset: int = 0,
     picked_modes = [m for m in (w.strip().lower() for w in (work_modes or "").split(","))
                     if m in geo.WORK_MODES]
     modes_filter = picked_modes or None
-    min_score = GREAT_FIT_MIN_SCORE if great_fits else None
+    # The min-score dropdown sends `score_floor` (Any / 5+ / 6+ / 7+ / 8+); keep only a value
+    # on the 0..10 scale and drop anything else, the same forgiving rule as every filter here.
+    # `great_fits` is the *legacy* control (score >= great_fit_score) a cached bundle still
+    # sends — honoured only when the newer param is absent, so the two never fight.
+    floor = score_floor if score_floor is not None and 0 <= score_floor <= 10 else None
+    if floor is None and great_fits:
+        floor = GREAT_FIT_MIN_SCORE
+    min_score = floor
     # Dropped-not-422'd like every filter on this page; negative or absurd values mean "no
     # filter", never an error. Unknown postings are KEPT by the filter (see `_match_filters`).
     max_exp = max_experience if max_experience is not None and 0 <= max_experience <= 50 else None
@@ -1416,6 +1431,9 @@ def get_matches(request: Request, token: Optional[str] = None, offset: int = 0,
         "seniorities": picked_levels,
         "great_fits": great_fits,
         "great_fit_score": GREAT_FIT_MIN_SCORE,
+        # The applied min-score dropdown floor (null = "Any"). The dropdown renders its current
+        # selection from this. `great_fits`/`great_fit_score` are kept for a cached old bundle.
+        "score_floor": floor,
         # This subscriber's own "strong fit" bar (`profiles.min_score`, default 6). The card
         # highlights a match at or above it — the same bar the email headlines on — so the
         # page and the inbox agree on what "strong" means for this person. Server-owned like

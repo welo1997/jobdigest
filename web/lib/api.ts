@@ -104,6 +104,10 @@ export interface MatchJob {
   salary: string | null;
   score: number | null;
   summary: string | null;
+  /** When the matcher last scored this row (ISO), or null. Surfaced so a subscriber can see
+   *  that a high score is old — routine-era scores (before 2026-08-17) and metered-era ones
+   *  are otherwise indistinguishable on the card. */
+  scored_at: string | null;
   /** Extracted tech/tool facet (migration 020). Canonical names, rendered as read-only chips
    *  untranslated (they are proper nouns). Always an array — empty when the ad named none. */
   skills: string[];
@@ -141,6 +145,9 @@ export interface MatchesResponse {
    *  renders it but must never decide it. */
   great_fits: boolean;
   great_fit_score: number;
+  /** The applied min-score dropdown floor (null = "Any"): the page renders the dropdown's
+   *  current selection from this. `great_fits`/`great_fit_score` remain for a cached bundle. */
+  score_floor: number | null;
   /** This subscriber's own "strong fit" bar (`profiles.min_score`, default 6). A card scoring
    *  at or above it is highlighted — the same bar the email headlines on, so the page and the
    *  inbox agree on "strong". Server-owned; the UI renders it, never decides it. */
@@ -305,7 +312,8 @@ export function getPreferences(token?: string) {
 export interface MatchFilters {
   skills?: string[];
   workModes?: string[];
-  greatFits?: boolean;
+  /** Minimum score to show (the dropdown: 5/6/7/8). Undefined = "Any". */
+  scoreFloor?: number;
   q?: string;
   categories?: string[];
   countries?: string[];
@@ -323,7 +331,7 @@ export function getMatches(token?: string, offset = 0, hidden = false,
   if (hidden) q.set("hidden", "true");
   if (filters.skills?.length) q.set("skills", filters.skills.join(","));
   if (filters.workModes?.length) q.set("work_modes", filters.workModes.join(","));
-  if (filters.greatFits) q.set("great_fits", "true");
+  if (filters.scoreFloor != null) q.set("score_floor", String(filters.scoreFloor));
   if (filters.q?.trim()) q.set("q", filters.q.trim());
   if (filters.categories?.length) q.set("categories", filters.categories.join(","));
   if (filters.countries?.length) q.set("countries", filters.countries.join(","));

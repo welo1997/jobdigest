@@ -352,6 +352,9 @@ const de: Messages = {
     searchLabel: "Ihre Treffer durchsuchen",
     searchPlaceholder: "Position, Kenntnis oder Unternehmen",
     greatFitsOnly: "Nur Top-Treffer",
+    scoreFilterAria: "Nach Mindestscore filtern",
+    scoreAny: "Beliebiger Score",
+    scoredOn: "Bewertet am {date}",
     filterByExperience: "Berufserfahrung",
     maxExpAny: "Jede Erfahrungsstufe",
     maxExpOption: {

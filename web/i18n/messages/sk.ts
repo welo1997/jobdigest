@@ -373,6 +373,9 @@ const sk: Messages = {
     searchLabel: "Hľadať vo vašich ponukách",
     searchPlaceholder: "Pozícia, zručnosť alebo firma",
     greatFitsOnly: "Len najlepšie ponuky",
+    scoreFilterAria: "Filtrovať podľa minimálneho skóre",
+    scoreAny: "Akékoľvek skóre",
+    scoredOn: "Ohodnotené {date}",
     filterByExperience: "Prax",
     maxExpAny: "Bez obmedzenia praxe",
     maxExpOption: {

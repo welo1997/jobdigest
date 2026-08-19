@@ -341,6 +341,9 @@ const en: Messages = {
     searchLabel: "Search your matches",
     searchPlaceholder: "Job title, skill or company",
     greatFitsOnly: "Great fits only",
+    scoreFilterAria: "Filter by minimum score",
+    scoreAny: "Any score",
+    scoredOn: "Scored {date}",
     filterByExperience: "Experience",
     maxExpAny: "Any experience level",
     maxExpOption: {

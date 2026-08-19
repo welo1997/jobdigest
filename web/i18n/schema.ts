@@ -307,6 +307,13 @@ export interface Messages {
     searchLabel: string;
     searchPlaceholder: string;
     greatFitsOnly: string;
+    /** The min-score dropdown that replaced the great-fits toggle: `scoreFilterAria` is its
+     *  aria-label, `scoreAny` the "no floor" option. The numeric options render as "{n}+" (a
+     *  number, never translated). `scoredOn` labels when the matcher scored a card ("Scored
+     *  {date}"), so a high but old score is legible on the card. */
+    scoreFilterAria: string;
+    scoreAny: string;
+    scoredOn: string;
     /** The experience ceiling select: `filterByExperience` is the trigger, `maxExpAny` the
      *  no-filter option, `maxExpOption` one option ("≤ {n} yrs" in spirit — each language
      *  phrases it naturally, pluralised on {n}). A card's stated requirement renders through

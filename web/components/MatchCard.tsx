@@ -3,6 +3,7 @@
 import { MatchJob } from "@/lib/api";
 import { track } from "@/lib/analytics";
 import { safeHref } from "@/lib/url";
+import { fmt } from "@/i18n/config";
 import { useI18n } from "@/i18n/context";
 import type { Messages } from "@/i18n/schema";
 
@@ -50,7 +51,7 @@ export function MatchCard(
     greatFitScore?: number;
   }
 ) {
-  const { t, count } = useI18n();
+  const { t, count, locale } = useI18n();
   const score = j.score ?? 0;
   // Highlighted when it clears this subscriber's own email bar — the same threshold the digest
   // headlines on, so a "top" card here is a job that would headline their inbox.
@@ -101,6 +102,17 @@ export function MatchCard(
           </div>
         )}
         {j.summary && <div className="why">{j.summary}</div>}
+        {/* When the matcher scored this. A high score can be old — a routine-era score (before
+            the 2026-08-17 metered cutover) reads no differently from a fresh one without it. */}
+        {j.scored_at && (
+          <div className="scored" style={{ color: "var(--muted)", fontSize: "var(--fs-sm)",
+            marginTop: 4 }}>
+            {fmt(t.matches.scoredOn, {
+              date: new Date(j.scored_at).toLocaleDateString(locale,
+                { year: "numeric", month: "short", day: "numeric" }),
+            })}
+          </div>
+        )}
         {href && (
           <a
             className="apply"

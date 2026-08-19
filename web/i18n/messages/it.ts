@@ -343,6 +343,9 @@ const it: Messages = {
     searchLabel: "Cerca nelle tue offerte",
     searchPlaceholder: "Ruolo, competenza o azienda",
     greatFitsOnly: "Solo le migliori offerte",
+    scoreFilterAria: "Filtra per punteggio minimo",
+    scoreAny: "Qualsiasi punteggio",
+    scoredOn: "Valutato il {date}",
     filterByExperience: "Esperienza",
     maxExpAny: "Qualsiasi esperienza",
     maxExpOption: {

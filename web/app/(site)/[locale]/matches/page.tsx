@@ -125,7 +125,9 @@ function Inner() {
   const { t, href, count, country } = useI18n();
   const [skills, setSkills] = useState<string[]>([]);
   const [workModes, setWorkModes] = useState<string[]>([]);
-  const [greatFits, setGreatFits] = useState(false);
+  // Minimum score to show — the dropdown that replaced the binary "Great fits only" toggle.
+  // null = "Any". Single-valued (a floor, not a set), so a native select like `maxExp`.
+  const [scoreFloor, setScoreFloor] = useState<number | null>(null);
   // The four axes this page gained on 2026-08-12, so it filters on the same things the
   // public feed does. `text` is what is typed; `q` is what has been submitted — a keystroke
   // must not refetch a subscriber's whole match list.
@@ -141,8 +143,8 @@ function Inner() {
   const list = useMatchList({
     hidden: false,
     path: "/matches",
-    filters: { skills, workModes, greatFits, q, categories, countries, cities, seniorities,
-               maxExperience: maxExp ?? undefined },
+    filters: { skills, workModes, scoreFloor: scoreFloor ?? undefined, q, categories,
+               countries, cities, seniorities, maxExperience: maxExp ?? undefined },
     // How many matches the page actually had — a page that routinely shows 0 or 1 is
     // a product problem, not a UI one.
     onLoaded: (d, token) => track("matches_viewed", { count: d.count }, token || undefined),
@@ -264,7 +266,6 @@ function Inner() {
     .map((f) => ({ id: f.skill, count: f.count }));
   const modeOpts = (data.facets?.work_modes ?? [])
     .map((f) => ({ id: f.work_mode, count: f.count }));
-  const greatFitCount = data.facets?.great_fit_count ?? null;
   // The new menus read their options straight off the response's facets, which the server
   // computes with the other filters applied but never their own.
   const asOpts = (fs?: { value: string; count?: number }[]) =>
@@ -273,7 +274,7 @@ function Inner() {
   const countryOpts = asOpts(data.facets?.countries);
   const cityOpts = asOpts(data.facets?.cities);
   const levelOpts = asOpts(data.facets?.seniorities);
-  const filtering = skills.length > 0 || workModes.length > 0 || greatFits ||
+  const filtering = skills.length > 0 || workModes.length > 0 || scoreFloor != null ||
     Boolean(q) || categories.length > 0 || countries.length > 0 || cities.length > 0 ||
     seniorities.length > 0 || maxExp != null;
 
@@ -283,7 +284,6 @@ function Inner() {
   // not a filter. The rule is the same one the row itself follows: render it when there is a
   // choice to make, or when it is already on and must stay clearable.
   const showModes = modeOpts.length > 1 || workModes.length > 0;
-  const showGreatFits = (greatFitCount !== null && greatFitCount > 0) || greatFits;
   // Same "only when it can discriminate" rule the work-setup menu already follows: a
   // subscriber who chose one country has one country across every match, and a menu with a
   // single option is furniture. City is the exception — it is meaningful with one country
@@ -292,7 +292,9 @@ function Inner() {
   const showCountries = countryOpts.length > 1 || countries.length > 0;
   const showCities = cityOpts.length > 0 || cities.length > 0;
   const showLevels = levelOpts.length > 1 || seniorities.length > 0;
-  const showRow = skillOpts.length > 0 || showModes || showGreatFits || showCats ||
+  // The score and experience dropdowns are always meaningful once there is more than one
+  // match to sort through, so either is reason enough to show the filter row.
+  const showRow = skillOpts.length > 0 || showModes || data.count > 1 || showCats ||
     showCountries || showCities || showLevels || filtering;
 
   const filterRow = showRow && (
@@ -367,17 +369,20 @@ function Inner() {
           clearLabel={t.matches.clearFilter}
         />
       )}
-      {showGreatFits && (
-        <button
-          type="button"
-          className={`skill sel${greatFits ? " on" : ""}`}
-          aria-pressed={greatFits}
-          onClick={() => setGreatFits((v) => !v)}
-        >
-          {t.matches.greatFitsOnly}
-          {greatFitCount !== null && <span className="c"> {greatFitCount}</span>}
-        </button>
-      )}
+      {/* Minimum score — the dropdown that replaced the binary "Great fits only" toggle.
+          Single-valued (a floor, not a set), so a native select like the experience one below.
+          "8+" is the old great-fits bar; below it the page shows more of the record. */}
+      <select
+        className={`skill sel${scoreFloor != null ? " on" : ""}`}
+        aria-label={t.matches.scoreFilterAria}
+        value={scoreFloor ?? ""}
+        onChange={(e) => setScoreFloor(e.target.value === "" ? null : Number(e.target.value))}
+      >
+        <option value="">{t.matches.scoreAny}</option>
+        {[5, 6, 7, 8].map((n) => (
+          <option key={n} value={n}>{n}+</option>
+        ))}
+      </select>
       {/* Single-valued (a ceiling, not a set), so a native select rather than a FilterMenu.
           Rows that state no requirement always pass — the option copy says "required" so a
           smaller number reads as tightening what is *stated*, not as hiding the silent

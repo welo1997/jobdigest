@@ -344,6 +344,9 @@ const fr: Messages = {
     searchLabel: "Rechercher dans vos offres",
     searchPlaceholder: "Poste, compétence ou entreprise",
     greatFitsOnly: "Meilleures offres uniquement",
+    scoreFilterAria: "Filtrer par score minimum",
+    scoreAny: "Tout score",
+    scoredOn: "Évalué le {date}",
     filterByExperience: "Expérience",
     maxExpAny: "Toute expérience",
     maxExpOption: {

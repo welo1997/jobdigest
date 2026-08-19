@@ -341,6 +341,9 @@ const es: Messages = {
     searchLabel: "Buscar en tus coincidencias",
     searchPlaceholder: "Puesto, competencia o empresa",
     greatFitsOnly: "Solo las mejores coincidencias",
+    scoreFilterAria: "Filtrar por puntuación mínima",
+    scoreAny: "Cualquier puntuación",
+    scoredOn: "Evaluado el {date}",
     filterByExperience: "Experiencia",
     maxExpAny: "Cualquier experiencia",
     maxExpOption: {

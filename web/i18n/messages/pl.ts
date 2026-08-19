@@ -379,6 +379,9 @@ const pl: Messages = {
     searchLabel: "Szukaj wśród swoich ofert",
     searchPlaceholder: "Stanowisko, umiejętność lub firma",
     greatFitsOnly: "Tylko najlepsze oferty",
+    scoreFilterAria: "Filtruj według minimalnego wyniku",
+    scoreAny: "Dowolny wynik",
+    scoredOn: "Oceniono {date}",
     filterByExperience: "Doświadczenie",
     maxExpAny: "Dowolne doświadczenie",
     maxExpOption: {

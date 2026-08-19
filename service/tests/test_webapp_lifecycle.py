@@ -849,6 +849,39 @@ def test_matches_reports_the_subscribers_own_strong_fit_bar(client, store, monke
     assert client.get("/matches", params={"token": TOKEN}).json()["email_min_score"] == 8
 
 
+def test_matches_score_floor_filters_by_minimum_score(client, store):
+    """The min-score dropdown: `score_floor` keeps only matches at or above it. `great_fits`
+    stays honoured as a legacy alias for a cached bundle, and loses to `score_floor` when both
+    are sent."""
+    store.seed_matches(30)                       # scores cycle 10..4 (10 - i % 7)
+    unfiltered = client.get("/matches", params={"token": TOKEN}).json()
+    assert min(j["score"] for j in unfiltered["jobs"]) < 8   # the page has sub-8 rows
+    assert unfiltered["score_floor"] is None
+
+    body = client.get("/matches", params={"token": TOKEN, "score_floor": 8}).json()
+    assert body["score_floor"] == 8
+    assert body["jobs"] and all(j["score"] >= 8 for j in body["jobs"])
+
+    # Legacy great_fits still filters to >= great_fit_score (8) ...
+    legacy = client.get("/matches", params={"token": TOKEN, "great_fits": "true"}).json()
+    assert all(j["score"] >= 8 for j in legacy["jobs"])
+    # ... but the newer param wins when both arrive, so the two never fight.
+    both = client.get("/matches",
+                      params={"token": TOKEN, "great_fits": "true", "score_floor": 6}).json()
+    assert both["score_floor"] == 6
+    assert any(6 <= j["score"] < 8 for j in both["jobs"])
+
+
+def test_matches_surfaces_scored_at(client, store):
+    """scored_at rides through to the card so a high-but-old score is legible; a datetime is
+    ISO-formatted and a value already stringified passes untouched."""
+    store.matches = [{"posting_id": "p1", "title": "Job", "company": "Co",
+                      "url": "https://example.com/j", "score": 9, "summary": "why",
+                      "scored_at": "2026-08-05T03:00:00+00:00"}]
+    body = client.get("/matches", params={"token": TOKEN}).json()
+    assert body["jobs"][0]["scored_at"] == "2026-08-05T03:00:00+00:00"
+
+
 def test_paging_reaches_every_match_exactly_once(client, store):
     """Walk the offsets the way the page does and expect the whole list back, no row
     duplicated and none skipped."""

@@ -374,6 +374,9 @@ const cs: Messages = {
     searchLabel: "Hledat ve vašich nabídkách",
     searchPlaceholder: "Pozice, dovednost nebo firma",
     greatFitsOnly: "Jen nejlepší nabídky",
+    scoreFilterAria: "Filtrovat podle minimálního skóre",
+    scoreAny: "Jakékoli skóre",
+    scoredOn: "Ohodnoceno {date}",
     filterByExperience: "Praxe",
     maxExpAny: "Bez omezení praxe",
     maxExpOption: {
