@@ -99,6 +99,17 @@ The list endpoint caps at `limit=100` and pages by `offset`; unknown query param
 no server-side filtering and `darb_joma` lives only on the detail. That means one request per
 vacancy to learn the sector: **~4 460 requests, ~75 minutes at 1 s/host, to keep ~570 rows.**
 That is a poor ratio and it is the honest price of this source. `MAX_DETAILS` bounds it.
+
+**There is no cheap pre-filter, and this was measured, not assumed (2026-08-19).** The list
+row *does* carry `kla_profesija_nosaukums` (the profession) — the field the "right fix" below
+would key on — but **profession does not predict the kept sector**, because `darb_joma` is the
+*employer's industry*, not the job. Sampled live: the same profession "cargo truck driver"
+appeared under both `Ēdināšana / Pārtikas rūpniecība` and `Transports / Loģistika`, and a
+**cleaner (`APKOPĒJS`) sat in `Valsts pārvalde`, a KEPT sector.** Skipping details by
+profession would therefore silently drop rows the current sector gate keeps — the "round,
+plausible number" failure this repo guards against. The only real lever is *replacing* the
+sector gate with a profession-based keep (the answer-key project below), which changes *what*
+is kept and needs the 827-name key built first; it is not a free speed-up of the current gate.
 """
 
 from __future__ import annotations
