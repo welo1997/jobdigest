@@ -149,6 +149,10 @@ const fr: Messages = {
   },
 
   landing: {
+    heroEyebrow: "Gratuit · Sans compte · Conçu dans l'UE",
+    heroTitle: "Les offres qui méritent votre matinée — et rien d'autre.",
+    heroSubtitle:
+      "Chaque nuit, JobDigest lit chaque nouvelle offre sur plus de 20 sites et registres nationaux, les compare à ce que vous recherchez vraiment et vous envoie le matin une courte sélection — avec, pour chaque offre, une ligne expliquant pourquoi elle correspond.",
     wizardAria: "Composez votre digest",
     stepOf: "Étape {n} sur {total}",
     q1: "Commencez à chercher tout de suite",

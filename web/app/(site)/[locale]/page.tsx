@@ -511,6 +511,15 @@ export default function Landing() {
       <main>
         <section>
           <div className="wrap hero">
+            {/* The value proposition, above the form. The page used to open cold on the wizard's
+                own "Step 1 of 3" with no pitch — a first-time visitor met a form before they knew
+                what JobDigest was. This states the offer once, in the site's own serif, and the
+                wizard below is the call to action it leads into. */}
+            <div className="hero-head">
+              <span className="label">{t.landing.heroEyebrow}</span>
+              <h1 className="hero-title">{t.landing.heroTitle}</h1>
+              <p className="hero-sub">{t.landing.heroSubtitle}</p>
+            </div>
             {/* One centred wizard, no second column. The live email preview that used to sit
                 beside it is gone: it was a mock, it competed with the form for the visitor's
                 attention, and on phones it was 780px of scrolling before the thing they came to

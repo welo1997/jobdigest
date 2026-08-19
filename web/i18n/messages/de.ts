@@ -155,6 +155,10 @@ const de: Messages = {
   },
 
   landing: {
+    heroEyebrow: "Kostenlos · Kein Konto nötig · Aus der EU",
+    heroTitle: "Die Jobs, die deinen Morgen wert sind — und sonst nichts.",
+    heroSubtitle:
+      "Jede Nacht liest JobDigest jede neue Anzeige aus über 20 Jobbörsen und nationalen Registern, gleicht sie mit dem ab, was du wirklich willst, und schickt dir morgens eine kurze Auswahl — zu jedem Job eine Zeile, warum er passt.",
     wizardAria: "Digest zusammenstellen",
     stepOf: "Schritt {n} von {total}",
     q1: "Jetzt mit der Suche starten",

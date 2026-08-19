@@ -152,6 +152,10 @@ const pl: Messages = {
   },
 
   landing: {
+    heroEyebrow: "Za darmo · Bez konta · Stworzone w UE",
+    heroTitle: "Oferty warte Twojego poranka — i nic poza tym.",
+    heroSubtitle:
+      "Każdej nocy JobDigest czyta każde nowe ogłoszenie z ponad 20 źródeł i krajowych rejestrów, porównuje je z tym, czego naprawdę szukasz, i rano wysyła Ci krótką listę — przy każdej ofercie jedna linijka, dlaczego pasuje.",
     wizardAria: "Zbuduj swój przegląd",
     stepOf: "Krok {n} z {total}",
     q1: "Zacznij szukać od razu",

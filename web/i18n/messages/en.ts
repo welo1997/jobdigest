@@ -146,6 +146,10 @@ const en: Messages = {
   },
 
   landing: {
+    heroEyebrow: "Free · No account needed · Made in the EU",
+    heroTitle: "The jobs worth your morning — and nothing else.",
+    heroSubtitle:
+      "Every night JobDigest reads every new posting across 20+ job boards and national registers, matches them to what you actually want, and emails you a short shortlist — each job with one line on why it fits.",
     wizardAria: "Build your digest",
     stepOf: "Step {n} of {total}",
     q1: "Start searching now",

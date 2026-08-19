@@ -105,6 +105,11 @@ export interface Messages {
   };
 
   landing: {
+    /** The value-proposition hero above the signup wizard: a mono eyebrow, the serif
+     *  headline, and one sentence of what the product does. */
+    heroEyebrow: string;
+    heroTitle: string;
+    heroSubtitle: string;
     wizardAria: string;
     stepOf: string;
     q1: string;

@@ -115,6 +115,20 @@ button.nav-link{background:none;border:0;padding:0;cursor:pointer;font-family:in
 
 /* ============================================================= HERO */
 .hero{padding:36px 0 30px;}
+/* The value-proposition block above the signup wizard (landing page). Centred on the same
+   axis as the `.build.solo` wizard below it, capped narrower than the card so the headline
+   reads as a statement rather than a full-width banner. `--fs-hero` is already a clamp, so the
+   headline scales itself down on phones — the mobile rule only tightens the spacing and the
+   sub-copy. */
+.hero-head{max-width:760px;margin:0 auto 30px;text-align:center;}
+.hero-head .label{display:inline-block;margin-bottom:16px;}
+.hero-title{font-family:var(--font-display);font-size:var(--fs-hero);font-weight:700;
+  letter-spacing:-.02em;line-height:1.08;text-wrap:balance;}
+.hero-sub{margin:18px auto 0;max-width:56ch;font-size:1.15rem;color:var(--muted);text-wrap:pretty;}
+@media (max-width:560px){
+  .hero-head{margin-bottom:22px;}
+  .hero-sub{font-size:1.02rem;max-width:42ch;}
+}
 .hero-top{max-width:760px;margin:0 auto;text-align:center;}
 .hero .lede{margin-left:auto;margin-right:auto;}
 .eyebrow{display:inline-flex;align-items:center;gap:8px;margin-bottom:16px;}

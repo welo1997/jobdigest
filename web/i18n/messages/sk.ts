@@ -154,6 +154,10 @@ const sk: Messages = {
   },
 
   landing: {
+    heroEyebrow: "Zadarmo · Bez registrácie · Vytvorené v EÚ",
+    heroTitle: "Ponuky, ktoré stoja za vaše ráno — a nič viac.",
+    heroSubtitle:
+      "JobDigest každú noc prečíta každý nový inzerát z viac než 20 zdrojov a národných registrov, porovná ho s tým, čo naozaj hľadáte, a ráno vám pošle krátky výber — pri každej ponuke jeden riadok, prečo sa hodí.",
     wizardAria: "Zostavte si prehľad",
     stepOf: "Krok {n} zo {total}",
     q1: "Začnite hľadať hneď",
