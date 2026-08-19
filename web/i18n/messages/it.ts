@@ -265,6 +265,12 @@ const it: Messages = {
     yearsExperienceHint:
       "Escludiamo le offerte che richiedono più anni di quelli che hai. Quelle che non lo "
       + "indicano continuano ad arrivare. Lascia vuoto per nessuna preferenza.",
+    minScore: "Soglia in evidenza",
+    minScoreHint:
+      "Quanto deve essere forte una corrispondenza (su 10) per essere in evidenza nella tua "
+      + "email. Le corrispondenze più deboli restano visibili nella tua pagina delle "
+      + "corrispondenze e riceverai sempre una selezione giornaliera anche quando nulla "
+      + "supera la soglia.",
     frequency: "Frequenza",
     freqDaily: "Ogni giorno",
     freqWeekdays: "Solo nei giorni feriali",

@@ -266,6 +266,11 @@ const en: Messages = {
     yearsExperienceHint:
       "We skip roles that require more years than you have. Roles that don't state a "
       + "requirement still come through. Leave empty for no preference.",
+    minScore: "Highlight threshold",
+    minScoreHint:
+      "How strong a match must be (out of 10) to headline your email. Weaker matches "
+      + "still appear on your matches page, and you'll always get a daily pick even when "
+      + "nothing clears the bar.",
     frequency: "Frequency",
     freqDaily: "Daily",
     freqWeekdays: "Weekdays only",

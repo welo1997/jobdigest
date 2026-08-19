@@ -1259,12 +1259,13 @@ def get_preferences(request: Request, token: Optional[str] = None) -> dict:
 MATCHES_PAGE_LIMIT = 25
 
 #: The top rung of the score ladder, and the only one that is purely presentational:
-#: `matcher.MATCH_FLOOR` (4) decides what is stored at all, `digest.EMAIL_MIN_SCORE` (6)
-#: decides what is worth an email, and this decides what the "great fits only" toggle on
-#: /matches leaves on screen. Env-overridable because it is a threshold (the no-hardcoded-
-#: thresholds rule), and deliberately **not** `profiles.min_score` — that is a stored
-#: preference gating what gets matched, while this filters what is already matched. Reading
-#: one off the other would let a display toggle quietly change what the matcher considers.
+#: `matcher.MATCH_FLOOR` (4) decides what is stored at all, the subscriber's own
+#: `profiles.min_score` (default `digest.EMAIL_MIN_SCORE`, 6) decides what headlines their
+#: email, and this decides what the "great fits only" toggle on /matches leaves on screen.
+#: Env-overridable because it is a threshold (the no-hardcoded-thresholds rule), and
+#: deliberately distinct from `profiles.min_score`: that is the subscriber's email bar,
+#: while this is a global display filter over an already-matched set. Reading one off the
+#: other would conflate a personal preference with a page control.
 GREAT_FIT_MIN_SCORE = int(os.environ.get("GREAT_FIT_MIN_SCORE", "8"))
 
 
@@ -1415,6 +1416,11 @@ def get_matches(request: Request, token: Optional[str] = None, offset: int = 0,
         "seniorities": picked_levels,
         "great_fits": great_fits,
         "great_fit_score": GREAT_FIT_MIN_SCORE,
+        # This subscriber's own "strong fit" bar (`profiles.min_score`, default 6). The card
+        # highlights a match at or above it — the same bar the email headlines on — so the
+        # page and the inbox agree on what "strong" means for this person. Server-owned like
+        # every threshold here; the UI renders it, never decides it.
+        "email_min_score": store.profile_min_score(profile),
         "max_experience": max_exp,
         "facets": facets,
         "skill_facets": facets["skills"],   # legacy alias — see the docstring

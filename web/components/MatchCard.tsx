@@ -38,16 +38,23 @@ export function jobTags(j: MatchJob, t: Messages): { text: string; fl?: boolean 
 }
 
 export function MatchCard(
-  { j, token, selected, onToggle }: {
+  { j, token, selected, onToggle, emailMinScore = 6, greatFitScore = 8 }: {
     j: MatchJob;
     token?: string;
     selected: boolean;
     onToggle: (id: string) => void;
+    /** The subscriber's "strong fit" bar and the global "great fit" bar, both server-owned
+     *  (`/matches` ships them as `email_min_score` and `great_fit_score`). Defaulted only so
+     *  a caller that has not wired them still renders — the page always passes them. */
+    emailMinScore?: number;
+    greatFitScore?: number;
   }
 ) {
   const { t, count } = useI18n();
   const score = j.score ?? 0;
-  const strong = score >= 6;
+  // Highlighted when it clears this subscriber's own email bar — the same threshold the digest
+  // headlines on, so a "top" card here is a job that would headline their inbox.
+  const strong = score >= emailMinScore;
   // Feed URLs are untrusted; a non-http(s) scheme (javascript:, data:) renders no link.
   const href = safeHref(j.url);
   return (
@@ -71,7 +78,7 @@ export function MatchCard(
       <div className="bd">
         <h3>
           {j.title || t.common.roleFallback} <span>— {j.company || ""}</span>
-          {score >= 8 && <span className="emailed">{t.matches.topMatch}</span>}
+          {score >= greatFitScore && <span className="emailed">{t.matches.topMatch}</span>}
         </h3>
         <div className="tags">
           {jobTags(j, t).map((tag, i) => (

@@ -272,6 +272,11 @@ const de: Messages = {
     yearsExperienceHint:
       "Stellen, die mehr Jahre verlangen, als du hast, lassen wir weg. Stellen ohne Angabe "
       + "kommen weiterhin durch. Leer lassen = keine Präferenz.",
+    minScore: "Schwelle für Top-Treffer",
+    minScoreHint:
+      "Wie stark ein Treffer sein muss (von 10), um in deiner E-Mail hervorgehoben zu "
+      + "werden. Schwächere Treffer erscheinen weiterhin auf deiner Treffer-Seite, und du "
+      + "bekommst immer einen täglichen Vorschlag, auch wenn nichts die Schwelle erreicht.",
     frequency: "Häufigkeit",
     freqDaily: "Täglich",
     freqWeekdays: "Nur werktags",

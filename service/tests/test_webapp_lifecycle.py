@@ -283,6 +283,12 @@ class _FakeStore:
             changed += 1
         return changed
 
+    def profile_min_score(self, profile):
+        """Mirrors the real store.profile_min_score, which /matches reads to report
+        `email_min_score`: an absent/NULL column is the default 6, and the value is clamped."""
+        raw = profile.get("min_score")
+        return 6 if raw is None else max(4, min(10, int(raw)))
+
 
 @pytest.fixture
 def store(monkeypatch):
@@ -828,6 +834,19 @@ def test_matches_first_page_is_capped_but_reports_the_true_total(client, store):
     assert len(body["jobs"]) == webapp.MATCHES_PAGE_LIMIT
     assert body["offset"] == 0
     assert body["limit"] == webapp.MATCHES_PAGE_LIMIT
+
+
+def test_matches_reports_the_subscribers_own_strong_fit_bar(client, store, monkeypatch):
+    """The card's "strong" highlight is driven by `email_min_score`, which is the subscriber's
+    own `profiles.min_score` — so the page and the email agree on what "strong" means. Default
+    subscriber -> 6; a stricter bar is reflected (and clamped) rather than hardcoded."""
+    store.seed_matches(3)
+    assert client.get("/matches", params={"token": TOKEN}).json()["email_min_score"] == 6
+
+    monkeypatch.setattr(store, "get_by_manage_token",
+                        lambda t: ({"id": PROFILE_ID, "email": EMAIL, "manage_token": TOKEN,
+                                    "min_score": 8} if t == TOKEN else None))
+    assert client.get("/matches", params={"token": TOKEN}).json()["email_min_score"] == 8
 
 
 def test_paging_reaches_every_match_exactly_once(client, store):

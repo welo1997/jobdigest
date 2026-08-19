@@ -224,6 +224,12 @@ export interface Messages {
      *  preference. */
     yearsExperience: string;
     yearsExperienceHint: string;
+    /** The email "strong fit" bar (`profiles.min_score`) — a select of scores out of 10.
+     *  It moves the strong/weak split for this subscriber: a higher bar headlines fewer
+     *  matches. The hint must say what it does NOT do — weaker matches still reach /matches,
+     *  and the daily send never stops (the quiet-day fallback still fires). */
+    minScore: string;
+    minScoreHint: string;
     frequency: string;
     freqDaily: string;
     freqWeekdays: string;

@@ -90,6 +90,10 @@ function Inner() {
   const [addSkill, setAddSkill] = useState("");
   const [addSector, setAddSector] = useState("");
   const [freq, setFreq] = useState("daily");
+  // The email "strong fit" bar (`profiles.min_score`). The select offers 5–8; a stored value
+  // outside that (only ever a hand-crafted API call — the schema default and this control both
+  // stay in range) is clamped in on load so the <select> always has a matching option.
+  const [minScore, setMinScore] = useState(6);
   const [loc, setLoc] = useState<LocationValue>({
     countries: ["CZ"], cities: [], remoteScope: "eu", workModes: [...WORK_MODES],
   });
@@ -140,6 +144,7 @@ function Inner() {
       setSectorOpts([...new Set([...SECTOR_SUGGESTIONS, ...sectorLabels])]);
       setSectorSet(new Set(sectorLabels));
       setFreq(FREQS.includes(p.frequency) ? p.frequency : "daily");
+      setMinScore(Math.min(8, Math.max(5, p.min_score ?? 6)));
       setLoc(locationFrom(p));
       // Absent on a subscription that predates migration 014 — `cleanEducationLevels` reads
       // that as "no preference" and returns all five, which is the column default too. The
@@ -274,6 +279,7 @@ function Inner() {
         // Free text, stored lowercased like `stack`; the matcher reads it as a soft signal.
         sectors: [...new Set([...sectorSet].map((s) => s.trim().toLowerCase()).filter(Boolean))],
         frequency: freq,
+        min_score: minScore,
         // No country selected would mean "nowhere". Fall back to the home market rather than
         // saving a filter that can never match — the same choice the server-side default makes.
         countries: loc.countries.length ? loc.countries : ["CZ"],
@@ -458,6 +464,19 @@ function Inner() {
 
           <EducationPicker value={edu} onChange={setEdu} idPrefix="p" />
 
+          <div className="field">
+            <label htmlFor="p-minscore">{t.prefs.minScore}</label>
+            <select id="p-minscore" value={minScore} style={{ maxWidth: 120 }}
+              onChange={(e) => setMinScore(Number(e.target.value))}>
+              <option value={5}>5</option>
+              <option value={6}>6</option>
+              <option value={7}>7</option>
+              <option value={8}>8</option>
+            </select>
+            <p style={{ color: "var(--muted)", fontSize: "var(--fs-sm)", marginTop: 6 }}>
+              {t.prefs.minScoreHint}
+            </p>
+          </div>
           <div className="field">
             <label htmlFor="p-freq">{t.prefs.frequency}</label>
             <select id="p-freq" value={freq} onChange={(e) => setFreq(e.target.value)}>

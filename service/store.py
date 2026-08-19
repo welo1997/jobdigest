@@ -846,10 +846,12 @@ def _match_filters(skills_filter: list[str] | None = None,
     hand-built clause strings is exactly how that happens; a single builder cannot.
 
     These are **display** filters over an existing match set, not matching criteria:
-    `min_score` here is what the subscriber is looking at right now, and is unrelated to
-    `profiles.min_score`, which is a stored preference that gates what gets matched at all.
-    The same is true of every filter here — narrowing this page never changes what the
-    matcher picks or what tomorrow's email contains.
+    `min_score` here is what the subscriber is looking at right now (the "great fits only"
+    toggle), and is unrelated to `profiles.min_score`, which is the subscriber's stored email
+    bar — it decides which matches *headline their digest* (see `store.profile_min_score` and
+    `digest.build_digest`), not what the matcher stores. Neither one is the other: narrowing
+    this page never changes what the matcher picks or what tomorrow's email contains, and the
+    email bar never changes what this page shows.
 
     **`skip` names one filter to leave out, and every arm must honour it.** `match_facets`
     computes each menu with the other filters applied but never its own, which used to be
@@ -1708,6 +1710,41 @@ _SUBSCRIBER_FIELDS = ["label", "stack", "seniorities", "countries", "cities",
 
 _LOCATION_KEYS = ("countries", "cities", "remote_scope", "regions")
 
+# --- the email "strong fit" bar (profiles.min_score) ---------------------------
+# One definition, because it is written here and read in two other places — `digest`
+# (the strong/weak split of the actual email) and `webapp` (the `email_min_score` the
+# /matches page renders its "strong" highlight from). Defining it in `store` keeps both
+# importers on one function and avoids a circular import (digest already imports store).
+#
+# The default equals the schema default *and* `digest.EMAIL_MIN_SCORE` (6) — three copies
+# of the same six that must not drift, so `digest` binds its constant to this one. The bounds
+# are structural, not tunable: below `matcher.MATCH_FLOOR` (4) nothing is stored at all, so a
+# lower bar is inert, and 10 is the top of the score scale.
+DEFAULT_MIN_SCORE = 6
+MIN_SCORE_FLOOR = 4
+MIN_SCORE_CEIL = 10
+
+
+def clean_min_score(value: object) -> int:
+    """Clamp a caller-supplied min_score to the meaningful range; junk -> the default.
+
+    Runs on every write (create and update), for the same reason `clean_work_modes` and
+    `clean_levels` do: the value comes off a public request body and then decides which
+    matches headline someone's email. Out of range is clamped rather than rejected — a
+    hand-edited 99 should mean "the strictest bar", never a 500."""
+    try:
+        v = int(value)  # type: ignore[arg-type]
+    except (TypeError, ValueError):
+        return DEFAULT_MIN_SCORE
+    return max(MIN_SCORE_FLOOR, min(MIN_SCORE_CEIL, v))
+
+
+def profile_min_score(profile: dict) -> int:
+    """The subscriber's email 'strong fit' bar, clamped. A NULL/absent column reads as the
+    default. Kept beside `clean_min_score` so the read and the write share one clamp."""
+    raw = profile.get("min_score")
+    return DEFAULT_MIN_SCORE if raw is None else clean_min_score(raw)
+
 
 def _location_prefs(data: dict, current: Optional[dict] = None, *,
                     ensure: bool = False) -> dict:
@@ -1788,7 +1825,7 @@ def create_email_subscription(email: str, data: dict, *, confirmed: bool = False
         data.get("role_categories", []),
         data.get("work_types", ["permanent", "freelance/contract"]),
         data.get("part_time_only", False), data.get("eligible_only", True),
-        data.get("sectors", []), data.get("min_score", 6),
+        data.get("sectors", []), clean_min_score(data.get("min_score")),
         data.get("frequency", "daily"),
         # Cleaned rather than trusted: this value comes off a public request body and then
         # decides which language every future email to this person is written in.
@@ -2155,6 +2192,10 @@ def update_subscription(manage_token: str, data: dict) -> Optional[dict]:
         data = {**data, "education_field": education.clean_field(data["education_field"])}
     if "language" in data:
         data = {**data, "language": i18n.clean_locale(data["language"])}
+    # Clamped for the same reason the others are: it comes off a public body and then decides
+    # which matches headline this person's email (see `clean_min_score`).
+    if "min_score" in data:
+        data = {**data, "min_score": clean_min_score(data["min_score"])}
     # `""` is how a client clears it (the webapp's exclude_none drops a literal null);
     # clean_years turns it into NULL, which is "no preference" and widens the gate.
     if "years_experience" in data:

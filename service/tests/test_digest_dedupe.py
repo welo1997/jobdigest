@@ -194,4 +194,4 @@ def test_dedupe_also_applies_on_a_quiet_day(patched):
     patched["picks"] = [_job("a", 5), _job("b", 5), _job("c", 4, title="Other")]
     jobs = digest.build_digest(PROFILE, limit=5)
     assert [j["posting_id"] for j in jobs] == ["a", "c"]
-    assert digest._is_weak(jobs)
+    assert digest._is_weak(PROFILE, jobs)

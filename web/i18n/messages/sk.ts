@@ -283,6 +283,11 @@ const sk: Messages = {
     yearsExperienceHint:
       "Ponuky vyžadujúce viac rokov praxe, než máte, vynecháme. Ponuky, ktoré dĺžku praxe "
       + "neuvádzajú, chodia ďalej. Prázdne pole = bez preferencie.",
+    minScore: "Prah pre hlavné tipy",
+    minScoreHint:
+      "Aká silná musí zhoda byť (z 10), aby sa dostala do hlavnej časti e-mailu. Slabšie "
+      + "zhody sa stále zobrazia na stránke s ponukami a denný tip dostanete aj vtedy, keď "
+      + "prah nič neprekročí.",
     frequency: "Frekvencia",
     freqDaily: "Denne",
     freqWeekdays: "Len cez pracovné dni",

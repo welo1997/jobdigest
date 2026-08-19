@@ -284,6 +284,11 @@ const pl: Messages = {
     yearsExperienceHint:
       "Pomijamy oferty wymagające więcej lat doświadczenia, niż masz. Oferty, które tego "
       + "nie podają, nadal przychodzą. Zostaw puste, jeśli bez preferencji.",
+    minScore: "Próg wyróżnień",
+    minScoreHint:
+      "Jak silne musi być dopasowanie (na 10), aby trafić na czoło Twojego e-maila. Słabsze "
+      + "dopasowania nadal pojawiają się na stronie dopasowań, a codzienny wybór otrzymasz "
+      + "nawet wtedy, gdy nic nie przekroczy progu.",
     frequency: "Częstotliwość",
     freqDaily: "Codziennie",
     freqWeekdays: "Tylko w dni robocze",

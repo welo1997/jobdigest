@@ -141,6 +141,10 @@ export interface MatchesResponse {
    *  renders it but must never decide it. */
   great_fits: boolean;
   great_fit_score: number;
+  /** This subscriber's own "strong fit" bar (`profiles.min_score`, default 6). A card scoring
+   *  at or above it is highlighted — the same bar the email headlines on, so the page and the
+   *  inbox agree on "strong". Server-owned; the UI renders it, never decides it. */
+  email_min_score: number;
   /** The experience ceiling currently applied ("hide roles demanding more than N years"),
    *  or null. Postings that state no requirement are always kept — the filter can only
    *  drop a stated demand, never punish silence. */

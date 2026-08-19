@@ -104,6 +104,8 @@ function Inner() {
                 token={list.token || undefined}
                 selected={picked.has(j.posting_id)}
                 onToggle={toggle}
+                emailMinScore={data.email_min_score}
+                greatFitScore={data.great_fit_score}
               />
             ))}
           </div>

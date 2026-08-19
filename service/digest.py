@@ -33,7 +33,13 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from service import geo, i18n, links, store, taxonomy  # noqa: E402
 
 DEFAULT_LIMIT = 5            # curated highlights in the email; the rest live on /matches
-EMAIL_MIN_SCORE = 6         # a "strong" fit — a digest of these is the normal, headline case
+# The DEFAULT "strong fit" bar. The live bar is now per-subscriber (`profiles.min_score`, set
+# from a preferences control) and read through `store.profile_min_score`; this constant is what
+# a subscriber who never touched the control gets, and it is bound to the store's default so the
+# two cannot drift. Raising a subscriber's bar headlines fewer matches and drops more to the
+# honest quiet-day section — it never stops the daily send (the fallback below still fires),
+# because "never go silent" is the watchdog invariant and min_score is a quality dial.
+EMAIL_MIN_SCORE = store.DEFAULT_MIN_SCORE
 FALLBACK_LIMIT = int(os.environ.get("DIGEST_FALLBACK_LIMIT", "3"))  # weaker picks shown on a quiet day
 # How far back a previously emailed (company, title) suppresses a repeat. Bounded rather
 # than forever: a role genuinely re-opened months later is a new opportunity, not a repeat.
@@ -188,10 +194,11 @@ def build_digest(profile: dict, limit: int = DEFAULT_LIMIT) -> list[dict]:
         if key:
             seen.setdefault(key, set()).add(city or None)
     unsent = _drop_repeats(unsent, seen)
-    strong = [j for j in unsent if (j.get("score") or 0) >= EMAIL_MIN_SCORE]
+    bar = store.profile_min_score(profile)
+    strong = [j for j in unsent if (j.get("score") or 0) >= bar]
     if strong:
         return strong[:limit]
-    # Quiet day: no strong (>= EMAIL_MIN_SCORE) match. Rather than skip the send entirely,
+    # Quiet day: no strong (>= this subscriber's bar) match. Rather than skip the send entirely,
     # surface the best of the weaker (4-5) matches so the subscriber still gets a daily
     # signal. They are all sub-threshold, which the renderer detects (see `_is_weak`) and
     # labels honestly rather than dressing them up as strong fits. Only a genuinely empty
@@ -199,12 +206,16 @@ def build_digest(profile: dict, limit: int = DEFAULT_LIMIT) -> list[dict]:
     return unsent[:FALLBACK_LIMIT]
 
 
-def _is_weak(jobs: list[dict]) -> bool:
-    """True when this is a quiet-day digest: every job is below EMAIL_MIN_SCORE.
+def _is_weak(profile: dict, jobs: list[dict]) -> bool:
+    """True when this is a quiet-day digest: every job is below this subscriber's bar.
 
-    build_digest returns either all-strong or all-weak, never a mix, so checking the
-    scores is enough — no separate flag has to be threaded through the renderers."""
-    return bool(jobs) and all((j.get("score") or 0) < EMAIL_MIN_SCORE for j in jobs)
+    Takes the profile, not a bare threshold, because the bar is per-subscriber
+    (`store.profile_min_score`) and must be the same one `build_digest` split on — otherwise
+    a subscriber who raised their bar would get strong-labelled copy over sub-bar jobs.
+    build_digest returns either all-strong or all-weak, never a mix, so checking the scores
+    is enough — no separate flag has to be threaded through the renderers."""
+    bar = store.profile_min_score(profile)
+    return bool(jobs) and all((j.get("score") or 0) < bar for j in jobs)
 
 
 # ---------------------------------------------------------------- helpers ------
@@ -295,7 +306,7 @@ def subject_line(profile: dict, jobs: list[dict]) -> str:
     when = i18n.format_date(lang, datetime.now())
 
     # Quiet day: don't claim "N new roles for you" when nothing cleared the bar — say so.
-    if _is_weak(jobs):
+    if _is_weak(profile, jobs):
         return i18n.t(lang, "subject_weak",
                       count=i18n.plural(lang, "explore_count", n), when=when)
 
@@ -367,7 +378,7 @@ def _see_all_html(profile: dict, shown: int, total_matches: int | None,
     </td></tr>"""
 
 
-def _greeting_html(jobs: list[dict], lang: str = i18n.DEFAULT_LOCALE) -> str:
+def _greeting_html(profile: dict, jobs: list[dict], lang: str = i18n.DEFAULT_LOCALE) -> str:
     """The line under the subject. On a quiet day it is honest about *why* the picks are
     thinner, rather than calling weak matches 'fresh matches ranked for you'.
 
@@ -377,7 +388,7 @@ def _greeting_html(jobs: list[dict], lang: str = i18n.DEFAULT_LOCALE) -> str:
     n = len(jobs)
     style = f'<p style="font:400 14px {SANS};color:{C["muted"]};margin:12px 0 4px;">'
     bold = f'<b style="color:{C["ink"]};">'
-    if _is_weak(jobs):
+    if _is_weak(profile, jobs):
         return (f'{style}{i18n.t(lang, "good_morning")} '
                 f'{bold}{i18n.t(lang, "weak_lead")}</b> '
                 f'{i18n.plural(lang, "weak_rest", n)}</p>')
@@ -416,7 +427,7 @@ def render_html(profile: dict, jobs: list[dict], base_url: str = BASE_URL,
     <!-- subject + greeting -->
     <tr><td style="padding:8px 26px 4px;">
       <div style="font:700 21px {SERIF};color:{C['ink']};letter-spacing:-.01em;">{esc(subject)}</div>
-      {_greeting_html(jobs, lang)}
+      {_greeting_html(profile, jobs, lang)}
     </td></tr>
     <!-- jobs -->
     <tr><td style="padding:6px 26px 18px;">
@@ -443,7 +454,7 @@ def render_text(profile: dict, jobs: list[dict], base_url: str = BASE_URL,
                 total_matches: int | None = None) -> str:
     lang = _lang(profile)
     n = len(jobs)
-    greeting = i18n.plural(lang, "weak_text" if _is_weak(jobs) else "fresh_text", n)
+    greeting = i18n.plural(lang, "weak_text" if _is_weak(profile, jobs) else "fresh_text", n)
     lines = [subject_line(profile, jobs), "", greeting, ""]
     for j in jobs:
         tags = " · ".join(_tags(j, lang))

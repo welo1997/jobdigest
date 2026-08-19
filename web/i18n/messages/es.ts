@@ -265,6 +265,11 @@ const es: Messages = {
     yearsExperienceHint:
       "Omitimos las ofertas que exigen más años de los que tienes. Las que no lo indican "
       + "siguen llegando. Déjalo vacío si no tienes preferencia.",
+    minScore: "Umbral de destacados",
+    minScoreHint:
+      "Qué tan fuerte debe ser una coincidencia (sobre 10) para destacar en tu correo. "
+      + "Las coincidencias más débiles siguen apareciendo en tu página de coincidencias, y "
+      + "siempre recibirás una selección diaria aunque nada supere el umbral.",
     frequency: "Frecuencia",
     freqDaily: "Diario",
     freqWeekdays: "Solo días laborables",

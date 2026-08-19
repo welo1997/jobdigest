@@ -266,6 +266,12 @@ const fr: Messages = {
     yearsExperienceHint:
       "Nous écartons les offres exigeant plus d'années d'expérience que vous n'en avez. "
       + "Celles qui ne précisent rien continuent d'arriver. Laissez vide si sans préférence.",
+    minScore: "Seuil des offres en vedette",
+    minScoreHint:
+      "À quel point une correspondance doit être forte (sur 10) pour figurer en tête de "
+      + "votre e-mail. Les correspondances plus faibles restent visibles sur votre page de "
+      + "correspondances, et vous recevrez toujours une sélection quotidienne même si rien "
+      + "n'atteint le seuil.",
     frequency: "Fréquence",
     freqDaily: "Quotidien",
     freqWeekdays: "Jours ouvrés uniquement",
