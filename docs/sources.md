@@ -1212,8 +1212,16 @@ payload will pick a different string and that *shape* is the thing to watch.
     because the real risk here is not the first source, it is "we already read boards with no
     terms" quietly becoming a general argument.
 
-  **Wired under it so far (2026-08-15): `remoteineurope`, `nva` (Latvia's live `cvvp`
-  register, gated by `KEEP_FIELDS`), `goldencareers` (CY, ~62 agency postings).**
+  **Wired under it so far (2026-08-15): `remoteineurope`, `goldencareers` (CY, ~62 agency
+  postings).** `nva` (Latvia's live `cvvp` register) was wired here too and **removed
+  2026-08-19 — not on permission, on cost/value**: the sector field it gates on lives only on
+  each vacancy's detail page, so it fetched ~4 460 pages one-per-second to keep ~570
+  low-professional-fit Latvian rows — ~30% of the whole pipeline's wall clock — and no
+  subscriber currently wants that inventory. The cheap pre-filter does not exist (the list
+  carries the *profession*, but the kept *sector* is the employer's industry, so a cleaner at a
+  ministry is `Valsts pārvalde`, a kept sector). Pinned in `test_source_exclusions.py`; the
+  adapter is kept as code. Re-add it for a Latvian audience, after solving the crawl cost (the
+  827-name profession answer-key project), not because the digest looks thin.
 
   **Four members of the group were NOT wired, and only one of those is about permission:**
   - **Personio** — its feed answers with a job count for **bogus** slugs (`amazon`, `johnson`,

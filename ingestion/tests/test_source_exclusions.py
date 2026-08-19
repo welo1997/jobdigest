@@ -109,12 +109,38 @@ def test_smartrecruiters_is_not_ingested():
     )
 
 
+def test_nva_is_not_ingested():
+    """NVA is excluded for lack of product use, not on terms — a different kind of reason.
+
+    Latvia's live register (`cvvp.nva.gov.lv`) publishes no terms and its robots permits the
+    paths, so it was wired 2026-08-15 under the unestablished-permission decision. It was
+    removed 2026-08-19 on a plain cost/value call: the sector field it gates on lives only on
+    each vacancy's detail page, so it fetched ~4 460 pages one-per-second to keep ~570 — **~30%
+    of the whole pipeline's wall clock** — and the kept rows are low-professional-fit Latvian
+    inventory (the register is the entire labour market) that no subscriber currently wants.
+    The cheap pre-filter does not exist: the list carries the profession, but the sector is the
+    employer's industry, so profession does not predict it (a cleaner at a ministry is
+    `Valsts pārvalde`, a kept sector) — see the adapter's Cost section.
+
+    Reversible by decision, not rewrite: the adapter still works and imports. Re-add it when
+    there is a Latvian audience to serve, not because the digest looks thin — and if so,
+    solve the crawl cost first (the 827-name profession answer-key project).
+    """
+    assert "NvaSource" not in _ingested(), (
+        "NvaSource is back in gather(). It was removed 2026-08-19 for lack of product use at "
+        "~30% of pipeline wall-clock — not a terms question. This test failing means either a "
+        "mistake or a decision that needs recording here."
+    )
+
+
 def test_the_excluded_adapters_still_import():
     """Kept as code, so an exclusion can be reversed by a decision rather than a rewrite."""
     from ingestion.sources.jobscz import JobsCzSource
+    from ingestion.sources.nva import NvaSource
     from ingestion.sources.profesia import ProfesiaSource
     from ingestion.sources.smartrecruiters import SmartRecruitersSource
 
     assert JobsCzSource().source_name == "jobscz"
+    assert NvaSource().source_name == "nva"
     assert ProfesiaSource().source_name == "profesia"
     assert SmartRecruitersSource().source_name == "smartrecruiters"

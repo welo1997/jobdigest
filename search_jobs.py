@@ -39,7 +39,6 @@ from ingestion.sources.himalayas import HimalayasSource
 from ingestion.sources.jobicy import JobicySource
 from ingestion.sources.lever import LeverSource
 from ingestion.sources.nav import NavSource
-from ingestion.sources.nva import NvaSource
 from ingestion.sources.oraclecloud import OracleCloudSource
 from ingestion.sources.platsbanken import PlatsbankenSource
 from ingestion.sources.remoteineurope import RemoteInEuropeSource
@@ -361,14 +360,11 @@ def _source_classes(include_cz: bool) -> list[type]:
                # almost nothing else in this stack emits them. Expect heavy overlap with the
                # ATS adapters: it is a re-lister, so judge it on postings surviving dedupe.
                RemoteInEuropeSource,
-               # NVA is Latvia's live vacancy register (`cvvp.nva.gov.lv`) — NOT the CC0
-               # "Vakances" CSV, which covers only the public sector. It publishes no terms and
-               # no robots.txt, so it is a member of the same 2026-08-15 unestablished-
-               # permission decision as RemoteInEuropeSource; see that test and docs/sources.md.
-               # `KEEP_FIELDS` is the MPSV dilution guard in a second country: the register is
-               # Latvia's whole labour market and its five commonest professions are labourer,
-               # shop assistant, driver, cook and nurse. Not `nav` — that is Norway.
-               NvaSource,
+               # `NvaSource` (Latvia's cvvp.nva.gov.lv register) USED to sit here and was
+               # removed 2026-08-19: no current product use, at a cost of ~30% of the pipeline's
+               # wall clock (~4 460 detail fetches for ~570 kept rows, the register being
+               # Latvia's whole labour market). Not a terms question — the adapter still works
+               # and imports. See `ingestion/tests/test_source_exclusions.py` before re-adding.
                # Golden Careers is a Cypriot recruitment agency's own board — the first
                # non-ATS Cypriot inventory here, and small (~62 vacancies). No terms and no
                # privacy policy, robots is allow-all: the same 2026-08-15 unestablished-

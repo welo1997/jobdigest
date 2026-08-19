@@ -36,12 +36,9 @@ UNESTABLISHED_PERMISSION = {
         "the job pages and disallows only /search, /companies, /checkout, /post-a-job-2 and "
         "/internal/. Wired for its multi-country `schema-loc` scopes."
     ),
-    "NvaSource": (
-        "cvvp.nva.gov.lv — Latvia's live vacancy register. No terms page on nva.gov.lv and "
-        "robots.txt is 404 at the host root, so nothing permits and nothing refuses. NOT the "
-        "CC0 data.gov.lv 'Vakances' CSV, whose dedication covers only the public sector. "
-        "Gated by KEEP_FIELDS because the register is the whole labour market."
-    ),
+    # NvaSource was here until 2026-08-19, when it was removed from gather() for lack of
+    # product use (see test_source_exclusions.py::test_nva_is_not_ingested). Its permission
+    # was never the issue; its ~73-minute crawl for ~570 unwanted Latvian rows was.
     "GoldenCareersSource": (
         "goldencareers.com.cy — a Cypriot agency board. No terms and no privacy policy; "
         "robots.txt is a Yoast block with a bare `Disallow:` (allow-all) advertising the "
