@@ -246,6 +246,59 @@ def deactivate_stale(days: int = 7) -> int:
         return cur.rowcount
 
 
+def matched_active_posting_ids() -> set[str]:
+    """Active postings that some subscriber has a scored match for.
+
+    The read side of the liveness sweep's "matched" half — exactly the set of postings a
+    subscriber can currently see on `/matches` (same `is_active` + `score is not null` filter
+    as `matched_jobs`). Probing these is what lets a job that has since died vanish from the
+    page instead of lingering as a dead link nobody re-checks. See `service/liveness.py`."""
+    with cursor() as cur:
+        cur.execute(
+            "select distinct p.posting_id from postings p "
+            "where p.is_active and exists ("
+            "  select 1 from matches m where m.posting_id = p.posting_id and m.score is not null)"
+        )
+        return {r["posting_id"] for r in cur.fetchall()}
+
+
+def posting_targets(ids: Iterable[str]) -> list[dict]:
+    """`{posting_id, url, title, company, source}` for the given **active** postings.
+
+    Used by the liveness sweep to turn a set of posting ids (matched rows + today's shortlists)
+    into the URLs it has to probe. Inactive rows are dropped: a posting already deactivated
+    needs no probing, and re-probing it could only wrongly revive it."""
+    ids = [i for i in ids if i]
+    if not ids:
+        return []
+    with cursor() as cur:
+        cur.execute(
+            "select posting_id, url, title, company, source from postings "
+            "where is_active and posting_id = any(%s)",
+            (ids,),
+        )
+        return [dict(r) for r in cur.fetchall()]
+
+
+def deactivate_postings(ids: Iterable[str]) -> int:
+    """Flip `is_active = false` on the given postings. Returns how many rows changed.
+
+    The liveness sweep's one write. Same semantics as `deactivate_stale` (a dead listing is
+    *deactivated*, never deleted, so analytics keep the row and `/matches` — which filters on
+    `is_active` — simply stops showing it). The `and is_active` guard makes it idempotent and
+    keeps the rowcount honest about what actually changed."""
+    ids = [i for i in ids if i]
+    if not ids:
+        return 0
+    with cursor(commit=True) as cur:
+        cur.execute(
+            "update postings set is_active = false "
+            "where is_active = true and posting_id = any(%s)",
+            (ids,),
+        )
+        return cur.rowcount
+
+
 def prune_descriptions(days: int = 90) -> int:
     """Blank the description of postings inactive for `days`, keeping the row.
 

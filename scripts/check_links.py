@@ -75,16 +75,15 @@ import json
 import logging
 import re
 import sys
-import time
-import unicodedata
 from dataclasses import dataclass, field
 from typing import Any, Optional
 
-import requests
-
 sys.path.insert(0, __file__.rsplit("scripts", 1)[0])
 
-from ingestion import politeness  # noqa: E402
+# The pure prober now lives in `ingestion/link_probe.py` so `service/liveness.py` can share one
+# definition of "is this link dead" (the same reason geo/taxonomy/seniority are single-sourced).
+# This module keeps its sampling table and reporting; only the per-URL verdict logic moved.
+from ingestion.link_probe import probe, _fold  # noqa: E402,F401
 from search_jobs import source_classes  # noqa: E402
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
@@ -95,40 +94,9 @@ try:                                    # Windows consoles still default to cp12
 except AttributeError:                  # pragma: no cover - non-reconfigurable stream
     pass
 
-TIMEOUT = 25
-
-#: A 200 that says the role is gone. Kept short and unambiguous on purpose: a false CLOSED
-#: reads as a broken adapter and sends someone hunting a bug that is not there.
-CLOSED_MARKERS = [
-    "no longer accepting applications", "no longer available", "no longer active",
-    "position has been filled", "job has been filled", "this job has expired",
-    "job is no longer", "position is closed", "vacancy has expired",
-    "nabídka již není aktuální", "nabídka byla obsazena", "již byla obsazena",
-    "tato pozice již není", "stránka nebyla nalezena", "page not found",
-    "tjänsten är tillsatt", "annonsen är borttagen",
-]
-
-#: Below this many characters of visible text, the page did not render server-side and no
-#: HTTP client can tell a real posting from a 404. See SHELL in the module docstring.
-SHELL_TEXT_CHARS = 500
-
-#: …and neither can it when the page is *mostly script*. Platsbanken answers 124 KB of HTML
-#: holding 1 619 characters of navigation chrome (1.3%) and no ad text at all — well over the
-#: character floor above, so a length test alone called it MISMATCH and would have had someone
-#: hunting a bug in a working adapter. A server-rendered posting sits far above this; Workday
-#: renders literally nothing.
-SHELL_TEXT_RATIO = 0.03
-
-#: Words that appear in every job title and prove nothing if matched.
-_STOPWORDS = frozenset({
-    "senior", "junior", "medior", "lead", "principal", "staff", "intern", "manager",
-    "engineer", "developer", "specialist", "analyst", "consultant", "officer",
-    "with", "and", "for", "the", "remote", "hybrid", "full", "time", "part",
-    "praha", "prague", "brno", "stockholm", "london", "berlin",
-})
-
-_TAG = re.compile(r"(?is)<(script|style|noscript|template)\b.*?</\1>|<[^>]+>")
-_WS = re.compile(r"\s+")
+# `TIMEOUT`, `CLOSED_MARKERS`, `SHELL_TEXT_*`, `_STOPWORDS`, `_TAG`, `_WS`, `_fold`,
+# `visible_text`, `_tokens`, `evidence`, `BOT_WALL_MARKERS`, `_get` and `probe` all moved to
+# `ingestion/link_probe.py` on 2026-08-20. `probe` and `_fold` are imported above.
 
 
 class Trim:
@@ -246,15 +214,6 @@ SAMPLING: dict[str, Sample] = {
 }
 
 
-#: A 403 from bot protection, which is not the same thing as a broken link: the page is fine
-#: and a subscriber's browser opens it. Himalayas answers 403 to *any* HTTP client — the
-#: honest agent and a spoofed Chrome string alike — and renders the posting normally in a real
-#: browser once Cloudflare's check passes. Calling that DEAD would fail the run daily for a
-#: source that works, which is how a red check gets ignored.
-BOT_WALL_MARKERS = ("just a moment", "security verification", "attention required",
-                    "enable javascript and cookies", "checking your browser",
-                    "verify you are human", "cf-chl", "__cf_chl")
-
 #: Sources whose links have been confirmed to resolve by something HTTP cannot do. Every one is
 #: client-rendered, so an automated run will never do better than SHELL/WEAK/BLOCKED on them and
 #: re-reporting them every run would bury the one that is actually new. The date is the point:
@@ -303,159 +262,9 @@ def _name_of(cls: type) -> str:
     return cached
 
 
-def _fold(text: str) -> str:
-    """Casefold and strip diacritics, so 'Vývojář' matches 'vyvojar' in a mangled page."""
-    stripped = unicodedata.normalize("NFKD", text)
-    stripped = "".join(c for c in stripped if not unicodedata.combining(c))
-    return _WS.sub(" ", stripped.casefold())
-
-
-def visible_text(html: str) -> str:
-    """Rendered text, roughly. Script and style bodies removed, not merely their tags."""
-    return _WS.sub(" ", _TAG.sub(" ", html)).strip()
-
-
-def _tokens(text: str) -> list[str]:
-    return [t for t in re.findall(r"[a-z0-9]{4,}", _fold(text)) if t not in _STOPWORDS]
-
-
-def evidence(page: str, title: str, company: Optional[str]) -> tuple[Optional[str], str]:
-    """(verdict, why) for a 200 that is not a closed-role page.
-
-    **The title is the test; the employer's name is not.** A link that lands on the board's
-    own index — `jobs.lever.co/spotify` instead of the requested posting — carries the
-    employer's name all over it, so accepting that as proof would pass exactly the failure
-    this script exists to find. Matching the title is what says *this posting* is on the page.
-
-    Deliberately generous about *how* it matches: the question is whether the link resolved,
-    not whether the page is byte-identical to the feed, so 60% of the title's distinctive
-    words is enough and word order is ignored.
-    """
-    folded = _fold(page)
-    # The whole title, verbatim. This is the strongest evidence there is, and it is checked
-    # first because the token rules below can leave a real title with nothing to match on:
-    # "PHP Engineer" and "QA Engineer" reduce to *no* usable tokens (`php` and `qa` are under
-    # the length floor, `engineer` is a stopword), so both were reported WEAK against pages
-    # that render the title in their first line and their `<title>` tag. Two false alarms in
-    # one run, on two different sources.
-    whole = _WS.sub(" ", _fold(title)).strip()
-    if len(whole) >= 5 and whole in folded:
-        return "OK", f"exact title {whole[:40]!r}"
-    title_tokens = _tokens(title)
-    if title_tokens:
-        hit = [t for t in title_tokens if t in folded]
-        # Two distinct words, not one. A single word out of a two-word title is a coin toss
-        # against a page of navigation chrome: platsbanken's SPA shell "matched" *Ekonomi*
-        # and *Säljare* out of its own menu and read as a working link three times over.
-        need = max(min(2, len(title_tokens)), round(len(title_tokens) * 0.6))
-        if len(hit) >= need:
-            return "OK", f"title {len(hit)}/{len(title_tokens)} words"
-    if company:
-        # "Alza.cz a.s." -> "alza". Only ever a WEAK pass; see the docstring.
-        for tok in _tokens(company)[:2]:
-            if tok in folded:
-                return "WEAK", (f"employer '{tok}' is on the page but the title is not — "
-                                "could be the board's index rather than the posting")
-    return None, ""
-
-
-#: Statuses that mean "you are going too fast", not "this link is broken".
-THROTTLE_STATUS = frozenset({429, 503})
-
-#: How long to wait out a 429 before deciding it is real. `politeness.throttle` spaces
-#: requests 1 s per host, which is fine for an export walking many hosts and *not* fine for
-#: this script, which deliberately hits one board's host `-n` times in a row.
-BACKOFF_SECONDS = 8
-
-
-def _get(url: str):
-    """GET with one polite retry on a rate-limit. Returns a response, or a string on failure.
-
-    Found on the first wide run (`--boards 8 -n 6`): Working Nomads answered 429 to the
-    fourth of six requests and the link was reported **DEAD**. It was not — we were. A
-    checker that manufactures its own failures when you widen it is worse than no checker,
-    because the run goes red, the red is wrong, and the next person stops reading it. So a
-    rate-limit is waited out once, `Retry-After` honoured if the server sends one, and only
-    reported if it survives that.
-    """
-    for attempt in (1, 2):
-        politeness.throttle(url)
-        try:
-            resp = requests.get(url, headers=politeness.HEADERS, timeout=TIMEOUT,
-                                allow_redirects=True)
-        except requests.RequestException as exc:
-            return type(exc).__name__
-        if resp.status_code not in THROTTLE_STATUS or attempt == 2:
-            return resp
-        try:
-            wait = min(float(resp.headers.get("Retry-After", BACKOFF_SECONDS)), 30.0)
-        except ValueError:                          # Retry-After can also be an HTTP date
-            wait = BACKOFF_SECONDS
-        logger.info("%s: HTTP %d, waiting %.0fs", url[:60], resp.status_code, wait)
-        time.sleep(wait)
-    return resp                                     # pragma: no cover - loop always returns
-
-
-def probe(url: str, title: str, company: Optional[str]) -> tuple[str, str]:
-    """Fetch one posting URL and decide whether it lands on the job. (verdict, note)."""
-    if not url.lower().startswith(("http://", "https://")):
-        return "DEAD", f"not an http(s) url: {url[:40]!r}"
-    if not politeness.robots_allows(url):
-        return "ROBOTS", "robots.txt disallows this path"
-    resp = _get(url)
-    if isinstance(resp, str):                       # a transport failure, already described
-        # NOT dead. `careers.roblox.com` read-times-out for every HTTP client and renders the
-        # posting perfectly in a browser — 222 postings that a DEAD verdict would have had
-        # someone delete. This mirrors `probe_boards.py`, which has always separated *dead*
-        # (answered, nothing there) from *unreachable* (no answer), because only one of the
-        # two is worth a commit.
-        return "UNREACHABLE", f"{resp} — no answer to an HTTP client; a browser has to say"
-    if resp.status_code != 200:
-        wall = _fold(resp.text[:4000])
-        if resp.status_code in (403, 429) and any(m in wall for m in BOT_WALL_MARKERS):
-            return "BLOCKED", (f"HTTP {resp.status_code} from bot protection — the page is not "
-                               "necessarily broken, a browser has to say")
-        if resp.status_code in THROTTLE_STATUS:
-            return "THROTTLED", (f"HTTP {resp.status_code} after a retry — this is our own "
-                                 "probing rate, not a broken link; lower -n or --boards")
-        if resp.url.rstrip("/") != url.rstrip("/"):
-            # We were redirected and *then* refused, so the link resolved and forwarded — the
-            # refusal belongs to the destination. `jobs.livestorm.co` (a Recruitee board on a
-            # custom domain) forwards to welcometothejungle.com, which 403s every bot and
-            # serves the right job to a browser. Reporting that DEAD blames our adapter for a
-            # third party's bot policy.
-            return "BLOCKED", (f"HTTP {resp.status_code} from {resp.url.split('/')[2]} after a "
-                               "redirect — the link resolved; the destination refuses bots")
-        # A non-200 from an employer's own career domain is **not** proof the link is broken,
-        # and this is the correction that matters most in the whole file. Measured 2026-08-08:
-        # `form3` answers 404 to our agent and renders "Finance Manager" in full in a browser;
-        # `roblox` times out and renders fine. Meanwhile `lever:aircall` answers 404 and is
-        # genuinely gone. **The bodies are indistinguishable** — 0.1% text-to-HTML for Lever's
-        # real 404, 0.7% for form3's bot-block — so no per-link test can separate them.
-        #
-        # What separated them was the **board root**: `jobs.lever.co/aircall` is 404, while
-        # `www.form3.tech/careers` serves 7 838 characters. That is a board-level check this
-        # script does not yet do, so until it does, a non-200 is reported for a human rather
-        # than classified. Guessing DEAD here would have deleted three working boards and 227
-        # postings; guessing BLOCKED would have hidden three genuinely dead ones.
-        return "UNCONFIRMED", (f"HTTP {resp.status_code} — could be a dead link or bot "
-                               "protection; check the board root in a browser")
-
-    page = visible_text(resp.text)
-    rendered = len(page) / max(len(resp.text), 1)
-    folded = _fold(page)
-    for marker in CLOSED_MARKERS:
-        if _fold(marker) in folded:
-            return "CLOSED", f"page says: {marker!r}"
-    verdict, why = evidence(page, title, company)
-    if verdict:
-        if resp.url.rstrip("/") != url.rstrip("/"):
-            why += f" (redirected to {resp.url[:70]})"
-        return verdict, why
-    if len(page) < SHELL_TEXT_CHARS or rendered < SHELL_TEXT_RATIO:
-        return "SHELL", (f"{len(page)} chars of text in {len(resp.text)} of HTML "
-                         f"({rendered:.1%}) — client-rendered, needs a browser")
-    return "MISMATCH", f"{len(page)} chars of text, no sign of the job or the employer"
+# `_fold`, `visible_text`, `_tokens`, `evidence`, `_get` and `probe` moved to
+# `ingestion/link_probe.py` (see the import near the top). This module still calls `probe`
+# (in `check_source`) and `_fold` (in `_slugish`/`_url_tokens`), both imported from there.
 
 
 def _apply(target: Any, overrides: dict[str, Any], label: str) -> None:

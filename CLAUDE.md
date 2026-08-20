@@ -539,6 +539,24 @@ check — right row count, fresh ids, no churn, green tests, and a subscriber cl
 That failed twice in three days. Run it when an adapter's URL construction changes; the five
 load-bearing rules and the current baseline are in `docs/sources.md`.
 
+- **The per-URL verdict logic lives in `ingestion/link_probe.py`, not `check_links.py`**
+  (extracted 2026-08-20, `scripts/` is not in the image so the pipeline cannot import it).
+  `check_links.py` keeps its sampling/reporting harness and imports `probe` from there;
+  `test_link_probe.py` owns the prober tests, `test_check_links.py` the sampling ones.
+- **`service/liveness.py` is the delivery-path half of the same idea**, and it closes the
+  feed-vs-page gap: `deactivate_stale` only asks whether the *feed* still lists a job, so a
+  posting whose own page has 404'd or says "the offer is no longer valid" stays `is_active`
+  and keeps reaching `/matches` and the digest. The sweep runs in `pipeline.run` after ingest
+  and **before the matcher** (so a deactivation drops the row from scoring and `/matches` at
+  once), over the **matched rows ∪ due shortlists**. It acts on **exactly one verdict —
+  `CLOSED`** (`link_probe.DEACTIVATE_VERDICTS`), a marker in real rendered text, and abstains
+  on everything ambiguous: **a bare 404 is never enough** (`form3`/`roblox` 404 while alive),
+  so a false deactivation would need a *live* page to carry closed-listing prose. It is
+  non-fatal and bounded (never raises, wall-clock + count caps) on the embed-step principle —
+  a measurement must never cost a digest. **Gated OFF by default**: `LIVENESS_ENABLED` runs
+  it, `LIVENESS_APPLY` lets it write (off ⇒ dry-run that only logs what it would deactivate);
+  a `--dry-run` pipeline can force writing off but never on.
+
 ---
 
 ## Known constraints and decisions

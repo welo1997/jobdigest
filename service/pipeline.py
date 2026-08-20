@@ -131,6 +131,16 @@ def run(ingest: bool = False, cz: bool = False, match: bool = False,
     skipped_notdue = len(profiles) - len(due)
     logger.info("%d sendable profiles, %d due today", len(profiles), len(due))
 
+    # Link liveness: deactivate postings whose page positively says the role is gone, BEFORE the
+    # matcher reads is_active and before /matches shows them. Off unless LIVENESS_ENABLED; a
+    # dry-run pipeline can only turn writing off, never on (apply=not dry_run). Non-fatal by
+    # construction — this must never cost a digest. See service/liveness.py.
+    try:
+        from service import liveness
+        liveness.run(due_profiles=due, apply=not dry_run)
+    except Exception:                                  # pragma: no cover - defensive
+        logger.exception("liveness sweep failed (digest unaffected)")
+
     if match:
         from service.matcher import run as match_run
         logger.info("Matching %d due subscriber(s) (AI rerank)...", len(due))
