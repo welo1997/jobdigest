@@ -153,7 +153,15 @@ def _report_discarded_hints(discarded: dict[str, Counter]) -> None:
         )
 
 
-def run(include_cz: bool, stale_days: int) -> None:
+# Deactivate a posting whose own `posted_at` is older than this, regardless of the feed still
+# listing it — the second staleness axis (see `store.deactivate_old`). 0 disables. A year is
+# deliberately conservative: it catches the register/ATS backlog (oldest active row is from 2016)
+# while almost never touching a genuinely long-open role; tighten via the env var after watching
+# the count it logs.
+MAX_AGE_DAYS = int(os.environ.get("STALE_MAX_AGE_DAYS", "365"))
+
+
+def run(include_cz: bool, stale_days: int, max_age_days: int | None = None) -> None:
     postings = gather(include_cz=include_cz)
     logger.info("Fetched %d postings", len(postings))
 
@@ -185,9 +193,11 @@ def run(include_cz: bool, stale_days: int) -> None:
 
     n = store.upsert_postings(rows)
     stale = store.deactivate_stale(days=stale_days)
+    max_age = MAX_AGE_DAYS if max_age_days is None else max_age_days
+    old = store.deactivate_old(days=max_age) if max_age > 0 else 0
     by_cat = Counter(r["role_category"] for r in rows)
-    logger.info("Upserted %d postings; deactivated %d stale; %d active total",
-                n, stale, store.count_active())
+    logger.info("Upserted %d postings; deactivated %d stale (feed) + %d past max age (%dd); "
+                "%d active total", n, stale, old, max_age, store.count_active())
     logger.info("By role_category: %s", dict(by_cat.most_common()))
     _report_title_cache(cache_stats, title_cache)
     _report_discarded_hints(discarded)
@@ -215,12 +225,16 @@ def _report_title_cache(stats: Counter, cache: dict[str, str]) -> None:
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--cz", action="store_true", help="also include Czech sources")
-    ap.add_argument("--stale-days", type=int, default=7)
+    ap.add_argument("--stale-days", type=int, default=7,
+                    help="deactivate postings not re-seen by their source within this many days")
+    ap.add_argument("--max-age-days", type=int, default=None,
+                    help="deactivate postings whose own posted_at is older than this (0 disables; "
+                         f"default env STALE_MAX_AGE_DAYS={MAX_AGE_DAYS})")
     args = ap.parse_args()
     logging.basicConfig(level=logging.INFO,
                         format="%(asctime)s %(levelname)s %(name)s: %(message)s",
                         stream=sys.stdout)
-    run(include_cz=args.cz, stale_days=args.stale_days)
+    run(include_cz=args.cz, stale_days=args.stale_days, max_age_days=args.max_age_days)
 
 
 if __name__ == "__main__":

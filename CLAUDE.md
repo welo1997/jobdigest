@@ -639,6 +639,19 @@ it.
 - **`service/source_watchdog.py` (08:00 UTC) is what makes both of those loud.** It reads the
   expected source list from `search_jobs.source_classes` — never a copy — and flags
   `SILENT ZERO` and `ID CHURN`. The churn ratio's denominator is `seen_today`, not `active`.
+- **Freshness has two axes, and `deactivate_stale` is only the first.** `deactivate_stale`
+  (`stale_days=7`) asks whether the *source's feed* still lists a job; `deactivate_old`
+  (`STALE_MAX_AGE_DAYS`, default 365) asks whether the job's *own `posted_at`* is ancient. A
+  register (mpsv / úřad práce) and several ATS boards (ashby, lever, adzuna, teamtailor,
+  recruitee, workable) re-list filled roles for months or years, so `last_seen_at` bumps daily
+  and only the age axis catches them — measured 2026-08-20, **1 293 active rows carry a
+  `posted_at` older than a year, the oldest from 2016**. Both run in `ingest.run` after
+  `upsert_postings` (which reactivates a re-listed row, so the gate re-applies each ingest while
+  the date stays old), both deactivate rather than delete, and **a NULL `posted_at` is left
+  active** — three sources (startupjobs, cocuma, goldencareers) never provide a date, and an age
+  we cannot read is not an age we act on. This is the *content*-staleness answer for a page no
+  link check can read — a client-rendered SPA like up.gov.cz returns a content-free shell over
+  HTTP, so its 14-month-old listing looks identical to a fresh one to anything fetching the URL.
 - **Adzuna** is 250 req/day across per-country indices; `test_adzuna.py` fails if a change
   busts `DAILY_REQUEST_BUDGET`. Its credentials are literal values in `deploy/.env` — an
   unresolved `op://` reference travels verbatim and 401s. Copy with `op read`, never

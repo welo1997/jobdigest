@@ -246,6 +246,35 @@ def deactivate_stale(days: int = 7) -> int:
         return cur.rowcount
 
 
+def deactivate_old(days: int = 365) -> int:
+    """Deactivate active postings whose OWN date (`posted_at`) is older than `days`.
+
+    The second staleness axis. `deactivate_stale` asks whether the *source's feed* still lists a
+    job; this asks whether the job's *own posted date* is ancient. A national register
+    (mpsv / úřad práce) and several ATS boards (ashby, lever, adzuna, teamtailor, recruitee,
+    workable) re-list roles for months or years after they were filled — measured 2026-08-20,
+    ~1 300 active rows carry a `posted_at` older than a year, the oldest from **2016** — so the
+    feed test never catches them, `last_seen_at` bumps daily, and a subscriber is emailed a
+    14-month-old listing (the úřad-práce "Datum poslední změny 1.7.2025" case).
+
+    Deactivate, never delete — same contract as `deactivate_stale`, so analytics keep the row and
+    `/matches` (which filters `is_active`) simply stops showing it. It self-heals across ingests:
+    `upsert_postings` reactivates a re-listed row, and this re-deactivates it the same run while
+    its date stays old.
+
+    **A NULL `posted_at` is left active.** Three sources (startupjobs, cocuma, goldencareers)
+    never provide a date, and an age we cannot read is not an age we act on — the same "abstain
+    on unknown" polarity the geo and liveness paths use."""
+    with cursor(commit=True) as cur:
+        cur.execute(
+            "update postings set is_active = false "
+            "where is_active = true and posted_at is not null "
+            "and posted_at < (now() - (%s || ' days')::interval)::date",
+            (int(days),),
+        )
+        return cur.rowcount
+
+
 def matched_active_posting_ids() -> set[str]:
     """Active postings that some subscriber has a scored match for.
 
