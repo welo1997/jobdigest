@@ -164,6 +164,15 @@ def _report_discarded_hints(discarded: dict[str, Counter]) -> None:
 # the count it logs.
 MAX_AGE_DAYS = int(os.environ.get("STALE_MAX_AGE_DAYS", "365"))
 
+# National labour-office registers (CZ / SE / NO). They re-list filled roles for months AND their
+# per-listing page is a client-rendered SPA shell the liveness probe cannot read (up.gov.cz,
+# platsbanken) — so neither the feed axis nor the page probe catches a stale one, only a shorter
+# age horizon does. `REGISTER_MAX_AGE_DAYS` is that horizon (0 disables the override, falling back
+# to MAX_AGE_DAYS): 180 catches the six-month backlog while leaving the 3-4 month band, where a
+# public-register role is more plausibly still open, alone. Sized on prod 2026-08-21.
+REGISTER_SOURCES = ("mpsv", "platsbanken", "nav")
+REGISTER_MAX_AGE_DAYS = int(os.environ.get("REGISTER_MAX_AGE_DAYS", "180"))
+
 
 def run(include_cz: bool, stale_days: int, max_age_days: int | None = None) -> None:
     postings = gather(include_cz=include_cz)
@@ -198,10 +207,13 @@ def run(include_cz: bool, stale_days: int, max_age_days: int | None = None) -> N
     n = store.upsert_postings(rows)
     stale = store.deactivate_stale(days=stale_days)
     max_age = MAX_AGE_DAYS if max_age_days is None else max_age_days
-    old = store.deactivate_old(days=max_age) if max_age > 0 else 0
+    reg_days = REGISTER_MAX_AGE_DAYS if REGISTER_MAX_AGE_DAYS > 0 else None
+    old = store.deactivate_old(days=max_age, register_days=reg_days,
+                               register_sources=REGISTER_SOURCES) if max_age > 0 else 0
     by_cat = Counter(r["role_category"] for r in rows)
-    logger.info("Upserted %d postings; deactivated %d stale (feed) + %d past max age (%dd); "
-                "%d active total", n, stale, old, max_age, store.count_active())
+    logger.info("Upserted %d postings; deactivated %d stale (feed) + %d past max age "
+                "(%dd, registers %s); %d active total", n, stale, old, max_age,
+                f"{REGISTER_MAX_AGE_DAYS}d" if reg_days else "same", store.count_active())
     logger.info("By role_category: %s", dict(by_cat.most_common()))
     _report_title_cache(cache_stats, title_cache)
     _report_discarded_hints(discarded)

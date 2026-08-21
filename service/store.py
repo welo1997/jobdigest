@@ -248,7 +248,8 @@ def deactivate_stale(days: int = 7) -> int:
         return cur.rowcount
 
 
-def deactivate_old(days: int = 365) -> int:
+def deactivate_old(days: int = 365, register_days: Optional[int] = None,
+                   register_sources: Optional[Iterable[str]] = None) -> int:
     """Deactivate active postings whose OWN date (`posted_at`) is older than `days`.
 
     The second staleness axis. `deactivate_stale` asks whether the *source's feed* still lists a
@@ -259,6 +260,15 @@ def deactivate_old(days: int = 365) -> int:
     feed test never catches them, `last_seen_at` bumps daily, and a subscriber is emailed a
     14-month-old listing (the úřad-práce "Datum poslední změny 1.7.2025" case).
 
+    **`register_days` gives the national registers a shorter horizon.** `mpsv`, `platsbanken` and
+    `nav` are labour-office registers whose per-listing page is a client-rendered SPA shell the
+    liveness probe cannot read (up.gov.cz, platsbanken), *and* which re-list filled roles for
+    months — so a stale one is caught by neither the feed axis nor the page probe, only by age.
+    A year is too slow for them (a register listing open six months is almost always filled), and
+    tightening `days` for everyone would clip ATS boards that legitimately keep a role open
+    longer. So `register_sources` get `register_days` and every other source keeps `days`. When
+    `register_days` is None the call is the plain single-horizon sweep it always was.
+
     Deactivate, never delete — same contract as `deactivate_stale`, so analytics keep the row and
     `/matches` (which filters `is_active`) simply stops showing it. It self-heals across ingests:
     `upsert_postings` reactivates a re-listed row, and this re-deactivates it the same run while
@@ -267,13 +277,25 @@ def deactivate_old(days: int = 365) -> int:
     **A NULL `posted_at` is left active.** Three sources (startupjobs, cocuma, goldencareers)
     never provide a date, and an age we cannot read is not an age we act on — the same "abstain
     on unknown" polarity the geo and liveness paths use."""
+    regs = list(register_sources or [])
     with cursor(commit=True) as cur:
-        cur.execute(
-            "update postings set is_active = false "
-            "where is_active = true and posted_at is not null "
-            "and posted_at < (now() - (%s || ' days')::interval)::date",
-            (int(days),),
-        )
+        if register_days is not None and regs:
+            # One UPDATE, two horizons: the CASE picks each row's cutoff by source, so a register
+            # row and an ATS row are judged against their own age in the same pass.
+            cur.execute(
+                "update postings set is_active = false "
+                "where is_active = true and posted_at is not null "
+                "and posted_at < (now() - ((case when source = any(%s) then %s else %s end) "
+                "|| ' days')::interval)::date",
+                (regs, int(register_days), int(days)),
+            )
+        else:
+            cur.execute(
+                "update postings set is_active = false "
+                "where is_active = true and posted_at is not null "
+                "and posted_at < (now() - (%s || ' days')::interval)::date",
+                (int(days),),
+            )
         return cur.rowcount
 
 

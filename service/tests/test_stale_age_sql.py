@@ -9,7 +9,10 @@ oldest from 2016), so only the second axis catches them. Three properties are lo
   - an old `posted_at` is deactivated;
   - a **NULL `posted_at` is left active** — three sources never provide a date, and an age we
     cannot read is not an age we act on (the same abstain-on-unknown polarity as geo/liveness);
-  - a recent `posted_at` is left active, and nothing is ever deleted.
+  - a recent `posted_at` is left active, and nothing is ever deleted;
+  - the **register override** gives `mpsv`/`platsbanken`/`nav` a shorter horizon than the ATS
+    boards in the *same* sweep — a register row in the 180-365d band is dropped while a
+    same-age ATS row is kept.
 
 Same harness as `test_hidden_sql.py`. Skipped when TEST_DATABASE_URL is unset.
 """
@@ -26,12 +29,15 @@ TEST_DSN = os.environ.get("TEST_DATABASE_URL")
 pytestmark = pytest.mark.skipif(not TEST_DSN, reason="TEST_DATABASE_URL is not set")
 
 PREFIX = "agetest-"
-# (posting_id suffix -> posted_at SQL). old is >365d, recent is well within, null is unknown.
+# suffix -> (source, posted_at SQL). old is >365d, recent is well within, null is unknown; the two
+# *-midage rows sit in the 180-365d band that only the register override reaches.
 POSTINGS = {
-    "old": "(current_date - 500)",       # ~16 months — the mpsv/úřad-práce case
-    "borderline-young": "(current_date - 300)",   # under a year — must survive a 365d gate
-    "recent": "(current_date - 3)",
-    "null": "null",                      # startupjobs/cocuma-shaped: no date, must stay active
+    "old": ("mpsv", "(current_date - 500)"),         # ~16 months — the úřad-práce case
+    "borderline-young": ("mpsv", "(current_date - 300)"),   # under a year — survives a 365d gate
+    "recent": ("mpsv", "(current_date - 3)"),
+    "null": ("mpsv", "null"),                         # cocuma-shaped: no date, must stay active
+    "reg-midage": ("mpsv", "(current_date - 250)"),  # register in the 180-365 band -> override drops
+    "ats-midage": ("greenhouse", "(current_date - 250)"),   # same age, ATS -> override keeps
 }
 
 
@@ -42,13 +48,13 @@ def db():
     store._POOL = None
 
     with store.cursor(commit=True) as cur:
-        for suffix, posted_sql in POSTINGS.items():
+        for suffix, (source, posted_sql) in POSTINGS.items():
             cur.execute(
                 "insert into postings (posting_id, source, url, title, company, "
                 "  role_category, dedup_key, posted_at, is_active) "
-                f"values (%s,'mpsv',%s,'Data Engineer','Acme','data_engineering',%s,{posted_sql},true) "
+                f"values (%s,%s,%s,'Data Engineer','Acme','data_engineering',%s,{posted_sql},true) "
                 "on conflict (posting_id) do nothing",
-                (f"{PREFIX}{suffix}", f"https://x.test/{PREFIX}{suffix}", f"{PREFIX}{suffix}"),
+                (f"{PREFIX}{suffix}", source, f"https://x.test/{PREFIX}{suffix}", f"{PREFIX}{suffix}"),
             )
     try:
         yield
@@ -77,7 +83,10 @@ def test_deactivate_old_drops_only_the_ancient_dated_rows():
     assert state["borderline-young"] is True     # 300 days < 365, kept
     assert state["recent"] is True
     assert state["null"] is True                 # unknown date is never acted on
-    assert set(state) == {"old", "borderline-young", "recent", "null"}, "nothing was deleted"
+    assert state["reg-midage"] is True           # 250 days < 365, kept without the override
+    assert state["ats-midage"] is True
+    assert set(state) == {"old", "borderline-young", "recent", "null",
+                          "reg-midage", "ats-midage"}, "nothing was deleted"
 
 
 def test_deactivate_old_is_idempotent():
@@ -91,3 +100,24 @@ def test_a_generous_threshold_touches_nothing():
     # direction. 10 000 days is older than any fixture row.
     assert store.deactivate_old(days=10_000) == 0
     assert _active()["borderline-young"] is True
+
+
+def test_register_override_drops_a_register_row_but_not_a_same_age_ats_row():
+    """The register override reaches into the 180-365d band for `mpsv`/`platsbanken`/`nav`
+    only. Runs last: it deactivates rows the earlier 365d tests deliberately kept."""
+    changed = store.deactivate_old(days=365, register_days=180, register_sources=["mpsv"])
+    # Both mpsv rows now past 180d flip (borderline-young at 300, reg-midage at 250); the
+    # same-age greenhouse row is judged against 365 and stays.
+    assert changed == 2
+    state = _active()
+    assert state["reg-midage"] is False          # mpsv, 250d > 180 -> dropped
+    assert state["borderline-young"] is False     # mpsv, 300d > 180 -> dropped
+    assert state["ats-midage"] is True            # greenhouse, 250d < 365 -> kept
+    assert state["recent"] is True and state["null"] is True
+
+
+def test_register_override_absent_is_the_plain_sweep():
+    """`register_days=None` (the default) must behave exactly like the single-horizon call —
+    a register source gets no special treatment. `recent` (3d) survives either way."""
+    assert store.deactivate_old(days=10_000, register_sources=["mpsv"]) == 0
+    assert _active()["recent"] is True
