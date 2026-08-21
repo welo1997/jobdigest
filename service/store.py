@@ -648,6 +648,43 @@ def _hard_gate(profile: dict) -> tuple[list[str], list[Any]]:
     return where, params
 
 
+def prune_gated_matches(profile: dict) -> int:
+    """Delete a profile's un-acted matches whose posting the current hard gate would refuse.
+
+    A gate added after a match was scored never retroactively removes it — the matcher only
+    filters *new* retrieval (`_hard_gate` shapes the shortlist, never the stored `matches`).
+    So every time a gate ships (the reach gate 2026-08-17, the language axis 2026-08-21) the
+    `/matches` record keeps every job scored before it that the gate now blocks — a Ukrainian
+    ad, a remote-in-India role — until the posting goes inactive. This re-applies the *same*
+    `_hard_gate` object to the profile's own matches and drops the definite failures, so each
+    profile self-heals on its next match and no future gate leaves the same residue.
+
+    Conservative on purpose, in three ways that mirror the rest of the gate and `prune_matches`:
+      * only `status = 'new'` rows — a `saved`/`applied`/`dismissed` match is the user's own
+        history and is kept, exactly as `prune_matches` keeps it;
+      * only *active* postings — an inactive one never displays and is `prune_matches`' job;
+      * `not (<gate>)` is SQL three-valued, so a row the gate leaves unknown (`NULL`) is not
+        deleted — only a row that *definitely* fails comes out, the same keep-the-unknown
+        polarity the individual predicates already use.
+    """
+    where, params = _hard_gate(profile)
+    admissibility = [c for c in where if c != "p.is_active"]   # is_active handled separately
+    if not admissibility:
+        return 0
+    gate_sql = " and ".join(admissibility)
+    with cursor(commit=True) as cur:
+        cur.execute(
+            "delete from matches m using postings p "
+            "where m.posting_id = p.posting_id "
+            "and m.profile_id = %s "
+            "and p.is_active "
+            "and m.status = 'new' "
+            f"and not ({gate_sql})",
+            [profile["id"], *params],
+        )
+        return cur.rowcount
+
+
 def query_shortlist(profile: dict, limit: int = 120) -> list[dict]:
     """Recall-first candidate shortlist for the AI matcher. See `query_shortlist_meta`."""
     rows, _ = query_shortlist_meta(profile, limit=limit)

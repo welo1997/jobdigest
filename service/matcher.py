@@ -952,6 +952,20 @@ def _match_and_store(client, profile: dict, shortlist_size: int = SHORTLIST_SIZE
     shortlist was empty or the match call failed. A failed call is logged, never raised, so one
     bad subscriber can never abort the rest of a batch."""
     pid = profile.get("id")
+    # Self-heal stale matches before scoring: a gate added after a match was scored never
+    # removes it (the matcher only filters *new* retrieval), so `/matches` accumulates jobs the
+    # current rules now refuse — a Ukrainian ad from before the language axis, a remote-in-India
+    # role from before the reach gate. Re-apply the live hard gate to this profile's own matches
+    # so the record reflects today's gates and no future gate leaves the same residue. Runs even
+    # when the shortlist is empty; non-fatal — a cleanup must never cost a subscriber a match.
+    if pid:
+        try:
+            dropped = store.prune_gated_matches(profile)
+            if dropped:
+                logger.info("profile %s: pruned %d stale match(es) the current hard gate blocks",
+                            pid, dropped)
+        except Exception:                                  # noqa: BLE001 - cleanup is non-fatal
+            logger.exception("profile %s: gated-match prune failed (matching continues)", pid)
     shortlist, meta = store.query_shortlist_meta(profile, limit=shortlist_size)
     already = store.already_sent_ids(pid) if pid else set()
     shortlist = [c for c in shortlist if c["posting_id"] not in already]
