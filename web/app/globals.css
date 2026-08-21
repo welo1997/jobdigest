@@ -357,6 +357,20 @@ button.nav-link{background:none;border:0;padding:0;cursor:pointer;font-family:in
 .skill-opt .c{flex:none;font-size:var(--fs-xs);color:var(--muted);font-variant-numeric:tabular-nums;}
 .skill-menu-foot{border-top:1px solid var(--line-soft);margin-top:5px;padding:7px 9px 3px;}
 
+/* Reading-languages multi-select (LanguagePicker). Reuses the .skill-menu popover and options,
+   but its trigger is a full-width form control — not a filter pill — so it sits among the signup
+   / preferences fields and reads like the native <select>s beside it, while showing the chosen
+   language names verbatim. */
+.lang-select{position:relative;}
+.lang-select .skill-menu-btn{display:flex;width:100%;justify-content:space-between;align-items:center;
+  gap:10px;font-weight:400;background:var(--paper);border-width:1px;border-radius:var(--r-sm);
+  padding:11px 12px;}
+.lang-select .skill-menu-btn:focus-visible{border-color:var(--brand);box-shadow:0 0 0 3px var(--brand-tint);outline:none;}
+.lang-select .skill-menu-btn .val{flex:1;min-width:0;text-align:left;overflow:hidden;
+  text-overflow:ellipsis;white-space:nowrap;}
+.lang-select .skill-menu-btn .val.none{color:var(--muted);}
+.lang-select .skill-menu-pop{width:100%;min-width:0;}
+
 /* Score and experience are single-valued (a floor / a ceiling), so they are native <select>s
    rather than tick-box menus — but they share the filter row with the menus and must read as
    the same control. They borrow `.skill-menu-btn`'s size, weight and shape and add only what a
