@@ -86,6 +86,18 @@ export interface Messages {
     fieldHint: string;
   };
 
+  /** "Languages you can read" chips. The language NAMES are endonyms from `lib/language.ts`
+   *  (locale-independent), so only these framing strings are translated. */
+  language: {
+    label: string;
+    /** Shown when nothing is picked — no filter. */
+    any: string;
+    /** Shown when the subscriber has narrowed to specific languages. */
+    narrowed: string;
+    /** Must say English and unreadable-language postings are always kept. */
+    note: string;
+  };
+
   location: {
     countriesLabel: string;
     addCountryAria: string;

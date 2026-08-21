@@ -34,6 +34,10 @@ export interface SubscribePayload {
   // `education_field` is free text for the AI matcher and is never filtered on.
   education_levels?: string[];
   education_field?: string | null;
+  // Languages the subscriber can read (ISO-639-1). Omit or [] for "no preference" — no filter.
+  // Only a posting confidently written in a language NOT listed is dropped; English and
+  // unreadable ads always pass. See lib/language.ts.
+  understood_languages?: string[];
   role_categories?: string[];
   work_types?: string[];
   part_time_only?: boolean;
@@ -69,6 +73,9 @@ export interface Preferences {
   // reads that as "no preference" and returns all five, which is the column default too.
   education_levels?: string[];
   education_field?: string | null;
+  /** Absent on a subscription that predates migration 026; `cleanUnderstoodLanguages` reads
+   *  that as "no preference" (empty), which is the column default too. */
+  understood_languages?: string[];
   role_categories: string[];
   work_types: string[];
   part_time_only: boolean;

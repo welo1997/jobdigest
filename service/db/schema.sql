@@ -60,6 +60,13 @@ create table if not exists postings (
     -- as education_min above. Roughly a quarter of active rows carry a value (measured
     -- 2026-08-18). See service/experience.py before relying on this.
     experience_min smallint,
+    -- Language the ad's text is written in (migration 026): ISO-639-1, or null when the text was
+    -- too short or too ambiguous to read confidently. Null for most of the CZ/SK title-only
+    -- corpus and every bilingual ad, and the gate keeps nulls and defers to the AI matcher — the
+    -- same design as education_min/experience_min. DISTINCT from profiles.language, which is the
+    -- subscriber's UI/email locale: this is the *content* language of the posting. See
+    -- service/language.py before relying on this.
+    language       text,
     salary_raw     text,
     currency       text,
     posted_at      date,
@@ -119,6 +126,8 @@ create index if not exists idx_postings_dedup       on postings (dedup_key);
 create index if not exists idx_postings_education   on postings (education_min) where education_min is not null;
 -- Partial (migration 025), same shape: the interesting rows are the ones with a value.
 create index if not exists idx_postings_experience  on postings (experience_min) where experience_min is not null;
+-- Partial (migration 026), same shape: only rows with a detected language are ever queried by it.
+create index if not exists idx_postings_language    on postings (language) where language is not null;
 -- Partial (migration 021): only ever set for fully-remote rows, and every query that reads it is
 -- already filtering on remote.
 create index if not exists idx_postings_remote_reach on postings (remote_reach)
@@ -172,6 +181,12 @@ create table if not exists profiles (
     -- the AI matcher and is never filtered on. See service/education.py.
     education_levels text[] not null default '{secondary,vocational,bachelor,master,doctorate}',
     education_field  text,
+    -- Languages the subscriber can read (migration 026), ISO-639-1 codes. Empty = no preference
+    -- = no filter (widen); the default, and the state every existing subscriber is migrated into,
+    -- so nobody's digest narrows without them choosing it. A posting confidently detected in a
+    -- non-English language not in this set is dropped; English and unknown always pass. This is
+    -- distinct from `language` below (the UI/email locale). See service/language.py.
+    understood_languages text[] not null default '{}',
     regions         text[]  not null default '{cz,eu,worldwide}',   -- derived, coarse
     role_categories text[]  not null default '{}',  -- empty = all data roles
     work_types      text[]  not null default '{permanent,freelance/contract}',

@@ -128,6 +128,14 @@ const es: Messages = {
       "Nunca se usa como filtro: solo ayuda al matcher a valorar si un puesto encaja con tu perfil.",
   },
 
+  language: {
+    label: "Idiomas que puedes leer",
+    any: "cualquier idioma",
+    narrowed: "solo estos",
+    note:
+      "Siempre mantenemos el inglés, así como los anuncios cuyo idioma no pudimos identificar. Esto solo excluye los anuncios escritos por completo en un idioma que no seleccionaste.",
+  },
+
   location: {
     countriesLabel: "Países donde puedes trabajar",
     addCountryAria: "Añadir otro país",

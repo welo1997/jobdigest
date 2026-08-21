@@ -26,7 +26,7 @@ from psycopg2.pool import ThreadedConnectionPool
 # dependency at import time — fastembed and numpy load inside `embed._load()` / `embed_texts`,
 # neither of which the API ever calls. Only `to_pgvector` is used below, and it stays the one
 # definition of how a vector is rendered for Postgres.
-from service import education, embed, experience, geo, i18n, taxonomy
+from service import education, embed, experience, geo, i18n, language, taxonomy
 
 _POOL: Optional[ThreadedConnectionPool] = None
 
@@ -68,7 +68,7 @@ _UPSERT_SQL = """
 insert into postings (
     posting_id, source, title, company, url, description, location, country_code, city,
     remote_signal, work_mode, scope_raw, remote_reach, reach_areas, reach_countries,
-    education_min, experience_min,
+    education_min, experience_min, language,
     salary_raw, currency, posted_at,
     role_category, region, eligibility, seniority, work_type, is_part_time, dedup_key, skills,
     last_seen_at, is_active
@@ -96,6 +96,7 @@ on conflict (posting_id) do update set
     reach_countries = excluded.reach_countries,
     education_min = excluded.education_min,
     experience_min = excluded.experience_min,
+    language = excluded.language,
     salary_raw = excluded.salary_raw,
     currency = excluded.currency,
     posted_at = excluded.posted_at,
@@ -123,7 +124,7 @@ def upsert_postings(rows: Iterable[dict]) -> int:
             # Empty list -> NULL for the same reason as `skills` below: psycopg2 renders `[]` as an
             # untyped empty array Postgres cannot coerce, and null/empty are equivalent here.
             r.get("reach_areas") or None, r.get("reach_countries") or None,
-            r.get("education_min"), r.get("experience_min"),
+            r.get("education_min"), r.get("experience_min"), r.get("language"),
             r.get("salary_raw"), r.get("currency"),
             r.get("posted_at"),
             r.get("role_category"), r.get("region"), r.get("eligibility"),
@@ -137,15 +138,16 @@ def upsert_postings(rows: Iterable[dict]) -> int:
     ]
     if not values:
         return 0
-    # 28 placeholders for the 28 columns above `last_seen_at`. Counted, not eyeballed: these
+    # 29 placeholders for the 29 columns above `last_seen_at`. Counted, not eyeballed: these
     # bind by position, so one missing %s shifts every column after it by one and psycopg2
     # cannot tell — it would write `skills` into `dedup_key` and fail on the type, or
     # worse, not fail at all. The assert below is cheap and turns that into a loud error —
     # it earned its keep on 2026-08-15, when `reach_countries` reached the column list and
-    # the values tuple but not this string, and again on 2026-08-18 when `experience_min` did
-    # exactly the same thing and the assert caught it in the first local test run.
+    # the values tuple but not this string, again on 2026-08-18 when `experience_min` did
+    # exactly the same thing, and again on 2026-08-21 for `language` — each caught in the
+    # first local test run.
     template = ("(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,"
-                "%s,%s,now(), true)")
+                "%s,%s,%s,now(), true)")
     assert template.count("%s") == len(values[0]), (
         f"upsert template has {template.count('%s')} placeholders "
         f"for {len(values[0])} values")
@@ -487,6 +489,10 @@ def query_candidates(profile: dict, limit: int = 100) -> list[dict]:
     if exp_sql != "true":
         where.append(exp_sql)
         params.extend(exp_params)
+    lang_sql, lang_params = language.language_predicate(profile)
+    if lang_sql != "true":
+        where.append(lang_sql)
+        params.extend(lang_params)
     if profile.get("seniorities"):
         where.append("p.seniority = any(%s)")
         params.append(profile["seniorities"])
@@ -504,7 +510,7 @@ def query_candidates(profile: dict, limit: int = 100) -> list[dict]:
         select distinct on (coalesce(p.dedup_key, p.posting_id))
                p.posting_id, p.source, p.title, p.company, p.url, p.location,
                p.city, p.country_code, p.remote_signal, p.work_mode, p.education_min,
-               p.experience_min, p.remote_reach, p.reach_countries,
+               p.experience_min, p.language, p.remote_reach, p.reach_countries,
                p.region, p.eligibility, p.seniority, p.work_type, p.is_part_time,
                p.role_category, p.salary_raw, p.posted_at, p.description
         from postings p
@@ -628,6 +634,14 @@ def _hard_gate(profile: dict) -> tuple[list[str], list[Any]]:
     if exp_sql != "true":
         where.append(exp_sql)
         params.extend(exp_params)
+    # Sixth axis, and a hard gate for the same reason as education/experience: widening
+    # retrieval must not re-admit a posting written in a language the subscriber cannot read.
+    # A null language (unknown), an English posting, or a profile that declared no languages
+    # all pass — see language.language_predicate.
+    lang_sql, lang_params = language.language_predicate(profile)
+    if lang_sql != "true":
+        where.append(lang_sql)
+        params.extend(lang_params)
     if profile.get("eligible_only", True):
         where.append("p.eligibility = any(%s)")
         params.append(eligibility_allowlist(profile))
@@ -743,7 +757,7 @@ def query_shortlist_meta(profile: dict, limit: int = 120) -> tuple[list[dict], d
         sql = f"""
             select posting_id, source, title, company, url, location, city, country_code,
                    remote_signal, work_mode, remote_reach, reach_countries, education_min,
-                   experience_min,
+                   experience_min, language,
                    region, eligibility, seniority, work_type, is_part_time,
                    role_category, salary_raw, currency, posted_at, description
             from (
@@ -763,7 +777,7 @@ def query_shortlist_meta(profile: dict, limit: int = 120) -> tuple[list[dict], d
                            -- without them it read `remote=yes` and had no field that could say
                            -- "remote from within Poland only".
                            p.remote_reach, p.reach_countries,
-                           p.education_min, p.experience_min,
+                           p.education_min, p.experience_min, p.language,
                            p.region, p.eligibility, p.seniority, p.work_type, p.is_part_time,
                            p.role_category, p.salary_raw, p.currency, p.posted_at,
                            p.description, p.last_seen_at, p.first_seen_at,
@@ -1277,6 +1291,7 @@ def create_profile(user_id: str, data: dict) -> dict:
     data = {**data, **_location_prefs(data, ensure=True)}
     cols = ["user_id", "label", "stack", "seniorities", "countries", "cities",
             "remote_scope", "work_modes", "education_levels", "education_field",
+            "understood_languages",
             "regions", "role_categories",
             "work_types", "part_time_only", "eligible_only", "sectors", "min_score"]
     vals = [user_id, data.get("label", "My search"), data.get("stack", []),
@@ -1285,6 +1300,7 @@ def create_profile(user_id: str, data: dict) -> dict:
             geo.clean_work_modes(data.get("work_modes")),
             education.clean_levels(data.get("education_levels")),
             education.clean_field(data.get("education_field")),
+            language.clean_languages(data.get("understood_languages")),
             data["regions"],
             data.get("role_categories", []),
             data.get("work_types", ["permanent", "freelance/contract"]),
@@ -1788,7 +1804,9 @@ _SUBSCRIBER_FIELDS = ["label", "stack", "seniorities", "countries", "cities",
                       "min_score", "frequency", "language",
                       # migration 014. `education_levels` gates; `education_field` is free text
                       # for the matcher and is never filtered on. See service/education.py.
-                      "education_levels", "education_field"]
+                      "education_levels", "education_field",
+                      # migration 026. Languages the subscriber reads; empty = no filter.
+                      "understood_languages"]
 
 _LOCATION_KEYS = ("countries", "cities", "remote_scope", "regions")
 
@@ -1916,6 +1934,10 @@ def create_email_subscription(email: str, data: dict, *, confirmed: bool = False
         # to every level rather than narrowing to none and silently emptying the digest.
         education.clean_levels(data.get("education_levels")),
         education.clean_field(data.get("education_field")),
+        # Normalised on write like the others; empty (the default) is "no preference" and the
+        # gate reads it as no filter. Must sit last, matching `understood_languages`' position at
+        # the end of `_SUBSCRIBER_FIELDS` — this insert binds by position.
+        language.clean_languages(data.get("understood_languages")),
         data.get("has_cv", False), data.get("cv_summary"), data.get("years_experience"),
     ]
     placeholders = ",".join(["%s"] * len(cols))
@@ -2272,6 +2294,11 @@ def update_subscription(manage_token: str, data: dict) -> Optional[dict]:
         data = {**data, "education_levels": education.clean_levels(data["education_levels"])}
     if "education_field" in data:
         data = {**data, "education_field": education.clean_field(data["education_field"])}
+    # Empty is "no preference" (no filter); anything unknown is dropped rather than narrowing to
+    # nothing — the shared write path, same reason as work_modes/education above.
+    if "understood_languages" in data:
+        data = {**data, "understood_languages":
+                language.clean_languages(data["understood_languages"])}
     if "language" in data:
         data = {**data, "language": i18n.clean_locale(data["language"])}
     # Clamped for the same reason the others are: it comes off a public body and then decides

@@ -29,7 +29,7 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from service import education, experience, geo, store  # noqa: E402
+from service import education, experience, geo, language, store  # noqa: E402
 
 logger = logging.getLogger("service.matcher")
 
@@ -127,6 +127,12 @@ demands clearly more ("at least 8 years", "min. 5 let praxe") is not a fit — s
 A `min_experience=Ny` token is the requirement we parsed from the ad; a candidate without one \
 never stated a requirement, which is most of them and is NOT a mismatch — judge those on \
 overall fit, and never infer a tenure demand the ad did not write down.
+- Language: if the profile has a "Languages" line, the subscriber can only read the languages \
+it lists (English always counts). A candidate carrying a `lang=` token in a language NOT on \
+that line is written in a language they cannot read — it is not a fit however well the role \
+matches, so score it below 4. A candidate with NO `lang=` token is one whose language we could \
+not read confidently: that is most of them, it is NOT a mismatch, so judge it on overall fit \
+and never refuse it merely for being silent.
 - Postings may be in Czech, Slovak, or English — judge them equally; a "Vývojář" is a \
 developer, "Obchodní zástupce" is a sales rep, "Účetní" is an accountant.
 - Rank best-first and be honest with the scores: a 9-10 is an excellent fit, a 6-7 solid, \
@@ -198,6 +204,16 @@ def _profile_block(p: dict) -> str:
             f"Years experience: {experience.describe(p['years_experience'])}, but most "
             "postings never state a requirement — do not infer one that is not written "
             "down, and do not exclude a posting merely for being silent")
+    # Only when the subscriber declared languages. The SQL gate already drops a posting
+    # confidently written in a language they can't read, so what reaches the model is rows whose
+    # `lang=` passed or was never detected — the instruction is for the ambiguous ones the gate
+    # let through. English and an absent `lang=` are always fine (see language.describe).
+    reads = language.clean_languages(p.get("understood_languages"))
+    if reads:
+        lines.append(
+            f"Languages: {language.describe(reads)}. A candidate marked with a `lang=` in "
+            "another language is not readable by this person and is not a fit (score it below "
+            "4); a candidate with no `lang=` token is fine — judge it on overall fit")
     # `cv_summary` is deliberately NOT rendered (removed 2026-08-18). Everything the CV
     # detected was merged into the preferences at signup — roles, stack, sectors, seniority,
     # years — and each reaches the prompt as its own line above. The summary sentence was a
@@ -324,6 +340,10 @@ def _candidates_block(shortlist: list[dict],
             # the model what to do with silence.
             + (f" min_experience={c['experience_min']}y"
                if c.get("experience_min") is not None else "")
+            # Rendered only when the language was detected — an absent token is "could not read
+            # it", the same silence contract as reach=? and min_experience. `en` is rendered
+            # too, but the profile line makes clear English is always readable.
+            + (f" lang={c['language']}" if c.get("language") else "")
             + (" part_time=yes" if c.get("is_part_time") else "")
             + (f" salary={salary}" if salary else "")
             + (f"\n    {desc}" if desc else "")
@@ -528,6 +548,12 @@ ROUTINE_INSTRUCTIONS = (
     "or \"or equivalent experience\" does not disqualify anyone. "
     "\"education_field\" is what the subscriber studied — context for judging how well a role "
     "fits them, never a reason to exclude one. "
+    "If (and only if) the profile has a \"languages\" list, the subscriber can only read those "
+    "languages (English always counts): a candidate whose \"language\" is not one of them is "
+    "written in a language they cannot read and is not a fit (omit it / score it below 4). A "
+    "candidate with NO \"language\" key is one we could not read confidently — that is most of "
+    "them, it is NOT a mismatch, so judge it on overall fit and never exclude it for being "
+    "silent. "
     "If the profile has \"part_time_only\":true, a full-time posting is not what they asked "
     "for: score it at most 5 (it still shows on their matches page, it just must not headline "
     "the email) and prefer candidates with \"part_time\":true. Postings may be "
@@ -570,6 +596,12 @@ def _profile_export(p: dict) -> dict:
     field = education.clean_field(p.get("education_field"))
     if field:
         out["education_field"] = field
+    # Same "only when the subscriber has an opinion" rule: present when they declared the
+    # languages they read, so its presence in the file means "refuse the unreadable ones".
+    reads = language.clean_languages(p.get("understood_languages"))
+    if reads:
+        out["languages"] = reads
+        out["language_note"] = language.describe(reads)
     # Only when true: an explicit "part_time_only": false in every profile is noise the model
     # has to read past, and false is already the default reading of its absence.
     if p.get("part_time_only"):
@@ -634,6 +666,11 @@ def _candidate_export(c: dict, countries: set[str] | None = None) -> dict:
     # this is the finer answer, and its absence is the common case, not a special one.
     if c.get("work_mode"):
         out["work_mode"] = c["work_mode"]
+    # The language the ad is written in, or absent when it could not be read confidently — the
+    # common case for title-only rows, and absence means "unknown", not English. Emitted so a
+    # subscriber who declared their languages can have this path refuse the unreadable ones too.
+    if c.get("language"):
+        out["language"] = c["language"]
     # Lowest qualification the ad demands. Absent on 90.6% of rows, and absent means the
     # requirement was never *read* — not that there is none. The prompt has to say so, because
     # this is the one field where the safe reading is not the obvious one.

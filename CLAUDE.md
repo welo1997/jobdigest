@@ -157,6 +157,25 @@ Each of these has been broken in production at least once. Reasoning and measure
   /matches `max_experience` filter KEEPS unknowns (exclusion polarity — dropping them would
   hide the silent majority). Changing the patterns means
   `python -m service.backfill_experience`.
+- **The language a posting is written in is the sixth axis, and it answers one question only:
+  *can the subscriber read this ad at all?*** `service/language.py` is the one definition —
+  offline detection via `py3langid` (no API cost, chosen over `lingua` for the same no-swap-box
+  reason as fastembed-not-torch), `postings.language` the detected ISO-639-1 code, and
+  `profiles.understood_languages` the languages the subscriber declared. **Written-language is
+  not required-language, and only one direction is provable**: a Russian ad is one a
+  Russian-illiterate reader cannot read (safe to refuse), but an English ad says *nothing* about
+  a hidden German requirement — so **English is never a reason to refuse anything, and we never
+  infer a spoken-language demand from an English ad** (the on-site-is-unprovable trap). The gate
+  (`geo`-style, in `_hard_gate` so it survives widening, plus a `lang=` prompt token that must
+  move with it) refuses exactly one thing: a posting **confidently** detected in a **non-English**
+  language the subscriber did **not** declare. **Three keeps make it safe**: a null
+  `postings.language` (short/ambiguous text — most of the CZ/SK title-only corpus) always passes,
+  **English always passes** regardless of what was ticked, and an empty `understood_languages`
+  (every existing subscriber, by default — deliberately **not** seeded, so nobody's digest
+  narrows without them choosing it) applies no filter at all. Detection is gated by a text-length
+  floor and a confidence threshold; changing either means `python -m service.backfill_language`.
+  Mirrored in `web/lib/language.ts` (drift-tested), chips shown as endonyms so 27 language names
+  need no per-locale translation.
 - **A source's `remote_signal` is a claim, not a fact** — `is_fully_remote` checks the
   posting's own words. Only a *named* schedule or policy disqualifies. Changing detection
   means re-running `python -m service.backfill_geo`.

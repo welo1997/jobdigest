@@ -132,6 +132,14 @@ const pl: Messages = {
       "Nigdy nie jest używane jako filtr — pomaga tylko matcherowi ocenić, czy rola pasuje do twojego doświadczenia.",
   },
 
+  language: {
+    label: "Języki, które rozumiesz",
+    any: "dowolny język",
+    narrowed: "tylko te",
+    note:
+      "Angielski zawsze zostaje zachowany, podobnie jak ogłoszenia, których języka nie udało się rozpoznać. Pomijamy tylko ogłoszenia napisane w całości w języku, którego nie wybrałeś.",
+  },
+
   location: {
     countriesLabel: "Kraje, w których możesz pracować",
     addCountryAria: "Dodaj kolejny kraj",

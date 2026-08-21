@@ -25,7 +25,8 @@ export default function PrivacyEn() {
           <li><b>Your search preferences</b> — roles, skills/keywords, the countries and cities
             you want to work in, which work setups you&apos;ll take (on-site, hybrid, fully
             remote), which education requirements you&apos;ll accept and, if you choose to give
-            it, what you studied, any industries you tell us you&apos;re interested in, how far
+            it, what you studied, which languages you can read (so we don&apos;t send you ads you
+            can&apos;t understand), any industries you tell us you&apos;re interested in, how far
             afield a fully remote role may be, type of work, and
             frequency, as you enter them, and the language you read the site in — so your emails
               arrive in it too.</li>
@@ -92,7 +93,8 @@ export default function PrivacyEn() {
           <li>a random identifier — <b>not your email address, and not your name</b>;</li>
           <li>your stated preferences (roles, skills, the countries and cities you chose, the
             work setups you&apos;ll take, the education requirements you&apos;ll accept and what
-            you studied if you gave it, any industries you&apos;re interested in, type of work);</li>
+            you studied if you gave it, the languages you can read, any industries
+            you&apos;re interested in, type of work);</li>
           <li>your CV-derived summary line, if you uploaded one (section 4);</li>
           <li>the public job listings we are asking it to rank.</li>
         </ul>

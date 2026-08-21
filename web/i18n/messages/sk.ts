@@ -134,6 +134,14 @@ const sk: Messages = {
       "Nikdy sa nepoužíva ako filter — len pomáha matcheru posúdiť, či k vám rola sedí.",
   },
 
+  language: {
+    label: "Jazyky, ktorým rozumiete",
+    any: "akýkoľvek jazyk",
+    narrowed: "len tieto",
+    note:
+      "Angličtinu vždy ponecháme, rovnako aj inzeráty, pri ktorých sme jazyk nerozpoznali. Vynecháme len ponuky napísané celé v jazyku, ktorý ste nevybrali.",
+  },
+
   location: {
     countriesLabel: "Krajiny, kde môžete pracovať",
     addCountryAria: "Pridať ďalšiu krajinu",

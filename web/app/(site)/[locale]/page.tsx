@@ -14,10 +14,12 @@ import {
 import { track } from "@/lib/analytics";
 import { LocationPicker, LocationValue } from "@/components/LocationPicker";
 import { EducationPicker, EducationValue } from "@/components/EducationPicker";
+import { LanguagePicker } from "@/components/LanguagePicker";
 import { SuggestInput } from "@/components/SuggestInput";
 import {
   cleanEducationField, cleanEducationLevels, levelsUpTo,
 } from "@/lib/education";
+import { LanguageId, cleanUnderstoodLanguages } from "@/lib/language";
 import {
   CV_ROLE_ID, EXAMPLE_ROLE_IDS, ROLE_OPTIONS, SENIORITY_IDS, WORK_TYPE_IDS,
   mergeSkillOptions, resolveRoleId, roleCategory, roleKeyword, suggestedSkills,
@@ -123,6 +125,7 @@ export default function Landing() {
   );
   const [loc, setLoc] = useState<LocationValue>(DEFAULT_LOCATION);
   const [edu, setEdu] = useState<EducationValue>(DEFAULT_EDUCATION);
+  const [langs, setLangs] = useState<LanguageId[]>([]);
   const [work, setWork] = useState<Set<string>>(new Set(DEFAULT_WORK));
   const [levels, setLevels] = useState<Set<string>>(new Set(DEFAULT_LEVELS));
   const [email, setEmail] = useState("");
@@ -397,6 +400,7 @@ export default function Landing() {
       work_modes: loc.workModes,
       education_levels: cleanEducationLevels(edu.levels),
       education_field: cleanEducationField(edu.field),
+      understood_languages: cleanUnderstoodLanguages(langs),
       work_types: workTypes.length ? workTypes : ["permanent", "freelance/contract"],
       part_time_only: partTimeOnly,
       sectors: cvSignals?.sectors || [],
@@ -666,6 +670,7 @@ export default function Landing() {
                     <p className="wz-hint">{t.landing.q3hint}</p>
                     <LocationPicker value={loc} onChange={setLoc} idPrefix="wz" />
                     <EducationPicker value={edu} onChange={setEdu} idPrefix="wz" />
+                    <LanguagePicker value={langs} onChange={setLangs} />
                     <p className="wz-hint" style={{ marginTop: 16 }}>{t.landing.workTypeHint}</p>
                     <div className="chips">
                       {WORK_TYPE_IDS.map((o) => (

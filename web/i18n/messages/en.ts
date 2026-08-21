@@ -126,6 +126,14 @@ const en: Messages = {
       "Never used as a filter — it only helps the matcher judge whether a role suits your background.",
   },
 
+  language: {
+    label: "Languages you can read",
+    any: "any language",
+    narrowed: "only these",
+    note:
+      "English is always kept, and so is any ad whose language we couldn't detect. This only leaves out ads written entirely in a language you didn't pick.",
+  },
+
   location: {
     countriesLabel: "Countries you can work in",
     addCountryAria: "Add another country",

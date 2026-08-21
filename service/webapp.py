@@ -66,7 +66,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 # for has to agree with it by construction. Same reasoning as `source_watchdog` reading
 # `search_jobs.source_classes`. The file is in this image (`Dockerfile` COPYs it explicitly).
 from search_jobs import SENIORITY_LEVELS  # noqa: E402
-from service import (cvparse, education, experience, geo, i18n, links, mailer,  # noqa: E402
+from service import (cvparse, education, experience, geo, i18n, language, links, mailer,  # noqa: E402
                      store, taxonomy, transactional)
 # Aliased because the /matches endpoint has a `skills` query parameter that would otherwise
 # shadow the module inside that function.
@@ -379,6 +379,25 @@ def _check_education_field(v: Optional[str]) -> Optional[str]:
     return education.clean_field(v) if v is not None else v
 
 
+def _check_understood_languages(v: Optional[list[str]]) -> Optional[list[str]]:
+    """Reject an unknown language code outright, but let an empty list through.
+
+    The same asymmetry as `_check_education_levels`: a typo'd code is a client bug
+    `language.clean_languages` would otherwise silently drop, leaving the subscriber believing
+    they set a filter that does nothing; an empty list is the legitimate "no preference" that the
+    gate reads as no filter (widen). Unlike education, empty here is not "all" — a language set
+    has no natural everything member — so clean returns the empty list unchanged.
+    """
+    if v is None:
+        return v
+    codes = [str(c).strip().lower() for c in v]
+    unknown = [c for c in codes if c and c not in language.LANGUAGES]
+    if unknown:
+        raise ValueError(f"unknown understood_languages: {', '.join(unknown[:5])}. "
+                         f"Valid values: {', '.join(language.LANGUAGES)}")
+    return language.clean_languages(codes)
+
+
 def _check_years_experience(v):
     """Clamp years to what `experience.clean_years` accepts; `""` survives as the clear
     sentinel (the store turns it into NULL — see `PreferencesIn.years_experience`)."""
@@ -414,6 +433,11 @@ class LocationFieldsMixin(BaseModel):
     education_levels: list[str] = Field(
         default_factory=lambda: list(education.DEFAULT_LEVELS))
     education_field: Optional[str] = None
+    # Same rationale as `education_levels`: belongs on every "where and how do you work" form, so
+    # it rides the shared mixin rather than being half-remembered per form. Defaults to EMPTY —
+    # which the gate reads as no filter — so a client that has never heard of the field cannot
+    # narrow the subscriber it creates. (Empty is "no preference", not "all", unlike education.)
+    understood_languages: list[str] = Field(default_factory=list)
 
     _valid_countries = field_validator("countries")(_check_countries)
     _valid_cities = field_validator("cities")(_check_cities)
@@ -421,6 +445,7 @@ class LocationFieldsMixin(BaseModel):
     _valid_work_modes = field_validator("work_modes")(_check_work_modes)
     _valid_education = field_validator("education_levels")(_check_education_levels)
     _valid_education_field = field_validator("education_field")(_check_education_field)
+    _valid_languages = field_validator("understood_languages")(_check_understood_languages)
 
 
 class SubscribeIn(LocationFieldsMixin):
@@ -942,7 +967,7 @@ def confirm(token: str) -> HTMLResponse:
 
 _PUBLIC_FIELDS = ["email", "status", "label", "stack", "seniorities",
                   "countries", "cities", "remote_scope", "regions", "work_modes",
-                  "education_levels", "education_field",
+                  "education_levels", "education_field", "understood_languages",
                   "role_categories", "work_types", "part_time_only", "eligible_only",
                   "sectors", "min_score", "frequency", "has_cv", "cv_summary",
                   "years_experience", "paused_until"]
@@ -970,6 +995,7 @@ class PreferencesIn(BaseModel):
     work_modes: Optional[list[str]] = None
     education_levels: Optional[list[str]] = None
     education_field: Optional[str] = None
+    understood_languages: Optional[list[str]] = None
     role_categories: Optional[list[str]] = None
     work_types: Optional[list[str]] = None
     part_time_only: Optional[bool] = None
@@ -993,6 +1019,7 @@ class PreferencesIn(BaseModel):
     _valid_work_modes = field_validator("work_modes")(_check_work_modes)
     _valid_education = field_validator("education_levels")(_check_education_levels)
     _valid_education_field = field_validator("education_field")(_check_education_field)
+    _valid_languages = field_validator("understood_languages")(_check_understood_languages)
     _valid_years = field_validator("years_experience")(_check_years_experience)
 
 

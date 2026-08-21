@@ -135,6 +135,14 @@ const de: Messages = {
       "Wird nie als Filter verwendet — es hilft dem Matcher nur einzuschätzen, ob eine Rolle zu deinem Hintergrund passt.",
   },
 
+  language: {
+    label: "Sprachen, die du lesen kannst",
+    any: "jede Sprache",
+    narrowed: "nur diese",
+    note:
+      "Englisch bleibt immer erhalten, ebenso Anzeigen, deren Sprache wir nicht erkennen konnten. Ausgeschlossen werden nur Anzeigen, die vollständig in einer Sprache verfasst sind, die du nicht ausgewählt hast.",
+  },
+
   location: {
     countriesLabel: "Länder, in denen du arbeiten kannst",
     addCountryAria: "Weiteres Land hinzufügen",

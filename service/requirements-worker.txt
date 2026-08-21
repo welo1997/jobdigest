@@ -9,6 +9,12 @@ feedparser==6.0.14
 # as hygiene, not because it was exploitable here.
 requests==2.34.2
 beautifulsoup4==4.15.0
+# Language axis (service/language.py): offline ISO-639-1 detection of a posting's text, no API
+# cost. Chosen over `lingua` for the same reason fastembed is chosen over torch — the box has
+# ~3.8GB and no swap: measured 2026-08-21 at +28MB RSS and 0.12ms/call. Pure-Python wheel (a
+# single ~1MB pickled model) so it builds cleanly on the musl/Alpine image. Depends only on
+# numpy, already present via fastembed.
+py3langid==0.3.0
 # AI matcher (service.pipeline --match -> service.matcher -> Claude)
 anthropic==0.120.2
 # Retrieval embeddings (service/embed.py). onnxruntime + tokenizers, deliberately NOT torch:

@@ -129,6 +129,14 @@ const fr: Messages = {
       "Jamais utilisé comme filtre : cela aide seulement le matcher à juger si un poste correspond à votre parcours.",
   },
 
+  language: {
+    label: "Langues que vous lisez",
+    any: "n'importe quelle langue",
+    narrowed: "seulement celles-ci",
+    note:
+      "L'anglais est toujours conservé, tout comme les annonces dont nous n'avons pas pu identifier la langue. Seules sont écartées les annonces entièrement rédigées dans une langue que vous n'avez pas choisie.",
+  },
+
   location: {
     countriesLabel: "Pays où vous pouvez travailler",
     addCountryAria: "Ajouter un autre pays",

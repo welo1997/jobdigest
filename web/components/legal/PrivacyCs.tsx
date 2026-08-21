@@ -35,7 +35,8 @@ export default function PrivacyCs() {
           <li><b>Vaše vyhledávací předvolby</b> — pozice, dovednosti a klíčová slova, země a
             města, kde chcete pracovat, jaké formy práce přijmete (z kanceláře, hybridně, plně
             na dálku), jaké požadavky na vzdělání přijmete a — pokud jej uvedete — co jste
-            studovali, obory, které nám uvedete jako zajímavé, jak daleko může být plně vzdálená
+            studovali, kterým jazykům rozumíte (abychom vám neposílali nabídky, kterým
+            nerozumíte), obory, které nám uvedete jako zajímavé, jak daleko může být plně vzdálená
             pozice, typ práce a frekvenci, tak jak
             je zadáte, a jazyk, ve kterém web čtete — aby vám v něm chodily i e-maily.</li>
           <li><b>Signály odvozené z životopisu</b> — pokud životopis nahrajete (nepovinné), viz
@@ -107,7 +108,7 @@ export default function PrivacyCs() {
           <li>náhodný identifikátor — <b>nikoli vaši e-mailovou adresu a nikoli vaše jméno</b>;</li>
           <li>vámi uvedené předvolby (pozice, dovednosti, zvolené země a města, formy práce,
             které přijmete, požadavky na vzdělání, které přijmete, a co jste studovali, pokud
-            jste to uvedli, obory, které vás zajímají, typ práce);</li>
+            jste to uvedli, kterým jazykům rozumíte, obory, které vás zajímají, typ práce);</li>
           <li>shrnutí odvozené z vašeho životopisu, pokud jste jej nahráli (oddíl 4);</li>
           <li>veřejné pracovní nabídky, které má seřadit.</li>
         </ul>

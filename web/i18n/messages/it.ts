@@ -128,6 +128,14 @@ const it: Messages = {
       "Non viene mai usato come filtro: aiuta solo il matcher a valutare se un ruolo è in linea con il tuo percorso.",
   },
 
+  language: {
+    label: "Lingue che sai leggere",
+    any: "qualsiasi lingua",
+    narrowed: "solo queste",
+    note:
+      "L'inglese viene sempre mantenuto, così come gli annunci di cui non siamo riusciti a riconoscere la lingua. Vengono esclusi solo gli annunci scritti interamente in una lingua che non hai scelto.",
+  },
+
   location: {
     countriesLabel: "Paesi in cui puoi lavorare",
     addCountryAria: "Aggiungi un altro paese",

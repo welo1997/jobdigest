@@ -470,6 +470,33 @@ mode sits at 3 and 5 years. Consequences, each carried by a real sample case in
 Changing the patterns means re-running `python -m service.backfill_experience`, same contract
 as every axis here.
 
+**The language a posting is written in is the sixth axis (migration 026), and it breaks the
+pattern of the other five: you cannot regex a language.** `service/language.py` detects the
+dominant language of the description with an offline library (`py3langid`), returning an
+ISO-639-1 code into `postings.language` or `None`. The library choice is the same tradeoff the
+whole box is built on — `lingua` is more accurate but loads heavy n-gram models, and on a 3.8 GB
+swapless box that is the reason fastembed was picked over torch; measured 2026-08-21, py3langid
+adds ~28 MB RSS and 0.12 ms/call (~12 s over 100 k rows), free on the ingest path and re-runnable
+over stored text. **The scope is deliberately one-directional and that is the whole design.**
+"Written in" is not "requires": a Russian-only ad is unreadable to a Russian-illiterate
+subscriber (a safe refusal), but an English ad is no evidence of a hidden German requirement — so
+**English is never a reason to refuse**, and we never infer a spoken-language demand from prose,
+the same unprovable trap as on-site. Two guards keep the classifier conservative: a text-length
+floor (`MIN_CHARS`, 200 — a bare CZ/SK title is too little to act on) and a confidence threshold
+(`MIN_CONFIDENCE`, 0.90 — a genuinely bilingual ad falls below it), both resolving to `None`,
+which passes. The gate (`language.language_predicate`, ANDed into `_hard_gate` so it survives the
+widening pass, plus a `lang=` prompt token that moves with it — the reach-gate rule) refuses
+exactly one thing: a posting **confidently** detected in a **non-English** language the
+subscriber did **not** declare. Three keeps: a null `postings.language` always passes, English
+always passes, and an empty `profiles.understood_languages` — the default, **not seeded**, so
+every existing subscriber keeps the no-filter behaviour until they choose otherwise — applies no
+filter at all. `test_language_sql.py` executes all of this against a real Postgres, narrow and
+widened. The residual risk is a confusable-neighbour misread (cs/sk, es/pt, the Scandinavian
+set, ru/uk/bg) refusing a language the subscriber can actually read; the check is the
+`backfill_language` distribution (English-led with a multilingual tail is healthy; a whole board
+reading as one language means a threshold is off). Changing either threshold means re-running
+`python -m service.backfill_language`.
+
 **A source's `remote_signal` is a claim, not a fact — `is_fully_remote` checks the posting's
 own words before trusting it.** `remote_signal` exempts a posting from the location gate
 entirely, so a wrong one is not a cosmetic error: it is an on-site job in the wrong country

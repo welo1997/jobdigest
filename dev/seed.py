@@ -52,8 +52,9 @@ DEFAULT_EMAIL = "dev@example.com"
 #: produces looks like an application bug, not a stale database. Checked before anything is
 #: written, because the seed itself is the first thing that would hit it.
 REQUIRED_COLUMNS = {
-    "postings": ["work_mode", "education_min", "search_tsv"],
-    "profiles": ["language", "education_levels", "work_modes", "countries", "cities"],
+    "postings": ["work_mode", "education_min", "language", "search_tsv"],
+    "profiles": ["language", "understood_languages", "education_levels", "work_modes",
+                 "countries", "cities"],
     "matches": ["status"],
     "digest_runs": ["shortlist_n"],
 }
@@ -134,6 +135,13 @@ POSTINGS: list[tuple[str, str, str, str, str | None]] = [
      "GA4, SQL, dashboards. We work three days a week in the office.", None),
     ("Data Analyst (Fraud)", "Wise", "Remote, Europe",
      "Fully remote role, anywhere in the EU. SQL and Python.", "€55,000 - €70,000"),
+    # A description entirely in Russian (>200 chars, so `language.detect` returns 'ru'). Exists
+    # so the local box can prove the language axis: a cs/en subscriber never sees it, and one
+    # who adds Russian to their languages does. See service/language.py.
+    ("Аналитик данных", "Skyeng", "Remote",
+     "Мы ищем аналитика данных для работы с большими массивами информации. Требуется опыт "
+     "работы с SQL и Python, знание статистики и умение строить дашборды и отчёты для "
+     "руководства. Вы будете тесно сотрудничать с командой разработки и продукта.", None),
 
     # --- machine learning ---
     ("Machine Learning Engineer", "Seznam.cz", "Prague, Czechia",

@@ -13,10 +13,12 @@ import { cap } from "@/lib/preview";
 import { track } from "@/lib/analytics";
 import { LocationPicker, LocationValue } from "@/components/LocationPicker";
 import { EducationPicker, EducationValue } from "@/components/EducationPicker";
+import { LanguagePicker } from "@/components/LanguagePicker";
 import { REMOTE_SCOPES, RemoteScope, WORK_MODES, cleanWorkModes } from "@/lib/geo";
 import {
   EDUCATION_LEVELS, cleanEducationField, cleanEducationLevels, levelsUpTo,
 } from "@/lib/education";
+import { LanguageId, cleanUnderstoodLanguages } from "@/lib/language";
 import {
   CV_ROLE_ID, DEFAULT_ROLE_IDS, ROLE_ID_FOR_CATEGORY, SENIORITY_IDS, SKILL_OPTS,
   prettifyCategory, roleCategory, roleKeyword,
@@ -100,6 +102,8 @@ function Inner() {
   const [edu, setEdu] = useState<EducationValue>({
     levels: [...EDUCATION_LEVELS], field: "",
   });
+  // Languages the subscriber reads; empty = no preference (no filter), the default.
+  const [langs, setLangs] = useState<LanguageId[]>([]);
   const [levels, setLevels] = useState<Set<string>>(new Set());
   // Years of experience as the input's raw string: "" is a real state ("no preference",
   // stored as NULL) and a number input's value must round-trip what was typed.
@@ -153,6 +157,8 @@ function Inner() {
         levels: cleanEducationLevels(p.education_levels),
         field: p.education_field || "",
       });
+      // Absent on a subscription predating migration 026 — reads as empty, "no preference".
+      setLangs(cleanUnderstoodLanguages(p.understood_languages));
       setLevels(new Set((p.seniorities || [])
         .filter((c) => (SENIORITY_IDS as readonly string[]).includes(c))));
       setYears(p.years_experience == null ? "" : String(p.years_experience));
@@ -292,6 +298,7 @@ function Inner() {
         work_modes: loc.workModes,
         education_levels: cleanEducationLevels(edu.levels),
         education_field: cleanEducationField(edu.field),
+        understood_languages: cleanUnderstoodLanguages(langs),
         seniorities: seniorities.length ? seniorities : ["junior", "mid", "senior"],
         // "" clears it server-side (stored NULL = no preference) — a literal null would be
         // dropped by the API's exclude_none and the old value would silently survive.
@@ -467,6 +474,8 @@ function Inner() {
           <LocationPicker value={loc} onChange={setLoc} idPrefix="p" />
 
           <EducationPicker value={edu} onChange={setEdu} idPrefix="p" />
+
+          <LanguagePicker value={langs} onChange={setLangs} />
 
           <div className="field">
             <label htmlFor="p-minscore">{t.prefs.minScore}</label>
