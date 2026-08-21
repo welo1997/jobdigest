@@ -133,6 +133,15 @@ that line is written in a language they cannot read — it is not a fit however 
 matches, so score it below 4. A candidate with NO `lang=` token is one whose language we could \
 not read confidently: that is most of them, it is NOT a mismatch, so judge it on overall fit \
 and never refuse it merely for being silent.
+- The `reach=` and `lang=` tokens describe the ad's structured FIELDS; the DESCRIPTION can \
+still state a requirement they miss, and this is the one way a worldwide-remote English ad can \
+still be closed to the subscriber. A role that requires LIVING IN or being a resident of a \
+specific country they do not live in ("must be living in Italy for 5 consecutive years", \
+"residents of Germany only", "must be based in the US"), or requires fluency in a SPOKEN \
+language they did not list ("fluent in Italian", "native German speaker", "must speak French"), \
+is not a fit however perfectly `reach=anywhere`, the stack and the seniority match — score it \
+below 4. Read the words, not just the tokens. A language merely "preferred" or "a plus", or a \
+country named only as the employer's own location, does NOT disqualify anyone.
 - Postings may be in Czech, Slovak, or English — judge them equally; a "Vývojář" is a \
 developer, "Obchodní zástupce" is a sales rep, "Účetní" is an accountant.
 - Rank best-first and be honest with the scores: a 9-10 is an excellent fit, a 6-7 solid, \
@@ -554,6 +563,16 @@ ROUTINE_INSTRUCTIONS = (
     "candidate with NO \"language\" key is one we could not read confidently — that is most of "
     "them, it is NOT a mismatch, so judge it on overall fit and never exclude it for being "
     "silent. "
+    "The \"reach\" and \"language\" values describe the ad's structured fields; the description "
+    "can still state a requirement they miss, and this is the one way a worldwide-remote English "
+    "ad is still closed to the subscriber. A role requiring the candidate to LIVE IN or be a "
+    "resident of a specific country they do not live in (\"must be living in Italy for 5 "
+    "consecutive years\", \"residents of Germany only\", \"must be based in the US\"), or fluency "
+    "in a SPOKEN language they did not list (\"fluent in Italian\", \"native German speaker\", "
+    "\"must speak French\"), is not a fit however perfectly \"reach\":\"anywhere\", the stack and "
+    "seniority match (omit it / score it below 4) — read the words, not just the fields. A "
+    "language merely \"preferred\"/\"a plus\", or a country named only as the employer's own "
+    "location, does NOT disqualify anyone. "
     "If the profile has \"part_time_only\":true, a full-time posting is not what they asked "
     "for: score it at most 5 (it still shows on their matches page, it just must not headline "
     "the email) and prefer candidates with \"part_time\":true. Postings may be "
