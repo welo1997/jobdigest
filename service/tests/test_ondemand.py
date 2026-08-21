@@ -27,6 +27,7 @@ PROFILE_A = {"id": "aaaaaaaa", "email": "a@example.com", "manage_token": TOKEN}
 class _FakeStore:
     def __init__(self):
         self.claims: list[str] = []
+        self.cooldowns: list[int] = []       # the cooldown_min each claim was made with
         self.claim_ok = True                 # flip to False to model an active cooldown
 
     # lifespan hooks
@@ -43,6 +44,7 @@ class _FakeStore:
     # cooldown claim
     def claim_ondemand_run(self, profile_id, cooldown_min):
         self.claims.append(profile_id)
+        self.cooldowns.append(cooldown_min)
         return self.claim_ok
 
 
@@ -109,3 +111,24 @@ def test_cooldown_blocks_a_second_run(client, store, spies, monkeypatch):
     r = client.post("/digest/run", json={"token": TOKEN})
     assert r.status_code == 429
     assert spies["match"] == [] and spies["send"] == []   # nothing matched or sent on cooldown
+
+
+def test_normal_subscriber_is_claimed_with_the_full_cooldown(client, store, spies, monkeypatch):
+    """A non-exempt caller's claim uses ONDEMAND_COOLDOWN_MIN — the 6h cap other accounts keep."""
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "test")
+    monkeypatch.setattr(webapp, "ONDEMAND_UNLIMITED_EMAILS", frozenset())   # nobody exempt
+    r = client.post("/digest/run", json={"token": TOKEN})
+    assert r.status_code == 200
+    assert store.cooldowns == [webapp.ONDEMAND_COOLDOWN_MIN]
+
+
+def test_exempt_owner_email_bypasses_the_cooldown(client, store, spies, monkeypatch):
+    """An address in ONDEMAND_UNLIMITED_EMAILS claims with the unlimited (0) cooldown and still
+    matches + sends — matched case-insensitively against the profile's own email."""
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "test")
+    monkeypatch.setattr(webapp, "ONDEMAND_UNLIMITED_EMAILS", frozenset({"a@example.com"}))
+    monkeypatch.setattr(webapp, "ONDEMAND_COOLDOWN_MIN_UNLIMITED", 0)
+    r = client.post("/digest/run", json={"token": TOKEN})
+    assert r.status_code == 200
+    assert store.cooldowns == [0]                     # claimed with no wait, not the 6h cap
+    assert spies["match"] == ["aaaaaaaa"] and spies["send"] == ["aaaaaaaa"]

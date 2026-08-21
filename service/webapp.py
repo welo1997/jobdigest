@@ -97,6 +97,19 @@ MANAGE_LINK_COOLDOWN_MIN = int(os.environ.get("MANAGE_LINK_COOLDOWN_MIN", "30"))
 # /digest/run). Each run is a metered Anthropic API call plus an email, so this cooldown is
 # both the cost guard and the abuse guard — `store.claim_ondemand_run` enforces it atomically.
 ONDEMAND_COOLDOWN_MIN = int(os.environ.get("ONDEMAND_COOLDOWN_MIN", "360"))  # 6h
+# Accounts exempt from that cooldown — the product owner's own address, so "Refresh matches now"
+# can be re-run at will while every other subscriber stays capped at ONDEMAND_COOLDOWN_MIN.
+# Comma-separated, matched case-insensitively; empty by default so nobody is exempt unless the
+# environment lists them (the exemption is a per-email deploy config, never hardcoded here).
+ONDEMAND_UNLIMITED_EMAILS = frozenset(
+    e.strip().lower()
+    for e in os.environ.get("ONDEMAND_UNLIMITED_EMAILS", "").split(",")
+    if e.strip()
+)
+# Cooldown (minutes) applied to the exempt accounts above. 0 = effectively no wait; kept
+# configurable so a small floor can be set as an accidental-double-submit guard without
+# re-capping the owner to the full 6h.
+ONDEMAND_COOLDOWN_MIN_UNLIMITED = int(os.environ.get("ONDEMAND_COOLDOWN_MIN_UNLIMITED", "0"))
 
 # --- login sessions (persisted magic links) ------------------------------------
 # JobDigest is still passwordless: clicking a magic link is the only way to authenticate. A
@@ -1577,6 +1590,8 @@ def run_digest_now(body: TokenIn, request: Request) -> dict:
       1. A misconfigured box (no key) 503s *before* the cooldown is claimed, so a server fault
          never burns the subscriber's 6-hour window.
       2. `claim_ondemand_run` claims the slot atomically — two rapid clicks can't both match.
+         The window is 6h for a normal subscriber and ~none for an exempt owner address
+         (`ONDEMAND_UNLIMITED_EMAILS`), so only a non-exempt caller ever gets the 429.
       3. `match_one` re-runs the AI matcher for just this profile (metered, ~3c); a transient
          API failure returns 0 and we still send from whatever is already in `matches`.
       4. `send_one` builds + emails the digest, dropping anything already sent — so this can
@@ -1588,7 +1603,12 @@ def run_digest_now(body: TokenIn, request: Request) -> dict:
     if not os.environ.get("ANTHROPIC_API_KEY"):
         # Don't consume the cooldown on a box that can't match — this is a deploy fault to fix.
         raise HTTPException(503, "On-demand matching is temporarily unavailable.")
-    if not store.claim_ondemand_run(profile["id"], ONDEMAND_COOLDOWN_MIN):
+    # The owner's own address (ONDEMAND_UNLIMITED_EMAILS) refreshes at will; everyone else is
+    # capped. Only a non-exempt caller can ever reach the 429, so its message quotes the 6h cap.
+    email = (profile.get("email") or "").strip().lower()
+    cooldown_min = (ONDEMAND_COOLDOWN_MIN_UNLIMITED if email in ONDEMAND_UNLIMITED_EMAILS
+                    else ONDEMAND_COOLDOWN_MIN)
+    if not store.claim_ondemand_run(profile["id"], cooldown_min):
         hrs = max(1, ONDEMAND_COOLDOWN_MIN // 60)
         raise HTTPException(429, f"You can refresh again in a little while (once every {hrs}h).")
 
