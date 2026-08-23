@@ -79,6 +79,12 @@ services:
       # a glob, so an empty/absent mount is a no-op and local dev still uses ACME/internal.
       # See deploy/cert-renewal.md.
       - ./origin:/etc/caddy/origin:ro
+    # `default` keeps Caddy talking to api/db as before; `web_edge` is the shared external
+    # network the separate metabase-portfolio stack also joins, so `reverse_proxy metabase:3000`
+    # in the Caddyfile resolves. Create it once on the box: `docker network create web_edge`.
+    networks:
+      - default
+      - web_edge
 
   # Daily pipeline as a one-shot (run by host cron / systemd timer / n8n — see README).
   # `docker compose run --rm pipeline` builds today's digests and sends them.
@@ -130,3 +136,10 @@ volumes:
   caddy_data:
   caddy_config:
   n8n_data:
+
+networks:
+  # Shared with the separate metabase-portfolio stack so Caddy can reach `metabase:3000`.
+  # External = created out-of-band (`docker network create web_edge`), not owned by this stack,
+  # so a jobdigest `down`/deploy never tears it down under the Metabase stack.
+  web_edge:
+    external: true

@@ -86,3 +86,13 @@
 		-Server
 	}
 }
+
+# Analytics portfolio (Metabase) — separate `metabase-portfolio` compose stack, reachable over
+# the shared external `web_edge` network. TLS uses the same Cloudflare Origin cert as the apex
+# (import glob), so the cert must cover analytics.jobdigest.eu (wildcard *.jobdigest.eu). Metabase
+# sets its own security headers; we don't impose the apex CSP here (it would break the app UI).
+analytics.jobdigest.eu {
+	import /etc/caddy/origin/*.caddy
+	encode gzip zstd
+	reverse_proxy metabase:3000
+}
