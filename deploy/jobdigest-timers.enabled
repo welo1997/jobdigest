@@ -34,11 +34,23 @@ jobdigest-healthcheck.timer               # every 5 min, re-alerts hourly.
 jobdigest-source-watchdog.timer           # 08:00 per-source freshness + churn.
 jobdigest-categorization-watchdog.timer   # 08:30 corpus-wide DRIFT + per-source UNMAPPED.
 jobdigest-watchdog.timer                  # 09:00 digest_runs -> nobody silently starved.
-jobdigest-categorize.timer                # Sun 09:30 metered title classifier.
 
 # Deliberately NOT enabled, each retained for a stated reason:
+#   jobdigest-categorize.timer          not enabled since 2026-08-23 (owner decision) — this is
+#                                       a personal project and the metered per-run API cost was
+#                                       not wanted. Categorization is now run MANUALLY on the
+#                                       owner's own Claude subscription, not as a recurring
+#                                       routine: export the residue, classify it in an
+#                                       interactive session, import through the same validated
+#                                       `_validated_rows` boundary. (A recurring subscription
+#                                       routine is a different thing and stays retired — it is
+#                                       the automated-subscription-backend the terms push back
+#                                       on, and it is what silently broke for five days.) This
+#                                       is NOT the 2026-08-17 accident the top comment describes;
+#                                       it is a chosen state. Re-add the line above to resume
+#                                       weekly metered runs; still excludes the Drive pair below.
 #   jobdigest-categorize-export.timer   RETIRED 2026-08-17 — the free-tier Drive fallback for
-#   jobdigest-categorize-import.timer   jobdigest-categorize.timer. Kept so it can be turned
-#                                       back on as a pair; excludes the metered timer above.
+#   jobdigest-categorize-import.timer   the categorizer. Kept so it can be turned back on as a
+#                                       pair; excludes the metered timer named above.
 #   jobdigest-match-export.timer        RETIRED 2026-08-17 — the matcher's claude.ai routine,
 #   jobdigest-match-import.timer        superseded by the metered key on the box.
