@@ -125,12 +125,12 @@ build_and_check() {
     for u in \$(cd /etc/systemd/system && ls jobdigest-*.timer 2>/dev/null); do
       [ -f \"$REMOTE_DIR/deploy/\$u\" ] || echo \"deploy: NOTE \$u runs on the box but is not shipped by this repo — unmanaged\"
     done
-    # `db` is in the build list because it is no longer a pulled image — it is built from
+    # 'db' is in the build list because it is no longer a pulled image — it is built from
     # deploy/db.Dockerfile (Postgres 16 + pgvector on Alpine, for the collation reason in that
     # file). Leaving it out is how the box would keep running the old image while master
     # believes otherwise, which is the 2026-08-02 'deployed is not running' failure again.
     sudo docker compose build db api web pipeline
-    # `up -d db` is a no-op unless the built image id or the service config actually changed,
+    # 'up -d db' is a no-op unless the built image id or the service config actually changed,
     # so this does not recreate the database on every deploy. When it does change (a new
     # upstream postgres:16-alpine, or an edit to db.Dockerfile) the recreate is brief and the
     # api reconnects — but it IS a database restart, so avoid shipping a db change alongside

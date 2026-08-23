@@ -57,6 +57,11 @@ export const ROLE_OPTIONS: RoleOption[] = [
   { id: "cybersecurity", category: "cybersecurity", keyword: "security engineer" },
   { id: "science_research", category: "science_research", keyword: "research scientist" },
   { id: "social_care", category: "social_care", keyword: "social worker" },
+  // Added 2026-08-23 — three functions promoted out of the `other_tech_function` residual,
+  // which no chip could select. Opt-in tail, like the rows above; DEFAULT_ROLE_IDS is unchanged.
+  { id: "program_management", category: "program_management", keyword: "program manager" },
+  { id: "partnerships", category: "partnerships", keyword: "partnerships" },
+  { id: "strategy", category: "strategy", keyword: "strategy" },
   // Offered only when a CV asks for it (never in the default chip row), and modelled by no
   // category — so it rides the keyword path, exactly as the old "ML Engineer" label did.
   { id: "ml_engineer", category: null, keyword: "ml engineer" },

@@ -295,6 +295,11 @@ PATTERNS: tuple[tuple[str, "re.Pattern[str]"], ...] = (
         # postings and 0 in either key bucket. Plausible and inert is how two wave-3
         # fragments came to ship dead.
         r"pasient\w*koordinator|kreftkoordinator|demenskoordinator|"
+        # `miljøarbeider` — settled on the refreshed NAV key (2026-08-23), not the small one that
+        # made it a decline. On the bigger key 22 of 27 code it healthcare (5321/5329 pleie-/
+        # omsorgsarbeid), so the earlier 5/4/3 three-way split does not reproduce. Healthcare runs
+        # before social_care and education, which is the majority answer here. Both spellings.
+        r"milj[øö]arbeider|"
         # --- wave 3 (2026-08-17) ---
         # sv-04  sv — roles-sv-w3.md
         r"^(?!.*receptionist).*vårdcentral|"
@@ -386,7 +391,10 @@ PATTERNS: tuple[tuple[str, "re.Pattern[str]"], ...] = (
         # needs, not an admin job; `familie`/`ungdomsveileder` are the two `veileder`
         # compounds that name a profession — bare `veileder` is 48 postings spread across
         # everything and stays declined, exactly like bare `technicien`.
-        r"milj[øö]terapeut|barnekoordinator|(?:familie|ungdoms)(?:veileder|rettleiar)|"
+        # `miljøveileder` — social_care 8 of 10 on the refreshed NAV key (2026-08-23), coded 3412
+        # (Miljøarbeidere innen sosiale fagfelt). Distinct from `miljøarbeider` above, which the
+        # same key codes healthcare — healthcare runs first, so the two coexist by order.
+        r"milj[øö]terapeut|milj[øö]veileder|barnekoordinator|(?:familie|ungdoms)(?:veileder|rettleiar)|"
         # 2026-08-22. Swedish `-pedagog` is a CREDENTIAL suffix, not a workplace: it marks a
         # pedagogical qualification, and Swedish residential-care employers hire qualified
         # pedagogues. `education`'s bare `pedagog` was therefore filing 150 postings of
@@ -2120,8 +2128,26 @@ PATTERNS: tuple[tuple[str, "re.Pattern[str]"], ...] = (
         r"(?:demand|supply|material|capacity) plann?(?:er|ing)", re.I)),
     # Residual for a business function at a tech company that none of the above names.
     # Deliberately last of the business group and much narrower than it was.
+    # Program/project-delivery management — its own category since 2026-08-23, promoted out of
+    # `other_tech_function` (where no chip could select it, so a program-management subscriber
+    # could not filter for it). It sits LAST among the real categories, immediately before the
+    # residual, because any category naming the actual function ("Marketing Program Manager",
+    # "Legal Program Manager") must answer first — the reason this fragment lived in the residual.
+    # Relabel-only: the exact fragment that landed here before, now reachable.
+    ("program_management", re.compile(
+        r"program manager|programme (?:manager|lead|director)|\btpm\b", re.I)),
+    # Partnerships / alliances — promoted from the residual 2026-08-23. Same relabel-only move:
+    # the `partnership` fragment that used to fall to `other_tech_function`.
+    ("partnerships", re.compile(
+        r"partnership", re.I)),
+    # Corporate / GTM / business strategy — promoted from the residual 2026-08-23. Runs after
+    # every function category, so a "Product Strategy" / "Content Strategy" title is only claimed
+    # here when nothing more specific did — exactly what the residual did before. Matches the
+    # literal `strategy` only, NOT `strateg`ist/`strateg`ic, so the matched set is unchanged.
+    ("strategy", re.compile(
+        r"strategy", re.I)),
     ("other_tech_function", re.compile(
-        r"business analyst|\bcontent\b|community|partnerships|strategy|"
+        r"business analyst|\bcontent\b|community|"
         # Clerical data entry ("Data Entry Clerk", "Remote Data Entry", ~226 postings): no data
         # pattern above reads it (they all want engineer/analyst/scientist/science), so it falls
         # here to the admin residual, which is what it is.
@@ -2169,7 +2195,8 @@ PATTERNS: tuple[tuple[str, "re.Pattern[str]"], ...] = (
         r"segretari|segreteria|"                                                # it
         r"sachbearbeiter|kaufmann|kauffrau|kaufleute|"                  # de
         # --- wave 2 ---
-        r"partnership|business process|"                                # en
+        # (`partnership` was promoted to its own `partnerships` category 2026-08-23)
+        r"business process|"                                            # en
         # --- Norwegian, 2026-08-11 (N38) — graded against NAV STYRK-08 ---
         r"\bsekretær|"
         # --- wave 3 (2026-08-17) ---
@@ -2179,11 +2206,8 @@ PATTERNS: tuple[tuple[str, "re.Pattern[str]"], ...] = (
         r"implementation (?:consultant|manager|specialist|lead)|"
         # en-17  en — roles-en-w3.md
         r"chief of staff|"
-        # Program/project delivery management, moved out of `product` 2026-08-22 — see the
-        # comment there. It has to sit in the LAST entry, because the whole point is that any
-        # category naming the actual function ("Marketing Program Manager", "Legal Program
-        # Manager") gets to answer first.
-        r"program manager|programme (?:manager|lead|director)|\btpm\b|"
+        # (`program manager|programme …|\btpm\b` was promoted to its own `program_management`
+        #  category 2026-08-23 — see that entry above, which preserves the function-first order.)
         # en-18  en — roles-en-w3.md
         r"technical writer|\bdocumentation\s+(?:specialist|manager|lead|engineer)|"
         # it-01  it — roles-it-w3.md
@@ -2332,12 +2356,17 @@ SHORTLIST_KEYWORDS: dict[str, list[str]] = {
                              "backend", "frontend", "fullstack"],
     "devops_platform": ["devops", "sre", "platform engineer", "cloud engineer",
                         "kubernetes", "administrátor"],
-    # "program manager" is deliberately here and NOT in `PATTERNS` above: it is the recall
-    # half. The classifier cannot tell a product programme from a plant programme, but a
-    # product subscriber plausibly wants both offered — so it retrieves, and the AI matcher
-    # decides. Precision in the regex, breadth in the keywords.
+    # "program manager" is kept here as the recall half for *product* subscribers even though it
+    # now has its own `program_management` category (2026-08-23): a product subscriber plausibly
+    # wants programme roles offered too, so it retrieves and the AI matcher decides. Breadth in
+    # the keywords, precision in the regex.
     "product": ["product manager", "product owner", "produktový manažer", "produktový vlastník",
                 "program manager"],
+    "program_management": ["program manager", "programme manager", "delivery manager", "pmo",
+                           "program management"],
+    "partnerships": ["partnerships", "partnership manager", "partner manager", "alliances",
+                     "strategic partnerships"],
+    "strategy": ["strategy", "corporate strategy", "gtm", "go-to-market", "business strategy"],
     "design": ["designer", "designér", "ux", "ui", "grafik", "návrhář"],
     "social_media": ["social media", "sociální sítě", "sociálních sítí", "sociálne siete",
                      "community manager", "influencer", "content creator", "smm",
@@ -2397,6 +2426,9 @@ SUBJECT_WORDS: dict[str, str] = {
     "legal": "legal",
     "customer_support": "support",
     "operations": "operations",
+    "program_management": "program management",
+    "partnerships": "partnerships",
+    "strategy": "strategy",
     "healthcare": "healthcare",
     "social_care": "social care",
     "education": "education",

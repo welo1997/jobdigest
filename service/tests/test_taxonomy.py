@@ -877,29 +877,54 @@ def test_lege_is_enumerated_because_nynorsk_builds_adjectives_on_it():
         assert not healthcare.search(adjective), f"{adjective!r} is not a doctor"
 
 
-def test_miljoarbeider_is_declined_because_the_publisher_itself_splits_three_ways():
-    """**A decline settled by ground truth rather than by argument, and the reason it is worth
-    a test.**
+def test_miljoarbeider_and_miljoveileder_follow_the_refreshed_nav_key():
+    """**A decline reversed by a bigger key — settled by ground truth in both directions.**
 
-    `miljøarbeider` / `miljøveileder` was proposed for `social_care` and is NOT taken. NAV's
-    own STYRK-08 coding of 2 000 live ads splits it three ways, and it stays split even after
-    dropping every title that also names another profession: **healthcare 5, social_care 4,
-    education 3.** The identical title "Miljøveileder" is coded 3412 (*Miljøarbeidere innen
-    sosiale fagfelt*) by one employer and 5329 (*Andre pleiemedarbeidere*) by another, and the
-    corpus has it in schools, in disability services and in patient transport.
+    On the small key (session 9), `miljøarbeider`/`miljøveileder` split three ways even after
+    dropping titles naming another profession (healthcare 5, social_care 4, education 3), so it
+    was declined — the only safe error is a miss. The refreshed NAV STYRK-08 key (2026-08-23,
+    ~6 000 live ads) does not reproduce that split: **`miljøarbeider` codes healthcare in 22 of
+    27** (5321/5329 pleie-/omsorgsarbeid), and **`miljøveileder` codes social_care in 8 of 10**
+    (3412, *Miljøarbeidere innen sosiale fagfelt*). So the two words are now taken, to different
+    categories, and the earlier decline stands corrected by the same kind of evidence that made
+    it — the STYRK distribution, not an intuition about the word.
 
-    Taking it would have been worth 1.19 pp of holdout coverage and wrong for roughly 58% of
-    the rows it claims. The only safe error is a miss: an uncategorised posting still reaches
-    the AI matcher through the keyword half of the recall predicate, while a misfiled one is
-    filtered out of the right subscriber's digest. Same call as wave 2's `bid manager`.
+    Healthcare runs before social_care, which is what keeps `miljøarbeider` (healthcare) and
+    `miljøveileder` (social_care) from colliding despite the shared `miljø` stem."""
+    for title in ("Miljøarbeider fast hver 3. helg", "Miljøarbeider- Syketransport."):
+        assert taxonomy.classify(title) == "healthcare", (
+            f"{title!r} codes healthcare in 22 of 27 on the refreshed NAV key")
+    assert taxonomy.classify("Miljøveileder") == "social_care", (
+        "Miljøveileder codes social_care (STYRK 3412) in 8 of 10 on the refreshed NAV key")
 
-    If a later pass wants this category, the evidence to beat is the STYRK distribution, not
-    an intuition about what the word means."""
-    for title in ("Miljøveileder", "Miljøarbeider fast hver 3. helg",
-                  "Miljøarbeider- Syketransport."):
-        assert taxonomy.classify(title) == "uncategorised", (
-            f"{title!r} must stay declined — NAV's own coding splits this occupation across "
-            "healthcare, social_care and education, so any single answer is a coin flip")
+
+def test_program_management_partnerships_strategy_are_first_class_categories():
+    """Promoted out of `other_tech_function` 2026-08-23 so a chip can select them.
+
+    Relabel-only: the exact fragments that used to land these in the residual now name dedicated
+    categories, so the *set* of matched titles is unchanged — only the label moves from a bucket
+    no chip could select to one it can. The three properties that make it safe:
+
+    - the fragments classify to the new categories;
+    - **function-first order is preserved** — a title naming a real function ("Legal Program
+      Manager", "Marketing Manager") is still claimed by that function, because the three new
+      entries sit last among the real categories, immediately before the residual;
+    - the residual still catches everything else it did (no coverage lost the other way).
+    """
+    assert taxonomy.classify("Senior Program Manager") == "program_management"
+    assert taxonomy.classify("Technical Program Manager") == "program_management"
+    assert taxonomy.classify("Head of Partnerships") == "partnerships"
+    assert taxonomy.classify("Strategic Partnerships Manager") == "partnerships"
+    assert taxonomy.classify("Corporate Strategy Director") == "strategy"
+    assert taxonomy.classify("GTM Strategy Manager") == "strategy"
+    # Function-first: a category naming the actual job answers before the three new ones.
+    assert taxonomy.classify("Legal Program Manager") == "legal"
+    assert taxonomy.classify("Marketing Manager") == "marketing"
+    # None of the three is the residual any more, and the residual still catches its own.
+    for gone in ("Program Manager", "Partnerships Lead", "Corporate Strategy Analyst"):
+        assert taxonomy.classify(gone) != "other_tech_function"
+    assert taxonomy.classify("Business Analyst") == "other_tech_function"
+    assert taxonomy.classify("Executive Assistant") == "other_tech_function"
 
 
 def test_kitchen_work_in_a_kindergarten_is_education_and_that_is_a_known_loss():

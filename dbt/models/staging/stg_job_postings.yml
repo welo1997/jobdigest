@@ -40,7 +40,7 @@ models:
         tests:
           - not_null
           - accepted_values:
-              values: ['healthcare', 'social_care', 'education', 'hospitality', 'skilled_trades', 'construction', 'logistics_transport', 'manufacturing_production', 'data_engineering', 'machine_learning', 'cybersecurity', 'science_research', 'finance_accounting', 'data_analysis', 'devops_platform', 'product', 'design', 'engineering', 'software_engineering', 'social_media', 'marketing', 'sales', 'hr_recruiting', 'legal', 'customer_support', 'operations', 'other_tech_function', 'uncategorised']
+              values: ['healthcare', 'social_care', 'education', 'hospitality', 'skilled_trades', 'construction', 'logistics_transport', 'manufacturing_production', 'data_engineering', 'machine_learning', 'cybersecurity', 'science_research', 'finance_accounting', 'data_analysis', 'devops_platform', 'product', 'design', 'engineering', 'software_engineering', 'social_media', 'marketing', 'sales', 'hr_recruiting', 'legal', 'customer_support', 'operations', 'program_management', 'partnerships', 'strategy', 'other_tech_function', 'uncategorised']
       - name: is_remote
         description: "Whether the posting is remote"
         tests:
