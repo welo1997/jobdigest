@@ -1,0 +1,44 @@
+# Which systemd timers must be ENABLED on the box. One unit name per line; `#` comments.
+#
+# **This file exists because `deploy.sh` copied unit files and never reconciled enablement**,
+# and on 2026-08-22 that was found to have left the box in the exactly-wrong state for five
+# days: `jobdigest-categorize.timer` (the metered title classifier, shipped 2026-08-17) was
+# never enabled, `jobdigest-categorization-watchdog.timer` — the check whose whole job is to
+# notice that the residue stopped shrinking — was never enabled either, and the two RETIRED
+# Drive timers it replaced were still firing weekly, exporting 8 000 public job titles to a
+# folder no routine reads any more. `title_categories` sat at 250 rows, newest 2026-08-10,
+# against a residue of 18 679 postings over 15 854 distinct titles: a cache hit rate near 2%
+# where item 4 of notes/categorization/PLAN.md demands >95%.
+#
+# Nothing raised. A residue that stops shrinking looks exactly like a taxonomy that has caught
+# everything it can — no error, no failed timer, no alert. The install comment in
+# jobdigest-categorize.service even named the hazard ("deploy.sh copies units but never
+# enables/disables") and listed the two commands; naming a manual step is not performing it.
+# So the enablement set becomes data in the repo, applied on every deploy like everything else.
+#
+# Rules:
+#   - A repo-shipped timer NOT listed here is actively disabled. That is what retires a unit:
+#     deleting a line is the retirement, and it takes effect on the next deploy.
+#   - A timer present on the box that this repo does not ship is left alone and REPORTED.
+#     deploy.sh manages what it installs; it does not garbage-collect a human's one-off
+#     (jobdigest-mem-sample-once.timer is the live example).
+#   - The metered categorizer and the Drive pair are mutually exclusive and deploy.sh refuses a
+#     manifest enabling both. They write one table and share one schedule slot, so two paths
+#     answering one job reads downstream as a routine that stopped.
+#   - service/tests/test_deploy_timers.py fails if a shipped timer is in neither state, so a
+#     new unit cannot arrive undecided the way jobdigest-categorize.timer did.
+
+jobdigest-pipeline.timer                  # 03:00 ingest -> match -> send. The product.
+jobdigest-backup.timer                    # 01:30 pg_dump -> encrypt -> off-box.
+jobdigest-healthcheck.timer               # every 5 min, re-alerts hourly.
+jobdigest-source-watchdog.timer           # 08:00 per-source freshness + churn.
+jobdigest-categorization-watchdog.timer   # 08:30 corpus-wide DRIFT + per-source UNMAPPED.
+jobdigest-watchdog.timer                  # 09:00 digest_runs -> nobody silently starved.
+jobdigest-categorize.timer                # Sun 09:30 metered title classifier.
+
+# Deliberately NOT enabled, each retained for a stated reason:
+#   jobdigest-categorize-export.timer   RETIRED 2026-08-17 — the free-tier Drive fallback for
+#   jobdigest-categorize-import.timer   jobdigest-categorize.timer. Kept so it can be turned
+#                                       back on as a pair; excludes the metered timer above.
+#   jobdigest-match-export.timer        RETIRED 2026-08-17 — the matcher's claude.ai routine,
+#   jobdigest-match-import.timer        superseded by the metered key on the box.
