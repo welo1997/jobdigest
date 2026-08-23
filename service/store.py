@@ -44,22 +44,61 @@ def init_pool(minconn: int = 1, maxconn: int = 8) -> None:
         _POOL = ThreadedConnectionPool(minconn, maxconn, dsn=_dsn())
 
 
+def _ping(conn) -> bool:
+    """True if the connection can still reach the server.
+
+    `ThreadedConnectionPool` never checks liveness on `getconn`, so a connection the server
+    dropped while it sat idle in the pool — a DB restart mid-run, a backend crash, a network
+    drop — is handed straight back out and the next `execute` dies with 'server closed the
+    connection unexpectedly'. That is not hypothetical: on 2026-08-23 the DB restarted between
+    the liveness sweep's read (its ~500-URL probe list) and its write; the reused connection was
+    dead, `deactivate_postings` raised, and — the sweep being non-fatal — 0 of 34 confirmed-closed
+    postings were deactivated and a dead job reached a digest. `conn.closed` stays 0 after a
+    *server-side* close, so only a round-trip detects it; the SELECT is a deliberate, cheap
+    (localhost) cost paid for correctness."""
+    if conn.closed:
+        return False
+    try:
+        with conn.cursor() as cur:
+            cur.execute("SELECT 1")
+        conn.rollback()
+        return True
+    except psycopg2.Error:
+        return False
+
+
 @contextmanager
 def cursor(commit: bool = False):
-    """Borrow a pooled connection + RealDict cursor."""
+    """Borrow a *live* pooled connection + RealDict cursor.
+
+    A connection the server dropped while idle is discarded and replaced on borrow (see
+    `_ping`), and a connection broken mid-statement is closed rather than returned to poison the
+    pool for the next caller."""
     init_pool()
     assert _POOL is not None
-    conn = _POOL.getconn()
+    conn = None
+    for _ in range(_POOL.maxconn + 1):
+        candidate = _POOL.getconn()
+        if _ping(candidate):
+            conn = candidate
+            break
+        _POOL.putconn(candidate, close=True)  # drop the dead one; the pool opens a fresh one
+    if conn is None:
+        raise psycopg2.OperationalError("no live database connection available from the pool")
     try:
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
             yield cur
         if commit:
             conn.commit()
     except Exception:
-        conn.rollback()
+        if not conn.closed:
+            try:
+                conn.rollback()
+            except psycopg2.Error:
+                pass
         raise
     finally:
-        _POOL.putconn(conn)
+        _POOL.putconn(conn, close=bool(conn.closed))
 
 
 # --- postings ------------------------------------------------------------------
