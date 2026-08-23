@@ -152,7 +152,12 @@ PATTERNS: tuple[tuple[str, "re.Pattern[str]"], ...] = (
     # which would take `fastighetsskötare` (a caretaker) out of skilled_trades.
     ("healthcare", re.compile(
         r"\bnurse|\bdoctor\b|physician|dentist|physiotherap|pharmacist|paramedic|"
-        r"caregiver|midwife|\bgp\b|surgeon|radiolog|"
+        # `\bgp\b` is two letters and the corpus holds exactly four titles carrying it: two
+        # real Norwegian GP posts and two where GP is a business unit or a company suffix
+        # (`GP-Supply Chain and Quality Management`, `Senior Software Engineer … Scale GP`).
+        # Bounded is not enough for an abbreviation — `georgia` in two letters.
+        r"caregiver|midwife|^(?!.*(?:software|engineer|supply chain)).*\bgp\b|"
+        r"surgeon|radiolog|"
         r"sestra|sestry|zdravotn|lékař|lékárn|zubní|ošetřovatel|pečovat|"
         r"skötersk|läkare|tandläkare|barnmorska|vårdbiträde|\bvårdare\b|vårdsamordnare|"
         # Norwegian/Danish nurse (SE `skötersk` does not read these): sykepleier / sygeplejer(ske).
@@ -162,7 +167,15 @@ PATTERNS: tuple[tuple[str, "re.Pattern[str]"], ...] = (
         # added later in the alternation: a bare `farmaceut` anywhere in the pattern still
         # matches *farmaceutyczny*, so a duplicate-with-guard fixes nothing. The Polish
         # adjective is how a pharma **sales** rep advertises, and it filed as healthcare.
-        r"terapeut|sjukgymnast|psykolog(?!i)|farmaceut(?!yczn)|apotekare|tandhygienist|tandvård|"
+        # `(?<!milj[øö])terapeut` — settled by NAV's own coding, not by argument, the way
+        # `miljøarbeider` was. Of the 10 `miljøterapeut` rows in the Norwegian answer key,
+        # **7 are ISCO 3412 and 1 is 2635 — both social_care — 1 is 5321 (healthcare) and 1
+        # is a publisher mis-code (3331, forwarding agents)**. That is 8-1, not the 5/4/3
+        # coin flip that made `miljøarbeider` a decline, so the word moves to `social_care`
+        # below rather than staying a therapy word. A milieu therapist works in residential
+        # child welfare and psychiatry; the `terapeut` stem was reading the suffix only.
+        r"(?<!milj[øö])terapeut|sjukgymnast|psykolog(?!i)|farmaceut(?!yczn)|apotekare|"
+        r"tandhygienist|tandvård|"
         r"logoped|audionom|veterinär|djursjukskötare|hemtjänst|äldreomsorg|sjukvård|"
         r"omsorgsassistent|stödassistent|"
         # 2026-08-10 multi-language pass. `farmaceut` gained `(?!yczn)`: the Polish adjective
@@ -174,7 +187,14 @@ PATTERNS: tuple[tuple[str, "re.Pattern[str]"], ...] = (
         r"enfermer|gerocultor|higienista|"                                     # es
         r"verpleegkund|verzorgende|\bhelpende|thuiszorg|ouderenzorg|"        # nl
         r"wijkverpleg|doktersassistent|apothekersassistent|"
-        r"huisarts|tandarts|verloskundige|therapeut|zorgmedewerker|"
+        # `therapeut(?!ic)` — the English pharma-industry noun. `Therapeutics` and
+        # `Therapeutic Area` name a drug modality or a business unit, never the profession
+        # *therapist*, and they filed five Workday science and pharma-exec roles as
+        # healthcare (`Experienced Scientist, Biotherapeutics RD`). Same class as the
+        # `farmaceut(?!yczn)` guard three lines above: the sector adjective is how a
+        # non-clinical role advertises. Dutch `therapeutisch` (`Forensisch therapeutisch
+        # medewerker`) is untouched — `is` is not `ic`.
+        r"huisarts|tandarts|verloskundige|therapeut(?!ic)|zorgmedewerker|"
         r"zorgco[oö]rdinator|zorgassistent|zorgkundige|psycholoog|"
         # `th[ée]rapeute` is unreachable from either `terapeut` (SE/CZ) or `therapeut` (NL) —
         # the é. Three spellings of one profession, none of which reads the others.
@@ -201,7 +221,16 @@ PATTERNS: tuple[tuple[str, "re.Pattern[str]"], ...] = (
         # region, and that is the `georgia` rule in Spanish. `recepcionista` keeps 13
         # `Recepcionista clínica dental` rows in hospitality; `professional` keeps
         # `Marketing Director - Dental Professionals`, who sells TO dentists.
-        r"^(?!.*(?:recepcionista|professional)).*(?:cl[íi]nic[oa]s?|\bdental(?:es)?)\b|"
+        # The 2026-08-22 additions are the same rule reaching English and Swedish, where
+        # `Dental` is a BRAND and an INDUSTRY word (`Aqua Dental`, `Snø Dental`, `West
+        # Dental`, `Dental B2B`) rather than the Spanish adjective this token was written
+        # for: `Receptionist till West Dental`, `Campus Recruiter - Dental Hygiene`,
+        # `Sales Development Representative (SDR) — Dental B2B`, `Lead DSO Dental Billing
+        # Success Consultant` and `Norsktalande kundservicemedarbetare inom dental` were
+        # healthcare. `receptionist` is the English/Swedish spelling of the `recepcionista`
+        # already here, and the other four are the intruder professions themselves.
+        r"^(?!.*(?:recepcionista|receptionist|professional|recruiter|billing|"
+        r"kundservice|\bsales\b)).*(?:cl[íi]nic[oa]s?|\bdental(?:es)?)\b|"
         r"odont[óo]log|neur[óo]log|psic[óo]log|farmac[ée]utic|cirug[íi]a|cirujan|"
         # NL. The closed compound `zorgmedewerker` already ships; this is the OPEN half
         # of the same word. Three guards, each measured: `\b` before `medewerk` keeps
@@ -211,6 +240,29 @@ PATTERNS: tuple[tuple[str, "re.Pattern[str]"], ...] = (
         r"\bmedewerk(?:er|ster)s?\s+(?:\w+[\s&-]+){0,2}zorg\b|"         # nl-2
         # --- Norwegian, 2026-08-11 (N1, N2, N3, N4, N5, N6, N7, N8, N9) — graded against NAV STYRK-08 ---
         r"helsefagarbeid|s[yj]ukeplei|verneplei|\blege\b|(?:over|fast|tann|øye|fylkes|sykehjems|bedrifts|kommune|smittevern|turnus)lege\b|tannplei|tannhelse|tannklinikk|helsesekretær|legesekretær|farmasøyt|jordmor|hjelpepleier|pleiemedarbeider|pleieassistent|omsorgsarbeider|sykehjem|omsorgssenter|hjemmetjeneste|heimeteneste|"
+        # **`bioingeni[øo]r` is a HEALTHCARE profession, and it was filing as `engineering`.**
+        # A Norwegian *bioingeniør* is an autorisert biomedical laboratory scientist — hospital
+        # labs, medical biochemistry, cytology, pathology — and `engineering`'s broad `ingeniør`
+        # was taking all of it: 27 corpus postings and **5 of 5 NAV-keyed rows**, which is the
+        # `healthcare -> engineering` entry the scorer reports. Placed HERE rather than guarded
+        # in `engineering`, because healthcare runs first: the same shape as `dataingeni[øo]r`
+        # living in `data_engineering` to pre-empt the identical broad stem.
+        #
+        # **Norwegian/Danish spelling only, on purpose.** Swedish `bioingenjör` (the `j`) is a
+        # biotech ENGINEER and not a protected title; only `-ingeniør` names the licensed
+        # laboratory profession. One vowel apart, opposite answers — the `dataingenjör` /
+        # `dataingeniør` lesson, arriving from the other direction.
+        r"bioingeni[øo]r|"
+        # `ortopedingenjör` / `ortopedtekniker` — the Swedish sibling of the line above, and the
+        # ONE finding in this pass with no keyed row behind it: a *legitimerad ortopedingenjör*
+        # is a licensed (Socialstyrelsen) prosthetist-orthotist who fits devices to patients,
+        # and all 11 corpus postings are clinics — Ottobock Care, ForMotion, "ortopedtekniskt
+        # centrum", "Ortopedingenjör/Ortopedteknisk patientmottagare". Bound to the two
+        # professional titles rather than a bare `ortoped`, which would also read the ward name
+        # in a non-clinical ad and the device INDUSTRY's own sales roles — the `m[ée]dico`
+        # adjective trap two dozen lines down. Evidence is the licence and the corpus, not a
+        # register row; drop this fragment first if the pass is trimmed.
+        r"ortopedingenj|ortopedtekni|"
         # --- wave 3 (2026-08-17) ---
         # sv-04  sv — roles-sv-w3.md
         r"^(?!.*receptionist).*vårdcentral|"
@@ -231,9 +283,24 @@ PATTERNS: tuple[tuple[str, "re.Pattern[str]"], ...] = (
     # nouns that do not collide with healthcare's `omsorg`/`stödassistent`. Czech `kurátor`
     # (a museum curator) is deliberately absent; Swedish `kurator` (a welfare counsellor) is not.
     ("social_care", re.compile(
-        r"social worker|social work|caseworker|youth worker|support worker|child protection|"
+        # `youth worker` needs the `grocery` guard: every instance in the corpus is
+        # `Grocery Associate - Youth Worker`, where "Youth Worker" is a youth-HIRE
+        # employment label on a retail shelf-stacking job, not the youth-support
+        # profession. Three titles, four postings, and no correct instance to lose.
+        r"social worker|social work|caseworker|^(?!.*grocery).*youth worker|"
+        r"support worker|child protection|"
         r"sociální pracovn|sociáln[íy] prác|"
         r"socialsekreterare|socialarbetare|socialpedagog|\bkurator\b|behandlingsassistent|"
+        # `behandlingspedagog` / `st[öo]dpedagog` are the same decision as
+        # `behandlingsassistent` one string to the left, and they were missed. Swedish
+        # `-pedagog` is a CREDENTIAL suffix, not a workplace: education's bare `pedagog`
+        # was filing 148 postings of LSS/SiS residential care as teaching (94
+        # `stödpedagog`, every one naming gruppbostad / servicebostad / BmSS / daglig
+        # verksamhet / funktionsstöd; 54 `behandlingspedagog`, every one SiS, LVM-hem or
+        # HVB). Named HERE rather than guarded in education because social_care runs
+        # first: positive detection, and the ~500 genuine `pedagog` postings
+        # (`Pedagogisk leder`, `Specialpedagog`, `Speciální pedagog`) are untouched.
+        r"behandlingspedagog|st[öo]dpedagog|"
         r"boendestödjare|biståndshandläggare|socionom|"
         # `personlig assistent` is LSS disability support, and it is here because the Swedish
         # social occupation field was wired up on 2026-08-17: of its 3 762 ads, 1 673 are the
@@ -250,8 +317,18 @@ PATTERNS: tuple[tuple[str, "re.Pattern[str]"], ...] = (
         # two unrelated jobs. `assistent` (Swedish/Czech) is not `assistant` (English).
         # The boundary is the publisher's, not ours: SSYK files this group under *social*, which
         # is how `gehandicaptenzorg` was decided below. Residual after this: 200 bare
-        # `assistent`/`nattassistent`/`kvällsassistent` titles, left as declines rather than
-        # bounding `assistent` itself, which is a wider blast radius than this field warrants.
+        # `assistent`/`nattassistent`/`kvällsassistent` titles, not bounded here because
+        # `assistent` is a wider blast radius than this field warrants.
+        #
+        # **The claim that those 200 were "left as declines" was false, and is corrected here
+        # (2026-08-22).** They were never declines: `other_tech_function`'s own unbounded
+        # `assistent` claimed every one of them — `Nattassistent till yngre tjej i Gråbo` and
+        # `Aktiv och engagerad kvällsassistent sökes` both classify `other_tech_function`
+        # today. That matters twice over. No chip maps to that bucket, so the rows are
+        # reachable by nobody; and `ingest._classify` consults the model cache **last and only
+        # on a decline**, so a confident wrong answer meant the residue this comment described
+        # as a decline was never once put to the classifier. A residual bucket does not decline
+        # — it answers, silently and unreachably.
         r"personlig[at]?\s+assistent(?:er)?|personlig\s+assistans|"
         r"(?<!uitvoerings)begeleid(?:st)?er|maatschappelijk werk|jeugdhulp|jongerenwerk|"      # nl
         r"sociaal werker|welzijnswerk|"
@@ -267,6 +344,37 @@ PATTERNS: tuple[tuple[str, "re.Pattern[str]"], ...] = (
         # `Trabajador/a Social` — the slash is the whole fix.
         # --- Norwegian, 2026-08-11 (N10, N12) — graded against NAV STYRK-08 ---
         r"sosionom|barnevern|støttekontakt|jobbspesialist|"
+        # 2026-08-22. Moved OUT of healthcare's `terapeut` stem — see the guard there for
+        # NAV's 8-1 coding. Removing a word is not the same as moving it (the `roles-nl-2`
+        # / `gehandicaptenzorg` lesson), so it has to land here or the 119 postings (86
+        # titles) it carries fall to `uncategorised`. Both spellings: NO/DK `miljø`, SE
+        # `miljö`. The other 26 of the word's 145 postings name a nurse or vernepleier too
+        # and stay `healthcare` — which is the row NAV coded 5321.
+        r"milj[øö]terapeut|"
+        # 2026-08-22. Swedish `-pedagog` is a CREDENTIAL suffix, not a workplace: it marks a
+        # pedagogical qualification, and Swedish residential-care employers hire qualified
+        # pedagogues. `education`'s bare `pedagog` was therefore filing 150 postings of
+        # disability, addiction and youth residential care as education — 143 titles, and
+        # **not one of them is a school**: every one names LSS, gruppbostad, servicebostad,
+        # BmSS, daglig verksamhet, funktionsstöd, HVB, SiS, LVM-hem, ungdomshem,
+        # socialpsykiatri or kvinnoboende (a grep for skola/förskol/gymnasi/elev/undervis
+        # over all 143 returns 0).
+        #
+        # A POSITIVE detection here beats a negative guard there, measured both ways:
+        # `social_care` runs before `education`, so naming the three compounds moves them to
+        # a category a subscriber can select, while `(?<!behandlings)(?<!st[öo]d)pedagog` in
+        # `education` drops 143 of them to `uncategorised`, leaks 2 to `other_tech_function`,
+        # and still misses `Pedagogisk samordnare (stödpedagog) till Annelöv gruppbostad`,
+        # which matches on its second `pedagog`.
+        #
+        # SWEDISH ONLY, and Norwegian is the reason — the `personlig assistent` false-friend
+        # rule again. NO `støttepedagog` is a *barnehage* support pedagogue
+        # (`Støttepedagog 50% stilling i barnehage`, `Spesialpedagog/støttepedagog`) and
+        # stays `education`. `stötte` is not `stöd`.
+        #
+        # `Stödpedagog/Stödassistent` titles keep `healthcare`: that pattern runs first and
+        # owns `stödassistent`, which is the standing (undecided) boundary call, not this one.
+        r"st[öo]dpedagog|behandlingspedagog|boendepedagog|"
         # --- wave 3 (2026-08-17) ---
         # sv-07  sv — roles-sv-w3.md
         r"arbetskonsulent|"
@@ -276,7 +384,12 @@ PATTERNS: tuple[tuple[str, "re.Pattern[str]"], ...] = (
         r"sociáln[ěe]\s*[- ]?\s*práv\w*\s+ochran|"
         r"trabajador[a-z]*(?:/[ao])?\s+social|animaci[óo]n\s+sociocultural", re.I)), # es-2
     ("education", re.compile(
-        r"teacher|lecturer|professor|educator|\btutor\b|kindergarten|preschool|"
+        r"teacher|lecturer|professor|educator|kindergarten|preschool|"
+        # **"AI Tutor" is a PRODUCT an engineer builds, not a teaching job** —
+        # "Principal AI Engineer - AI Tutor" (4 postings) and "The quest build a better
+        # AI tutor". Same mechanism as the `\btrainer\b` guard below; positional, so
+        # "Physics Tutor" and "1 on 1 Math Tutor" are untouched.
+        r"(?<!\bai )(?<!\bai-)\btutor\b|"
         r"teaching assistant|"
         r"učitel|učitelka|vychovatel|pedagog|lektor(?!ov)|docent|vysokoškolsk[ýá] uči|"
         r"lärare|förskol|barnskötare|studie- och yrkesvägledare|"
@@ -288,7 +401,16 @@ PATTERNS: tuple[tuple[str, "re.Pattern[str]"], ...] = (
         # French term here with a live English risk: `education` runs 3rd, so a future English
         # "Formation …" title would misfile. `formateur|formatrice` is the safe subset if that
         # ever shows up.
-        r"formateur|formatrice|\bformation\b|"                                  # fr
+        # The English risk this comment predicted has ARRIVED — 11 of the span's 21 live
+        # postings are English engineering: battery-cell "Formation & Ageing"
+        # (Manufacturing/Automation Engineer, 7), CT "Image Formation" (2), "Formation
+        # Process Engineer", "Subcontract Formation Specialist". Bound to the French
+        # preposition or role head instead of taken bare — the `_FR_ROLE` construction —
+        # which keeps all 10 real ones ("Responsable de Formation", 8x "Consultant.e en
+        # Formation", "Spécialiste Formation") and drops all 11. `formateur|formatrice`,
+        # the escape this comment named, would have lost all 10 as well.
+        r"formateur|formatrice|\b(?:de|en)\s+formation\b|"
+        r"\b(?:sp[ée]cialiste|responsable|charg[ée]{1,2})\s+formation\b|"      # fr
         r"ausbilder|"                                                           # de
         r"leerkracht|onderwijsassistent|pedagogisch medewerker|kinderopvang|"   # nl
         r"\bleraar\b|onderwijzer|"
@@ -298,7 +420,14 @@ PATTERNS: tuple[tuple[str, "re.Pattern[str]"], ...] = (
         # other categories (`Sales Trainer`, `Cybersecurity Technical Trainer`) rather
         # than the 3 the English proposal predicted on its own corpus. Accepted as the
         # same call the file already made, with the true count recorded here.
-        r"\binstructor\b|\btrainer\b|"                                  # en
+        # **"AI Trainer" is not a teaching job — the trainee is a model.** 11 live postings
+        # are RLHF/data-annotation gigs ("AI Trainer Freelance Data Annotator",
+        # "Freelance Annotator (English) - AI Trainer", "Generalist AI Trainer $35
+        # hour"); "AI Tutor" is a product an engineer builds ("Principal AI Engineer -
+        # AI Tutor", 4). 16 postings. The guard is positional, not whole-title, so
+        # "Junior KI-Projektbegleiter & Trainer" and every Sales/Technical Trainer the
+        # wave-2 note deliberately accepted are untouched.
+        r"\binstructor\b|(?<!\bai )(?<!\bai-)\btrainer\b|"           # en
         # `\bonderwijs` bounded away from `onderwijsinstelling` (the institution, not a
         # teaching role). ES `profesor` has one s and English `professor` cannot reach it.
         r"\bonderwijs(?!instelling)|"                                   # nl-2
@@ -357,7 +486,52 @@ PATTERNS: tuple[tuple[str, "re.Pattern[str]"], ...] = (
     ("construction", re.compile(
         # `estimator` is a construction cost estimator ("Estimator I/II", "Sr Estimator",
         # 2026-08-10) — the register writes it with a seniority word and nothing else.
-        r"construction|site manager|bricklayer|carpenter|surveyor|estimator|"
+        # `(?<!re)` because RECONSTRUCTION is not construction: it took 6 postings, led by
+        # three "Johnson & Johnson MedTech, Aesthetics and Reconstruction" plastic-surgery
+        # sales reps, plus an accident-reconstruction engineer, a 3D-reconstruction engineer
+        # and the European Bank for Reconstruction and Development. No corpus title uses the
+        # word for building work. `quantity surveyor` replaces bare `surveyor`: the bare word
+        # is a SHIP inspector far more often than a construction one here — 22 of 31 postings
+        # are marine/classification-society surveys (FiS, Newbuilding, Maritime, "Surveyor
+        # Ships In Operation"), against 9 quantity-surveying rows.
+        # **`construction` is also a SECTOR, and this pattern runs 4th of 28.** So every role in
+        # the industry answered "construction" before its own category could: measured
+        # 2026-08-22, 21 postings carry a function word a LATER pattern owns and gets right —
+        # `Sales Specialist, Construction`, `Inside Sales, Coatings & Construction`,
+        # `Business Development - Construction`, `Construction Data Analyst`, `Senior Director,
+        # Global Design and Construction Data Analytics`, `Android Developer (Construction
+        # Tech)`, `Applied Scientist, New Construction`, `Global Procurement Specialist-
+        # Capital Equipment and Construction`. `construction equipment` is separate and is the
+        # employer-name mechanism: Volvo CE's welder, fitter and forklift driver (5 postings)
+        # are manufacturing and logistics, and the phrase means MACHINERY, never building work.
+        #
+        # A whole-title lookahead is used here and it is the narrow choice, not the lazy one: a
+        # lookbehind cannot work because the function word sits at the far end of the title
+        # ("Sales Specialist, Construction"). `\bsales\b` is bounded against SALESFORCE for the
+        # reason `software_engineering` records; `data analy`/`analytics` are written as two
+        # strings because "Data Analytics" and "Data Analyst" share no usable stem.
+        #
+        # **Only the ENGLISH branch is guarded.** The 66 postings with no rival claimant —
+        # `Construction Manager`, `Construction Worker`, `Construction Project Manager` — must
+        # keep answering construction, and dropping the branch outright would send several to
+        # `software_engineering`'s bare `\bengineer\b` instead (`Construction Engineer`,
+        # `Operations Engineer (Construction)`), which is a worse misfile, not a fix.
+        #
+        # `(?<!re)` because RECONSTRUCTION is not construction: 6 more postings, led by three
+        # "Johnson & Johnson MedTech, Aesthetics and Reconstruction" plastic-surgery sales
+        # reps, plus an accident-reconstruction engineer, a 3D-reconstruction engineer and the
+        # European Bank for Reconstruction and Development. No corpus title uses the word for
+        # building work.
+        r"^(?!.*(?:\bsales\b|business development|data analy|analytics|"
+        r"\bdeveloper\b|software|scientist|procurement|construction equipment))"
+        r".*(?<!re)construction|"
+        # `quantity surveyor` replaces bare `surveyor`: the bare word is a SHIP inspector far
+        # more often than a construction one here — 22 of 31 postings are marine /
+        # classification-society surveys (FiS, Newbuilding, Maritime, "Surveyor Ships In
+        # Operation", "E&I Surveyor - Vung Tau"), against 9 quantity-surveying rows. The one
+        # piece of collateral is `Utsättare/surveyor`, a Swedish setting-out surveyor, which
+        # becomes a decline — the cheap error, not the expensive one.
+        r"site manager|bricklayer|carpenter|quantity surveyor|estimator|"
         # Czech. Stems, because the register writes the plural: "Zedníci", "Dělníci". The
         # nominative singular this pattern used to require matched almost none of them.
         r"stavbyvedoucí|stavebn|výstavb|zedn|tesař|dlaždič|kamnář|potrubář|"
@@ -371,18 +545,48 @@ PATTERNS: tuple[tuple[str, "re.Pattern[str]"], ...] = (
         r"stensättare|plattsättare|betongarbetare|betonghåltagare|takläggare|"
         r"träarbetare|markarbet|grävmaskinist|hjullastar|maskinförare|"
         r"ventilationsmontör|ventilationstekniker|kyltekniker|isoleringsmontör|"
+        # **`VVS-montör` is the third sibling of the two `-montör` words already on this line,
+        # and it was the one filing as factory work.** Heating/ventilation/sanitation
+        # installation is done on a building site; `manufacturing_production`'s broad `montör`
+        # was taking 71 of the corpus's 82 VVS postings. Three keyed rows, two registers'
+        # worth of agreement and no counter-example: SSYK files `VVS montör` in the group
+        # "VVS-montörer m.fl." under the field "Bygg och anläggning", and NAV codes `VVS Montør`
+        # and `Rørlegger/VVS-Montør` **STYRK 7126** — which `ISCO_CATEGORIES` already maps to
+        # construction. That last row was reaching `skilled_trades` via `rörmokare`, so this
+        # line fixes it too, and the test asserting otherwise moves with it.
+        # `v+s` because the trade abbreviates itself both ways — "VVS-montör" and "VS-montör"
+        # are the same job, and 12 corpus postings use the short form.
+        #
+        # **Deliberately VVS alone, not `-montör` compounds in general.** The register does not
+        # agree with itself about the rest: bare `Montör` is keyed construction, skilled_trades
+        # AND manufacturing on different rows, and `solcellsmontör` (solar panels — the compound
+        # that looks most like this one) is keyed **manufacturing_production**. Widening this to
+        # every installation compound would be arguing with the publisher, not reading it.
+        r"\bv+s[\s-]?mont[öø]r|"
         # `betong` (concrete) and `måleri` (painting) — the bare stems the SSYK misses needed:
         # "Renovering av betong", "Måleri", "Projektledare inom betong". `målar` already read
         # "målare" but not the noun "måleri".
         r"ställningsmontör|ställningsbyggare|putsare|golvläggare|målar|måleri|betong|"
-        r"hantverkare|rivning|\brivare\b|"
+        # `\brivning` — the boundary is the whole point, and `\brivare\b` beside it shows the
+        # author already knew: unbounded, `rivning` reads the INSIDE of Swedish compounds that
+        # have nothing to do with demolition. It took 9 postings, all of them somebody else's
+        # job: utsk-RIVNING-ssamordnare (a hospital discharge coordinator, 4 postings + 2
+        # more), Insk-RIVNING-shandläggare (an enrolment officer) and framd-RIVNING (marine
+        # propulsion, 2 engineers). Every genuine demolition title has a boundary in front of
+        # it — "Rivningsarbetare", "inom rivning", ", rivning" — so the fix costs nothing.
+        r"hantverkare|\brivning|\brivare\b|"
         # `\bobras?\b` is bounded, and the answer key is why: unbounded, `obra` matches the
         # Czech `Obráběč/ka kovů` (a machinist, truth `manufacturing_production`), and
         # construction runs first. `(?<!werktuig)bouw` keeps Dutch *werktuigbouwkunde*
         # (mechanical engineering) out of construction for the same ordering reason.
         r"bauleit|"                                                             # de
         r"construcci[óo]n|edificaci[óo]n|\bobras?\b|"                           # es
-        r"(?<!werktuig)bouw|uitvoerder|werkvoorbereid|\bcalculator|timmerman|"  # nl
+        # `(?<!machine)` and `(?<!land)` are the same lesson as `(?<!werktuig)`, arriving twice
+        # more: Dutch `machinebouw` is MACHINE building — 18 postings, every one of them a
+        # "Software Engineer Machinebouw" (SCADA/PLC/Siemens), and `landbouw` is AGRICULTURE
+        # (a jurist on common agricultural policy). A `-bouw` compound only means construction
+        # when the thing being built is a building.
+        r"(?<!werktuig)(?<!machine)(?<!land)bouw|uitvoerder|werkvoorbereid|\bcalculator|timmerman|"  # nl
         r"timmervrouw|metselaar|stukadoor|dakdekker|opzichter|projectontwikkelaar|"
         r"gebiedsontwikkelaar|planontwikkelaar|grondwerker|straatmaker|"
         # --- wave 2 ---
@@ -397,7 +601,29 @@ PATTERNS: tuple[tuple[str, "re.Pattern[str]"], ...] = (
     # `elkonstruktör` left this pattern on 2026-08-09: an electrical *designer* is an engineer,
     # and it only lived here because `engineering` did not exist yet. `konstruktör` picks it up.
     ("skilled_trades", re.compile(
-        r"electrician|welder|plumber|\bmechanic\b|locksmith|\bfitter\b|hvac|"
+        r"electrician|welder|plumber|\bmechanic\b|locksmith|\bfitter\b|"
+        # **`hvac` shipped bare and HVAC is an industry, not a job.** It is the same shape as
+        # the `\bengineer\b` misfile: a domain word running 16 patterns ahead of `sales` and
+        # before `engineering`, so it answered first for every role in the sector. Measured
+        # 2026-08-22: 161 postings, and the majority were somebody else's — 30+ `HVAC …
+        # Engineer` rows (Building Controls Systems, Application, Commissioning, Design,
+        # Thermodynamic), ~15 `HVAC … Sales`/`Account Executive`, `HVAC Truck Base Customer
+        # Resource Coordinator` (a call desk), `Software Developer (m/f/d) HVAC and Heat Pump
+        # Systems`, `Director, Marketing - HVAC/Controls N.A.`, `Construction Data Analyst`'s
+        # cousin `HVAC Product Management Lead`.
+        # Bound BOTH directions, because the corpus writes it both ways: "HVAC Technician" and
+        # "Technician, HVAC Service". `tech\b` earns its place separately from `technician` —
+        # this publisher abbreviates ("HVAC Sr Controls Service Tech", "HVAC Data Service Tech
+        # Team Lead"). The heads are the ones the rest of this pattern already treats as
+        # trades, so nothing new is being decided about what a trade is.
+        rf"hvac[^|]{{0,28}}?(?:technician|tech\b|mechanic|fitter|apprentice|journey|"
+        rf"installer|operative|tester)|"
+        # The reverse branch needs the same abbreviation and the same three languages as the
+        # forward one: without them "Senior Tech, Maintenance HVAC", "Facilities Tech II, HVAC
+        # Maintenance" and the French "Technicien Utilités CVC / HVAC H/F" were three real
+        # trades left uncategorised by the narrowing.
+        rf"(?:technician|technicien|techniker|tech\b|mechanic|fitter|installer)"
+        rf"[^|]{{0,30}}?hvac|"
         r"maintenance technician|field service (?:technician|engineer|engr)|"
         # A *qualified* technician is a trade; a bare "Technician" is still declined (it spreads
         # across trades, manufacturing, IT support and labs — 2026-08-10). These four qualifiers
@@ -408,7 +634,27 @@ PATTERNS: tuple[tuple[str, "re.Pattern[str]"], ...] = (
         # trade. Written as a lookahead rather than as a list of inflections because Czech
         # declines the í as well ("zámečník" → "zámečníci"), and a hand-listed plural is
         # exactly the kind of near-miss that looks correct and matches nothing.
-        r"elektrikář|elektrikár|elektrotechni|zámečn(?!a\b)|instalatér|montér|údržbář|"
+        r"elektrikář|elektrikár|"
+        # `elektrotechni` is a FIELD word, and this pattern runs before
+        # `manufacturing_production`, so it answered first for electronics ASSEMBLY work: four
+        # ISCO-keyed rows (`Operátor/ka v elektrotechnické výrobě` 82122, `Dělník v
+        # elektrotechnice` 82121, `Dělníci v elektrotechnice` 82122, `dělnice ve výrobě - drobná
+        # elektrotechnika` 82122) are production-line jobs the register codes in major 8.
+        # `d[ěe]ln[ií]` and not `dělní` alone — "dělnice" carries no í, the `obr[áa]běč` lesson.
+        # A `^(?!.*inžený)` guard was proposed for the two rows that lean the OTHER way
+        # (`Specialista v elektronice a elektrotechnice` 3114, `vedoucí elektrotechnik` 21519)
+        # and was measured at **0 key rows moved** — neither title contains the word. That half
+        # is declined; the production half is what the key can see.
+        # `(?!ek)` is the second, independent guard on the same fragment and it is a one-letter
+        # LANGUAGE split, not a typo guard: Czech and German write the PERSON
+        # `elektrotechnik`, Dutch writes the FIELD `elektrotechniek` and the person
+        # `elektrotechnicus`. Unguarded, the Dutch field word took 11 postings of
+        # engineering advisory work — "Adviseur elektrotechniek" (x5 plus Curacao, Aruba,
+        # Defensiecomplexen), "Assetmanager elektrotechniek", "Lokaal Elektrotechniek
+        # Verantwoordelijke". Dutch electrical INSTALLERS are read separately below
+        # (`elektrotechnisch installat`), so nothing Dutch and trade-shaped is lost.
+        r"^(?!.*(?:d[ěe]ln[ií]|operátor)).*elektrotechni(?!ek)|"
+        r"zámečn(?!a\b)|instalatér|montér|údržbář|"
         # `mechani[kc](?!al)` replaces `automechanik|mechanik`: the register writes the plural
         # "Mechanici"/"Automechanici"/"Elektromechanici", where k→c dodged the -k singulars.
         # The `(?!al)` lookahead is load-bearing — it keeps English "mechanical engineer" out
@@ -438,7 +684,20 @@ PATTERNS: tuple[tuple[str, "re.Pattern[str]"], ...] = (
         r"technicien[^|]{0,16}?maintenance|maintenance industriel|"             # fr
         rf"manutentor|{_IT_ROLE}\s+(?:alla\s+|della\s+)?manutenzion|"           # it
         r"elektroniker|mechatroniker|servicetechniker|"                         # de
-        r"instandhalt(?!ungsingenieur)|meister(?:in|innen)?\b|"
+        # **`meister` shipped BARE here, against this file's own `_DE_ROLE` doctrine ("`meister`
+        # is also a title — which is the whole reason for the binding"), and it was the largest
+        # single misfile in the corpus.** Measured 2026-08-22 over every active posting: bare
+        # `meister` won 68 postings, of which **66 were wrong** — 65 `Hörakustik-Meister`
+        # (a German hearing-care professional, one employer spamming ~60 towns) and one
+        # `CNC-operatör – Siemens 840D / Gildemeister`, where the match is inside the
+        # MACHINE-TOOL MAKER's name. The `Mekonomen`/`ekonom` mechanism exactly.
+        # It won two correct postings, both `Hausmeister`, which is the German `vaktmästare`
+        # two lines below — so the binding keeps that and drops the rest. Only `haus` is
+        # evidenced in this corpus; the other four are unambiguous German trade compounds and
+        # cost nothing measurable today. **`bau` is deliberately absent** — an Austrian/German
+        # `Baumeister` is a master builder and `construction` runs first.
+        r"instandhalt(?!ungsingenieur)|"
+        r"(?:haus|elektro|industrie|anlagen|kfz)meister(?:in|innen)?\b|"
         r"instalaciones|mantenimiento|"                                         # es
         r"technieker|installateur|elektrotechnisch installat|storingsdienst|"   # nl
         r"utrzyman\w* ruchu|konserwator|"                                       # pl
@@ -477,7 +736,20 @@ PATTERNS: tuple[tuple[str, "re.Pattern[str]"], ...] = (
         r"\br[ée]parat(?:eur|rice|ion)|"
         r"^(?!.*ingenier).*mec[áa]nic[oa]s?\b", re.I)),                 # es-2
     ("logistics_transport", re.compile(
-        r"warehouse|forklift|truck driver|delivery driver|courier|dispatcher|"
+        # A **data** warehouse is a database, not a building, and the two words are the same
+        # word. Unguarded `warehouse` filed 18 postings of data-engineering work in logistics
+        # — "Senior Solutions Architect (EDW Enterprise Data Warehouse Migrations)" alone is 7
+        # — where `data_engineering` (which runs 155 lines later) had the right answer and
+        # never got to see them. Both lookbehinds are needed: the spaced "Data Warehouse" and
+        # the closed Swedish/Dutch "Datawarehouse" are different strings.
+        # The second guard is the `\bengineer\b` lesson in one word: a warehouse is a *domain*
+        # a robotics vendor sells into, and "Staff Software Engineer - Warehouse Platform" is
+        # someone's software job, not warehouse work (16 postings across four employers).
+        # `software|robotic|\bwms\b` only — deliberately NOT `automation`, which a real
+        # warehouse can carry ("Automation Senior Manager, Skroutz Warehouse"): a measured 6
+        # postings are left behind on purpose rather than guessed at.
+        r"^(?!.*(?:software|robotic|\bwms\b))(?:.*)(?<!data )(?<!data-)(?<!data)warehouse|"
+        r"forklift|truck driver|delivery driver|courier|dispatcher|"
         r"logistics coordinator|freight|"
         # `sklad(?!atel)` is the warehouse stem, and it replaces the singular-only
         # `skladník|skladnic`: the register writes the plural "Skladníci", where the k→c
@@ -485,14 +757,36 @@ PATTERNS: tuple[tuple[str, "re.Pattern[str]"], ...] = (
         # skladník/skladu/skladový; the lookahead keeps out `skladatel` (a composer). Then
         # dispatch/delivery: `expedic`/`expedien` (NOT bare `expedi`, which would eat the
         # Swedish retail "Expedit"), `rozvoz`, `dispečer`, `doplňovač`, customs `deklarant`.
-        r"sklad(?!atel)|řidič|kurýr|spediter|logistik|závozník|"
+        # `med logistikansvar` is a *duty attached to another job*, not the job: SSYK codes
+        # "SÄLJARE MED LOGISTIKANSVAR TILL JYSK …" as *Butikssäljare, fackhandel* (6 postings,
+        # one retail chain's template). The guard has to be this narrow — the register codes
+        # bare "Logistikansvarig" as *Inköps-, logistik- och transportchefer*, so blanket
+        # `logistik(?!ansvar)` would trade a right answer for a wrong one.
+        r"sklad(?!atel)|řidič|kurýr|spediter|"
+        r"^(?!.*med\s+logistikansvar)(?:.*)logistik|závozník|"
         r"expedic|expedien|rozvoz|dispečer|doplňovač|deklarant|"
         # Before manufacturing's `obsluha`: a forklift is materials handling, not production.
         r"manipulačn|vysokozdvižn|"
-        r"\blager|truckkort|chaufför|orderplockare|terminalarbetare|godsmottag|"
+        # `\blager` is bounded at the start so *kullager* (a ball bearing) cannot reach it.
+        # The two lookaheads are the `georgia` rule in Swedish: **Lagerhaus** is a home-decor
+        # retail chain and **Lagerlöf** a surname (Selma Lagerlöfs Torg is a Gothenburg
+        # square) — 6 postings of shop-floor sales and visual merchandising, none of them
+        # warehouse work. Same mechanism as *Mekonomen* under `ekonom`.
+        r"\blager(?!haus)(?!löf)|truckkort|chaufför|orderplockare|terminalarbetare|godsmottag|"
         # `förare` as a suffix: buss-, taxi-, lastbils-, skjutstativ-, motvikts-, båt-.
         # Everything a building site drives was claimed by `construction` one pattern up.
-        r"förare|brevbärare|paketbud|distributör|\btaxi|bärgare|bärgning|"
+        # Two Swedish words end in -förare and drive nothing: **marknadsförare** is a marketer
+        # (14 postings, and Arbetsförmedlingen codes "Digital marknadsförare" as
+        # *Marknadsanalytiker och marknadsförare* — the register settles it, not an argument)
+        # and **bokförare** is a bookkeeper (2). Positional, not whole-title: the compound is
+        # the whole point, so only the two stems that precede it are excluded.
+        r"(?<!marknads)(?<!bok)förare|brevbärare|paketbud|distributör|"
+        # `\btaxi` names a company or a product as often as a vehicle: **TaxiCaller** is a
+        # Swedish dispatch-software vendor whose web developers and support agents are not
+        # drivers, and a **Taxi-app** is software (7 postings between them). Both lookaheads
+        # are positional and read only the token itself — a title-level scan would also have
+        # to decide about "Taxiförare till app-baserad åkeri", which is a driver.
+        r"\btaxi(?!caller)(?!-app)(?! ?app\b)|bärgare|bärgning|"
         r"transportledare|transportplanerare|trafikplanerare|depåmedarbetare|"
         # `\bautist[ai]\b` MUST keep its boundaries — unbounded, `autist` reads "autistic" and
         # "autism". `magazzin` (it) has a double z and so cannot reach English "magazine" or
@@ -536,7 +830,20 @@ PATTERNS: tuple[tuple[str, "re.Pattern[str]"], ...] = (
         r"sjåfør|"
         r"\bceln\w*|kontroli eksportu", re.I)),                         # pl-2
     ("manufacturing_production", re.compile(
-        r"production (?:operator|technician|planner|manager|associate|supervisor|worker)|"
+        # **The English half needed the guard the French half already had.** The `fr-2`
+        # `production` binding below carries `(?![^|]{0,24}(?:marketing|communication|
+        # audiovisuel))` because "Chargé de production marketing" is not factory work — and the
+        # English fragment on this line was taking the identical class of title with nothing:
+        # "Touring Production Manager, Europe", "Sr. Esports Production Manager", "Video
+        # Production Manager", "Event Production Manager", "Postproduction Manager" — 6 corpus
+        # postings of media, live-events and campaign work in a shop-floor category. Anchored
+        # rather than whole-title, on the `safety engineer` precedent a few hundred lines down:
+        # "Production Manager Assembly & Test CMDS" and "Cables Production Manager" have to
+        # survive, and they do — the guard names the media word and requires it to sit ON
+        # `production`, so a plant title is untouched.
+        r"^(?!.*(?:video|esports|touring|post|content|audio|film|campaign|creative|media|"
+        r"broadcast|podcast|music|studio|theat|event)[\s-]?production)"
+        r".*production (?:operator|technician|planner|manager|associate|supervisor|worker)|"
         r"machine operator|manufacturing (?:technician|associate|operator)|"
         r"assembly|\bassembler\b|equipment installer|quality (?:inspector|technician)|cnc|"
         # Czech. `dělní` and `výrob` are stems for the same reason the Swedish half is:
@@ -549,7 +856,33 @@ PATTERNS: tuple[tuple[str, "re.Pattern[str]"], ...] = (
         # "operátor skladu" via its `sklad` stem. `švadlen`/`šičk` (seamstress/sewer),
         # `nástroja` (toolmaker), `tiskař` (printer), `lakovn` (paint shop) are the other
         # recurring production nouns the -ař/-ič list missed.
-        r"operátor|seřizovač|výrob|montážní|dělní|obsluha|švadlen|šičk|nástroja|tiskař|lakovn|"
+        # **The `obsluha` comment above was wrong, and the ISCO key is where it shows.** It
+        # claimed the word is safe here "only because hospitality's `občerstven` and logistics'
+        # `manipulačn` read their own senses of it first". They do not: `obsluha` is the ordinary
+        # Czech word for *attending to* anything, and it steals **20 keyed rows** across four
+        # other categories — sales 8 (`Obsluha čerpací stanice` ×3, `Obsluha zmrzliny`,
+        # `pokladní, obsluha na čerpací stanici`, `PRODAVAČ…, obsluha grilu`, `Prodej zmrzliny a
+        # obsluha zákazníků`, `Obsluha - koordinátor/ka prodeje`), construction 7 (`Obsluha
+        # jeřábů`, `Obsluha zemních a příbuzných strojů` ×4, `Strojník, obsluha zemních…`,
+        # `obsluha autojeřábu`), hospitality 3 (`Obsluha baru`, `Obsluha kavárny`, `Obsluha
+        # kebabu`) and logistics 2. That is the largest single steal in this pattern, and it was
+        # sitting under a comment asserting the opposite — verify a "what makes this safe" note
+        # against a number, the `laborant` prefix lesson again.
+        #
+        # The OBJECT of `obsluha` decides, so the guard names the objects the register puts
+        # elsewhere and leaves the word otherwise intact: `Obsluha CNC`, `Obsluha Laseru`,
+        # `Obsluha balící linky`, `Obsluha speciálních strojů`, `obsluha betonárky` and
+        # `Strojmistr - obsluha strojů` all still classify here. Declining is most of the win —
+        # `sales` runs 500 lines later and construction/hospitality read none of these objects,
+        # so 16 of the 18 rescued rows land `uncategorised`, which the AI matcher can still
+        # save. A misfile it cannot. `bar[ou]\b` is bounded so it cannot reach `barvírna` (a dye
+        # house); `recykla` is deliberately NOT listed — "obsluha recyklační linky" is a line
+        # operator on either reading, and declining it would cost a right row to win an
+        # arguable one.
+        r"operátor|seřizovač|výrob|montážní|dělní|"
+        r"^(?!.*obsluha[^|]{0,30}?(?:bar[ou]\b|kavárn|kebab|zmrzlin|čerpací|gril|"
+        r"zákazník|prodej|jeřáb|zemních))"
+        r".*obsluha|švadlen|šičk|nástroja|tiskař|lakovn|"
         # `obr[áa]běč`: the register writes it BOTH ways and the unaccented "Obraběč/ka kovů"
         # was landing uncategorised — found 2026-08-10 while mutation-checking the Spanish
         # `\bobras?\b` boundary, which is the collision this same row causes in the other
@@ -558,7 +891,17 @@ PATTERNS: tuple[tuple[str, "re.Pattern[str]"], ...] = (
         r"obr[áa]běč|frézař|soustružník|brusič|lisař|balič|"
         r"truhlář|řezník|karosář|strojírensk|"
         r"produktionstekniker|produktionsmedarbetare|produktionspersonal|"
-        r"produktionsarbetare|operatör|ställare|"
+        # **Two unbounded stems that match INSIDE a longer, unrelated word.**
+        # `(?<!mobil)operatör`: a *mobiloperatör* is a telecoms COMPANY, not a machine
+        # operator, and "Sommarjobb hos Mobiloperatör! Fast lön & Rörlig" is a sales job — 6
+        # corpus postings and **3 of 3 SSYK-keyed rows, all truth `sales`**. Same mechanism as
+        # `ekonom` reading the employer *Mekonomen*: the word names who is hiring.
+        # `(?<!be)ställare`: a *beställare* is a PURCHASER. "Verksamhetsutvecklare till
+        # beställarenheten funktionsnedsättning" is a disability-services procurement post, and
+        # `ställare` (a machine setter) reached it through the middle of the word.
+        # Fixed-width lookbehinds, so both stay positional — nothing that genuinely names the
+        # role is touched, which whole-title equality could not promise.
+        r"produktionsarbetare|(?<!mobil)operatör|(?<!be)ställare|"
         # `svářeč` (CZ welder) sits here, not in skilled_trades, for the same reason `svetsare`
         # does: SSYK/ISCO file welders under industrial manufacturing (factory production), not
         # trades. The Swedish decision (2026-08-09) was never applied to the Czech word until now
@@ -642,9 +985,24 @@ PATTERNS: tuple[tuple[str, "re.Pattern[str]"], ...] = (
         # lesson. Measured at 0 titles moved across 7 172 corpus and answer-key rows: the
         # compound is specific enough that it can only ever add.
         r"datov[ýá] inžen|dátový inžinier|data inžinier|dataingenjör|dataingeni[øo]r|"
+        # The French form of the identical defect. `engineering` runs after this pattern and
+        # carries a broad `ing[ée]nieur` whose software lookahead lists `logiciel|software|web|
+        # développement|devops|full stack` — and not `data`, so "Ingénieur Data (H/F)",
+        # "Ingénieur Datas H/F" and "INGÉNIEUR BIG DATA SENIOR F/H" (4 postings) filed as
+        # physical engineering. Claimed HERE rather than added to that lookahead, because a
+        # lookahead only declines: this is the pattern that should say yes. `datas?` — the
+        # French ads pluralise it.
+        r"ing[ée]nieur\w*\s+(?:big\s+)?datas?\b|"
         r"data architect|data modell?er", re.I)),
     ("machine_learning", re.compile(
         r"machine learning|\bml engineer|\bai engineer|data scientist|mlops|"
+        # `applied scientist` is what Amazon, Adobe and Uber call an ML engineer/researcher
+        # ("Staff Applied Scientist - VLLM Inference", "Applied Scientist, Ads
+        # Optimization"). 20 live postings, all of which were filing as
+        # `science_research` on its bare `\bscientist\b` — the modifier is not "AI", so
+        # `\bai\b[^|]{0,20}(?:architect|scientist)` could never reach them. Named here
+        # rather than guarded there, because this pattern runs first.
+        r"applied scientist|"
         # `data science` as a phrase, not only `data scientist`: "Data Science Manager" and
         # "Data Science Trainee" were the two commonest ML titles left uncategorised
         # (2026-08-10, 73 rows). The register advertises the *field* with a seniority word
@@ -666,7 +1024,14 @@ PATTERNS: tuple[tuple[str, "re.Pattern[str]"], ...] = (
     # safety role, so only the named security professions are read, and the Swedish half is the
     # compound ("informationssäkerhet"), never bare "säkerhet".
     ("cybersecurity", re.compile(
-        r"cyber ?security|information security|infosec|\bappsec\b|application security|"
+        # `cyb(?:er)? sec` — one Workday tenant abbreviates the discipline as well as the head
+        # ("Advanced Cyber Sec Archt/Engr", "Sr Advanced Cyb Sec Archt/Engr"), which
+        # `cyber ?security` and `security (?:engineer|architect)` both miss, so 27 postings of
+        # security architecture were filed as SOFTWARE by the bare `\bengineer\b` catch-all.
+        # Same lesson as `engr` in `engineering`: an abbreviation defeats every guard built on
+        # the spelled-out word.
+        r"cyber ?security|\bcyb(?:er)?\s+sec\b|"
+        r"information security|infosec|\bappsec\b|application security|"
         r"security (?:engineer|analyst|architect|specialist|consultant|operations|engineering)|"
         r"penetration test|pentest|red team|blue team|\bsoc analyst\b|"
         r"threat (?:intelligence|hunting|detection)|vulnerability (?:management|analyst)|"
@@ -691,18 +1056,114 @@ PATTERNS: tuple[tuple[str, "re.Pattern[str]"], ...] = (
     # is the industry bench, not the university. `\bscientist\b` is safe here because every
     # data/ML sense of it was already claimed above.
     ("science_research", re.compile(
-        r"\bscientist\b|research scientist|clinical research (?:associate|scientist|coordinator)|"
+        # **Two senses of `scientist` were NOT "already claimed above", and the comment
+        # said they were.** Measured on the live corpus 2026-08-22: `computer scientist`
+        # 13 postings — an Indian-IT / US-federal way of writing *software developer*
+        # ("Computer Scientist 2 (Full Stack)", "Computer Scientist - Java,
+        # Microservices") — and `decision scientist` 9, which is marketing/CX analytics.
+        # (`applied scientist`, 20, is the third and is claimed by machine_learning
+        # above, which runs first — positive detection wherever a home exists.)
+        # A negative lookbehind, not whole-title equality: "Computational Biology
+        # Scientist" and "Beamline Scientist at Bloch beamline" must keep matching.
+        r"(?<!computer )(?<!decision )\bscientist\b|research scientist|"
+        r"clinical research (?:associate|scientist|coordinator)|"
         r"\bbiologist\b|\bchemist\b|physicist|microbiolog|biochemist|pharmacolog|toxicolog|"
         r"bioinformatic|laboratory scientist|lab scientist|"
+        # `biomedicinsk analytiker` is the Swedish LICENSED hospital-laboratory profession, and
+        # it is the same word as `analytiker` — so `data_analysis`, 86 lines later, was filing
+        # clinical-chemistry and blood-bank staff as data analysts: 62 postings across 57
+        # titles, every one of them a lab ("till Klinisk kemi", "Blodcentralen", "till klinisk
+        # patologi"). The publisher's own SSYK group is "Biomedicinska analytiker m.fl." in the
+        # field *Naturvetenskap*, which `categorization_score.py` holds OUT_OF_SCOPE — so the
+        # answer key is silent here and the corpus is the evidence, exactly as expected for an
+        # internal boundary. `\w*\s*` covers all three live spellings: `Biomedicinsk
+        # analytiker`, `Biomedicinska analytiker` (plural) and `Biomedicinskanalytiker` (one
+        # word). This is a lab bench, so it belongs with the other lab professions here rather
+        # than in `healthcare` — the same call `laboratory scientist` above already records.
+        r"biomedicinsk\w*\s*analytiker|"
         r"vědecký pracovník|výzkumný pracovník|"
         # --- wave 2 ---
         r"clinical (?:research|trials?)|medical science liaison|"       # en
         r"lab(?:oratory)? technician|regulatory affairs", re.I)),
-    # Before `data_analysis` on purpose: that pattern ends in a bare `\banalyst\b`, so
-    # "Financial Analyst" and "Credit Analyst" were landing in data analysis — a subscriber
-    # asking for data work got finance roles, and one asking for finance got nothing.
+    # Before `data_analysis` on purpose. The original reason was that `data_analysis` ended in
+    # a bare `\banalyst\b`, so "Financial Analyst" landed in data analysis — a subscriber asking
+    # for data work got finance roles, and one asking for finance got nothing. **That bare
+    # fragment is gone (2026-08-22), so the ordering now only matters for the block below**
+    # (`accounts payable`, `general ledger`, `investment analyst`), which is still load-bearing
+    # and still needs to run first.
+    #
+    # **This comment used to cite "Credit Analyst" as its second example and that was false the
+    # whole time** — found independently by two of the 2026-08-22 passes, which is itself the
+    # evidence that prose drifts from behaviour unread. Ordering can only decide a title that
+    # BOTH patterns match, and nothing in this block read a bare `credit analyst` at all (only
+    # `credit control` and `credit risk`), so all 11 such postings sat in `data_analysis`
+    # whatever the order was. Corrected, and the term added below. The general lesson is worth
+    # more than the fix: **an ordering claim is only true about titles two patterns can both
+    # reach, and a comment asserting one is a claim that can rot silently.**
+    #
+    # **A finance word can name the DOMAIN of somebody else's job, and this pattern runs 13th —
+    # ahead of `product`, `design`, `engineering`, `software_engineering` and `sales` — so it
+    # wins those titles outright.** Measured over the whole live corpus on 2026-08-22: 306
+    # postings were filed as finance work that is not finance work, and none of the five answer
+    # keys could see it (all five slices are flat over this change, so the corpus is the only
+    # evidence there is). The two guards below are the same lesson as the `\bengineer\b` misfile,
+    # arriving from the opposite direction: there a broad ROLE word swallowed a sector, here a
+    # narrow DOMAIN word swallows a role.
+    #
+    #   engineer/developer/architect   119 postings — "Software Engineer, Stripe Tax",
+    #                                  "Finance Systems Engineer", "Solution Architect SAP
+    #                                  Finance", "Backend Engineer, Billing/Tax". 106 of them
+    #                                  land in software_engineering, 1 in uncategorised.
+    #   product manager/owner/…         62 postings — "Treasury Product Manager", "Staff Product
+    #                                  Manager, Stripe Tax", "Product Owner Finance IT". 58 land
+    #                                  in product, 3 in design, 0 in uncategorised.
+    #
+    # **The cost is 3 postings and it is stated rather than hidden**: `Strategic Finance Lead,
+    # Product & Engineering`, `Finance & Strategy Partner, Central Engineering` and `Financial
+    # Engineer, truView, Vice President` are finance roles that name engineering, and they leave.
+    # 3 against 174 is the trade, and no anchored form separates them — a finance role *reporting
+    # into* engineering and an engineer *working on* finance wear the same words in the same order.
+    #
+    # **Two things about the shape are load-bearing.** The guard is anchored (`^(?!.*…)`) because
+    # the role head sits on either side of the domain word: "Finance Systems Engineer" puts it
+    # after, "Engineering Manager, Tax Platform" before. An unanchored lookahead — the version
+    # that keeps `m.group(0)` equal to the matched term — reads forward only and catches 45 of
+    # the 177 postings, measured. The `.*(?:…)` wrap is the price of anchoring: the match now
+    # starts at position 0, so span attribution by `m.group(0)` reports "Redovisningsekonom"
+    # where it used to report "ekonom". That is a diagnostic cost, not a classification one, and
+    # the instrument is what should change — group by alternation branch, not by `group(0)`.
+    #
+    # English word forms only, deliberately. Swedish `ingenjör`, Czech `inženýr` and German
+    # `Ingenieur` are NOT here: those titles were never the failure, and a guard that reads a
+    # language nobody measured it against is the `_FR_ROLE` compound hazard again.
     ("finance_accounting", re.compile(
-        r"\bfinanc(?:e|ial)\b|account(?:ant|ing)|\bcontroller\b|bookkeep|\btreasury\b|"
+        r"^(?!.*\b(?:engineer|engineers|engineering|developer|developers|architect|architects)\b)"
+        r"(?!.*\bproduct\s+(?:manager|managers|owner|owners|lead|leads|management|"
+        r"designer|designers)\b)"
+        r".*(?:"
+        # `\bfinancial\b` alone was the single largest misfile in this category: **"Financial
+        # Services" is an industry vertical, not a finance function**, and 101 of the 103 corpus
+        # titles carrying it are somebody else's role sold into that vertical — 129 postings, led
+        # by `Account Executive, Emerging Enterprise, Financial Services` (8) and `Sr. Forward
+        # Deployed Engineer (FDE) - Financial Services` (9). 56 postings land in `sales`, 30 in
+        # `software_engineering`, only 22 in `uncategorised`. The lookahead is positional rather
+        # than whole-title on purpose: the 2 real finance titles in the set are `Financial
+        # Services Tax, Aircraft Leasing Senior Manager` and its Director twin, and they are kept
+        # by `\btax\b` further down. A whole-title `financial services` exclusion would lose them.
+        # Only `services?` is excluded — `financial institutions` (4) and `financial markets` (3)
+        # were checked and are genuine investment-banking titles.
+        r"\bfinanc(?:e|ial)\b(?!\s+services?\b)|account(?:ant|ing)|"
+        # **`\bcontroller\b` is a finance word in Sweden and a warehouse word in English.** The
+        # lookbehinds are the `georgia` rule for a job title: `Document Controller` (6 postings,
+        # a construction/BIM records role), `Stock Controller` (5, retail inventory — two of them
+        # `Customer Assistant - Stock Controller`), `Material(s) Controller` (3), plus one each of
+        # quality, fleet and flow. 17 postings, and none of them shares a word with the 250 real
+        # ones (`Business Controller` 67, `Financial Controller` 48, `Project Controller` 33).
+        # `Production Controller` and `Process Controller` are deliberately NOT here: one of the
+        # two `Process Controller` rows is `Process Controller, Global Functions Finance Tower`,
+        # so the prefix does not decide it and 1 posting is not evidence.
+        r"(?<!document )(?<!documentation )(?<!stock )(?<!material )(?<!materials )"
+        r"(?<!quality )(?<!fleet )(?<!flow )\bcontroller\b|bookkeep|\btreasury\b|"
         r"\baudit(?:or)?\b|payroll|tax (?:advisor|manager|specialist)|"
         r"účetní|účtovník|mzdová účetní|daňov|finanční|"
         # `ekonom` moved here from `other_tech_function` on 2026-08-09. In Swedish and Czech it
@@ -760,7 +1221,15 @@ PATTERNS: tuple[tuple[str, "re.Pattern[str]"], ...] = (
         r"\bteller\b|(?<!service )\bbanker\b|investment banking|"
         r"investment (?:manager|analyst|associate|director|strategist|specialist|"
         r"banker)|"
-        r"\btax\b|\bfp&a\b|credit risk|"
+        # `credit analyst` is here because **the ordering comment above cited it as an example
+        # and nothing in this block could reach it.** `credit control` and `credit risk` were
+        # both present; the bare analyst form was not, so `Senior Credit Analyst` (3),
+        # `Credit Analyst, New Verticals` (2), `Structured Products Credit Analyst` and 4 more
+        # — 11 postings, 7 titles — sat in `data_analysis` no matter where this pattern ran.
+        # Order was never the fix for them; a term was. Bound to `credit` on purpose: the bare
+        # `\banalyst\b` this block is ordered ahead of is `data_analysis`'s, and widening here
+        # would re-fight that boundary instead of closing this hole.
+        r"\btax\b|\bfp&a\b|credit risk|credit analyst|"
         r"collections specialist|collections manager|"
         # ES. `contable` carries a lookbehind: `conciliación contable` is a sales-ops
         # reconciliation title, not an accountant.
@@ -770,19 +1239,101 @@ PATTERNS: tuple[tuple[str, "re.Pattern[str]"], ...] = (
         # --- wave 3 (2026-08-17) ---
         # en-13  en — roles-en-w3.md
         r"investor relations|"
+        # The securities back office, added 2026-08-22. `operations` ran last and swallowed it:
+        # "Investment Operations Officer" (13 postings), "Senior Specialist, Investor Services
+        # Operations" (5), "Specialist - Fund Operations, Private Equity", "Officer, Cash
+        # Securities Operations" — 42 postings over 22 titles filed as business operations, so
+        # a supply-chain subscriber was offered fund administration. **Bound to `operations`,
+        # never bare**: bare `fund` is a verb and a charity, bare `securities` and `trading` are
+        # sector words that appear on engineering and sales titles all over this corpus. The
+        # generic "Client Operations" family (~71 postings, State Street) is deliberately NOT
+        # here — client operations exists in every industry and only the CLO/structured-debt
+        # suffix makes those finance, which is thinner evidence than a fragment should rest on.
+        r"(?:investment|investor\s+services|fund|securities|trading|custody|settlement|"
+        r"middle\s+office|treasury)\s+(?:data\s+)?operations|"
         # de-01  de — roles-de-w3.md
         r"buchhalt|"
         # de-05  de — roles-de-w3.md
         r"rechnungswesen|"
-        r"nale[żz]no[śs]ci",                                            # pl-2 (receivables)
+        # The two German tax professions the block could not read at all (0 occurrences before
+        # 2026-08-22). `steuerberater` is the licensed tax adviser and it is a clean win —
+        # 19 postings, every one of them `uncategorised`, 17 of them one employer's town-by-town
+        # series. It is deliberately the PERSON (`-berater`) and not the practice
+        # (`-beratung`): `Team Lead Sales - Steuerberatungen (m/w/d)` sells TO tax firms and is
+        # correctly `sales`, and finance runs first, so the wider stem would have taken it.
+        # `steuerfachangestell|steuerfachwirt` is the tax clerk — 6 postings out of
+        # `uncategorised`, plus 4 titles already reached by `buchhalt`. The forward lookahead is
+        # the whole reason this is safe to add: `Steuerfachangestellter - IT-Support /
+        # Kanzleisoftware (m/w/d)` is **8 postings and it is already correctly
+        # `customer_support`** — the tax-clerk word is the required qualification and IT support
+        # is the job. German puts the profession first, so a forward-only guard reaches it;
+        # without the guard this term would have been a net 8-posting MISFILE dressed as a
+        # 14-posting win.
+        r"steuerberater|steuerfach(?:angestell|wirt)\w*(?![^|]*it[- ]?support)|"
+        r"nale[żz]no[śs]ci"                                             # pl-2 (receivables)
+        r")",
         re.I)),                                                                 # fr-2
     ("data_analysis", re.compile(
-        r"data analyst|bi analyst|business intelligence|power bi|\btableau\b|\banalyst\b|"
+        # `\bdata\b[^|\w]{0,3}analyst` rather than a literal `data analyst`: the NL and DE
+        # boards write `Data-Analyst` and one board writes `Junior (Data) Analyst`, and the
+        # bare-space form never matched either. 10 postings, all of them real data analysts.
+        r"\bdata\b[^|\w]{0,3}analyst|bi analyst|business intelligence|power bi|"
+        # The named data functions whose title puts a word between "data" and "analyst" —
+        # governance, quality, management, operations. 16 postings, all genuine. Enumerated
+        # rather than a `\bdata\b[^|]{0,22}\banalyst\b` window, because that window also reads
+        # `Data Privacy Analyst` (legal) and `Maintenance Analyst, Data Center Delivery`.
+        r"data (?:governance|quality|management|operations)[^|\w]{0,3}analyst|"
+        r"\binsights? analyst|"
+        # `tableau` is a TOOL NAME, and a tool name alone never names a role — bound to a role
+        # noun 2026-08-22. The bare `\btableau\b` won 13 postings and **all 13 were Salesforce
+        # advertising its own product**: three `Tableau Account Executive`, two `Account
+        # Director`, an `Enterprise Account Director`, a Customer Success Manager, a Product
+        # Manager, two Software Engineering MTS, a Technical Architect and a Lead Researcher.
+        # Zero data analysts, so 13 of 13 damage and no collateral. Same shape as the
+        # `Mekonomen` guard one pattern up — the collision is an EMPLOYER'S PRODUCT NAME, and
+        # it is inside the classifier, not inside `search_tsv`. `power bi` above needs no such
+        # guard: Microsoft does not sell Power BI through titled account executives here.
+        r"tableau\s+(?:analyst|developer|utvecklare|consultant|specialist|expert)|"
+        # **A bare `\banalyst\b` was the single largest misfile in the corpus, and it is gone**
+        # (measured 2026-08-22). `analyst` is a job-SHAPE word — every function has one — not a
+        # data word, and the data senses of it are all named explicitly above and below. As the
+        # residual of those named senses it won **1 778 postings across 1 379 titles**, of which
+        # only 218 postings so much as mentioned data, reporting, BI or analytics *anywhere* in
+        # the title. The qualifier census is what settles it rather than argument: 294 distinct
+        # words appear immediately before `analyst`, the commonest being `business` 165,
+        # `operations` 120, `support` 58, `systems` 46, `product` 45, `it` 42 — a distribution
+        # no blocklist can ever close.
+        #
+        # It was also making a decision this file has already made elsewhere UNREACHABLE:
+        # `other_tech_function` carries `business analyst` at the bottom of `PATTERNS`, so the
+        # taxonomy had already ruled that a business analyst is not a data analyst, and this
+        # fragment 459 lines earlier meant that ruling could never fire. 726 of the 1 778
+        # postings are claimed by a *named* neighbour the moment this stops shadowing them —
+        # other_tech_function 196, operations 180, sales 95, software_engineering 75,
+        # marketing 54, hr_recruiting 46, legal 31 (`Paralegal - Data Privacy Analyst`, 18
+        # postings, was in *data analysis*), product 19, customer_support 18 — and the
+        # remaining 1 052 go `uncategorised`, which is the honest answer and the one the AI
+        # matcher can still rescue. A misfile it cannot: it puts the job in a stranger's
+        # digest. Do not restore the bare form to make the category look bigger.
         # `analist` is the Dutch/loan spelling that arrives via the NL boards ("Data Analist").
         r"quantitative (?:researcher|analyst)|\banalist\b|"
         # `analityk` (pl) is a separate string from the Czech `analytik` — the i/y is exactly
         # the kind of near-miss that looks already-covered and matches nothing.
-        r"analytics|analytik|analytičk|analytičc|analityk|analitycz|"   # pl
+        # `analytics` is a DOMAIN word, not a role, and `data_analysis` runs 30–170 lines above
+        # `product`, `software_engineering` and `sales` — so the domain beat the profession and
+        # the profession never got asked. `classify` returns the first *pattern* that matches
+        # anywhere, so string position does not save it: "Senior Software Engineer, Events
+        # Analytics Platform" was data analysis. Guarded 2026-08-22 in the same shape as
+        # `product design` below: 42 postings move, 22 to product ("Senior Product Manager -
+        # User and Lifecycle Analytics"), 17 to software_engineering, 3 to sales ("Account
+        # Executive - Analytics, Federal Civilian"), and **nothing moves to uncategorised** —
+        # zero collateral, because each of these titles names its own profession outright.
+        # Deliberately NOT widened to a bare `\bengineer`: "Engineering Manager, Data &
+        # Analytics" is a data-engineering line manager, and guessing there would trade a
+        # measured win for an argued one.
+        r"^(?!.*(?:software engineer|product manag|product owner|"
+        r"account (?:executive|director))).*analytics|"
+        r"analytik|analytičk|analytičc|analityk|analitycz|"   # pl
         # --- wave 2 --- both bound: bare `datos` takes `Centro de Datos` and
         # `Protección de Datos` (legal), bare `análisis` takes `Análisis Clínicos` (a
         # hospital lab).
@@ -807,17 +1358,54 @@ PATTERNS: tuple[tuple[str, "re.Pattern[str]"], ...] = (
         r"systemadministra|"
         r"systems? administrator|\bsysadmin\b", re.I)),                 # en
     ("product", re.compile(
-        r"product manager|product owner|product lead|product management|\btpm\b|program manager|"
+        r"product manager|product owner|product lead|product management|"
+        # The one program-management shape that IS product: the qualifier says so. Keeps the
+        # 3 postings the move below would otherwise cost, and it has to run before the
+        # `other_tech_function` fragment, which it does by sitting here.
+        r"product program manager|"
         r"produktov\w*\s+manaž|produktov\w*\s+vlastník|"
         # --- wave 2 ---
         # --- Norwegian, 2026-08-11 (N36) — graded against NAV STYRK-08 ---
         r"produktsjef|"
         # --- wave 3 (2026-08-17) ---
-        # en-19  en — roles-en-w3.md
-        r"programme (?:manager|lead|director)|"
+        # `program manager` / `programme (manager|lead|director)` / `\btpm\b` lived here until
+        # 2026-08-22 and moved to `other_tech_function`. Program management is a delivery
+        # discipline, not product management, and the fragment was a BARE role head: because
+        # `product` runs ahead of software_engineering, marketing, sales, hr_recruiting, legal,
+        # customer_support and operations, the function the title actually names lost to it.
+        # 545 postings over 433 titles, of which 127 postings / 109 titles were claimed by a
+        # later category that names the function outright — "Recruiting Program Manager",
+        # "Marketing Program Manager, France", "Legal Program Manager, Contracts and
+        # Governance", "Supply Chain Program Manager". The 418-posting residual is genuine
+        # program/project delivery across silicon, data centres, plants, medicine and defence
+        # ("Program Manager Plant A", "Senior Program Manager, Sports Medicine"), which is not
+        # product either. Product subscribers keep reaching it through recall —
+        # `SHORTLIST_KEYWORDS["product"]` carries "program manager", where breadth belongs and
+        # the AI matcher does the precision.
         r"scrum master", re.I)),                                        # en
     ("design", re.compile(
-        r"designer|\bux\b|\bui\b|user experience|user interface|design lead|"
+        # The lookbehind is one employer's job title and 15 postings of it: a "Business Process
+        # Designer" is a BPM analyst, and `other_tech_function` names `business process`
+        # outright — it just runs 400 lines later, so bare `designer` won on ordering alone.
+        # Positional, not whole-title, so "Senior Business Process Designer" is caught too.
+        r"(?<!business process )designer|"
+        # `\bui\b`, `\bux\b` and "user experience" are DOMAIN qualifiers, not role nouns, so
+        # bare they read a frontend engineer's title as a designer's — `design` runs ahead of
+        # `software_engineering`, so "UI Engineer", "Staff Backend Engineer - UI Platform",
+        # "Principal UX Engineer, Ads" and "Software Engineer, User Experience" all landed
+        # here: 55 postings over 68 titles, measured 2026-08-22. The lookahead is the same
+        # shape the `product design` fragment below already uses, and it is safe because the
+        # bare `designer` above still fires first — "Frontend Developer & UI/UX Designer" and
+        # "Lead UX Designer & Frontend Engineer" stay in `design`, "UI Engineer" leaves.
+        r"^(?!.*\b(?:engineer|engineering|developer|programmer)\b)"
+        r".*(?:\bux\b|\bui\b|user experience|user interface)|"
+        # "Design Lead" bare is any discipline's design lead, and the automotive/aerospace
+        # boards write it constantly: "Mechatronics Discipline Design Leader", "Mechanical
+        # Design Leader (LV products)", "Group Design Leader - Interior/Exterior/BIW" — 20 of
+        # the 29 postings the bare form held. Bound to a digital/brand domain word instead,
+        # the same construction `_DE_ROLE` and `_IT_ROLE` use for the same reason.
+        r"(?:brand|content|visual|experience|service|graphic|digital|web|product|"
+        r"creative|motion|\bux\b|\bui\b)[\s/&-]+design lead|"
         r"designér|dizajnér|grafik|grafičk|návrhá[řr]|formgivare|grafisk|"
         # --- wave 2 ---
         r"art director|creative director|"                              # en
@@ -833,11 +1421,28 @@ PATTERNS: tuple[tuple[str, "re.Pattern[str]"], ...] = (
     # home for ISCO major 21/31 and Platsbanken's "Yrken med teknisk inriktning" — ~4 000
     # register rows that had no category until 2026-08-09 and sat uncategorised.
     ("engineering", re.compile(
-        r"mechanical engineer|electrical engineer|civil engineer|structural engineer|"
-        r"process engineer|chemical engineer|automotive engineer|aerospace engineer|"
-        r"industrial engineer|manufacturing engineer|mechatronic|electronics engineer|"
-        r"hardware engineer|electrical\b.{0,40}engineer|"
-        r"ingenjör|ingeniör|ingeniør|"            # SE -ingenjör / -ingeniör and NO -ingeniør
+
+        # **The discipline used to have to be ADJACENT to "engineer", and that is what leaked.**
+        # `mechanical engineer` cannot read "Mechanical Design Engineer" (14 postings), and only
+        # `electrical` had ever been given the gap it needed — so 220 postings of mechanical,
+        # electronics, manufacturing, process and structural work carried a discipline word in
+        # the title and *still* fell through to `software_engineering`'s bare `\bengineer\b`.
+        # Binding the whole discipline list the way `electrical` was already bound closes it;
+        # measured on the NAV key it also *gains* a row (`Hardware Test Engineer/Technician`,
+        # STYRK 2149), and SE/CZ/CZ-majors stay flat row for row.
+        # `engr\b` because Workday and Oracle tenants abbreviate the head as well as the
+        # discipline ("Mech Design Engr II", "Chemical Engr I") — 28 postings that every
+        # discipline guard in this pattern was blind to, `mech\b` being the other half of it.
+        # The guard is `software engineer|developer`, not bare `software`: bare also released
+        # `Smart Manufacturing Engineer, Software`, which belongs here.
+        r"^(?!.*(?:software (?:engineer|developer)|full[- ]?stack|customer (?:support|success)))"
+        r".*(?:mechanical|mech\b|electrical|electronics?|civil|structural|process|chemical|"
+        r"automotive|aerospace|industrial|manufacturing|hardware)\b[^|]{0,40}?"
+        r"\b(?:engineer|engr\b)|"
+        r"mechatronic|"
+        # `(?<!försäljnings)` — see the sales-engineer note on the French `ingénieur` below.
+        # A *Försäljningsingenjör* sells; the title's head is the selling, not the engineering.
+        r"(?<!försäljnings)ingenjör|ingeniör|ingeniør|"   # SE -ingenjör / -ingeniör, NO -ingeniør
         # `konstruktör` (SE) as well as `konstruktér` (CZ): mechanical and electrical designers
         # are the single largest group inside the register's technical field, and until
         # 2026-08-09 the Swedish spelling was the one missing.
@@ -856,11 +1461,26 @@ PATTERNS: tuple[tuple[str, "re.Pattern[str]"], ...] = (
         # Three of the four Romance/Slavic engineer words need a software lookahead because
         # `engineering` runs BEFORE `software_engineering`; German does not, because German
         # software work advertises as `entwickler`, which the next pattern claims.
-        r"ing[ée]nieur(?:e|es|s)?\b(?![^|]{0,40}"                               # fr
-        r"(?:logiciel|logicel|software|web|d[ée]veloppement|devops|full ?stack))|"
+        # **A sales engineer is a salesperson, and three languages spell it with the engineer
+        # word.** French `ingénieur commercial / d'affaires / avant-vente / technico-commercial`,
+        # German `Vertriebsingenieur` and Swedish `försäljningsingenjör` are quota-carrying field
+        # sales roles; `sales` runs 200 lines after this pattern, so only a decline here can
+        # release them. `commercial` joins the same lookahead the software words already use;
+        # German and Swedish take fixed-width lookbehinds because the sales word is a compound
+        # PREFIX there, not a following noun.
+        #
+        # `(?<!vertriebs)` is on BOTH this token and the German `ingenieur` below, and the
+        # duplication is deliberate: `ing[ée]nieur` reads the bare-e German spelling too, so
+        # guarding only the German copy left `Vertriebsingenieur im Innendienst` in engineering.
+        # That is the `farmaceut(?!yczn)` note on this file's healthcare pattern, verbatim — a
+        # bare copy anywhere in the alternation still matches, so a guard on one copy fixes
+        # nothing. Measured: guarding the German token alone moved 0 postings.
+        r"(?<!vertriebs)ing[ée]nieur(?:e|es|s)?\b(?![^|]{0,40}"                 # fr
+        r"(?:logiciel|logicel|software|web|d[ée]veloppement|devops|full ?stack|"
+        r"commercial|d'affaires|avant[- ]vente|technico))|"
         r"ing[ée]nierie|"
         r"progettis|progettazion|"                                              # it
-        r"ingenieur|konstrukteur|"                                              # de
+        r"(?<!vertriebs)ingenieur|konstrukteur|"                                # de
         r"ingenier(?![\w/()@.]*\s+(?:de\s+)?"                                   # es
         r"(?:software|backend|front[- ]?end|full[- ]?stack))|"
         r"werktuigbouw|constructeur|\btekenaar|modelleur|technisch tekenaar|"   # nl
@@ -881,7 +1501,15 @@ PATTERNS: tuple[tuple[str, "re.Pattern[str]"], ...] = (
         # deliberate and correct: a quality *inspector* on a line stays
         # `manufacturing_production` (`quality (inspector|technician)`, which runs earlier), a
         # quality *engineer* is engineering. No single category is honest across both.
-        r"quality engineer|qualitätsingenieur|ingénieur\w*\s+qualité|"
+        # **`data`/`AI` quality is not industrial quality, and the fold above did not guard it.**
+        # `data_analysis` runs earlier and correctly keeps "Data Quality Analyst", so the leak is
+        # exactly the titles that name no analyst: "Junior Data Quality Specialist", "Senior AI
+        # Quality Engineer", "AI Agent Quality Engineer", "Multilingual AI Quality Specialist".
+        # The guard requires the word to sit ON `quality` (`[^|]{0,8}`, not anywhere in the
+        # title) so "Quality Engineer, Data Center" and a plant title mentioning AI keep their
+        # category — the same anchored shape as the `safety engineer` guard below.
+        r"^(?!.*(?:\bdata|\bai|\bml)\b[^|]{0,8}qualit)"
+        r".*quality engineer|qualitätsingenieur|ingénieur\w*\s+qualité|"
         r"inżynier\w*\s+jakości|ingeniero\w*\s+de\s+calidad|kvalitetsingenjör|"
         r"supplier quality|quality engineering|"
         # The same defect the quality fold above fixed, two families later — and the file had
@@ -903,7 +1531,51 @@ PATTERNS: tuple[tuple[str, "re.Pattern[str]"], ...] = (
         # having been rescued from this pattern family once already.
         r"^(?!.*(?:trust\s*(?:and|&)\s*safety|software|full[- ]?stack)).*\bsafety engineer|"
         r"\b(?:hse|ehs)[\s-]*engineer|"
+        # **The catch half of unbinding `hvac` in `skilled_trades`.** HVAC is an industry, not a
+        # job, and while that bare stem shipped it answered first for every role in the sector.
+        # Releasing it there is only safe with this rule here, because `software_engineering`'s
+        # bare `\bengineer\b` runs next and would take **59 of those 60 postings** — the same
+        # misfile one category along, which is the 718-posting `\bengineer\b` failure of
+        # 2026-08-17 arriving through a new door. Mutation-checked by deleting these two lines:
+        # 59 postings move straight to `software_engineering`. Building-services and controls
+        # engineering is `engineering` on the same footing as the `hse|ehs` line above (STYRK
+        # 3119 / ISCO 2149).
+        #
+        # Two directions because the corpus writes both ("HVAC Controls Application Engineer",
+        # "Field Service Engineer - HVAC Controls & Building Automation"), and `36`/`30` are
+        # measured widths, not round numbers: at 36 the leading form reaches across "Building
+        # Controls Application " (31 chars) — at 30 it is one character short and those 5
+        # postings go to software. `hvacr?` catches the refrigeration spelling. The anchored
+        # `software|full[- ]?stack` guard is the `safety engineer` shape. **`\bsales\b` is
+        # deliberately NOT in that guard**: `sales` runs AFTER `software_engineering`, so
+        # declining a sales-engineer title here cannot reach `sales` — it only hands the title
+        # to software's bare `\bengineer\b`, which is the very misfile this pair exists to
+        # prevent. Measured on "HVAC Pre Sales Field Engineer, GCOE".
+        r"^(?!.*(?:software|full[- ]?stack)).*\bhvacr?\b[^|]{0,36}?engineer|"
+        r"^(?!.*(?:software|full[- ]?stack)).*engineer[^|]{0,30}?\bhvacr?\b|"
         r"^(?!.*(?:software|application)).*\bmaintenance engineer|"
+        # Silicon, EE and physical-discipline engineers — the same defect as the quality,
+        # safety and maintenance folds above, in the vocabulary this file never learned.
+        # `\bengineer\b` was filing 187 postings of chip and hardware work as SOFTWARE:
+        # `Staff Analog Design Engineer` (6), `Staff Digital Design Engineer` (4),
+        # `Senior ASIC Design Engineer` (4), `Thermal Engineer` (4), and 146 more titles.
+        # These names are unambiguous — nobody advertises a web role as an ASIC engineer —
+        # which is why they may be *bare* discipline words where `design engineer` may not
+        # (see the discipline-bound rule at the top of this pattern: the SSYK key files a
+        # bare "Design Engineer" as SOFTWARE, so bare `design engineer` must NOT ship).
+        # `\bsoc\b` is deliberately absent and only `soc design` ships: `SOC Analyst` is a
+        # security-operations title and `cybersecurity` does not read a bare `soc`.
+        # The `software engineer|developer` guard is what keeps `Software Engineer – Hardware
+        # Software Integration Engineer` and `Senior Low Latency Electronic Trading Software
+        # Engineer` in software; the narrower `software engineer` (not bare `software`) is
+        # measured — bare `software` also released `Smart Manufacturing Engineer, Software`,
+        # which is an engineering row.
+        r"^(?!.*(?:software (?:engineer|developer)|full[- ]?stack))"
+        r".*(?:analog(?:ue)?|\basic\b|\brtl\b|\bfpga\b|\bmems\b|silicon|semiconductor|"
+        r"wafer|photonic|\bemc\b|\brf\b|thermal|hydraulic|pneumatic|solenoid|actuator|"
+        r"avionic|propulsion|powertrain|"
+        r"(?:digital|physical|logical|circuit|board|package|cell|mask|layout|chip|soc|"
+        r"\bic|product|tool)\s+design)\b[^|]{0,32}?\bengineer|"
         # `essais` = trials/testing. The lookahead keeps *essais cliniques* (clinical trials)
         # out — that is research, not engineering.
         rf"{_FR_ROLE}[^|]{{0,20}}?essais?\b(?![^|]{{0,14}}clinique)|"   # fr-2
@@ -941,14 +1613,33 @@ PATTERNS: tuple[tuple[str, "re.Pattern[str]"], ...] = (
         # NL civil engineering. `civiel` is what stops the five Dutch civil engineers
         # being filed as SOFTWARE by `software_engineering`'s bare `\bengineer\b` — the
         # exact failure the `engineering` category exists to prevent, in Dutch.
-        r"civiel|geotechniek|geohydrolo|ontwerper|kunstwerken|"         # nl-2
+        # **`ontwerper` is CUT, and it is the Polish `projektant` verdict in Dutch.** Bare
+        # `ontwerper` is the ordinary Dutch word for *designer*, not for a design engineer, and
+        # every one of its 7 corpus postings is something else: "Technisch Ontwerper Privileged
+        # Access Management" and "Netwerk Security Ontwerper, Checkpoint, F5, Fortinet" (IT
+        # security), "Opleidingsontwerper" and "Trainingsontwerper" (instructional design —
+        # education), "Ruimtelijk ontwerper Wonen, werken en bereikbaarheid" (spatial planning),
+        # "Senior Functioneel Ontwerper" (business analysis). 0 right, 7 wrong — even the
+        # `Technisch` prefix, which is what a narrowing would have kept, is IT both times it
+        # appears. `technisch tekenaar` and `constructeur` on this same line still carry the
+        # Dutch design-engineer sense, so the category loses no real Dutch coverage.
+        r"civiel|geotechniek|geohydrolo|kunstwerken|"                   # nl-2
         # --- wave 3 (2026-08-17) ---
         # en-15  en — roles-en-w3.md
-        r"quality (?:manager|assurance manager|systems? (?:manager|specialist|engineer)|specialist)|"
+        # Same guard as on `quality engineer` above — this wave-3 fragment took "Junior Data
+        # Quality Specialist" and "Multilingual AI Quality Specialist" by the same route.
+        r"^(?!.*(?:\bdata|\bai|\bml)\b[^|]{0,8}qualit)"
+        r".*quality (?:manager|assurance manager|systems? (?:manager|specialist|engineer)|specialist)|"
         r"telecomunicaciones|redes\s+el[ée]ctricas", re.I)),            # es-2
     ("software_engineering", re.compile(
         r"software engineer|software developer|back[- ]?end|front[- ]?end|full[- ]?stack|"
-        r"web developer|mobile developer|\bios\b|android|\bdeveloper\b|programmer|"
+        # `programmer(?!ing)` — the English agent noun sits inside the Swedish and Dutch
+        # ACTIVITY noun (*programmering*), so a university lecturer in interface programming, a
+        # Bravida security technician who also programmes alarms, a statistician "med
+        # programmeringsinriktning" and a children's coding coach were all software developers:
+        # 7 postings, 7 titles, none of them a dev job. The Swedish AGENT noun
+        # (*programmerare*) is unaffected, which is the whole point of the lookahead.
+        r"web developer|mobile developer|\bios\b|android|\bdeveloper\b|programmer(?!ing)|"
         # "Software Development Manager/Lead" — `software developer` does not match "software
         # development", so the manager or lead of a dev team read as uncategorised (2026-08-10).
         r"software development (?:manager|lead|director)|"
@@ -983,13 +1674,46 @@ PATTERNS: tuple[tuple[str, "re.Pattern[str]"], ...] = (
         # confident answer on the most arguable member of the family. The only safe error is a
         # miss, and a decline still reaches the AI matcher on the keyword path. Decided
         # 2026-08-17; reopen it with numbers, not intuition.
+        #
+        # **Four more heads decline, on the same mechanism and for the same reason** (measured
+        # 2026-08-22 over every active posting). `legal engineer` — 88 postings, 42 titles, one
+        # legal-AI employer's whole job board ("Legal Engineer (Law Firm, Litigation)",
+        # "Head of Legal Engineering") — is a lawyer's job, and `legal`'s `\blegal\b` was dead
+        # for every title containing "Engineer". `value engineer` (95) and `customer engineer`
+        # (92, over half of them Oracle data-centre thermal/UPS field roles) name no software
+        # work; they land as honest declines, exactly like `support engineer` above.
+        # `customer success engineer` (44) reaches `operations`, which owns `customer success`.
+        # These are LOOKBEHINDS for the same reason the `sales`/`support` pair is: a whole-title
+        # guard on `customer` would take "Customer Data Platform Engineer" with it.
+        # This changes `test_f`, which pins Legal/Value/Customer Success Engineer as software —
+        # a 2026-08-17 verdict on a *bare* `sales|support` whole-title guard, re-decided here on
+        # the named phrases with 0 postings moving the wrong way.
         r"(?<!sales )(?<!sales-)(?<!support )(?<!support-)"
+        r"(?<!legal )(?<!legal-)(?<!value )(?<!value-)(?<!customer )(?<!success )"
         r"\bengineer(?:ing)?\b|\bengr\b|qa engineer|\bsdet\b|"
         r"solutions? architect|enterprise architect|"
         r"vývojá[řr]|vývojárk|programátor|programátork|softwarov|softvérov|"
-        # Any Swedish -utvecklare compound, except the two that are not software:
-        # "affärsutvecklare" (business development) and "verksamhetsutvecklare".
-        r"(?<!affärs)(?<!verksamhets)utvecklare|"
+        # Any Swedish -utvecklare compound, except the ones that are not software. Two were
+        # excluded (`affärs`, `verksamhets`) and **the Norwegian twin of this fragment already
+        # excluded five** (`forretnings`, `produkt`, `elektronikk`, `organisasjons`,
+        # `tjeneste`) — the same word in two Nordic languages with two different guard lists,
+        # and Swedish had the shorter one. Measured: 69 postings of `-utvecklare` titles that
+        # are not software at all, led by `Processutvecklare lärande & förbättring` (9),
+        # `Fastighetsutvecklare` (real estate, 7), `Produktutvecklare` (8),
+        # `Elektronikutvecklare` (4), `Näringslivsutvecklare` and `Måltidsutvecklare` (3 each).
+        # `mjukvaru` is NOT here and must never be: *mjukvaruutvecklare* is a software
+        # developer, and it is the reason this list is prefixes rather than a rule about
+        # compounds. Grouped by length because Python lookbehinds must be fixed-width; a
+        # whole-title `^(?!...)` variant measures **byte-identical** on all five slices and on
+        # the corpus, and the lookbehind is preferred only because it keeps `matchspans.py`'s
+        # span attribution readable (`group(0)` stays "utvecklare", not the whole title).
+        r"(?<!(?:vård|kund))(?<!(?:språk|metod|plats|lokal|givar|klubb|ledar))"
+        r"(?<!(?:affärs|region|ombuds|trafik|energi|kommun))"
+        r"(?<!(?:process|produkt|närings|måltids|projekt|ungdoms|tjänste))"
+        r"(?<!(?:hårdvaru|företags|industri))(?<!(?:kvalitets|kvalitéts))"
+        r"(?<!(?:fastighets|elektronik|mekatronik))"
+        r"(?<!(?:verksamhets|produktions|näringslivs|innovations))(?<!organisations)"
+        r"utvecklare|"
         r"lösningsarkitekt|systemarkitekt|dataarkitekt|it-arkitekt|integrationsarkitekt|"
         r"solution architect|software architect|"
         r"\btestare\b|testledare|systemtestare|"
@@ -1009,7 +1733,12 @@ PATTERNS: tuple[tuple[str, "re.Pattern[str]"], ...] = (
         # cs-08  cs — roles-cs-w3.md
         r"(?:it|enterprise|solution|software|datov\w+|cloud\w*|síťov\w+|technick\w+)[- ]?\s*architekt|"
         # de-07  de — roles-de-w3.md
-        r"softwareentwickl|wirtschaftsinformatik|informatiker|"
+        # `\binformatiker` — the German role noun was added unbounded and immediately read
+        # Swedish compounds it was never measured against: `Bioinformatiker` (5 postings, a
+        # research profession), `Hälsoinformatiker` and `Forvaltningsinformatiker`, 8 postings
+        # in all. The boundary keeps bare `Informatiker` (and `Fachinformatiker` /
+        # `wirtschaftsinformatik`, which ship separately) and reaches none of them.
+        r"softwareentwickl|wirtschaftsinformatik|\binformatiker|"
         # nl-01  nl — roles-nl-w3.md
         r"(?<!product)(?<!beleids)ontwikkelaar|"
         # es-01  es — roles-es-w3.md
@@ -1033,9 +1762,45 @@ PATTERNS: tuple[tuple[str, "re.Pattern[str]"], ...] = (
     # subscribers already hold it in `profiles.role_categories` and removing a stored value
     # is a migration, not a taxonomy edit.
     ("marketing", re.compile(
-        r"marketing|marketingov|marketér|\bseo\b|\bsem\b|growth|brand manager|"
-        r"copywriter|content marketing|\bpr\b|public relations|kampan|"
-        r"marknad|kommunikatör|kommunikationsansvarig|kommunikationschef|"
+        r"marketing|marketingov|marketér|\bseo\b|\bsem\b|brand manager|"
+        # `growth` DECLINES when the title also names a sales role. `sales` runs AFTER this
+        # pattern, so it cannot out-compete `growth` — the catch-all has already answered, the
+        # same reason `\bengineer\b` has to decline rather than lose. In "Enterprise Account
+        # Executive, Growth" and "Account Manager, SME & Growth" the word names a customer
+        # SEGMENT, not the work: measured at **173 postings moving marketing -> sales and none
+        # to uncategorised**, led by `Enterprise Account Executive, Growth` (22) and `Customer
+        # Growth Sales Account Executive` (20). NAV grades `Growth Manager` sales too. Collateral
+        # is nil because the `marketing` alternative above still claims anything that says
+        # marketing at all — "Business Development/Sales & Growth Marketing" stays here on that
+        # word rather than on `growth`, which is why 4 of the 177 candidates did not move.
+        # All five answer-key slices are byte-identical, so this is a corpus verdict.
+        r"^(?!.*(?:\bsales\b|account executive|account manager|business development|"
+        r"\bsdr\b|\bbdr\b)).*growth|"
+        # `\bpr\b` is `(?<!\d/)\bhr\b` in a second costume, and it needs the same two guards.
+        # It reads the Norwegian preposition ("2-3 dager **pr** uke") and the US immigration
+        # status ("Sr Technical Project Manager (Citizen/**PR** only)"). 2 postings against 25
+        # real PR titles, and no title in the corpus writes "<word>/PR" or "pr <period>" any
+        # other way, so both guards are free. The Puerto Rico postal code
+        # ("... Outlets Barceloneta **PR**") is the same mechanism and is NOT caught — a bare
+        # trailing token cannot be told from a role word without a place list.
+        r"copywriter|content marketing|(?<!/)\bpr\b(?!\s+(?:uke|uker|veke|week|month))|"
+        r"public relations|kampan|"
+        # `marknad` needs its LEADING boundary — this is the `georgia` rule in Swedish. Bare, it
+        # reads the tail of compounds that are not marketing at all: **arbetsmarknad** (the
+        # labour market — 43 postings of municipal employment services,
+        # "Arbetsmarknadskonsulent", "Arbetsmarknadssekreterare", "Handläggare till
+        # Arbetsmarknadsenheten"), **eftermarknad** 11 (aftermarket/after-sales service),
+        # **apoteks-/friskole-/privatmarknad** 9, **stormarknad** 7 (a hypermarket, so "Lönechef
+        # till EKO Stormarknad" was marketing), **elmarknad/energimarknad** 6 and
+        # **servicemarknad** 4. 81 postings match, **79 leave** (`kommunikatör` rescues two), and
+        # 17 of them are sales titles marketing was stealing ("Fältsäljare ... på
+        # Apoteksmarknaden" ×6, "Utesäljare – Service & Eftermarknad"). Collateral is nil: the
+        # corpus holds no marketing compound of the shape `<word>marknad` —
+        # online/digital/webb/content/handels all return zero — because Swedish writes the
+        # modifier the other way round ("digital marknadsföring"), which the boundary keeps. The
+        # two SSYK key rows in this family are graded OUT OF SCOPE, i.e. the register itself says
+        # they are not marketing, and `uncategorised` is the honest answer for 56 of them.
+        r"\bmarknad|kommunikatör|kommunikationsansvarig|kommunikationschef|"
         # `\bcomunicazion` needs its LEADING boundary — without it, "telecomunicazioni" reads
         # as marketing.
         r"\bcomunicazion|"                                                      # it
@@ -1140,7 +1905,13 @@ PATTERNS: tuple[tuple[str, "re.Pattern[str]"], ...] = (
     ("hr_recruiting", re.compile(
         r"recruit|talent acquisition|people ops|people partner|people operations|"
         r"human resources|(?<!\d/)\bhr\b|rekryter|"
-        r"personalist|nábor|náborář|mzdov[áý] účetní|"
+        # `nábor` is the Czech twin of the `$80/hr` bug: a **náborový příspěvek** is a signing
+        # bonus advertised in the title of the job it is offered for, so "Stříkač - náborový
+        # příspěvek 30 000 Kč" (a sprayer) and "Laminátník - …" (a laminator) are factory work
+        # that the ISCO key codes as manufacturing_production. Money in a title is never the
+        # job. 0 live postings today only because healthcare and manufacturing run first; 2
+        # rows on the Czech answer key, and the mechanism is what recurs.
+        r"personalist|nábor(?!ov\w{0,3}\s*(?:příspěv|bonus|prémi))|náborář|mzdov[áý] účetní|"
         # French `recrut` is NOT reachable from the existing English `recruit`: recrutement has
         # no i. The two words diverge at the fifth letter — the same near-miss as
         # `skladník`/`Skladníci`. `\brh\b` is a two-letter token and the weakest term here;
@@ -1149,7 +1920,14 @@ PATTERNS: tuple[tuple[str, "re.Pattern[str]"], ...] = (
         r"risorse\s+umane|"                                                     # it
         r"recursos humanos|\brrhh\b|"                                   # es
         # --- wave 2 ---
-        r"\bhrbp\b|\bpeople\b|learning (?:&|and) development|\bl&d\b|"  # en
+        # `\bpeople\b` is the department; "2 People Only From Vancouver … Data Entry" and "We
+        # want more people in the kitchen" are the ordinary English noun, counted. The
+        # lookbehinds are positional for the same reason `(?<!\d/)\bhr\b` is: the HR sense
+        # never has a number or "more" in front of it, and a whole-title rule would discard
+        # "Working Student - Culture & People". 7 postings, six of them one multiplying
+        # data-entry template.
+        r"\bhrbp\b|(?<!\d )(?<!more )\bpeople\b|"                       # en
+        r"learning (?:&|and) development|\bl&d\b|"
         # PL. Polish *rekrutacja* diverges from English *recruit* at the fifth letter —
         # the kind of near-miss that looks already-covered and matches nothing.
         r"\bkadr|\brekrutacj|"                                          # pl-2
@@ -1173,8 +1951,28 @@ PATTERNS: tuple[tuple[str, "re.Pattern[str]"], ...] = (
         # `lawyer` and `attorney` — the plain English words were both absent, so "Immigration
         # Lawyer" (2026-08-10, 21 rows) and every US-style "... Attorney" title fell through to
         # uncategorised while the Czech `advokát` and the Latinate `counsel` were already read.
-        r"\blegal\b|\blawyer\b|\battorney\b|counsel|paralegal|compliance officer|"
-        r"právník|právnik|advokát|jurist|koncipient|"
+        # `counsel` is a SUBSTRING and it reaches into `counsellor`/`counselor`/`counselling` —
+        # the same shape as Dutch `recht` inside *Utrecht*, three lines down. Three corpus
+        # postings, all of them filed as lawyers: `100% Permanent School Counsellor`,
+        # `Affiliate EAP Counsellor (Network Partnership)` and `Banamex Investment Counselor B
+        # Puebla`. `[oi]` covers both the agent noun and the gerund in both spellings; the
+        # lookahead cannot reach `Legal Counsel` or `Commercial Counsel` (25 postings), which is
+        # why it is a lookahead and not a whole-title exclusion.
+        r"\blegal\b|\blawyer\b|\battorney\b|counsel(?!l?[oi])|paralegal|compliance officer|"
+        # **`koncipient` is not a legal word — it is Czech for a TRAINEE in a licensed
+        # profession**, and the qualifier in front names the profession: `advokátní` (lawyer),
+        # `notářský` (notary), `finanční` (finance), `realitní` (real estate). Bare, it filed 2
+        # estate agents as lawyers — `Realitní makléř/ka, realitní koncipient/ka` and its longer
+        # twin — so it is BOUND, the `_IT_ROLE` construction in Czech.
+        #
+        # **A negative lookbehind on `realitní` was tried first and it only moved 1 of the 2**,
+        # which is the transferable half of this: `Realitní makléř / makléřka, realitní koncipient
+        # / koncipientka` writes the feminine form too, and `koncipientka` contains `koncipient`
+        # preceded by `/ `, not by the qualifier. **A lookbehind guards one occurrence; a title
+        # that names the role twice defeats it.** Binding cannot be defeated that way.
+        # `Finanční koncipient/ka / Finance Trainee` was already finance — that pattern runs
+        # first — so the finance qualifier needs no branch here.
+        r"právník|právnik|advokát|jurist|(?:advok[áa]tn|not[áa][řr]sk)\w*\s+koncipient|"
         # Dutch `recht` is deliberately absent — it is inside **Utrecht**. Only the compounds
         # ship. That is the `georgia` rule in Dutch.
         r"avvocat|societari|"                                        # it
@@ -1193,7 +1991,15 @@ PATTERNS: tuple[tuple[str, "re.Pattern[str]"], ...] = (
         r"\bcontracts?\s+(?:manager|specialist|administrator|analyst|lead|director)\b|"
         r"jur[íi]dic", re.I)),                                          # pt
     ("customer_support", re.compile(
-        r"customer (?:support|service|care)|help ?desk|technical support|support specialist|"
+        r"customer (?:support|service|care)|help ?desk|technical support|"
+        # Bare `support specialist` read "Application Development & Support Specialist" (22
+        # postings, one employer) as a support job when the head of the compound is
+        # *development*. Excluded at title level, the same shape as `drifttekniker` above:
+        # a "… Development … Support Specialist" is whoever built the thing, and
+        # `software_engineering` runs 246 lines earlier with the better claim on it. Nothing
+        # correct in the corpus pairs the two words — the 55 other support-specialist titles
+        # are Product/Technical/IT/Client, none of them Development.
+        r"^(?!.*\bdevelopment\b).*support specialist|"
         r"it[- ]?support|service desk|zákaznick|kundtjänst|kundservice|podpora zákazn|"
         r"supporttekniker|first[- ]line|kundbokare|bokningsmedarbetare|kundinformatör|"
         r"centralin|assistenza\s+client|supporto\s+client|relazion\w*\s+client|"  # it
@@ -1215,8 +2021,20 @@ PATTERNS: tuple[tuple[str, "re.Pattern[str]"], ...] = (
         re.I)),
     ("operations", re.compile(
         r"\boperations\b|customer success|supply chain|procurement|strategic sourcing|"
-        r"office manager|"
-        r"provozn|nákupčí|nákupca|inköpare|"
+        # An office manager runs *an* office; a "Front Office Manager" runs a hotel reception,
+        # a "Middle Office Manager" a bank's trade support, a "Post Office Manager" a postal
+        # branch, and a "Project Management Office Manager" a PMO. Every one of the 8 postings
+        # `office manager` bare was holding under those five qualifiers was wrong (6 titles,
+        # zero collateral, measured 2026-08-22) — and hospitality and finance both run BEFORE
+        # this entry, so neither could rescue its own.
+        r"(?<!post )(?<!middle )(?<!front )(?<!back )(?<!management )office manager|"
+        # `provozn` is the Czech stem for "operational" and it reads two different jobs.
+        # "Provozní manažer / ředitel / oddělení" is this category; "provozní technik" is a
+        # plant/maintenance technician and "provozní zootechnik" a livestock keeper — 12
+        # postings over 9 titles, and skilled_trades and manufacturing_production both run
+        # BEFORE this entry without naming either, so nothing else could take them back.
+        r"^(?!.*provozn\w*[\s/–-]+(?:zoo)?technik)(?!.*provozn\w*\s+pizzerie).*provozn|"
+        r"nákupčí|nákupca|inköpare|"
         r"acheteu|approvisionn|\bachats?\b|"                                    # fr
         r"\bacquisti\b|"                                                        # it
         r"eink[äa]uf|"                                                          # de
@@ -1241,7 +2059,43 @@ PATTERNS: tuple[tuple[str, "re.Pattern[str]"], ...] = (
         # pattern above reads it (they all want engineer/analyst/scientist/science), so it falls
         # here to the admin residual, which is what it is.
         r"data entry|"
-        r"administrativ|asistent|assistent|koordinátor|koordinator|"
+        r"administrativ|"
+        # `assistent` / `asistent` / `koordinator` / `koordinátor` shipped BARE here until
+        # 2026-08-22, and they are generic ROLE HEADS — exactly what `_DE_ROLE`'s docstring
+        # forbids ("NONE of these may ship bare"), for exactly the reason it gives. This was
+        # the last block in the file not following its own rule, and `koordinator` is *in*
+        # `_DE_ROLE`. Bare, they read the Scandinavian and Czech compound from the inside.
+        #
+        # Measured over every active posting (2026-08-22): bare `assistent` won 393 postings
+        # across 353 titles, of which ~350 are LSS/BPA personal assistance, `lärarassistent`,
+        # `forskningsassistent`, `laboratorieassistent`, `rehabassistent`, `tandläkarassistent`
+        # — care, teaching and lab work, not admin. Bare `koordinator` won 238 (`Pasientkoordinator`,
+        # `Vårdprocesskoordinator`, `Barnekoordinator`, `Transportkoordinator`,
+        # `Bemanningskoordinator`), bare `koordinátor` 42 (BOZP, montáže, realizace). On all
+        # three publisher answer keys the four fragments earn **zero** correct rows, and cost
+        # 31 wrong ones on the Norwegian key alone — the whole of its
+        # `healthcare -> other_tech_function` column, which this change removes outright.
+        #
+        # **The damage was not a wrong digest, it was a permanent one.** No chip maps to
+        # `other_tech_function` (`ROLE_ID_FOR_CATEGORY` is display-only — see the note in
+        # `web/lib/options.ts`), so a claim here is a coverage hole; and `ingest.role_category`
+        # consults the weekly categoriser's cache **only on a decline**, so a confident wrong
+        # answer keeps the row out of `store.uncategorised_titles()` for good. That is why the
+        # `personlig assistent` note in `social_care` — "residual … left as declines" — was not
+        # true when it was written: these fragments went on claiming the residual, so it was
+        # never asked about. Narrowing them hands 695 postings to the one mechanism that can
+        # still read them.
+        #
+        # Bound to an admin domain the head is right, and every binder below is a form the live
+        # corpus publishes — `Kontorsassistent`, `Ledningskoordinator`, `Managementassistent`,
+        # `Arkivassistent`, `Asistent/ka ředitele` — not a guess. It keeps 58 postings a bare
+        # deletion would have lost, at flat accuracy on all five slices.
+        r"(?:kontors|förvaltnings|lednings|verksamhets|samordnings|bolags|enhets|arkiv|"
+        r"chefs|konsultchefs|management\s?|office\s|back[\s-]?office[\s-]?)"
+        r"(?:ass?istent|koordin[aá]tor)|"
+        r"\bvd[\s-]?ass?istent|"
+        r"asistent[^|]{0,20}?\s+(?:ředitel|jednatel|vedení|kancelář|ceo|generáln|"
+        r"back\s?office)|"
         # English admin titles: the CZ/SE spellings above never matched "Executive Assistant".
         r"(?:executive|administrative|office|personal) assistant|"
         r"assistant\w*[ .]?e?\s+de\s+direction|"                                # fr
@@ -1258,6 +2112,11 @@ PATTERNS: tuple[tuple[str, "re.Pattern[str]"], ...] = (
         r"implementation (?:consultant|manager|specialist|lead)|"
         # en-17  en — roles-en-w3.md
         r"chief of staff|"
+        # Program/project delivery management, moved out of `product` 2026-08-22 — see the
+        # comment there. It has to sit in the LAST entry, because the whole point is that any
+        # category naming the actual function ("Marketing Program Manager", "Legal Program
+        # Manager") gets to answer first.
+        r"program manager|programme (?:manager|lead|director)|\btpm\b|"
         # en-18  en — roles-en-w3.md
         r"technical writer|\bdocumentation\s+(?:specialist|manager|lead|engineer)|"
         # it-01  it — roles-it-w3.md
@@ -1279,7 +2138,6 @@ CATEGORIES: tuple[str, ...] = tuple(c for c, _ in PATTERNS) + (UNCATEGORISED,)
 #: the value written to `postings.role_category` and the value a subscriber may ask for drift
 #: apart, which is the whole reason this module is the single definition.
 _VALID: frozenset[str] = frozenset(CATEGORIES)
-
 
 def classify(title: str | None, hint: str | None = None) -> str:
     """Classify a job title into a role_category.
@@ -1331,7 +2189,12 @@ SHORTLIST_KEYWORDS: dict[str, list[str]] = {
                              "backend", "frontend", "fullstack"],
     "devops_platform": ["devops", "sre", "platform engineer", "cloud engineer",
                         "kubernetes", "administrátor"],
-    "product": ["product manager", "product owner", "produktový manažer", "produktový vlastník"],
+    # "program manager" is deliberately here and NOT in `PATTERNS` above: it is the recall
+    # half. The classifier cannot tell a product programme from a plant programme, but a
+    # product subscriber plausibly wants both offered — so it retrieves, and the AI matcher
+    # decides. Precision in the regex, breadth in the keywords.
+    "product": ["product manager", "product owner", "produktový manažer", "produktový vlastník",
+                "program manager"],
     "design": ["designer", "designér", "ux", "ui", "grafik", "návrhář"],
     "social_media": ["social media", "sociální sítě", "sociálních sítí", "sociálne siete",
                      "community manager", "influencer", "content creator", "smm",

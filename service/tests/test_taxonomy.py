@@ -844,7 +844,14 @@ def test_the_documented_norwegian_failures_are_fixed(title, expected):
     ("Sjåfør klasse C", "logistics_transport"),
     ("Selger til vår butikk", "sales"),
     ("Tømrer søkes", "construction"),
-    ("Rørlegger/VVS-Montør", "skilled_trades"),  # a plumber is a trade, not a production line
+    # Was `skilled_trades`, on the comment "a plumber is a trade, not a production line". Half
+    # right: it is certainly not a production line, but the registers file it under CONSTRUCTION
+    # and this row was disagreeing with its own answer key. NAV codes this exact ad **STYRK
+    # 7126** (as it does `VVS Montør` and `Rørlegger - service- og prosjekt`), and SSYK puts
+    # `VVS montör` in the group "VVS-montörer m.fl." under the field "Bygg och anläggning" —
+    # four keyed rows, two registers, no counter-example. `ISCO_CATEGORIES` maps `71` to
+    # construction, so the scorer already believed this; only the pattern did not.
+    ("Rørlegger/VVS-Montør", "construction"),
     ("Overlege", "healthcare"),
     ("Tannlege", "healthcare"),
 ])
@@ -1029,12 +1036,56 @@ def test_f_the_catch_all_still_claims_everything_else():
     file too; it earns its place by failing against the *wrong fix*.
     """
     for title in ("Systems Engineer", "Principal Engineer", "Staff Engineer",
-                  "IT Operations Engineer", "Engineering Manager, Growth", "Legal Engineer",
-                  "Customer Success Engineer", "Value Engineer", "Software Engr I",
+                  "IT Operations Engineer", "Engineering Manager, Growth", "Software Engr I",
                   "Senior Salesforce Engineer", "Salesforce Ads Systems Engineer",
                   "Sr. Systems Engineer, Sales & Marketing",
-                  "Desktop Engineer (2nd Line Support)", "Support Operations Engineer"):
+                  "Desktop Engineer (2nd Line Support)", "Support Operations Engineer",
+                  # 2026-08-22: neighbours of the four heads that left (see the test below).
+                  # These are what a whole-title guard on those words would have cost.
+                  "Senior Engineer, Customer Platform", "Staff Engineer - Customer Onboarding",
+                  "Engineering Manager, Customer Experience",
+                  "Senior Software Engineer, Legal Products"):
         assert taxonomy.classify(title) == "software_engineering", title
+
+
+def test_f2_four_more_heads_decline_to_their_real_owners():
+    """`Legal`, `Value`, `Customer` and `Customer Success` Engineer, added 2026-08-22.
+
+    **This narrows what `test_f` above pins, and the reason is in the 2026-08-17 commit rather
+    than in a new argument.** That session released 718 postings — sales, IT support,
+    maintenance, safety — on the stated principle that *a misfile is worse than a miss*, and it
+    declined `support engineer` precisely because it "would convert 129 honest declines into
+    confident answers on the most arguable member of the family".  Three of the titles `test_f`
+    listed were never mentioned in that reasoning: they were examples of the catch-all's
+    remaining scope, not a verdict on the phrases.  Measured here, they are the same failure the
+    session was fixing, in four more disciplines:
+
+        legal engineer              88 postings, one legal-AI employer's whole board, and
+                                    `legal`'s own `\\blegal\\b` was DEAD for every title
+                                    containing "Engineer"
+        value engineer              95 — a business-value pre-sales consultant.  94 decline,
+                                    which is the `support engineer` treatment, not a new claim
+        customer engineer           92 — Oracle data-centre field service and pre-sales
+        customer success engineer   44 — `operations` owns `customer success` and could never
+                                    answer, because the catch-all answered first
+
+    The guard is four LOOKBEHINDS, so the mechanism verdict `test_f` exists to defend is intact:
+    the whole-title form still costs 147 postings via SALESFORCE, and the four neighbour titles
+    added to `test_f` above are what a whole-title guard on *these* words would have cost.
+    Wrong-direction moves across all five answer-key slices: zero.
+    """
+    for title, expected in (("Legal Engineer", "legal"),
+                            ("Lead Legal Engineer", "legal"),
+                            ("Legal Engineer - In-House", "legal"),
+                            ("Customer Success Engineer", "operations"),
+                            ("Senior Manager, Customer Success Engineering", "operations")):
+        assert taxonomy.classify(title) == expected, title
+    # `value engineer` and `customer engineer` DECLINE — nothing else claims them, and that is
+    # the intended outcome.  A decline still reaches the AI matcher on the keyword path; a
+    # confident wrong answer puts the job in a stranger's digest.
+    for title in ("Value Engineer", "Senior Value Engineer - Public Sector",
+                  "Customer Engineer", "Customer Engineer I - Atlanta, GA"):
+        assert taxonomy.classify(title) != "software_engineering", title
 
 
 def test_g_swedish_personal_assistant_is_social_care():
