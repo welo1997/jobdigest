@@ -2139,6 +2139,70 @@ CATEGORIES: tuple[str, ...] = tuple(c for c, _ in PATTERNS) + (UNCATEGORISED,)
 #: apart, which is the whole reason this module is the single definition.
 _VALID: frozenset[str] = frozenset(CATEGORIES)
 
+#: Spans that name a WORKPLACE or a SECTOR rather than a profession, and must therefore lose
+#: to any *profession* word in the same title. Keyed by category; each pattern is matched with
+#: `fullmatch` against the span a category's own alternation produced.
+#:
+#: **This is "specific before general" one level below pattern order.** `healthcare` runs first
+#: so that a nurse is never taken by `\banalyst\b`, and that is right — but the same first
+#: position also let `sjukvård`, `äldreomsorg`, `tandvård`, `hemtjänst`, `vårdcentral` and Czech
+#: `zdravotn` classify the *employer* instead of the job: `Jurist inom Hälso- och
+#: sjukvårdsjuridik`, `Kock till Äldreomsorgen Alingsås`, `Data scientist, Folktandvården`,
+#: `Rekryterare till äldreomsorgen`, `Full-stack vývojář ... ve zdravotnictví` and
+#: `Sociální pracovníci ... (kromě péče o zdravotně postižené)` were all healthcare. Order
+#: cannot fix that: a *profession* word is specific and a *sector* word is general, and one
+#: alternation cannot be both first and last.
+#:
+#: The list enumerates OUR OWN vocabulary, not other people's professions, which is why it
+#: cannot rot the way `^(?!.*(?:receptionist|jurist|kock|...))` would — every new intruder
+#: profession is handled by the category that owns the word, with no edit here.
+#:
+#: Deferral is per *title*, not per span: a title where the category also matches something
+#: non-sector (`Dental Turism AB söker erfarna tandsköterskor`, `Folktandvården söker
+#: övertandläkare`) is not deferred at all. Only a title whose EVERY match is a sector span is.
+_SECTOR_ONLY: dict[str, "re.Pattern[str]"] = {
+    "healthcare": re.compile(
+        r"sjukvård|äldreomsorg|tandvård|hemtjänst|zdravotn|.*vårdcentral", re.I),
+}
+
+
+#: A sector word yields to a *profession*, never to the residual bucket. `other_tech_function`
+#: is not a claim that the job is anything — no chip maps to it (`ROLE_ID_FOR_CATEGORY` is
+#: display-only, one way), so a row there is reachable by nobody and `ingest._classify` will
+#: never re-ask about it either, because the model cache is consulted only on a decline.
+#:
+#: **The 15 postings that motivated this guard no longer need it, and the number here is the
+#: corrected one: 4.** When it was measured, the deferral pushed `Rehabkoordinator till
+#: Vårdcentralen Ryd`, `Klinikassistent till Vårdcentral Malung` and `Zdravotní asistentka v
+#: oční ambulanci` into the residual bucket — but that was against a tree where
+#: `other_tech_function` still shipped a bare `koordinator`/`assistent`. The misfile pass
+#: narrowed those heads, so it no longer claims those titles at all: the intruder was fixed at
+#: the source, which is the better fix. **Mutation-checking this guard is what found that** —
+#: emptying it changed nothing, because the case it was written for had already been repaired
+#: one commit earlier. Same shape as the wave-3 proposal a committed fix made inert
+#: mid-measurement.
+#:
+#: What survives is narrower and worth stating honestly, because it points the other way: the
+#: 4 remaining postings are `Vedoucí administrativní pracovník/ce ve zdravotnictví` (x2),
+#: `Odborní administrativní pracovníci v oblasti zdravotnictví` and `Administrativ assistent
+#: med erfarenhet av hemtjänst` — titles where the sector is healthcare and the profession
+#: really *is* administration, so the mechanism's own logic says `other_tech_function` is the
+#: correct answer. The guard overrides it anyway, and that is a **reachability** choice rather
+#: than a correctness one: a subscriber can select healthcare and cannot select the residual
+#: bucket, so a soft misfile beats a row nobody can reach. Stated rather than implied, because
+#: the next person to read this should be able to disagree with it on the number.
+_DEFER_NEVER_TO: frozenset[str] = frozenset({"other_tech_function"})
+
+
+def _sector_only(category: str, pattern: "re.Pattern[str]", text: str) -> bool:
+    """True when every match `category` found in `text` is a workplace/sector word."""
+    sector = _SECTOR_ONLY.get(category)
+    if sector is None:
+        return False
+    spans = [m.group(0) for m in pattern.finditer(text)]
+    return bool(spans) and all(sector.fullmatch(s) for s in spans)
+
+
 def classify(title: str | None, hint: str | None = None) -> str:
     """Classify a job title into a role_category.
 
@@ -2162,9 +2226,21 @@ def classify(title: str | None, hint: str | None = None) -> str:
     does not exist.
     """
     text = title or ""
+    deferred: str | None = None
     for category, pattern in PATTERNS:
-        if pattern.search(text):
-            return category
+        if not pattern.search(text):
+            continue
+        if deferred is not None and category in _DEFER_NEVER_TO:
+            continue
+        if _sector_only(category, pattern, text):
+            # A workplace, not a profession — let a later category's profession word win.
+            # First one seen is remembered, so pattern order still decides the fallback.
+            if deferred is None:
+                deferred = category
+            continue
+        return category
+    if deferred is not None:
+        return deferred
     return hint if hint in _VALID else UNCATEGORISED
 
 
