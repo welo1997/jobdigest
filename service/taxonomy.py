@@ -176,7 +176,14 @@ PATTERNS: tuple[tuple[str, "re.Pattern[str]"], ...] = (
         # child welfare and psychiatry; the `terapeut` stem was reading the suffix only.
         r"(?<!milj[øö])terapeut|sjukgymnast|psykolog(?!i)|farmaceut(?!yczn)|apotekare|"
         r"tandhygienist|tandvård|"
-        r"logoped|audionom|veterinär|djursjukskötare|hemtjänst|äldreomsorg|sjukvård|"
+        r"logoped|audionom|"
+        # NO/DK `dyrlege` and `dyreplei` are unreachable from Swedish `veterinär`, and
+        # `[äæ]` covers the Danish/Norwegian spelling of the Latin word. Academic guard for
+        # the same reason as `fastlege` below: healthcare runs before education, so a
+        # "Stipendiat i veterinærmedisin" is a PhD. 14 corpus postings, +1/+1 on the
+        # committed key and +9/+9 on the refreshed one.
+        r"^(?!.*(?:stipendiat|postdoktor|førsteamanuensis|professor)).*veterin[äæ]r|"
+        r"dyrlege|dyreplei|djursjukskötare|hemtjänst|äldreomsorg|sjukvård|"
         r"omsorgsassistent|stödassistent|"
         # 2026-08-10 multi-language pass. `farmaceut` gained `(?!yczn)`: the Polish adjective
         # *farmaceutyczny* is how a pharma **sales** rep advertises, and it was filing as
@@ -263,6 +270,31 @@ PATTERNS: tuple[tuple[str, "re.Pattern[str]"], ...] = (
         # adjective trap two dozen lines down. Evidence is the licence and the corpus, not a
         # register row; drop this fragment first if the pass is trimmed.
         r"ortopedingenj|ortopedtekni|"
+        # --- Norwegian, 2026-08-22 — graded against a refreshed NAV STYRK-08 key ---
+        # `fastlege` could only ever match the bare word behind a boundary, and the register
+        # advertises the *position*: fastlegevikariat, fastlegehjemmel, fastlegeavtale,
+        # fastlegeliste, fastlegepraksis. It was refusing 44 live postings of the commonest
+        # Norwegian doctor word. The academic guard is this file's own
+        # `^(?!.*receptionist).*vårdcentral` idiom, and it is not hypothetical: healthcare
+        # runs before education, so "Stipendiat i allmennmedisin ... på fastlegekontoret" is
+        # a PhD, not a GP. Measured free — the guard costs 0 rows on all five keys.
+        r"^(?!.*(?:stipendiat|postdoktor|førsteamanuensis|professor))"
+        r".*(?:fastlege|allmennlege|legesenter|legekontor)|"
+        # Clinical professions this file knows in Swedish and never learned in Norwegian:
+        # `radiograf` (15 postings), `ernæringsfysiolog` — SE `dietist` (7), `audiograf` —
+        # SE `audionom` (3), `psykiater`, of which only `psykolog` ever shipped (3), and the
+        # paramedic (4), whose university posts need the same guard as the vet's.
+        r"radiograf|ernæringsfysiolog|audiograf|psykiater|"
+        r"^(?!.*(?:stipendiat|postdoktor|førsteamanuensis|professor|lektor|lærer))"
+        r".*(?:ambulansearbeid|paramedisin)|"
+        # `koordinator` belongs to `other_tech_function`, where bare it is a genuine spread
+        # — 56 NAV postings over 50 titles, no plurality, ranging from Pasientkoordinator to
+        # Meeting & Events Koordinator — so the WORD stays declined and only the compounds
+        # NAV itself codes as clinical are taken. STYRK 2221/2263/5321.
+        # `forløpskoordinator` was in this list and is NOT shipped: 0 rows in 136 417 corpus
+        # postings and 0 in either key bucket. Plausible and inert is how two wave-3
+        # fragments came to ship dead.
+        r"pasient\w*koordinator|kreftkoordinator|demenskoordinator|"
         # --- wave 3 (2026-08-17) ---
         # sv-04  sv — roles-sv-w3.md
         r"^(?!.*receptionist).*vårdcentral|"
@@ -350,7 +382,11 @@ PATTERNS: tuple[tuple[str, "re.Pattern[str]"], ...] = (
         # titles) it carries fall to `uncategorised`. Both spellings: NO/DK `miljø`, SE
         # `miljö`. The other 26 of the word's 145 postings name a nurse or vernepleier too
         # and stay `healthcare` — which is the row NAV coded 5321.
-        r"milj[øö]terapeut|"
+        # `barnekoordinator` is Norway's statutory coordinator for a child with complex
+        # needs, not an admin job; `familie`/`ungdomsveileder` are the two `veileder`
+        # compounds that name a profession — bare `veileder` is 48 postings spread across
+        # everything and stays declined, exactly like bare `technicien`.
+        r"milj[øö]terapeut|barnekoordinator|(?:familie|ungdoms)(?:veileder|rettleiar)|"
         # 2026-08-22. Swedish `-pedagog` is a CREDENTIAL suffix, not a workplace: it marks a
         # pedagogical qualification, and Swedish residential-care employers hire qualified
         # pedagogues. `education`'s bare `pedagog` was therefore filing 150 postings of
@@ -433,6 +469,22 @@ PATTERNS: tuple[tuple[str, "re.Pattern[str]"], ...] = (
         r"\bonderwijs(?!instelling)|"                                   # nl-2
         # --- Norwegian, 2026-08-11 (N13, N14, N15, N16, N17) — graded against NAV STYRK-08 ---
         r"lærer|lærar|barnehage|ungdomsarbeider|ungdomsarbeidar|\bforsker|\bforskar|stipendiat|postdoktor|førsteamanuensis|\brektor|\bsfo\b|"
+        # --- Norwegian, 2026-08-22 ---
+        # `undervisningsstilling` is how a Norwegian school advertises a teaching post
+        # without ever writing `lærer` (19 postings, 19 distinct titles). `postdoctoral` is
+        # the English half of the already-shipped `postdoktor`, and it earns its place beyond
+        # Norway — 23 of its 28 corpus rows are English-language academic boards, and five
+        # were misfiled by their topic word (a `Postdoctoral Research Fellow in Algal
+        # Microbiome Engineering` was reading as software_engineering).
+        r"undervisningsstilling|postdoctoral|"
+        # --- Norwegian, 2026-08-22 ---
+        # `undervisningsstilling` is how a Norwegian school advertises a teaching post
+        # without ever writing `lærer` (19 postings, 19 distinct titles); `postdoctoral` is
+        # the English half of the already-shipped `postdoktor`, and it earns its place
+        # beyond Norway — 23 of its 28 corpus rows are English-language academic boards,
+        # and five of them were misfiled by their topic word (a `Postdoctoral Research
+        # Fellow in Algal Microbiome Engineering` was reading as software_engineering).
+        r"undervisningsstilling|postdoctoral|"
         # --- wave 3 (2026-08-17) ---
         # cs-04  cs — roles-cs-w3.md
         r"tren[ée]r|"
@@ -1801,6 +1853,11 @@ PATTERNS: tuple[tuple[str, "re.Pattern[str]"], ...] = (
         # two SSYK key rows in this family are graded OUT OF SCOPE, i.e. the register itself says
         # they are not marketing, and `uncategorised` is the honest answer for 56 of them.
         r"\bmarknad|kommunikatör|kommunikationsansvarig|kommunikationschef|"
+        # NO. The Swedish forms above cannot reach the Norwegian spelling (`-sjon-`), so 16
+        # postings of the register's commonest communications title were declined.
+        # `kommunikasjonssjef` and `kommunikasjonsleiar` are deliberately absent: both are
+        # plausible Norwegian and both fire on 0 corpus rows and 0 key rows today.
+        r"kommunikasjons(?:rådgiver|rådgjevar|leder|ansvarlig|direktør)|"
         # `\bcomunicazion` needs its LEADING boundary — without it, "telecomunicazioni" reads
         # as marketing.
         r"\bcomunicazion|"                                                      # it
@@ -1824,6 +1881,16 @@ PATTERNS: tuple[tuple[str, "re.Pattern[str]"], ...] = (
         r"public affairs|government affairs|corporate affairs", re.I)),
     ("sales", re.compile(
         r"\bsales\b|account executive|account manager|key account|business development|"
+        # NO. An insurance adviser sells insurance — ISCO/STYRK 3321 files it under sales,
+        # and 18 postings of it were declined. Bound to the compound, never bare `rådgiver`:
+        # that word alone is 253 declined NAV postings spread over eleven categories with a
+        # 27% plurality, which is a coin flip, not a gap.
+        r"forsikringsr[åa]dgi|"
+        # NO. An insurance adviser sells insurance — ISCO/STYRK 3321 files it under sales,
+        # and 18 postings of it were declined. Bound to the compound, never bare
+        # `rådgiver`: that word alone is 253 declined NAV postings spread over eleven
+        # categories with a 27% plurality, which is a coin flip, not a gap.
+        r"forsikringsr[åa]dgi|"
         # Retail shop floor, which the taxonomy could read in Swedish (`butik`) and Czech
         # (`prodava`) but not in English. `customer assistant` is UK supermarket language for
         # a shop-floor job, not a support role — support advertises itself as customer
