@@ -73,11 +73,15 @@ ENTRY_URL = f"{BASE}/api/v1/feedentry/{{uuid}}"
 #: `deploy.sh` replaces that tree wholesale via `git archive | tar -x`.
 STATE_DIR = Path(os.environ.get("NAV_STATE_DIR", "/state"))
 
-#: STYRK-08 major groups to keep: 1 managers, 2 professionals, 3 technicians. **A dilution
-#: guard, not a judgement about which work matters** — the same call `mpsv.ISCO_MAJOR_KEEP`
-#: makes, and for the same reason: under `SHORTLIST_FLOOR` the recall predicate is dropped
-#: entirely, so unrankable inventory reaches subscribers who never asked for it. Measured over
-#: 2 000 live ads: majors 1-3 are **51.2%**, and major 5 (service and sales) is 30% on its own.
+#: STYRK-08 major groups kept **whatever their code says**: 1 managers, 2 professionals,
+#: 3 technicians. White-collar work whose *titles* the taxonomy reads directly, so an unmapped
+#: code here (216 architects, 212 statisticians) is not a reason to refuse the ad.
+#:
+#: It used to be the whole scope rule, and that was the wrong shape — see `_in_scope`. What
+#: survives of the original dilution guard is its reasoning, not its mechanism: under
+#: `SHORTLIST_FLOOR` the recall predicate is dropped entirely, so **unrankable** inventory
+#: reaches subscribers who never asked for it. Rankable inventory does not have that problem,
+#: because `role_category` is what the predicate filters on.
 STYRK_MAJOR_KEEP = frozenset("123")
 
 #: STYRK-08 prefix -> `role_category`, longest prefix first.
@@ -91,6 +95,30 @@ STYRK_MAJOR_KEEP = frozenset("123")
 #: nationally: STYRK minor group 222 has four unit groups where ISCO-08 has two, and there is
 #: no ISCO-08 2223 at all — it is *Sykepleiere*, the commonest professional code in the corpus.
 #: Keying `22` at two digits is what makes those national subdivisions land correctly.
+#:
+#: **Majors 4-9 were added 2026-08-26 and they are what makes `_in_scope` possible**, on the
+#: same rule `platsbanken.SSYK_FIELD_CATEGORIES` follows: a group that means exactly one thing
+#: gets an entry, a group with no counterpart in `CATEGORIES` is left out and its ads are
+#: refused. Measured over the 5 445-ad refreshed answer key (b0+b1, 2026-08-22): they admit
+#: **2 361 ads, 43.4% of the register**, of which **1 004 (43%) are titles the patterns cannot
+#: read at all** — "Vi søker ringevikarer", "Er du min nye BPA-assistent?". Those are not
+#: vocabulary misses. They are ads whose title never names an occupation, and the publisher's
+#: own code is the only thing that can answer for them.
+#:
+#: `5322` is the entry worth arguing about, and it is a **deliberate disagreement with the
+#: answer key**, which rolls the whole of `532` up to healthcare. 5322 is home-based personal
+#: care, which in Norway is overwhelmingly BPA (*brukerstyrt personlig assistanse*) — the
+#: disability-support scheme, 229 ads in the key, 203 of them unreadable by title. The
+#: taxonomy already settled this shape for Sweden: LSS `personlig assistent` is `social_care`,
+#: not healthcare (see the note in `taxonomy.PATTERNS`). `5321` (helsefagarbeider) stays
+#: healthcare and `5329` with it, so the split is at the level STYRK itself distinguishes.
+#: **The code route also sidesteps the false friend outright**: NO `personlig assistent` can be
+#: an office PA and the title cannot tell you which, but 5322 can.
+#:
+#: The disagreements this creates with the title classifier are all near-neighbour boundary
+#: calls on the same key — 712 says construction where the title says skilled_trades (18 ads),
+#: 723 the reverse (11), 531 education against social_care (8) — and `classify` gives the title
+#: precedence, which is the existing policy and stays.
 STYRK_CATEGORIES: dict[str, str] = {
     # 1 managers
     "121": "operations", "122": "sales", "132": "manufacturing_production",
@@ -106,6 +134,38 @@ STYRK_CATEGORIES: dict[str, str] = {
     "331": "finance_accounting", "332": "sales", "333": "operations",
     "334": "other_tech_function", "3412": "social_care",
     "351": "customer_support", "352": "devops_platform",
+    # 4 clerical support. 41 (general and keyboard clerks) is deliberately absent: "Kontor-
+    # medarbeider produksjon og logistikk" is the residual bucket by any reading, and no chip
+    # selects it. 4224 (hotel receptionists) likewise — 27 ads, and `hospitality` would claim
+    # a front-desk job the taxonomy files as customer-facing admin.
+    "4222": "customer_support", "4225": "customer_support", "4226": "hospitality",
+    "431": "finance_accounting",
+    "4321": "logistics_transport", "4322": "manufacturing_production",
+    "4323": "logistics_transport",
+    # 5 service and sales. 514 (hairdressers, beauticians), 5142 (spa), 5153 (building
+    # caretakers), 541 (protective services) and 516 have no counterpart and stay refused.
+    "512": "hospitality", "513": "hospitality",
+    "52": "sales",
+    "531": "education",                            # childcare workers, barnehageassistent
+    "5321": "healthcare", "5322": "social_care", "5329": "healthcare",
+    # 7 craft and trades. 731 (handicraft) and 754 (other craft) are absent.
+    "71": "construction",
+    "721": "manufacturing_production", "722": "manufacturing_production",
+    "723": "skilled_trades",                       # machinery mechanics and repairers
+    "732": "manufacturing_production",
+    "741": "skilled_trades", "742": "skilled_trades",
+    "751": "manufacturing_production", "752": "manufacturing_production",
+    "753": "manufacturing_production",
+    # 8 operators and assemblers. 835 (ships' deck crews) is absent — 6 ads, no category.
+    "81": "manufacturing_production", "82": "manufacturing_production",
+    "831": "logistics_transport", "832": "logistics_transport", "833": "logistics_transport",
+    "834": "construction",                         # earthmoving and crane operators
+    "8344": "logistics_transport",                 # lifting-truck (forklift) work is warehouse
+    # 9 elementary. 91 (cleaners, 100 ads — the largest single refusal), 92, 95 and 96 have no
+    # counterpart in CATEGORIES and mapping them to the nearest thing is what the answer key's
+    # own first rule forbids.
+    "931": "construction", "932": "manufacturing_production", "933": "logistics_transport",
+    "94": "hospitality",
 }
 
 #: How far back a cold start reaches. No backfill is needed or wanted: every ad carries
@@ -198,6 +258,44 @@ def _styrk_category(codes: list[str]) -> Optional[str]:
                 answers.add(STYRK_CATEGORIES[code[:n]])
                 break
     return answers.pop() if len(answers) == 1 else None
+
+
+def _in_scope(codes: list[str], keep: frozenset[str]) -> bool:
+    """Is this ad rankable — i.e. can anything downstream file it under a category?
+
+    **This replaced a major-group filter on 2026-08-26, and the shape of the rule is the
+    point.** `frozenset("123")` refused *half the register* (2 729 of 5 445 ads on the
+    refreshed answer key) to bound one real harm: under `SHORTLIST_FLOOR` the recall predicate
+    is dropped entirely, so inventory nobody can filter on reaches subscribers who never asked
+    for it. But "unrankable" and "major 4-9" are not the same set, and the sibling register
+    already said so: `platsbanken` ingests healthcare, transport, pedagogy, hospitality,
+    manufacturing, construction and social work — majors 4-9 work, all of it — gated on
+    `test_a_field_is_never_ingested_without_a_way_to_rank_it`. Sweden contributes 47 083 active
+    postings against Norway's 5 577, and this filter is most of that gap.
+
+    So the test is rankability, in three parts:
+
+      - **no code at all** → keep. The title is all there is and it may well read; refusing
+        would discard ads for having less metadata, which is the wrong direction.
+      - **majors 1-3** → keep, mapped or not. White-collar titles the patterns read directly.
+      - **anything else** → keep only when the codes name a category unanimously. That is the
+        publisher's own answer, and it is a *stronger* signal than a title, not a weaker one:
+        43% of the ads this admits carry titles no pattern can read.
+
+    The refusals that remain are work with no counterpart in `taxonomy.CATEGORIES` — cleaners,
+    hairdressers, security guards, spa therapists, sailors, general office clerks: 368 ads,
+    6.8% of the register. Mapping them to the nearest category is exactly what the answer
+    key's first rule forbids, and it is why this returns False rather than guessing.
+
+    **Widening this costs no requests.** The scope test runs *after* `fetch` has already paid
+    for the detail call (that is what lets it re-check an ad recoded since we last looked), so
+    the old rule was discarding responses it had already fetched.
+    """
+    if not codes:
+        return True
+    if codes[0][:1] in keep:
+        return True
+    return _styrk_category(codes) is not None
 
 
 def _expired(expires: Optional[str], today: date) -> bool:
@@ -419,7 +517,7 @@ class NavSource(BaseSource):
                 ads.pop(uuid, None)
                 continue
             codes = _styrk_codes(content)
-            if codes and codes[0][:1] not in self._keep:
+            if not _in_scope(codes, self._keep):
                 ads.pop(uuid, None)                # re-coded out of scope since we last looked
                 continue
             location, country = _location(content)
@@ -466,7 +564,7 @@ class NavSource(BaseSource):
             if not uuid or not title:
                 continue
             codes = ad.get("styrk") or []
-            if codes and codes[0][:1] not in self._keep:
+            if not _in_scope(codes, self._keep):
                 continue
             link = ad.get("link") or ""
             # The apply link must deep-link the ad, but `posting_id` hashes the immutable

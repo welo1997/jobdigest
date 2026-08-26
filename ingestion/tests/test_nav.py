@@ -10,9 +10,11 @@ Three groups matter more than the rest, and each exists because the failure is S
     recent window while `store.deactivate_stale(days=7)` deactivates anything not re-seen in
     seven days. If the mirror stops emitting the whole active set, Norwegian inventory decays
     to nothing within a week with no error anywhere.
-  - **The scope filter.** STYRK majors 1-3 are 51.2% of the register. Without the filter the
-    other half reaches the *widened* retrieval path, which drops the recall predicate — the
-    reason `mpsv` keeps ISCO 1-3.
+  - **The scope filter.** It refuses an ad only when nothing can rank it (`_in_scope`), because
+    the harm it guards is *unrankable* inventory reaching the widened retrieval path, which
+    drops the recall predicate. Until 2026-08-26 it was a major-group filter instead, and the
+    difference was half the register: 2 729 of 5 445 ads refused, 1 004 of them titles no
+    pattern can read and only the publisher's code can answer for.
 """
 
 from __future__ import annotations
@@ -174,17 +176,76 @@ def test_paragraph_structure_survives_but_markup_does_not():
 
 # --- scope filter --------------------------------------------------------------------------
 
-def test_only_styrk_majors_1_to_3_are_kept(tmp_path, monkeypatch):
-    """Majors 1-3 are 51.2% of the register; major 5 (service and sales) is 30% on its own.
-    Without this, the other half reaches the widened retrieval path, which drops the recall
-    predicate entirely — the reason mpsv keeps ISCO 1-3."""
-    pages = [[_item("keep"), _item("drop")]]
-    entries = {"keep": _content(categoryList=[{"categoryType": "STYRK08", "code": "2223"}]),
-               "drop": _content(title="Butikkmedarbeider",
-                                categoryList=[{"categoryType": "STYRK08", "code": "5223"}])}
+def test_an_ad_is_ingested_when_the_publishers_code_can_rank_it(tmp_path, monkeypatch):
+    """The rule changed shape on 2026-08-26: rankability, not major group.
+
+    `frozenset("123")` refused half the register (2 729 of 5 445 ads on the refreshed answer
+    key) to bound one harm — unrankable inventory reaching the widened retrieval path, which
+    drops the recall predicate. A retail ad coded 5223 is not that: `sales` is a category a
+    subscriber can select and the predicate can filter on. `platsbanken` has ingested majors
+    4-9 on exactly this rule since 2026-08-09.
+    """
+    pages = [[_item("prof"), _item("retail")]]
+    entries = {"prof": _content(categoryList=[{"categoryType": "STYRK08", "code": "2223"}]),
+               "retail": _content(title="Butikkmedarbeider",
+                                  categoryList=[{"categoryType": "STYRK08", "code": "5223"}])}
     _fake_nav(monkeypatch, pages, entries)
-    titles = [p.title for p in _src(tmp_path).run()]
-    assert titles == ["Sykepleier til hjemmetjenesten"]
+    got = {p.title: p.source_category for p in _src(tmp_path).run()}
+    assert got == {"Sykepleier til hjemmetjenesten": "healthcare",
+                   "Butikkmedarbeider": "sales"}
+
+
+def test_an_ad_is_never_ingested_without_a_way_to_rank_it():
+    """The general form, and the harm the old major filter was really guarding against.
+
+    Same shape as `platsbanken`'s `test_a_field_is_never_ingested_without_a_way_to_rank_it`.
+    A code outside majors 1-3 buys its way in with a category or not at all — cleaners (9112,
+    100 ads and the single largest refusal), hairdressers (5141), security (5411), spa (5142),
+    sailors (8350) and general office clerks (4110) have no counterpart in `CATEGORIES`, and
+    mapping them to the nearest one is what the answer key's first rule forbids.
+    """
+    for code in ("9112", "5141", "5411", "5142", "8350", "4110", "4224"):
+        assert not nav._in_scope([code], nav.STYRK_MAJOR_KEEP), f"{code} has no category"
+        assert nav._styrk_category([code]) is None
+    for code in ("5223", "5311", "5321", "5322", "7115", "8332", "9412"):
+        assert nav._in_scope([code], nav.STYRK_MAJOR_KEEP), f"{code} maps and must be kept"
+        assert nav._styrk_category([code]) in taxonomy.CATEGORIES
+
+
+def test_a_white_collar_ad_is_kept_even_when_its_code_maps_to_nothing():
+    """1112 senior officials, 2621 archivists: majors 1-3 are kept on the *title* being
+    readable, so an unmapped code there is not a reason to refuse the ad. Losing that would be
+    a regression dressed as a simplification."""
+    for code in ("1112", "2621", "3411"):
+        assert nav._styrk_category([code]) is None, f"{code} is mapped — pick another example"
+        assert nav._in_scope([code], nav.STYRK_MAJOR_KEEP)
+
+
+def test_an_ad_with_no_code_at_all_is_kept():
+    """Refusing an ad for carrying less metadata is the wrong direction: the title is all
+    there is, and it may well read."""
+    assert nav._in_scope([], nav.STYRK_MAJOR_KEEP)
+
+
+def test_the_bpa_family_arrives_with_a_category_its_title_cannot_supply(tmp_path, monkeypatch):
+    """The reason this filter was worth changing, stated as the case it fixes.
+
+    Norway's BPA (*brukerstyrt personlig assistanse*) is 229 ads in the refreshed key and
+    **203 of them are titles no pattern can read** — "Er du min nye BPA-assistent?" names no
+    occupation at all. Adding vocabulary was measured at +22/+26 on the graded buckets and
+    **zero corpus postings**, because the ads were refused at ingest. The code answers what the
+    title cannot, and it also sidesteps the `personlig assistent` false friend: in Norwegian
+    that title can be an office PA, and 5322 cannot.
+    """
+    title = "Er du min nye BPA-assistent?"
+    assert taxonomy.classify(title) == taxonomy.UNCATEGORISED, "premise: the title says nothing"
+
+    _fake_nav(monkeypatch, [[_item("bpa")]],
+              {"bpa": _content(title=title,
+                               categoryList=[{"categoryType": "STYRK08", "code": "5322"}])})
+    posting, = _src(tmp_path).run()
+    assert posting.source_category == "social_care"
+    assert taxonomy.classify(posting.title, posting.source_category) == "social_care"
 
 
 def test_the_filter_bites_in_fetch_so_out_of_scope_ads_are_never_mirrored(
@@ -400,20 +461,23 @@ def test_normalize_re_applies_the_scope_filter_to_an_ALREADY_MIRRORED_ad(tmp_pat
 
     `fetch` filters on the way in, so under normal operation `normalize` never sees an
     out-of-scope ad — which is exactly why a mutation removing this check survived every other
-    test in the file. But the mirror is persisted state: if `STYRK_MAJOR_KEEP` is ever
-    narrowed, every ad already stored under the old scope stays stored, and an ad nobody edits
-    is never re-fetched, so the entry-side filter can never revisit it. Without this check
-    those ads would be emitted daily, for ever.
+    test in the file. But the mirror is persisted state: if the scope is ever narrowed, every
+    ad already stored under the old rule stays stored, and an ad nobody edits is never
+    re-fetched, so the entry-side filter can never revisit it. Without this check those ads
+    would be emitted daily, for ever.
 
     This is the one class of bug the mirror introduces that no other source in the repo can
     have, so it is pinned here rather than left to be rediscovered.
     """
     stale_mirror = [{
-        "uuid": "old", "title": "Butikkmedarbeider", "employer": "Rimi",
+        "uuid": "old", "title": "Renholder til hytter", "employer": "Havrent AS",
         "description": "Vi soker deg.", "location": "Oslo", "country": "NORGE",
         "expires": "2099-01-01T00:00:00+02:00", "published": "2026-08-01T00:00:00+02:00",
         "link": "https://arbeidsplassen.nav.no/stillinger/stilling/old",
-        "styrk": ["5223"],                      # major 5 — out of scope under majors 1-3
+        # 9112 cleaners: no counterpart in CATEGORIES, so unrankable under `_in_scope` too.
+        # It used to say 5223 (retail), which the rankability rule now admits as `sales` —
+        # the example had to move for the guarantee to still be tested.
+        "styrk": ["9112"],
     }]
     assert NavSource(state_dir=tmp_path).normalize(stale_mirror) == []
 
