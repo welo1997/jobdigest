@@ -32,6 +32,7 @@ from __future__ import annotations
 
 import logging
 import re
+from collections import Counter
 from concurrent.futures import ThreadPoolExecutor
 from datetime import date, datetime, timezone
 from typing import Optional
@@ -257,10 +258,46 @@ MAX_PAGES_PER_QUERY = 10  # 200 hits per (site, term)
 #: What the size is chosen against: one request per (site, term) reports Workday's own
 #: `total`, and those totals sum to 74 560 across 38 sites × 9 terms — with heavy overlap,
 #: since a posting matching "cloud" often matches "devops" too. `total` itself saturates at
-#: 2 000, so accenture and citi are floors rather than counts. 6 000 is set from the time
-#: budget rather than that number: gather() runs at 05:00 and the import is at 07:00, a full
-#: international run is ~15 min, and the detail calls here are the slowest thing in it.
-MAX_DETAILS = 6000
+#: 2 000, so accenture and citi are floors rather than counts.
+#:
+#: **Raised 6 000 -> 10 000 on 2026-08-26, and the old rationale had to go with it because it
+#: described a schedule that no longer exists.** It read "gather() runs at 05:00 and the import
+#: is at 07:00" — the claude.ai matcher routine's window, retired on 2026-08-17 when matching
+#: moved onto the box with a metered key. The real deadline now is the **08:00 UTC watchdog**,
+#: which alerts if a subscriber has had nothing; the digest chain starts at 03:00.
+#:
+#: Measured on production over eight consecutive runs (2026-08-19..26), all at 6 000 details
+#: and `DETAIL_WORKERS=16`:
+#:
+#:     detail stage      median 24.8 attempts/s, worst 15.2/s  (the docstring below says 9.5,
+#:                       measured on a laptop in 2026-08-04 — the box is 2.6x faster)
+#:     upsert            0.073 s per fetched row
+#:     Workday's share   8m02s of a 3h27m pipeline
+#:     pipeline finish   median 06:27 UTC, **worst observed 07:16:52** (43 min of margin)
+#:
+#: So the marginal cost of 1 000 more details is 1 000/24.8 = 40 s of fetching **plus** 870
+#: stored rows x 0.073 = 64 s of upsert — **~104 s, and the upsert is the larger half.** That
+#: is easy to miss, because Workday's own log line does not contain it.
+#:
+#: +4 000 details is therefore ~7 min median, ~9 min at the worst measured rate, which puts the
+#: worst observed finish at ~07:26 and still leaves half an hour before the watchdog. 12 000
+#: fits the same arithmetic on paper (~10m24s) and was deliberately not taken: the variance in
+#: that 43-minute figure is entirely upstream (platsbanken, nav, the upsert), so the margin is
+#: what absorbs a bad day elsewhere, not headroom to spend here.
+#:
+#: **Why this and not more sites.** 39 further Workday tenants are discovered-and-unadded,
+#: holding 10 391 board-side postings — and adding them at this ceiling would buy exactly zero
+#: postings, because the pool is already 3.3x oversubscribed (19 954 term-matching uniques into
+#: 6 000 details). Every posting a new board won would displace one from a board already wired,
+#: at a measured cost of 2m13s more list-stage wall clock and ~120 more requests against hosts
+#: that already 429 us. The ceiling is the lever; the sites are not. See docs/sources.md.
+#:
+#: **What must be checked before raising this again**, and the reason the summary log line was
+#: added in the same commit: 9-21% of detail calls return nothing, silently, and the list stage
+#: logs 53-137 HTTP 429s a day. There is no measurement of that loss rate at 10 000, and
+#: doubling volume against a limit already being applied is exactly how a raise turns into a
+#: smaller harvest. Read the new "detail calls returned no posting" line for a week first.
+MAX_DETAILS = 10000
 
 #: Concurrency for the detail stage, raised from 8 on 2026-08-04 because `MAX_DETAILS` at
 #: 6 000 does not fit the window at 8.
@@ -301,6 +338,12 @@ class WorkdaySource(BaseSource):
         self._sites = SITES if sites is None else sites
         self._terms = SEARCH_TERMS if terms is None else terms
         self._max_details = max_details
+        #: Non-200 statuses and exception names from the detail stage, so its losses are a
+        #: number rather than an inference. `Counter[key] += 1` is a read-modify-write and the
+        #: stage runs from `DETAIL_WORKERS` threads, but the GIL makes the increment safe
+        #: enough for a diagnostic count and a lock here would be contention on every failure
+        #: for no decision that depends on exactness.
+        self._detail_status: Counter[str] = Counter()
 
     @property
     def source_name(self) -> str:
@@ -330,11 +373,32 @@ class WorkdaySource(BaseSource):
 
         logger.info("Workday: %d unique postings across %d sites, fetching details",
                     len(found), len(self._sites))
+        self._detail_status.clear()
         with ThreadPoolExecutor(max_workers=DETAIL_WORKERS) as pool:
             detailed = list(pool.map(self._detail, ordered))
 
         out = [d for d in detailed if d]
         logger.info("Workday: fetched %d postings with descriptions", len(out))
+        # **The detail stage's failures used to be invisible, and they are not small.**
+        # `_detail` returns None on any non-200 with no log line at all, so a run that asked
+        # for 6 000 details and stored 4 729 looked identical to a run where the boards simply
+        # held less — 9-21% lost every day across eight measured runs, while the list stage was
+        # logging 53-137 HTTP 429s. That is Workday rate-limiting us, silently, inside the one
+        # adapter this repo's own rules single out as the N+1 risk.
+        #
+        # It is logged as one summary line rather than per call because there can be thousands:
+        # a per-call warning at 16 workers would bury the run's own output, which is how a
+        # noisy log becomes an unread one. The point of the line is that the next change to
+        # `MAX_DETAILS` has a number to be sized against instead of an inference — and that a
+        # rise in 429s becomes visible the day it starts, not the week someone wonders why the
+        # count moved.
+        if self._detail_status:
+            lost = sum(self._detail_status.values())
+            detail = ", ".join(f"{code}x{n}" for code, n in
+                               sorted(self._detail_status.items(), key=lambda kv: -kv[1]))
+            level = logger.warning if lost > len(ordered) * 0.25 else logger.info
+            level("Workday: %d of %d detail calls returned no posting (%.1f%%): %s",
+                  lost, len(ordered), 100.0 * lost / max(len(ordered), 1), detail)
         return out
 
     def _query(self, site: tuple[str, str, str], term: str) -> list[dict]:
@@ -392,12 +456,15 @@ class WorkdaySource(BaseSource):
         try:
             resp = requests.get(url, headers=HEADERS, timeout=20)
             if resp.status_code != 200:
+                self._detail_status[str(resp.status_code)] += 1
                 return None
             info = resp.json().get("jobPostingInfo") or {}
         except (requests.RequestException, ValueError) as exc:
             logger.warning("Workday detail %s%s failed: %s", tenant, path, exc)
+            self._detail_status[type(exc).__name__] += 1
             return None
         if not info:
+            self._detail_status["empty"] += 1
             return None
         info["_tenant"], info["_host"], info["_site"] = tenant, host, site
         info["_path"] = path

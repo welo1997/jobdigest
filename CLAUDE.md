@@ -704,9 +704,25 @@ it.
   `op run` (which masks the value).
 - **Workday is the N+1 adapter** and runs last in `gather()`. Its ceilings (`MAX_DETAILS`,
   `MAX_PAGES_PER_QUERY`, paging) are what decide coverage, and the failure mode is silent —
-  re-measure against the export window after changing them. (SmartRecruiters was the other
-  one until it was removed on terms — see above. ~38 Workday sites are still
-  found-and-not-added behind that same export-window measurement.)
+  re-measure against the digest window after changing them. (SmartRecruiters was the other one
+  until it was removed on terms — see above.)
+  **Measured 2026-08-26, and it settles the long-parked "~38 unadded sites" question in the
+  opposite direction to the intuition.** The backlog is really **39** live tenants holding
+  10 391 board-side postings (the 47 the discovery CSVs list include 7 already-recorded
+  rejections and one dead board), and **adding them at the current ceiling would buy zero
+  postings**: the detail pool is already **3.3× oversubscribed** — 19 954 term-matching uniques
+  into 6 000 detail calls — so every posting a new board won would displace one from a board
+  already wired, at a cost of 2m13s more list-stage wall clock and ~120 more requests against
+  hosts that already 429 us. **The ceiling is the lever; the sites are not.** `MAX_DETAILS` is
+  now 10 000 (from 6 000), sized against the **08:00 UTC watchdog** — the 05:00/07:00 window in
+  the old comment was the retired claude.ai routine's — using production rates: 24.8 detail
+  attempts/s median (worst 15.2), **0.073 s of upsert per fetched row, which is the larger half
+  of the marginal cost**, Workday 8m02s of a 3h27m pipeline, worst observed finish 07:16:52.
+  **And 9–21% of detail calls return nothing, silently**: `_detail` had no log line for a
+  non-200 while the list stage logged 53–137 HTTP 429s a day, so that loss is now counted and
+  summarised. Read that line for a week before raising the ceiling again — there is no
+  measurement of the loss rate at 10 000, and doubling volume against a limit already being
+  applied is how a raise turns into a smaller harvest.
 - **Haiku for both enrichment passes** — well-calibrated at ~10× lower cost than Sonnet.
 - Salary coverage is ~30–40%; no row is dropped for a missing salary.
 - Metabase is local Docker only; portfolio evidence is screenshots + dbt docs.

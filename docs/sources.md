@@ -605,6 +605,57 @@ payload will pick a different string and that *shape* is the thing to watch.
   monitor exists for and the one part of this story that worked as designed. Kept as tested
   code on the `jobscz`/`profesia`/`smartrecruiters` footing; `test_source_exclusions.py` fails
   if it returns to `gather()`. Full workings in `notes/2026-08-26-startupjobs-retired.md`.
+- **Workday: the ceiling is the lever and the 39 unadded sites are not (measured 2026-08-26).**
+  This file has carried "~38 Workday sites found-and-not-added, pending an export-window
+  measurement" since 2026-08-14. The measurement was done, and it says do not add them.
+  **Recovering the list first**: `scripts/pending_boards.py`'s `carried_by_ats()` over every
+  `scripts/*_discovery.csv` yields 47 pending `(tenant, site)` pairs, of which **7 are
+  rejections already recorded here** (genpact, aliaxis, adient, thyssenkruppmaterialsna,
+  proofpoint, jlp, wonder) and **1 is dead** (`bbva/wd3/es`, 404). So the backlog is **39 live
+  candidates holding 10 391 board-side postings** — 34 EEA/EFTA boards with 3 615 between them
+  (sandvik 423, galderma 362, georgfischer 332, essity 311…) and 5 US-HQ giants with 6 776
+  (abbott, amgen, stryker, medtronic, nike). The 2026-08-14 note's identification of "the 38"
+  as the FR/ES/IT industrials is **stale**: every one of those is now in `SITES` (74 sites,
+  matching the box exactly).
+  **Why they buy nothing at the current ceiling.** The detail pool is **3.3× oversubscribed**:
+  19 954 term-matching uniques feed 6 000 detail calls, so `_age_rank` is already discarding
+  two thirds of what the wired boards hold. Adding 39 boards adds ~5 150 hits, taking the
+  detail share from 30.1% to 23.9% — **every posting a new board wins displaces one from a
+  board already wired**, at a measured cost of 2m13s more list-stage wall clock and ~120 more
+  requests against hosts that already 429 us. That is a net-negative change, and it is the
+  honest answer to the question as asked.
+  **The three-number rule, on Workday's own 10 466 active rows**: 40 265 board-held → 19 954
+  term-matching → 6 000 detail attempts → 4 729 stored that day → **6 345 in a selectable
+  country (60.6%)** → **5 076 subscriber-reachable (48.5%)**. And the fourth number that
+  decides the priority: Workday is **7.6% of the active corpus but 1.7% of matches (18 of
+  1 033) and 2.7% of sends** — 1.72 matches per 1 000 active rows against a corpus average of
+  7.47, i.e. **23% of average**, reconfirming the 2026-08-07 finding on a 1.7× larger
+  denominator. Per-board reachable share on the wired 74 runs from 7.3% (accenture) to 90.3%
+  (paypal), so the 48.5% prior is weak for an industrial candidate set whose right peers are
+  kone 24.4% and valeo 31.5%.
+  **The window, measured over eight consecutive runs (2026-08-19..26)**: Workday costs **8m02s
+  of a 3h27m pipeline**; the detail stage runs at **24.8 attempts/s median, worst 15.2/s** (the
+  adapter's docstring said 9.5, measured on a laptop — the box is 2.6× faster); the upsert costs
+  **0.073 s per fetched row**. So 1 000 more details costs 40 s of fetching **plus 64 s of
+  upsert = ~104 s, and the upsert is the larger half** — invisible in Workday's own log line.
+  Pipeline finish is 06:27 UTC median, **worst observed 07:16:52**, i.e. 43 minutes before the
+  08:00 watchdog, and that variance is upstream (platsbanken, nav, the upsert), not Workday.
+  **`MAX_DETAILS` raised 6 000 → 10 000** on that arithmetic (~7 min median, ~9 min worst,
+  leaving ~30 min); 12 000 fits on paper and was deliberately not taken, because the margin is
+  what absorbs a bad day elsewhere.
+  **The failure that made all of this hard to see, and is now fixed:** `_detail` returned `None`
+  on any non-200 **with no log line at all**, so 9–21% of every run vanished while the list
+  stage logged 53–137 HTTP 429s a day — Workday rate-limiting us silently, inside the adapter
+  this file's own rules single out. The losses are now counted by status and summarised once per
+  run (a warning past 25%). **There is no measurement of that loss rate at 10 000**, so read
+  the new line for a week before raising the ceiling again: doubling volume against a limit
+  already being applied is how a raise turns into a smaller harvest. `MAX_PAGES_PER_QUERY=10`
+  may also be truncating the largest boards' list stage — nothing distinguishes "stopped
+  because a page added nothing" from "stopped at page 10", so the 19 954 pool is itself possibly
+  a floor.
+  **Gate any further widening on conversion, not inventory.** If doubling Workday's inventory
+  does not roughly double its 1.7% match share within a fortnight, then neither the ceiling nor
+  the 39 boards are the constraint — the keyword prefilter is, and this whole line closes.
 - **Workday is the N+1 adapter, and the source of large-EU-employer inventory** (SmartRecruiters
   was the other until the entry above). Its list endpoint carries no description, so each posting
   needs its own detail call, so it needs a way to decide which postings are worth one. It runs
