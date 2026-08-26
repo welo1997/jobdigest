@@ -567,7 +567,37 @@ payload will pick a different string and that *shape* is the thing to watch.
   happened. **That guard is still unwritten, and it will go red for roughly eight adapters when
   it lands** — that is the finding, not a reason to weaken it. Full workings in
   `notes/2026-08-10-smartrecruiters-robots.md`.
-- **StartupJobs is REMOVED (2026-08-26), on the SmartRecruiters rule and nothing else.** The
+- **StartupJobs is REMOVED (2026-08-26) — on Czech database rights, and separately on a
+  refusing robots.txt.** It was removed on the robots half alone and **the terms were read a few
+  hours later, in answer to "do they actually forbid it?"** — the wrong order, and the honest
+  record of it is below. The terms are the binding half. The
+  robots reasoning that follows is still correct and still sufficient, but it is no longer the
+  reason.
+  **The terms (effective 15 June 2026, governing `www.startupjobs.cz` *and*
+  `www.startupjobs.com`), section "Copyright, databases, and licenses":** *"StartupJobs.cz and
+  the content published thereon constitutes a database within the meaning of applicable legal
+  regulations, in particular Act No. 121/2000 Coll. … The Provider holds all rights to the
+  database. It is prohibited to interfere with the database; furthermore, it is expressly
+  prohibited to extract from the database or to qualitatively or quantitatively exploit its
+  content or part thereof."* **`extract` and `exploit` are the statutory verbs of the sui generis
+  database right** — 96/9/EC art. 7, Czech *vytěžovat / zužitkovávat* — which is the same right,
+  named in the same Act, that put Jobs.cz and Profesia out of reach on 2026-08-03. A database
+  right binds **with or without a contract**, so "we never accepted their terms" is not an
+  answer here either.
+  **Stated on the narrowest applicable clause, which cuts against overstating it:** that clause
+  sits in the **B2B – For companies** half of the document (char 30 635 of 33 442; the B2B
+  section begins at 12 097), addressed to paying advertisers, and the **B2C/candidates half
+  contains no database, extraction, exploitation, robots, scraping or crawling language at all**.
+  So as a *contract term* it is weaker than Alma Career's §4.11, which governs every user. What
+  it establishes unambiguously is that the operator **holds and expressly asserts** the database
+  right over the content — and that right is statutory rather than contractual, which is what
+  makes it dispositive.
+  **Why this matters beyond being a better citation: it closes a reopening path the robots-only
+  reasoning left open.** The robots argument turns on *which host serves the data*, so it invites
+  the thought that a keyless feed appearing on the permitted `www` host would reopen the source.
+  Under the database clause it would not. Re-adding startupjobs now needs a published grant, on
+  the jobs.cz/profesia footing — not a change of hosting.
+  **The robots half, which was the original and sufficient reason.** The
   board's Symfony API moved for the second time in three weeks. `core.startupjobs.cz` — the
   host the 2026-08-06 rewrite was built against — is **gone entirely**: 404 on `/` and on
   `/api`, not just on the collection, from 2026-08-25's ingest onwards. The same API Platform

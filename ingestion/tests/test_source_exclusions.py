@@ -134,7 +134,33 @@ def test_nva_is_not_ingested():
 
 
 def test_startupjobs_is_not_ingested():
-    """StartupJobs is excluded on a refusing robots.txt — the SmartRecruiters rule, again.
+    """StartupJobs is excluded on Czech database rights, and separately on a refusing robots.txt.
+
+    **The binding reason is the terms, and they were read a few hours AFTER the removal rather
+    than before it** — the removal rested on the robots half alone, which was sufficient but was
+    not the strongest thing available. Recorded in that order because the order is the lesson:
+    this repo's own rule is to settle a source on the narrowest applicable clause, and "the data
+    moved to a host whose robots refuses us" is a fact about hosting, not about permission.
+
+    The ToS effective 15 June 2026 govern `www.startupjobs.cz` *and* `www.startupjobs.com`, and
+    under "Copyright, databases, and licenses" declare the site *"a database within the meaning
+    of … Act No. 121/2000 Coll."*, expressly prohibiting *"extract[ing] from the database or …
+    qualitatively or quantitatively exploit[ing] its content or part thereof"*. Those are the
+    statutory verbs of the sui generis database right (96/9/EC art. 7, Czech *vytěžovat /
+    zužitkovávat*) — the same right, in the same Act, that excluded Jobs.cz and Profesia on
+    2026-08-03. It binds with or without a contract.
+
+    Stated honestly rather than at its strongest: that clause is in the **B2B** half addressed to
+    advertisers, and the B2C/candidates half carries no extraction or automation language at all,
+    so as a contract term it is weaker than Alma Career's §4.11. As evidence that the operator
+    holds and asserts the database right, it is decisive.
+
+    **It also closes the reopening path the robots-only reasoning left open.** A robots argument
+    turns on which host serves the data, so it invites "re-add it if a keyless feed appears on
+    the permitted host". The database clause does not care about hosting. Re-adding this source
+    needs a published grant, on the jobs.cz/profesia footing.
+
+    The robots half — the original reason, still correct, no longer the load-bearing one:
 
     The board (StartupJobs.cz, now startupjobs.com after the Welcome to the Jungle
     acquisition) moved its public API for the second time. `core.startupjobs.cz` — the host

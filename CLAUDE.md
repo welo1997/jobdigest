@@ -641,8 +641,17 @@ it.
   numbers and only the last is the price. The wider lesson is the guard, not the source: **an
   adapter that leaves the machine must call `robots_allows()` and `throttle()`**, and nothing
   currently checks that it does.
-- **startupjobs is excluded on a refusing robots.txt (2026-08-26)** — the same rule as
-  SmartRecruiters, reached a different way. Its API moved off the dead `core.startupjobs.cz`
+- **startupjobs is excluded on Czech database rights AND a refusing robots.txt (2026-08-26)**
+  — Alma Career and SmartRecruiters at once. **The terms are the binding half and were read a
+  few hours after the removal, not before it**: the ToS effective 15 June 2026, governing both
+  `www.startupjobs.cz` and `www.startupjobs.com`, declare the site "a database within the
+  meaning of … Act No. 121/2000 Coll." and expressly prohibit "extract[ing] from the database or
+  … qualitatively or quantitatively exploit[ing] its content" — the statutory verbs of the sui
+  generis right (96/9/EC art. 7), which binds with or without a contract. That clause sits in the
+  **B2B** half addressed to advertisers, so as a *contract* term it is weaker than Alma Career's
+  §4.11; as evidence the operator holds and asserts the database right it is decisive, and the
+  right is statutory. **This closes the reopening path the robots-only reasoning left open**: a
+  keyless feed appearing on the permitted `www` host would change nothing. Its API moved off the dead `core.startupjobs.cz`
   onto `back.startupjobs.com`, which is `User-agent: * / Disallow: /`; the robots-allow-all
   `www` host renders its listing from that backend and its sitemap lists ids without the slug
   `/job/{id}` needs, so **there is no permitted route to the inventory at all** and repointing
