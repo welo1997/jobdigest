@@ -713,7 +713,28 @@ PATTERNS: tuple[tuple[str, "re.Pattern[str]"], ...] = (
         r"bricklayer|carpenter|quantity surveyor|estimator|"
         # Czech. Stems, because the register writes the plural: "Zedníci", "Dělníci". The
         # nominative singular this pattern used to require matched almost none of them.
-        r"stavbyvedoucí|stavebn|výstavb|zedn|tesař|dlaždič|kamnář|potrubář|"
+        r"stavbyvedoucí|"
+        # **A municipal building AUTHORITY is a government clerk, not construction — and the
+        # guard has to sit on the phrase, never on the stem.** Settled 2026-08-26 by walking the
+        # whole MPSV register once (38 872 records; 2 742 titles carry the stem, bucketed on
+        # `portalId`). The stem itself is overwhelmingly construction — `stavebn|výstavb` codes
+        # construction **92.2%** register-wide and `výstavb` alone **99.0%** — which is exactly
+        # why the note that parked this feared a `stavebn` guard, and it was right to. But on the
+        # authority phrases the register is unanimous the other way: of the 11 municipal
+        # building-office titles in the census, **0 are coded construction** and 10 are coded
+        # ISCO 334/335/41 — administrative and regulatory government work, which this taxonomy
+        # has no category for, so a decline is the correct answer rather than a move. (The one
+        # dissenter is coded 2142, civil engineer — not construction either.)
+        #
+        # **The scorer cannot see this change**: those ISCO groups are `ISCO_OUT_OF_SCOPE`, so
+        # whole-register accuracy is 76.5569% before and after, to four decimal places. The
+        # evidence is the publisher's coded groups, not a score movement — the same shape as
+        # `miljøarbeider`. 12 active postings, all `mpsv`, all stored `construction` today; the
+        # other 275 active `stavebn|stavb|výstavb` titles are untouched, so the collateral is
+        # measured at zero rather than assumed.
+        r"^(?!.*(?:stavebn\w*\s+(?:úřad|odbor|řád|správ)|odbor\w*\s+výstavb))"
+        r".*(?:stavebn|výstavb)|"
+        r"zedn|tesař|dlaždič|kamnář|potrubář|"
         # `štukatér`/`omítkář` (plasterers) and `malíř` (painter) — recurring in the ISCO key's
         # construction misses; the register files a house painter as construction, not a trade.
         r"natěrač|lakýrník|pokrývač|obkladač|izolatér|lešenář|betonář|štukatér|omítkář|malíř|"
@@ -1186,6 +1207,22 @@ PATTERNS: tuple[tuple[str, "re.Pattern[str]"], ...] = (
         r"^(?!.*(?:engineer|engr\b|ingénieur|ingenjör|product manager|produktchef))"
         r".*assembly|"
         r"\bassembler\b|equipment installer|quality (?:inspector|technician)|cnc|"
+        # **Shift supervision is a cross-sector GRADE, and only the foreman word survives the
+        # register.** Added 2026-08-26 as `vedoucí směny|směnov|shift supervisor` on a census of
+        # the `operations` cache bucket, then checked against the whole MPSV register before
+        # shipping — which refused most of it. Of 52 register rows carrying bare `vedoucí
+        # směny`, only **9 are ISCO 312** (production supervisors): 7 are hotel supervisors
+        # (515), 5 kitchen (512), 5 fast food (524), 4 retail (522). **25% manufacturing** — a
+        # coin flip, and `hospitality` and `sales` cannot save it because those rows name no
+        # food or shop word for them to read.
+        #
+        # The foreman compound is the opposite: `směnový mistr` / `mistr směny` is **12 of 14
+        # ISCO 312 (86%)**, the two dissenters being a welder and a machine operator — both
+        # already answered earlier by `skilled_trades`. So only that compound ships. The bare
+        # forms, and the English `shift supervisor|superintendent` (which no key here can
+        # grade), are recorded as declines rather than left out by oversight: they were
+        # measured and refused.
+        r"sm[ěe]nov\w*\s+mistr|mistr\w*\s+sm[ěe]ny|"
         # **A certification auditor is quality assurance, not accountancy.** `audit(or)?` and
         # `revisor` live in one 60-alternative `finance_accounting` branch, and ~30 of that
         # branch's 209 postings audit a *management system* rather than a ledger: IATF 16949,
@@ -1326,6 +1363,11 @@ PATTERNS: tuple[tuple[str, "re.Pattern[str]"], ...] = (
         # `schichtführer` above is a different string and does not carry that sense.
         r"plant (?:manager|operator|director|supervisor)|\bmachinist\b|" # en
         r"quality (?:control|assurance) (?:inspector|technician)|"
+        # CZ, added 2026-08-26 — the inspector half of the three-way quality split, in the
+        # language that writes it most in this corpus. `kontrolor` is the inspector word, so
+        # this belongs here and not with the quality *managers* in `engineering`; that is the
+        # split the comment on `quality engineer` pinned, applied rather than re-argued.
+        r"kontrolor kvality|"
         r"production line operator|"
         # IT. `capo` bound to a shop-floor noun — bare `capo` is a boss AND the place
         # name Capo d'Orlando. `reparto` carries a `(?<!de )` lookbehind because Italian
@@ -2016,7 +2058,37 @@ PATTERNS: tuple[tuple[str, "re.Pattern[str]"], ...] = (
         r"mechatronic|"
         # `(?<!försäljnings)` — see the sales-engineer note on the French `ingénieur` below.
         # A *Försäljningsingenjör* sells; the title's head is the selling, not the engineering.
-        r"(?<!försäljnings)ingenjör|ingeniör|ingeniør|"   # SE -ingenjör / -ingeniör, NO -ingeniør
+        # **`mjukvaru-`/`programvaruingenjör` is the one Swedish compound that spells software
+        # out loud, and it belongs to `software_engineering`.** The comment above this pattern
+        # says "Sweden titles software work *utvecklare*, not *ingenjör*", and that is right for
+        # the head and for almost every compound — but not for the two that name software in the
+        # word itself. Settled 2026-08-26 against a purpose-built SSYK key (3 680 ads swept by
+        # compound, 650 `ingenjör` headlines graded by Platsbanken's own occupation field, split
+        # into halves on `md5(id)`): `ingenjör` overall codes `engineering` 451/650 (69%), and
+        # `mjukvaruingenjör` codes **software 4 of 4** — all four coded `Mjukvaruutvecklare` or
+        # `Fullstack-utvecklare` at the finest level. `q=mjukvaruingenjör` returns `total=4`, so
+        # that is a census of the register's stock of the word, not a sample of it. 6 active
+        # postings today.
+        #
+        # **This guard and `software_engineering`'s new fragment are two halves of one change and
+        # must never be split.** `software_engineering`'s catch-all is `\bengineer\b`, which
+        # cannot read a Swedish compound — so guarding here *alone* turns 3 of the 4 rows from a
+        # misfile into a decline, which is worse, not better. Measured: guard-only scores
+        # 1 gain / 0 loss / **3 new declines**; guard + vocabulary scores 4 gains / 0 losses on
+        # both halves of the key.
+        #
+        # **The wider forms were REFUTED by the same key and are settled declines, not
+        # oversights.** Any-software-word-plus-`ingenjör` loses 3 graded rows: `Erfarna
+        # Ingenjörer inom Mjukvara, Mekanik och Elektronik` and `Mjukvaruutvecklare /
+        # Automationsingenjör` are both coded *engineering* — a software word in a
+        # multi-discipline title is not a software job. And `systemingenjör` is the
+        # `miljøarbeider` case exactly: 55 graded rows spread over **27 distinct SSYK
+        # occupations** (software 27 / engineering 16 / devops 8 — a 53% coin flip), so it stays
+        # here. Extending the guard to `system` and `test` looks like a 40-row gain on the
+        # query-biased key and scores **+1 row** on the unbiased corpus while losing the whole
+        # Saab/LFV/Gripen `Systemingenjör` population, which is what production is made of.
+        r"^(?!.*(?:mjukvar|programvar)\w*ingenj).*(?<!försäljnings)ingenjör|"
+        r"ingeniör|ingeniør|"   # SE -ingeniör, NO -ingeniør
         # `konstruktör` (SE) as well as `konstruktér` (CZ): mechanical and electrical designers
         # are the single largest group inside the register's technical field, and until
         # 2026-08-09 the Swedish spelling was the one missing.
@@ -2220,7 +2292,40 @@ PATTERNS: tuple[tuple[str, "re.Pattern[str]"], ...] = (
         # Same guard as on `quality engineer` above — this wave-3 fragment took "Junior Data
         # Quality Specialist" and "Multilingual AI Quality Specialist" by the same route.
         rf"{_NOT_DOMAIN_QUALITY}"
-        r".*quality (?:manager|assurance manager|systems? (?:manager|specialist|engineer)|specialist)|"
+        r".*quality (?:control|conformance|systems?)? ?"
+        # `engineer|engr` is in this list because it was in the fragment this replaced
+        # (`systems? (?:manager|specialist|engineer)`), and dropping it sent "Quality Systems
+        # Engineer" to `software_engineering`'s bare `engineer` — the 718-posting failure of
+        # 2026-08-17 arriving through a widening meant to fix a different gap. Caught by diffing
+        # every active title against the old pattern set, which is why that diff is worth running.
+        r"(?:manager|lead|head|director|supervisor|officer|associate|coordinator|specialist|"
+        r"planner|engineer|engr)|"
+        # **`assurance` is deliberately NOT in the group above, and `engineer` is why.** The
+        # fragment this replaced read `quality (manager|assurance manager|systems? …)`, and the
+        # asymmetry was load-bearing: a *Quality Assurance Manager* runs an industrial QA
+        # function, while a *Quality Assurance Engineer* is a software tester and belongs to
+        # `software_engineering`. Folding `assurance` into one alternation with `engineer` moved
+        # 20 postings of software QA into engineering; measured by diffing every active title.
+        r".*quality assurance (?:manager|lead|head|director|supervisor|officer|coordinator|"
+        r"specialist|planner)|"
+        r"(?:manager|head|director|vp|leader), ?quality|"
+        # The same decision in the languages the corpus actually writes it in. `engineering`
+        # already owns industrial quality — the comment on `quality engineer` above records the
+        # deliberate three-way split and that BOTH answer keys (ISCO 3119/2149, and SSYK having
+        # no quality occupation at all) file quality work here. Only the vocabulary was missing,
+        # so `Quality Control Manager`, `Quality Lead`, `Kvalitetschef`, `Kvalitetsansvarig`,
+        # `Qualitätsmanagement`, `Kwaliteitsmanager` and `KVALITĀTES VADĪTĀJS` all fell to the
+        # residual and were answered by the title classifier as `operations` — 134 active
+        # postings, found by censusing that bucket 2026-08-26.
+        #
+        # **The three lookbehinds carry the false friend across with the vocabulary.**
+        # `vattenkvalitet` / `luftkvalitet` / `miljökvalitet` is environmental monitoring, not
+        # quality management — the `ekonomiskt bistånd` shape exactly, and the same reason
+        # `_NOT_DOMAIN_QUALITY` guards the English arm against data/AI quality. Without them
+        # `Vattenkvalitetssamordnare` is an industrial quality manager.
+        r"(?<!vatten)(?<!luft)(?<!miljö)kvalitets(?:chef|ansvarig|ledare|koordinator|samordnare|"
+        r"specialist|strateg)|kvalit[āa]tes vad|qualit[äa]tsmanage|qualit[äa]tssicherung|"
+        r"kwaliteitsmanager|kwaliteitszorg|manager qualit|qualit[ée] (?:manager|op[ée]rationnel)|"
         r"telecomunicaciones|redes\s+el[ée]ctricas", re.I)),            # es-2
     ("software_engineering", re.compile(
         r"software engineer|software developer|back[- ]?end|front[- ]?end|full[- ]?stack|"
@@ -2231,6 +2336,13 @@ PATTERNS: tuple[tuple[str, "re.Pattern[str]"], ...] = (
         # 7 postings, 7 titles, none of them a dev job. The Swedish AGENT noun
         # (*programmerare*) is unaffected, which is the whole point of the lookahead.
         r"web developer|mobile developer|\bios\b|android|"
+        # SE, 2026-08-26 — the catch half of the `ingenjör` guard in `engineering`, and it must
+        # ship with it: this pattern's own catch-all is `\bengineer\b`, which cannot read a
+        # Swedish compound, so without this line the guarded rows land in the residual instead
+        # of here. Bound to the two compounds that name software in the word itself — the SSYK
+        # key codes all four of them `Mjukvaruutvecklare`/`Fullstack-utvecklare`, and refuses
+        # the wider forms (see the note in `engineering`).
+        r"(?:mjukvar|programvar)\w*ingenj|"
         # **`(?<!business )` — Business Development is a SALES title, and this was the
         # untreated English twin of a boundary this file has already drawn twice.** `sales`
         # owns the phrase `business development` (which cannot reach the *-er* form), and
@@ -2479,6 +2591,19 @@ PATTERNS: tuple[tuple[str, "re.Pattern[str]"], ...] = (
         r"^(?!.*recruit).*\bevents?\s+(?:manager|coordinator|producer|specialist|lead|director|associate|marketer)|"
         r"public affairs|government affairs|corporate affairs", re.I)),
     ("sales", re.compile(
+        # Retail floor grades, added 2026-08-26 (122 active postings, ~90 of them one UK
+        # retailer's store grades). `sales` already owns the shop floor in five languages
+        # (`store manager`, `butik`, `prodava`, `verkoper`) and its wave-3 comment already
+        # records a UK retailer's grades landing in `operations` at 16 postings — this is the
+        # same shape, 8x larger, found by censusing that bucket.
+        #
+        # **Bound to the department word, never to the employer or the town.** The corpus
+        # writes these as `Team Manager - Fashion, Home & Beauty - <town>` and `Shift Lead -
+        # Food - <town>`; the discoverable list of towns is not a rule, it is fitting the
+        # corpus, which is what this file warns against (`Byggmax`). A grade plus a retail
+        # department is a rule. `varuhuschef` is the Swedish department-store manager and
+        # needs no such binding; `butikschef` is already answered by `butik`.
+        r"(?:shift lead|shift manager|team manager|department manager)[^|]{0,40}(?:food|fashion|home ?(?:&|and) ?beauty|retail park)|varuhuschef|"
         # `business develop` rather than `business development`: the *-er* form is the same job
         # and `software_engineering`'s bare `\bdeveloper\b` was claiming it (50 postings, none
         # of them a programmer). Narrowing there without widening here would have turned a
@@ -2694,6 +2819,13 @@ PATTERNS: tuple[tuple[str, "re.Pattern[str]"], ...] = (
         r".*\bcontracts?\s+(?:manager|specialist|administrator|analyst|lead|director)\b|"
         r"jur[íi]dic", re.I)),                                          # pt
     ("customer_support", re.compile(
+        # SE, added 2026-08-26 (27 active postings, 17 of them one tyre chain's branches).
+        # `kundmottagare` is service reception at a workshop — the same word family and the
+        # same job as the `kundtjänst|kundservice|kundinformatör|kundbokare` this category
+        # already owns, one compound short. The lookahead is the single measured false
+        # positive: `Kundmottagare & Verkmästare sökes till Vilhelmina` is a workshop foreman
+        # wearing a reception title, and `skilled_trades` is the honest answer for it.
+        r"^(?!.*verkm[äa]stare).*kundmottagare|"
         r"customer (?:support|service|care)|help ?desk|technical support|"
         # Bare `support specialist` read "Application Development & Support Specialist" (22
         # postings, one employer) as a support job when the head of the compound is
@@ -2791,7 +2923,40 @@ PATTERNS: tuple[tuple[str, "re.Pattern[str]"], ...] = (
         # third sense is Third Party Management. 6 of 9 wrong, and the whole positive
         # yield was 3 titles that also spell the words out, which the two fragments
         # beside it already claim.
-        r"program manager|programme (?:manager|lead|director)", re.I)),
+        r"program manager|programme (?:manager|lead|director)|"
+        # **The delivery FUNCTION is claimed here; a project manager who is really a domain
+        # engineer is not — and that boundary was settled by SSYK on 2026-08-26, against my
+        # own intention.** `SHORTLIST_KEYWORDS["program_management"]` has carried `pmo` and
+        # `delivery manager` since the promotion while the regex read only `program`, so the
+        # obvious move was to add `project manager` and its translations. A census of the
+        # `operations` cache bucket sized that at 234 postings; measuring it against every
+        # active title first said **1 329**, and 737 of those came through the Swedish word.
+        #
+        # So it was graded, Sweden being one of the three slices with a publisher's own coding.
+        # A purpose-built SSYK key (14 project-management heads swept, 427 graded headlines,
+        # halves split on `md5(id)`) says the register **never codes a generic
+        # project-management occupation at all**: the finest labels are `Projektledare, bygg
+        # och anläggning` (137), `Projektledare, IT` (57), `Projektledare, industri` (56),
+        # `Projektledare, el` (43) — the domain, always. Restricted to the titles this file
+        # could not already answer, the split is **engineering 45% / construction 37% /
+        # software 15%**, and it reproduces on both halves (44/37/17 and 46/37/14). A single
+        # answer is right **45%** of the time.
+        #
+        # **That is the `miljøarbeider` case a third time** (after `systemingenjör`), and it
+        # vindicates the decline this file already pinned for a bare `Project Manager`: the
+        # truth about a project manager is the domain, and a title naming no domain does not
+        # carry it. `uppdragsledare` (12 of 20 engineering) and `projektkoordinator` (4 of 4)
+        # were refuted the same way. **Do not add `project manager` or `projektledare` here.**
+        # The cost of the restraint is visible and accepted: the title classifier answers where
+        # patterns decline and has cached 222 such keys as `program_management` — the register
+        # says that guess is ~45% right, which is a finding about the classifier, not a licence
+        # to copy it into a pattern.
+        #
+        # What IS claimed is the delivery function named as a function: a PMO is not a domain
+        # role wearing a project title, and `delivery manager` was already this category's own
+        # vocabulary in `SHORTLIST_KEYWORDS`. 33 active postings, against the 1 329 the
+        # unmeasured version would have moved.
+        r"\bpmo\b|project management office|(?:service )?delivery manager", re.I)),
     # Partnerships / alliances — promoted from the residual 2026-08-23. Same relabel-only move:
     # the `partnership` fragment that used to fall to `other_tech_function`.
     ("partnerships", re.compile(

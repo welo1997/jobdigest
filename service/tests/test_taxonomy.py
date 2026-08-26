@@ -200,11 +200,48 @@ OPAQUE = "Något Oklassificerbart"
     ("Data Entry Clerk", "other_tech_function"),
     ("Sr Strategic Sourcing Spec", "operations"),
     ("Technician", "uncategorised"),                      # ...but a *bare* technician still is
-    # A deliberate decline, kept as a test so it is a decision rather than an oversight: a
-    # bare "Project Manager" is construction, IT, marketing or events depending on the
-    # employer, and `uncategorised` is the honest answer for 50 postings rather than a guess
-    # that puts them in a stranger's digest.
+    # **This decline was challenged on 2026-08-26 and survived, with evidence it did not have
+    # before.** `program_management` was promoted in the meantime (2026-08-23) and its own
+    # definition is "Program/**project**-delivery management", so adding `project manager` to it
+    # looked like implementing the category rather than changing it — 234 postings by a census
+    # of the `operations` cache, 1 329 when measured against every active title.
+    #
+    # Then it was graded. A purpose-built SSYK key (427 graded headlines, halves on `md5(id)`)
+    # says Platsbanken **never codes a generic project-management occupation**: the labels are
+    # `Projektledare, bygg och anläggning`, `Projektledare, IT`, `Projektledare, industri` —
+    # the domain, always. On the titles this file cannot otherwise answer the split is
+    # engineering 45% / construction 37% / software 15%, reproducing on both halves. **A single
+    # answer is right 45% of the time**, which is the `miljøarbeider` shape exactly.
+    #
+    # So the original reasoning — "construction, IT, marketing or events depending on the
+    # employer" — is now the publisher's reasoning too, and this stays a decline. The delivery
+    # FUNCTION named as a function is a different question and is claimed (`pmo`,
+    # `delivery manager`), which is what the test below pins.
     ("Project Manager", "uncategorised"),
+    ("Projektledare", "uncategorised"),                # SE — refuted by SSYK, not overlooked
+    ("Head of PMO", "program_management"),             # ...but a PMO is the function itself
+    ("Service Delivery Manager", "program_management"),
+    # Misfile pass four (2026-08-26), each measured on a census of the `operations` cache
+    # bucket rather than a sample of it. The classifier had been answering all of these
+    # `operations` — the model's soft landing for a title no pattern reads.
+    ("Quality Control Manager", "engineering"),        # the grades the wave-3 line could not
+    ("Quality Lead", "engineering"),                   # ...read: only `quality manager` was
+    ("Manager, Quality", "engineering"),               # ...bound, and only in that word order
+    ("Kvalitetschef", "engineering"),                  # SE
+    ("Kwaliteitsmanager", "engineering"),              # NL
+    ("Qualitätsmanagement", "engineering"),            # DE
+    ("KVALITĀTES VADĪTĀJS", "engineering"),            # LV
+    ("Kontrolor kvality", "manufacturing_production"),  # ...but the INSPECTOR half stays here
+    ("Vattenkvalitetssamordnare", "uncategorised"),    # ...and water quality is not quality
+    ("Kundmottagare Euromaster Solna", "customer_support"),   # SE service reception
+    ("Team Manager - Fashion, Home & Beauty - Cork", "sales"),  # UK retail floor grades
+    ("Shift Lead - Food - Dublin", "sales"),
+    ("Varuhuschef", "sales"),                          # SE department-store manager
+    ("Směnový mistr", "manufacturing_production"),     # CZ plant shift foreman (86% ISCO 312)
+    ("Vedoucí směny", "uncategorised"),                # ...but the bare grade is 25%: a decline
+    ("Mjukvaruingenjör", "software_engineering"),      # the one SE compound naming software
+    ("Systemingenjör", "engineering"),                 # ...and the coin-flip one that stays
+    ("Referent stavebního úřadu", "uncategorised"),    # CZ municipal building authority
     ("Social Media Manager", "social_media"),
     ("Specialista sociálních sítí", "social_media"),          # CZ
     ("Náborár pre projekty, Marketing | Sociálne siete", "social_media"),  # SK
@@ -1505,3 +1542,153 @@ def test_a_sector_word_does_not_outrank_a_role_head():
     assert taxonomy.classify("Assembly Operator") == "manufacturing_production"
     assert taxonomy.classify("Mistr výroby") == "manufacturing_production"
     assert taxonomy.classify("Zákaznická podpora pro zahraničí") == "customer_support"
+
+
+# --------------------------------------------------------------------------------------
+# Misfile pass four (2026-08-26). Each of these guards a boundary that a census or an
+# answer key settled, and each is mutation-checked: the comment says what breaks when the
+# fragment is deleted, and the assertion is written to fail in that state.
+# --------------------------------------------------------------------------------------
+
+
+def test_the_delivery_function_is_claimed_and_the_domain_shaped_project_title_is_not():
+    """The line SSYK drew, in both directions — and it is the opposite of what was first built.
+
+    A PMO and a delivery manager name the delivery function itself; `delivery manager` was
+    already this category's own `SHORTLIST_KEYWORDS` vocabulary. A bare project-manager title
+    names a role whose truth is its domain: the register codes 427 graded headlines as
+    `Projektledare, bygg och anläggning` / `, IT` / `, industri` and never as generic project
+    management, splitting 45/37/15 across engineering, construction and software on the titles
+    this file cannot otherwise answer — reproduced on both held-out halves.
+
+    **Both halves of this test are load-bearing and they fail in opposite directions.**
+    Deleting the `pmo` fragment sends the first group to the residual. Adding `project manager`
+    or `projektledare` — the change this pass started out making — turns the second group into
+    a 45%-accurate guess over 1 329 active postings, which is what the measurement stopped.
+    """
+    for title in ("Head of PMO", "PMO Analyst", "Project Management Office Lead",
+                  "Delivery Manager", "Service Delivery Manager", "Program Manager"):
+        assert taxonomy.classify(title) == "program_management", title
+    # Refuted by the publisher's own coding, and pinned so it is a decision, not an oversight.
+    for title in ("Project Manager", "Projektledare", "Prosjektleder", "Projektkoordinator",
+                  "Uppdragsledare"):
+        assert taxonomy.classify(title) != "program_management", title
+    # A named domain still answers first, wherever it sits in the order.
+    assert taxonomy.classify("Project Manager - Construction") == "construction"
+    assert taxonomy.classify("Marketing Program Manager") == "marketing"
+    assert taxonomy.classify("Legal Program Manager") == "legal"
+
+
+def test_the_swedish_software_compound_moves_with_its_catch_half():
+    """`mjukvaruingenjör` is software; `systemingenjör` is a settled decline.
+
+    The SSYK key codes all four register rows of the compound `Mjukvaruutvecklare` /
+    `Fullstack-utvecklare`, and `q=mjukvaruingenjör` returns `total=4`, so that is a census.
+    **The two halves must never be split**: `software_engineering`'s catch-all is
+    `\bengineer\b`, which cannot read a Swedish compound, so guarding `engineering` alone
+    turns 3 of the 4 rows from a misfile into a decline. Deleting the fragment in
+    `software_engineering` makes this test fail on exactly that.
+
+    `systemingenjör` is pinned as a DECLINE-to-engineering on the same key: 55 graded rows
+    across 27 distinct SSYK occupations (software 27 / engineering 16 / devops 8) — the
+    `miljøarbeider` shape, where any single answer is a coin flip.
+    """
+    assert taxonomy.classify("Mjukvaruingenjör") == "software_engineering"
+    assert taxonomy.classify("Programvaruingenjör") == "software_engineering"
+    # The wider forms were refuted by the same key, not merely left out.
+    assert taxonomy.classify("Systemingenjör") == "engineering"
+    assert taxonomy.classify("Testingenjör") == "engineering"
+    assert taxonomy.classify("Automationsingenjör") == "engineering"
+    assert taxonomy.classify(
+        "Erfarna Ingenjörer inom Mjukvara, Mekanik och Elektronik") == "engineering"
+
+
+def test_a_municipal_building_authority_is_not_construction():
+    """The guard sits on the authority phrase, never on the stem — the stem is 92% construction.
+
+    Walking the whole MPSV register (38 872 records) says `stavebn|výstavb` codes construction
+    92.2% of the time, so a bare-stem guard is refuted outright. On the authority phrases the
+    register is unanimous the other way: 0 of 11 municipal building-office titles are coded
+    construction, 10 of 11 are ISCO 334/335/41 — government clerical work this taxonomy has no
+    category for, so declining is the answer. Deleting the guard files all four of the first
+    group as `construction`; widening it to the bare stem breaks the second group.
+    """
+    for title in ("Referent stavebního úřadu", "Referent/ka stavebního odboru",
+                  "REFERENT/KA ODBORU VÝSTAVBY", "Vedoucí odboru výstavby a investic"):
+        assert taxonomy.classify(title) == "uncategorised", title
+    for title in ("Stavební inženýr", "Stavbyvedoucí", "Zedník", "Výstavba budov - dělník"):
+        assert taxonomy.classify(title) == "construction", title
+
+
+def test_industrial_quality_grades_are_engineering_in_every_language_the_corpus_writes():
+    """One decision, applied; and the environmental false friend carried across with it.
+
+    `engineering` already owned industrial quality — both answer keys file it there (ISCO
+    3119/2149, and SSYK has no quality occupation at all) — but the implementation read only
+    the English adjacency `quality manager`, so 134 active postings of the same work in other
+    grades and other languages fell to the residual and were answered `operations`.
+
+    The three lookbehinds are the measured half: `vattenkvalitet` / `luftkvalitet` /
+    `miljökvalitet` is environmental monitoring, and deleting them makes
+    `Vattenkvalitetssamordnare` an industrial quality manager. The INSPECTOR stays in
+    `manufacturing_production`, which is the three-way split this file pinned first.
+    """
+    for title in ("Quality Control Manager", "Quality Lead", "Quality Head", "Manager, Quality",
+                  "Quality Conformance Specialist", "Kvalitetschef", "Kvalitetsansvarig",
+                  "Kvalitetskoordinator", "Qualitätssicherung Leiter", "Kwaliteitszorg manager",
+                  "Manager Qualité", "KVALITĀTES VADĪTĀJS"):
+        assert taxonomy.classify(title) == "engineering", title
+    # The inspector half of the split, and the environmental false friend.
+    # `engineer` must stay in the grade list: it was in the fragment this widening replaced,
+    # and dropping it sent this title to `software_engineering`'s bare `engineer` — the
+    # 718-posting misfile of 2026-08-17, arriving through a change meant to fix something else.
+    assert taxonomy.classify("Quality Systems Engineer") == "engineering"
+    # ...and the asymmetry the old fragment encoded, which one alternation would erase: a
+    # quality assurance MANAGER runs an industrial function, a quality assurance ENGINEER is a
+    # software tester. Folding `assurance` in beside `engineer` moved 20 postings of software QA
+    # into engineering.
+    assert taxonomy.classify("Quality Assurance Manager") == "engineering"
+    assert taxonomy.classify("Quality Assurance Engineer") == "software_engineering"
+    assert taxonomy.classify("Kontrolor kvality") == "manufacturing_production"
+    assert taxonomy.classify("Quality Inspector") == "manufacturing_production"
+    for title in ("Vattenkvalitetssamordnare", "Luftkvalitetsstrateg", "Miljökvalitetschef"):
+        assert taxonomy.classify(title) != "engineering", title
+
+
+def test_retail_floor_grades_are_sales_and_are_bound_to_the_department_not_the_town():
+    """~90 of 122 postings are one UK retailer's grades, and the binding matters more than they do.
+
+    The corpus writes them as `Team Manager - Fashion, Home & Beauty - <town>` and `Shift Lead -
+    Food - <town>`. Binding to the discoverable list of towns would be fitting the corpus — the
+    `Byggmax` warning — so the rule is a grade plus a retail department. That is also what keeps
+    `manufacturing_production` (7th) from taking them before `sales` (21st) ever runs: the plant
+    fragment added in the same pass is `shift supervisor|superintendent` and the Czech words,
+    never a bare `shift lead`. Deleting either binding breaks a different group here.
+    """
+    for title in ("Team Manager - Fashion, Home & Beauty - Cork", "Shift Lead - Food - Dublin",
+                  "Department Manager - Retail Park - Leeds", "Varuhuschef", "Butikschef"):
+        assert taxonomy.classify(title) == "sales", title
+    # **The plant grade is the FOREMAN word only, and the register is why.** Of 52 MPSV rows
+    # carrying bare `vedoucí směny`, 9 are ISCO 312 and 21 are hotel/kitchen/fast-food/retail
+    # supervisors — 25%, a coin flip, and `hospitality` and `sales` cannot rescue them because
+    # those titles name no food or shop word. `směnový mistr` is 12 of 14 ISCO 312 (86%), so
+    # only the compound ships; the bare forms and the ungradeable English `shift supervisor`
+    # are declines by measurement, not by omission.
+    for title in ("Směnový mistr", "Mistr směny", "SMĚNOVÝ MISTR/-OVÁ V DŘEVOZPRACUJÍCÍM PROVOZU"):
+        assert taxonomy.classify(title) == "manufacturing_production", title
+    for title in ("Vedoucí směny", "Shift Supervisor"):
+        assert taxonomy.classify(title) != "manufacturing_production", title
+
+
+def test_kundmottagare_is_service_reception_except_when_it_is_a_foreman():
+    """One compound short of a word family this category already owns, plus its one false positive.
+
+    `customer_support` already carries `kundtjänst|kundservice|kundinformatör|kundbokare`.
+    The single measured false positive is real production text: `Kundmottagare & Verkmästare
+    sökes till Vilhelmina` is a workshop foreman wearing a reception title, and the lookahead
+    is what keeps it out. Deleting the lookahead makes that title customer support.
+    """
+    assert taxonomy.classify("Kundmottagare Euromaster Solna") == "customer_support"
+    assert taxonomy.classify("KUNDMOTTAGARE BILVERKSTAD") == "customer_support"
+    assert taxonomy.classify(
+        "Kundmottagare & Verkmästare sökes till Vilhelmina") != "customer_support"
