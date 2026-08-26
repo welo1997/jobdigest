@@ -419,7 +419,15 @@ def _source_classes(include_cz: bool) -> list[type]:
         # publishers, so a source either already permits us or it is skipped. The cost is
         # deliberate and large: 92% of Czech and 99% of Slovak inventory. Do not re-add either
         # one because the digest looks thin.
-        from ingestion.sources.startupjobs import StartupJobsSource
+        # `StartupJobsSource` USED to sit here and was removed 2026-08-26 on the
+        # SmartRecruiters rule: a refusing robots.txt is dispositive on its own. The board's
+        # Symfony API moved again — `core.startupjobs.cz` is gone entirely (404 on `/` and
+        # `/api`) and the same API Platform now answers on `back.startupjobs.com`, whose
+        # robots.txt is `User-agent: * / Disallow: /` in full. The permitted host
+        # (`www.startupjobs.com`, robots allow-all) has no route to the inventory: its listing
+        # HTML carries zero `/job/` links and its `sitemap/offers.xml` lists ids without slugs,
+        # which 404. See `ingestion/tests/test_source_exclusions.py` and docs/sources.md
+        # before re-adding it.
         from ingestion.sources.cocuma import CocumaSource
         # MPSV is the Czech public employment service's own register, published as open data
         # by the Ministry of Labour. Its licence metadata expressly disclaims the sui generis
@@ -441,7 +449,7 @@ def _source_classes(include_cz: bool) -> list[type]:
         # anti-scraping clause; robots + Content-Signal affirmatively allow it) — see the
         # module docstring. Personio was evaluated alongside and skipped (unreadable terms).
         from ingestion.sources.teamtailor import TeamtailorSource
-        sources += [StartupJobsSource, CocumaSource, RecruiteeSource, WorkableSource,
+        sources += [CocumaSource, RecruiteeSource, WorkableSource,
                     TeamtailorSource, MpsvSource]
     return sources
 

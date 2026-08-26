@@ -189,12 +189,17 @@ SAMPLING: dict[str, Sample] = {
     # `profesia` never appear: a source `search_jobs.source_classes()` does not run has no link
     # to check, and `self_check()` reports the leftover row as DRIFT — correctly. That is the
     # table's whole purpose, and it caught this removal within the same commit.
+    # `startupjobs` was here until 2026-08-26 and left the same way, and the same test caught
+    # it the same commit — the row outlived the source by exactly one `pytest` run. Its removal
+    # is worth a second line because the *link* is what killed it: the board moved its API to a
+    # host whose robots refuses `*`, and the only robots-permitted host lists its offers as ids
+    # without the slug `/job/{id}` requires. The 2026-08-06 entry in this module's own docstring
+    # was the first act of that story.
     "workday": Sample(module={"SITES": Spread(1), "SEARCH_TERMS": Trim(1),
                               "MAX_PAGES_PER_QUERY": 1, "MAX_DETAILS": 5}),
     "adzuna": Sample(module={"COUNTRY_CONFIG": Trim(1), "SEARCH_TERMS": Trim(1)},
                      note="spends live API budget"),
     "usajobs": Sample(module={"SEARCH_TERMS": Trim(1), "MAX_PAGES_PER_TERM": 1}),
-    "startupjobs": Sample(module={"MAX_PAGES": 1}),
     "cocuma": Sample(module={"MAX_PAGES": 1}),
     "recruitee": Sample(module={"COMPANIES": Spread(3)}),
     "workable": Sample(module={"ACCOUNTS": Spread(3)}),

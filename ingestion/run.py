@@ -14,7 +14,6 @@ from ingestion.sources.himalayas import HimalayasSource
 from ingestion.sources.jobscz import JobsCzSource
 from ingestion.sources.remoteok import RemoteOKSource
 from ingestion.sources.remotive import RemotiveSource
-from ingestion.sources.startupjobs import StartupJobsSource
 from ingestion.sources.weworkremotely import WeWorkRemotelySource
 
 logging.basicConfig(
@@ -30,7 +29,6 @@ ALL_SOURCES = [
     WeWorkRemotelySource,
     RemoteOKSource,
     HimalayasSource,
-    StartupJobsSource,
     AdzunaSource,
     GreenhouseSource,
     JobsCzSource,

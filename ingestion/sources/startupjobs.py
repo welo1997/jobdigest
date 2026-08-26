@@ -1,4 +1,18 @@
-"""StartupJobs — Czech & Slovak startup jobs via the public JSON-LD API.
+"""StartupJobs — Czech & Slovak startup jobs via the public JSON-LD API. **RETIRED.**
+
+**NOT INGESTED since 2026-08-26, and not for a technical reason.** The API moved a second
+time: `core.startupjobs.cz` is gone outright (404 on `/` as well as on the collection), and
+the same API Platform now answers on **`back.startupjobs.com`** — whose robots.txt is
+`User-agent: *` / `Disallow: /` in full. A refusing robots is dispositive on its own in this
+repo (the 2026-08-11 SmartRecruiters finding), and `politeness.robots_allows()` would refuse
+every request anyway, so repointing `API_BASE` ships a source that fetches nothing and reports
+a clean zero. `www.startupjobs.com` still permits everything in robots but exposes no route to
+the inventory — its listing HTML holds zero `/job/` links and `sitemap/offers.xml` lists ids
+without the slug that `/job/{id}` requires. The module is kept as tested code so a published
+grant is a decision rather than a rewrite: see `ingestion/tests/test_source_exclusions.py`,
+docs/sources.md and `notes/2026-08-26-startupjobs-retired.md`. Everything below describes the
+adapter as it last worked (final successful ingest 2026-08-24).
+
 
 StartupJobs.cz (now `startupjobs.com`, after the Welcome to the Jungle acquisition) moved its
 public API off `startupjobs.cz/api/offers` — which now returns a clean JSON **404** — onto a

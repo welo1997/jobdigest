@@ -624,6 +624,16 @@ it.
   numbers and only the last is the price. The wider lesson is the guard, not the source: **an
   adapter that leaves the machine must call `robots_allows()` and `throttle()`**, and nothing
   currently checks that it does.
+- **startupjobs is excluded on a refusing robots.txt (2026-08-26)** — the same rule as
+  SmartRecruiters, reached a different way. Its API moved off the dead `core.startupjobs.cz`
+  onto `back.startupjobs.com`, which is `User-agent: * / Disallow: /`; the robots-allow-all
+  `www` host renders its listing from that backend and its sitemap lists ids without the slug
+  `/job/{id}` needs, so **there is no permitted route to the inventory at all** and repointing
+  the host ships a silent zero. **Measured cost: 414 active rows (389 CZ, 11 SK), the
+  second-largest CZ source and the largest startup/tech one, on top of Alma Career's 92%.**
+  Do not re-add it because the Czech digest looks thin — and note the general lesson: a source
+  that has moved its endpoint once will move again, and `source_watchdog`'s SILENT ZERO is the
+  only thing that noticed either time.
 - **jobs.cz and profesia are excluded on Alma Career's terms** (2026-08-03), at a deliberate
   cost of 92% of Czech and 99% of Slovak inventory. `test_source_exclusions.py` fails if
   either returns to `gather()`. **Do not re-add them because the digest looks thin.**

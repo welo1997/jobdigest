@@ -567,6 +567,44 @@ payload will pick a different string and that *shape* is the thing to watch.
   happened. **That guard is still unwritten, and it will go red for roughly eight adapters when
   it lands** — that is the finding, not a reason to weaken it. Full workings in
   `notes/2026-08-10-smartrecruiters-robots.md`.
+- **StartupJobs is REMOVED (2026-08-26), on the SmartRecruiters rule and nothing else.** The
+  board's Symfony API moved for the second time in three weeks. `core.startupjobs.cz` — the
+  host the 2026-08-06 rewrite was built against — is **gone entirely**: 404 on `/` and on
+  `/api`, not just on the collection, from 2026-08-25's ingest onwards. The same API Platform
+  now answers on **`back.startupjobs.com`** (`/api` returns
+  `{"@context":"/api/contexts/Entrypoint","@type":"Entrypoint"}`), found by reading the hosts
+  the site's own SSR payload names. **`back.startupjobs.com/robots.txt` is, in full:
+  `User-agent: *` / `Disallow: /`.** That is dispositive on its own — the 2026-08-11 finding
+  that a *refusing* robots needs no terms check to back it — and it is not academic either:
+  `politeness.robots_allows()` refuses every request, so repointing `API_BASE` ships an adapter
+  that fetches nothing and reports a clean zero, which is this file's own silent-zero failure
+  wearing a new hat.
+  **There is no permitted route left, which is what makes this a retirement rather than a
+  repair.** `www.startupjobs.com` is robots-allow-all and serves `sitemap/offers.xml`, but the
+  listing page is rendered from the refused backend and contains **zero** `/job/` links, and
+  the sitemap lists its **442 offers as bare ids** — and `/job/{id}` without the slug is a
+  clean 404, the exact fact that made the 2026-08-06 rewrite emit 450 dead links. So the
+  compliant host cannot even be walked. Driving it with a browser is closed for a second,
+  independent reason: no browser automation on the sourcing path.
+  **The cost, measured on production the day of the removal, not argued:** **414 active rows —
+  389 CZ, 11 SK, 14 with no resolved country** (kept, and left to the AI matcher). Unlike
+  SmartRecruiters, where half the output was in countries nobody can select, essentially the
+  whole of this adapter's inventory was subscriber-reachable: it was the **second-largest
+  Czech source in the stack at 4.9% of 7 930 active CZ rows**, and the largest *startup/tech*
+  one — `mpsv`, the 6 884-row leader, is a public register of largely non-professional
+  vacancies. 142 of its rows had ever been scored into `matches`, 70 had actually been
+  emailed. That price lands on top of Alma Career's, which already costs 92% of Czech
+  inventory. No backfill is needed: `deactivate_stale` at `--stale-days 7` drains the rows
+  within a week of the source ceasing to be fetched, and `source_watchdog` files an absent
+  source as *"retired, ageing out"* automatically because it reads `search_jobs.source_classes`
+  rather than a list of its own.
+  **The finding that outlives the source: a source that has moved once will move again, and the
+  second move is the one that closes it.** The 2026-08-06 fix was good work — it paid off two
+  debts and rewrote the adapter onto a documented API — and it bought eighteen days. Nothing
+  detected the move except the watchdog's SILENT ZERO on day two, which is precisely what that
+  monitor exists for and the one part of this story that worked as designed. Kept as tested
+  code on the `jobscz`/`profesia`/`smartrecruiters` footing; `test_source_exclusions.py` fails
+  if it returns to `gather()`. Full workings in `notes/2026-08-26-startupjobs-retired.md`.
 - **Workday is the N+1 adapter, and the source of large-EU-employer inventory** (SmartRecruiters
   was the other until the entry above). Its list endpoint carries no description, so each posting
   needs its own detail call, so it needs a way to decide which postings are worth one. It runs

@@ -133,14 +133,60 @@ def test_nva_is_not_ingested():
     )
 
 
+def test_startupjobs_is_not_ingested():
+    """StartupJobs is excluded on a refusing robots.txt — the SmartRecruiters rule, again.
+
+    The board (StartupJobs.cz, now startupjobs.com after the Welcome to the Jungle
+    acquisition) moved its public API for the second time. `core.startupjobs.cz` — the host
+    the 2026-08-06 rewrite was built against — is gone entirely: 404 on `/` and on `/api`,
+    not merely on the collection. The same Symfony API Platform now answers on
+    **`back.startupjobs.com`**, whose `/api` entrypoint returns
+    `{"@type":"Entrypoint"}` — and whose robots.txt is, in full:
+    `User-agent: *` / `Disallow: /`.
+
+    That refuses us at the root of the only host that holds the data, and this repo settles a
+    source on the narrowest applicable clause: **a refusing robots is dispositive on its own
+    and the terms never need to be reached** (the 2026-08-11 SmartRecruiters finding). It is
+    also not merely academic — `politeness.robots_allows()` would refuse every request, so a
+    one-line host swap ships an adapter that fetches nothing and reports a clean zero.
+
+    **There is no permitted route left.** `www.startupjobs.com` is robots-allow-all, but its
+    listing page is rendered from the refused backend and contains **zero** `/job/` links, and
+    `sitemap/offers.xml` lists its 442 offers as ids **without slugs** — and `/job/{id}` with
+    no slug is a clean 404 (the same fact that made the 2026-08-06 rewrite emit 450 dead
+    links). So the sitemap cannot even be walked, let alone the board crawled, without the
+    refused host.
+
+    **The cost, measured rather than argued** (2026-08-26, the day the removal landed):
+    **414 active rows — 389 CZ, 11 SK, 14 with no resolved country** — so unlike
+    SmartRecruiters almost the whole adapter's output was subscriber-reachable. It was the
+    **second-largest Czech source in the stack** (4.9% of 7 930 active CZ rows) and the
+    largest *startup/tech* one, `mpsv` being a public register of mostly non-professional
+    vacancies; 142 of its rows had ever been matched and 70 emailed. That price is paid on
+    top of Alma Career, which already costs 92% of Czech inventory.
+
+    Kept as tested code on the `jobscz`/`profesia`/`smartrecruiters` footing, so a published
+    grant makes this a decision rather than a rewrite. Re-add it against permission from the
+    host that actually serves the data — never because the Czech digest looks thin.
+    """
+    assert "StartupJobsSource" not in _ingested(), (
+        "StartupJobsSource is back in gather(). It was removed 2026-08-26 because the board's "
+        "API moved to back.startupjobs.com, whose robots.txt is `User-agent: * / Disallow: /`, "
+        "and the permitted www host exposes no route to the inventory. This test failing means "
+        "either a mistake or a decision that needs recording here."
+    )
+
+
 def test_the_excluded_adapters_still_import():
     """Kept as code, so an exclusion can be reversed by a decision rather than a rewrite."""
     from ingestion.sources.jobscz import JobsCzSource
     from ingestion.sources.nva import NvaSource
     from ingestion.sources.profesia import ProfesiaSource
     from ingestion.sources.smartrecruiters import SmartRecruitersSource
+    from ingestion.sources.startupjobs import StartupJobsSource
 
     assert JobsCzSource().source_name == "jobscz"
     assert NvaSource().source_name == "nva"
     assert ProfesiaSource().source_name == "profesia"
     assert SmartRecruitersSource().source_name == "smartrecruiters"
+    assert StartupJobsSource().source_name == "startupjobs"
