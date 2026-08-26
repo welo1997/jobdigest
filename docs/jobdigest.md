@@ -913,14 +913,24 @@ from anywhere" are the same chip on `/jobs` today and are not the same job. `pos
 (migration 021, `geo.remote_reach`) is the second answer: `anywhere | region | country | NULL`.
 
 **The headline is the distribution, not the coverage.** Backfilled over the whole corpus
-(170 299 scanned, 18 160 written); all 16 296 active fully-remote rows:
+(170 299 scanned, 18 160 written); all 16 296 active fully-remote rows as at 2026-08-14, and
+re-measured 2026-08-26 on 12 881 — the drop is the `ashby` `workplaceType` correction removing
+~3 400 rows that were never fully remote (−3 417 from that adapter alone, against a corpus that
+grew to 138 272 active):
 
-| verdict | rows | % |
-|---|---:|---:|
-| `country` — work from home, one named country | 13 377 | **82.1%** |
-| `region` — a macro-region, a timezone band, or ≥2 named countries | 878 | 5.4% |
-| `anywhere` — no geographic restriction stated | **83** | **0.5%** |
-| NULL — the posting never said | 1 958 | 12.0% |
+| verdict | rows (08-14) | % | rows (08-26) | % |
+|---|---:|---:|---:|---:|
+| `country` — work from home, one named country | 13 377 | **82.1%** | 9 039 | **70.2%** |
+| `region` — a macro-region, a timezone band, or ≥2 named countries | 878 | 5.4% | 2 133 | 16.6% |
+| `anywhere` — no geographic restriction stated | **83** | **0.5%** | **321** | **2.5%** |
+| NULL — the posting never said | 1 958 | 12.0% | 1 388 | 10.8% |
+
+**The ratios moved, and not because of the hybrid correction** — the `region` share was already
+11.0% by 2026-08-15 from the macro-region vocabulary and `;`-splitting work, and the `anywhere`
+rise is `scope_raw` filling in exactly where the note below predicted it would (weworkremotely
+158 of the 321, jobicy 94). The 2026-08-17 prediction that "the percentages are ratios and are
+not invalidated" was therefore wrong in practice: **a percentage here is only as old as the last
+classifier change.**
 
 A stratified 300-per-source sample taken first said 71.6 / 5.3 / 0.75 / 22.3, and the difference
 is instructive rather than an error: 300 rows each from cocuma, recruitee and themuse against 300
@@ -929,7 +939,9 @@ from ashby is not what the corpus looks like, and those small sources are the ba
 auditing cheap — it is how the three false positives were found — not estimating a total.
 
 So the intuition that remote usually means work-from-home is correct, and it is *overwhelmingly*
-correct. **83 postings** in the entire live corpus are provably work-from-anywhere. **Do not build
+correct. **83 postings** in the entire live corpus were provably work-from-anywhere — **321 on
+2026-08-26, still 2.5% of remote rows and 0.23% of the 138 272 active corpus**, and the growth is
+scope-field coverage rather than new inventory. **Do not build
 a feature on the assumption that this inventory is large, and do not re-argue its size from
 intuition.** The economic reason is not a data problem: a company can
 usually only employ you where it has a legal entity and payroll, so country-bound is the default
@@ -970,7 +982,9 @@ Three design rules, each of which was a false positive on live data first:
    no city, and the Paris job leaves every Paris subscriber's digest while appearing in Germany's.
    Nothing fails — a country resolved is a country resolved.
 
-NULL is 22% and passes every gate, on the same rule as `work_mode` and `education_min`. The
+NULL is 10.8% and passes every gate, on the same rule as `work_mode` and `education_min`. (This
+line read 22% until 2026-08-26 — it had quoted the discarded stratified sample rather than its own
+table's 12.0%, which is the trap the paragraph above this one is about.) The
 column is set **only for fully-remote rows**: the reach of an on-site Berlin job is a category
 error, and deriving one anyway would fill the column with trivially-`country` rows and make
 coverage look far better than it is.
@@ -984,16 +998,22 @@ hold this job"**.
 
 `remote_reach` alone cannot answer that: `region` covers "Europe", "APAC" and "US or Canada" alike.
 `postings.reach_areas` (migration 022, `geo.REACH_AREAS`) is the second half — which of the areas we
-can name a scope actually includes. Over the 961 multi-country remote postings:
+can name a scope actually includes. Over the 961 multi-country remote postings at 2026-08-14 —
+**2 454 when re-measured 2026-08-26**, the growth being `scope_raw` coverage and the
+macro-region/`;`-splitting work, not the hybrid correction:
 
-| Country-menu row | postings | |
-|---|---:|---|
-| **EU-International** | 568 | scope includes an EEA country, a European macro-region, or a European timezone band |
-| **North America-International** | 403 | scope includes the US or Canada |
-| — in both | 150 | **the only set where someone in the EEA can hold a US-facing role** |
-| EEA only, closed to North America | 418 | "Europe", "EMEA", "CET ±3" |
-| NA only, **closed to Europeans** | 253 | "Remote, Canada; Remote, US" |
-| neither (APAC / LATAM / Middle East) | 114 | a real region, no row for it |
+| Country-menu row | postings (08-14) | postings (08-26) | |
+|---|---:|---:|---|
+| **EU-International** | 568 | **1 593** | scope includes an EEA country, a European macro-region, or a European timezone band |
+| **North America-International** | 403 | **1 170** | scope includes the US or Canada |
+| — in both | 150 | **532** | **the only set where someone in the EEA can hold a US-facing role** |
+| EEA only, closed to North America | 418 | 1 061 | "Europe", "EMEA", "CET ±3" |
+| NA only, **closed to Europeans** | 253 | 638 | "Remote, Canada; Remote, US" |
+| neither (APAC / LATAM / Middle East) | 114 | 223 | a real region, no row for it |
+
+Those are raw counts, which is what this column has always held. **The facet a visitor sees dedups
+by `dedup_key`: 1 328 / 974 / 460 on 2026-08-26.** Quote the deduped numbers in product copy and
+the raw ones only against this table.
 
 **The two rows overlap and their counts must never be summed** — that would double-count the 150,
 which are the most interesting postings in the set. It is why `reach_areas` is a `text[]` and not a
@@ -1001,7 +1021,8 @@ single-valued column: one value would have to pick, and lose them.
 
 **A remote job bound to one country is in neither row.** It sits under its own country, and Work
 setup's "Fully remote" is what says it is remote. That split is what keeps the rows meaningful:
-13 377 of 16 296 active remote postings are single-country, and admitting them would make an
+13 377 of 16 296 active remote postings are single-country — 9 039 of 12 881 on 2026-08-26, so
+70% rather than 82%, and still the great majority — and admitting them would make an
 international row mean nothing. It also replaced the thing that was actually broken — a synthetic
 "Remote" row at the top of the Country menu that ORed *every* fully-remote posting into the location
 filter, so a location control answered a work-arrangement question and a Prague visitor ticking it
@@ -1029,10 +1050,11 @@ would make the filter silently return every job rather than error. That is why t
 own drift test even though the ids are two short strings.
 
 **What is still deferred:** the ~1 400 remote postings whose scope is unstated *and* whose country
-is unresolved are reachable through no Country row at all — only through Work setup = Fully remote
-with no country picked. Nothing is hidden, but the Country menu cannot name them. **Never "fix" that
-by folding them into an international row**: 12% of remote inventory would then carry a promise none
-of those postings made. There is also no row for APAC or LATAM (114 postings) and none for a
+is unresolved — **781 on 2026-08-26** — are reachable through no Country row at all, only through
+Work setup = Fully remote with no country picked. Nothing is hidden, but the Country menu cannot
+name them. **Never "fix" that by folding them into an international row**: 10.8% of remote inventory
+would then carry a promise none of those postings made. There is also no row for APAC or LATAM
+(114 postings then, 223 now) and none for a
 GB-inclusive-but-not-EEA scope, and no timezone filter — the offsets exist for one source only, so a
 hard filter would have a near-empty menu; a badge is the shape if it is ever wanted.
 
@@ -1061,6 +1083,16 @@ the same pass — EU-International 568 → **1 128**, North America-Internationa
 150 → **376** — and the `region` share of remote rows went 5.4% → **11.0%**. The Country menu shows
 908/810 rather than 1 128/989 because the facet dedups by `dedup_key`; that is the number a visitor
 sees and the two are not in conflict.
+
+**Re-measured 2026-08-26, after the `ashby` correction:** 3 546 of 138 272 active postings name
+more than one country; EU-International 1 593, North America-International 1 170, both 532 raw
+(facet 1 328 / 974 / 460); the `region` share of remote rows is now 16.6%. **The "5 118 country-filter
+memberships" figure is deliberately NOT restated here.** A reproduction of it today gives 17 984,
+which is 5.07 extra countries per multi-country posting against 1.86 then — plausible if
+ashby/teamtailor enumerated lists have grown, but the original query is not recorded and the
+reproduction is a guess at its definition. **Agree the definition before quoting a new number**;
+this file's own rule is that a number measured at one stage does not describe another, and a
+number whose stage is unknown describes nothing.
 
 **None of that gain is from the ATS adapter work yet.** All four still reported 0 `scope_raw` in
 the by-source table at backfill time — they only began sending it that day and fill in over the

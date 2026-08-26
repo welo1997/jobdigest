@@ -1443,17 +1443,23 @@ def reach_predicate(countries: Iterable[str], alias: str = "p") -> tuple[str, li
     A `country`-reach row naming a country the subscriber did not pick is refused; everything
     unprovable is KEPT and handed to the matcher, which reads the posting's own words:
 
-      * `remote_reach is null` — never classified (1 507 active remote rows). Kept.
+      * `remote_reach is null` — never classified (1 507 active remote rows when this was
+        written; 1 388 of 12 881 on 2026-08-26). Kept.
       * `remote_reach = 'region'` with no `reach_countries` — a macro-region word we could not
         enumerate ("Europaweit"), so the subscriber's country is plausibly inside it. Kept.
       * `remote_reach = 'country'` with a null `country_code` — bound to one country, and we do
         not know which. Kept.
-      * `anywhere` (177 rows) — kept, obviously.
+      * `anywhere` (177 rows then, 321 on 2026-08-26 — `scope_raw` coverage filling in on
+        weworkremotely and jobicy, not new inventory) — kept, obviously.
 
     Sized before it was written, over the owner's two categories: 966 of 1 101 active remote
     rows positively name another country, against 7 `anywhere`, 12 reaching CZ, 12 CZ-based and
-    104 unprovable. So this is not a trim — it is most of the remote pool, which is exactly
-    what the 82.1%-are-country-bound invariant predicts. The counterpart is that the shortlist
+    104 unprovable. **Re-measured 2026-08-26, after the `ashby` `workplaceType` correction
+    removed ~3 400 rows that were never fully remote: 714 of 851 refused — 658 naming another
+    country, 56 an enumerated list without CZ — against 6 `anywhere`, 11 reaching CZ and 120
+    unprovable. 83.9% against 87.7%.** So this is not a trim — it is most of the remote pool,
+    which is exactly what the country-bound invariant predicts (82.1% then, 70.2% now: the
+    share moved with classifier coverage, not with this gate). The counterpart is that the shortlist
     stops spending its 120 slots on rows the matcher would now refuse: a prompt-only fix would
     have left retrieval unchanged and quietly emptied the digest as `exclude_sent` retired the
     handful of local rows.

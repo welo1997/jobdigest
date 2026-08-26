@@ -192,7 +192,10 @@ Each of these has been broken in production at least once. Reasoning and measure
   `reach=?`, and a subscriber with no `countries` at all gets `?` on every row rather than a
   refusal on every row — the failure that would empty a legacy profile's shortlist entirely.
   Sized before it shipped: 966 of 1 101 active remote rows in the owner's two categories name
-  another country, against 7 `anywhere`. Do not "simplify" it into a check on `remote_signal`
+  another country, against 7 `anywhere`. **Re-measured 2026-08-26, after the `ashby` correction
+  below: 714 of 851 are refused — 658 a `country` reach naming another country, 56 an
+  enumerated list that excludes CZ — against 6 `anywhere`, 11 reaching CZ and 120 unprovable.
+  83.9%, against 87.7% then**: the correction moved the denominator, not the conclusion. Do not "simplify" it into a check on `remote_signal`
   alone, and do not gate it in the prompt only — a prompt-only fix makes the model reject 90% of
   its own shortlist and the digest goes quiet as `exclude_sent` retires the local rows.
 - **"Remote" is two questions, and `remote_signal` only answers one.** Whether there is an
@@ -200,20 +203,31 @@ Each of these has been broken in production at least once. Reasoning and measure
   — `anywhere | region | country | NULL`, one definition in `geo.remote_reach`, backfilled by
   `python -m service.backfill_remote_reach`. The two are independent and conflating them
   promises something no posting said. **The measured answer is that "remote" almost always
-  means work from home in one country: 82.1% `country`, 5.4% `region`, 0.5% `anywhere` — 83
-  postings — and 12% NULL** (all 16 296 active remote rows, 2026-08-14) — so *do not build a
-  feature on the assumption that fully-remote-abroad inventory is large*, and do not re-argue
-  the size of it from intuition.
-  **That denominator is known to be inflated and is being corrected (2026-08-17).** `ashby` was the
-  corpus's largest remote claimant — 5 320 of its 9 598 active rows — and it read Ashby's derived
-  `isRemote` boolean while ignoring the employer's own single-valued `workplaceType`. Sampled over
-  14 live boards, **64% of its remote claims (882 of 1 378) are actually `Hybrid`** — on the order of
-  **~3 400 rows, about a fifth of the 16 296, were never fully remote.** Fixed at the source;
-  `remote_signal` comes from the adapter, so no backfill can recompute it and the rows correct
-  themselves over the ingest window. **The percentages are ratios and are not invalidated — the
-  reach classifier never read `isRemote` — but every absolute count resting on "active remote rows"
-  is, including the EU-International / North America-International figures below. Re-measure once
-  the window has turned over; do not re-derive them by argument.** The lesson is the invariant
+  means work from home in one country: 70.2% `country`, 16.6% `region`, 2.5% `anywhere` — 321
+  postings — and 10.8% NULL** (all 12 881 active remote rows, re-measured 2026-08-26; it read
+  82.1 / 5.4 / 0.5 / 12.0 on 16 296 rows on 2026-08-14) — so *do not build a feature on the
+  assumption that fully-remote-abroad inventory is large*, and do not re-argue the size of it
+  from intuition. **321 provable work-from-anywhere rows in 138 272 active postings is still
+  the answer**, and the rise from 83 is `scope_raw` coverage filling in on two boards
+  (weworkremotely 158, jobicy 94), not inventory appearing.
+  **That denominator was inflated, and the correction has now fully landed — measured
+  2026-08-26, not argued.** `ashby` was the corpus's largest remote claimant — 5 320 of its 9 598
+  active rows — and it read Ashby's derived `isRemote` boolean while ignoring the employer's own
+  single-valued `workplaceType`. Sampled over 14 live boards, **64% of its remote claims (882 of
+  1 378) were actually `Hybrid`** — on the order of ~3 400 rows. Fixed at the source;
+  `remote_signal` comes from the adapter, so no backfill could recompute it and the rows had to
+  correct themselves over the ingest window. **That window has turned over — every active `ashby`
+  row was re-seen on or after 2026-08-19 — and the estimate was very nearly exact: `ashby`'s
+  remote claims fell 5 320 → 1 903 (−3 417) and corpus-wide active remote fell 16 296 → 12 881
+  (−3 415), so the entire corpus-level drop is that one adapter, while the corpus itself grew
+  129 543 → 138 272.** The absolute counts below are restated at their 2026-08-26 values.
+  **The prediction that "the percentages are ratios and are not invalidated" was wrong in
+  practice, though not for the reason it feared**: the ratios moved a great deal (country
+  82.1 → 70.2, region 5.4 → 16.6, anywhere 0.5 → 2.5) and *none* of it is the hybrid
+  correction — the `region` share was already 11.0% by 2026-08-15 from the macro-region
+  vocabulary and `;`-splitting work, and the `anywhere` rise is `scope_raw` filling in. **A
+  percentage here is only as old as the last classifier change. Re-measure it; do not carry
+  it, and do not assume a ratio is safe just because a denominator was the thing corrected.** The lesson is the invariant
   itself arriving through a new door: a `remote_signal` is a *claim*, and a publisher's own
   structured field beats a boolean the publisher derived. `is_fully_remote` cannot catch this class —
   it re-reads the posting's prose, and `workplaceType` is a field, so the word "hybrid" appears
@@ -233,12 +247,15 @@ Each of these has been broken in production at least once. Reasoning and measure
   fully-remote posting — a location control answering a work-arrangement question, which showed
   a Prague visitor US-only roles. The Country menu now leads with two **international rows**
   backed by `postings.reach_areas` (`geo.REACH_AREAS`, mirrored and drift-tested in
-  `web/lib/geo.ts`, sent as the `intl` parameter): **EU-International 568** postings,
-  **North America-International 403**, **150 in both** — and the overlap is the only set in
+  `web/lib/geo.ts`, sent as the `intl` parameter): **EU-International 1 328** postings,
+  **North America-International 974**, **460 in both** — the deduped counts a visitor actually
+  sees, re-measured 2026-08-26 (raw 1 593 / 1 170 / 532; the 568 / 403 / 150 first published here
+  was superseded within a day by the 2026-08-15 `reach_countries` pass, so quote the date with
+  the number) — and the overlap is the only set in
   which someone in the EEA can hold a US-facing role, so **the two counts must never be
   summed**. A remote job bound to one country is in *neither* row: it sits under its own
-  country and Work setup flags it remote. That is what keeps the rows meaningful — 13 377 of
-  16 296 active remote postings are single-country. **`eea` means `EEA_COUNTRIES`, not
+  country and Work setup flags it remote. That is what keeps the rows meaningful — 9 039 of
+  12 881 active remote postings are single-country (2026-08-26). **`eea` means `EEA_COUNTRIES`, not
   `COUNTRIES`** (GB is selectable and outside the EEA), the same decoupling as the `eu` remote
   scope. `remote_reach` and `reach_areas` must come from one `geo.classify_reach` call, or a
   posting is `region` from its scope field and filed under the area named in its location
