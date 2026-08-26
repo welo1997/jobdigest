@@ -32,3 +32,8 @@ deploy/origin/
 # Local-only infrastructure reference (VPS IP, Cloudflare zone/account IDs).
 # Public notes refer to these by placeholder; see notes/INFRA.local.md.
 notes/INFRA.local.md
+
+# `scripts/matchspans.py --dump` corpus cache: ~60k (category, title) rows pulled from
+# production. Public job titles only — the query touches `postings`, never `profiles` — but a
+# corpus extract is a measurement, not a repo artefact, and it is stale the next morning.
+scripts/.corpus-titles.csv
