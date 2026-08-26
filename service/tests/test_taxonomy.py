@@ -1359,3 +1359,149 @@ def test_fr_role_heads_do_not_match_inside_foreign_compounds():
         "Swedish morphology."
     )
     assert taxonomy.classify("Chef de Projet") != "manufacturing_production"
+
+
+# --------------------------------------------------------------------------------------
+# pass three (2026-08-26) — the held-back findings from `notes/2026-08-26-misfile-ledger.md`.
+# Every title below reproduced the WRONG answer against the live classifier before its guard
+# was written, so removing the guard puts that answer back and the test goes red.
+# --------------------------------------------------------------------------------------
+
+
+def test_the_it_guard_reaches_all_three_technician_cognates():
+    """Swedish `drifttekniker` carried this guard; its siblings shipped bare beside it.
+
+    `devops_platform` has to name BOTH spellings, or the refusal drops the row instead of
+    handing it off — a refusal with nowhere to go is the failure the whole file avoids.
+    """
+    for title in ("IT-driftstekniker", "IT-drifttekniker"):
+        assert taxonomy.classify(title) == "devops_platform", title
+    assert taxonomy.classify("IT Servicetechniker Onsite Support (w/m/d)") != "skilled_trades"
+    for title in ("Driftstekniker renseanlegg", "Drifttekniker", "Servicetechniker Thermal"):
+        assert taxonomy.classify(title) == "skilled_trades", title
+    # Named because the guard must NOT reach it: the German apprenticeship whose own title
+    # says IT. This is why `elektroniker` was left unguarded.
+    assert taxonomy.classify(
+        "Elektroniker für Informations- und Systemtechnik") == "skilled_trades"
+
+
+def test_engineering_reads_the_discipline_on_either_side_of_the_head():
+    """Workday and Oracle write "Engineer Mechanical"; the forward arm cannot see it.
+
+    These are the same job in two word orders, and before this pass only one was engineering.
+    """
+    for title in ("Mechanical Engineer", "Engineer Mechanical", "Sr. Engineer Electrical (CAD)",
+                  "Engineer, Manufacturing", "Rock Mechanics Engineer",
+                  "Solid Mechanics Engineer till GKN Aerospace", "Sr. Engineer Power Hardware"):
+        assert taxonomy.classify(title) == "engineering", title
+
+
+def test_the_reversed_arm_refuses_a_head_that_already_names_its_function():
+    """The one failure the forward arm cannot have — and two of its cases are not software.
+
+    `sales` and `customer_support` run AFTER `engineering`, so those two titles were right
+    only because nothing earlier claimed them. Widening an earlier pattern is how a later
+    category silently loses a row it already had.
+    """
+    for title in ("Sr. Frontend Engineer - Process Modeling Team",
+                  "Android Engineer: IPP Hardware",
+                  "Software Functional Safety Engineer - Automotive"):
+        assert taxonomy.classify(title) == "software_engineering", title
+    assert taxonomy.classify("Sales Engineer, Retail and Manufacturing") == "sales"
+    assert taxonomy.classify(
+        "Technical Support Engineer - Electronic Access Systems") == "customer_support"
+
+
+def test_a_narrowing_that_lands_nowhere_is_not_finished():
+    """Every paired widening this pass shipped, asserted at its destination.
+
+    Each was found by narrowing something else and watching the row become `uncategorised`
+    rather than correct. If a widening is ever reverted alone, this says so.
+    """
+    assert taxonomy.classify("Produktchef till Mycronic PCB Assembly Solutions") == "product"
+    assert taxonomy.classify("Senior Produktägare (Scrum) - Hybrid") == "product"
+    assert taxonomy.classify(
+        "Lohnexperte Produktmanagement - Payroll Software / Jira (m/w/d)") == "product"
+    assert taxonomy.classify("IATF 16949 Qualified Auditor") == "manufacturing_production"
+    assert taxonomy.classify("Global GMP Quality Auditor") == "manufacturing_production"
+    assert taxonomy.classify("Handläggare ekonomiskt bistånd") == "social_care"
+    assert taxonomy.classify("Datamodelleur") == "data_engineering"
+    assert taxonomy.classify("Forensisch psychiater PPC Zwolle") == "healthcare"
+    assert taxonomy.classify("Media Buyer / Meta Ads (m/w/d)") == "marketing"
+    # ...and the rows each widening must NOT take with it.
+    assert taxonomy.classify("Internal Auditor") == "finance_accounting"
+    assert taxonomy.classify(
+        "Senior Vice President, Audit Leader, Audit Practice and Quality") == "finance_accounting"
+    assert taxonomy.classify("PPC Specialist") == "marketing"
+    assert taxonomy.classify("Buyer") == "operations"
+    assert taxonomy.classify(
+        "Werkstudent (m/w/d) App UI/UX Design & Produktmanagement") == "design"
+
+
+def test_a_bound_role_head_beats_an_unbounded_employer_list():
+    """`platschef` is a site manager of ANY site, and the sites are an endless list.
+
+    Bound to the work, not to the gyms — the `receptionist` verdict applied. The bare
+    "Platschef" row declining is the intended outcome: the title genuinely does not say.
+    """
+    for title in ("Platschef bygg", "Platschef inom anläggning sökes!",
+                  "Platschef, gata/väg och VA", "Platschef till Peab Anläggning"):
+        assert taxonomy.classify(title) == "construction", title
+    for title in ("Platschef gym", "Platschef Borås Indoor Golf", "Platschef",
+                  "Vikarierande Assisterande Platschef SATS Täby Centrum"):
+        assert taxonomy.classify(title) != "construction", title
+
+
+def test_the_swedish_recruitment_verb_is_not_a_recruitment_job():
+    """"Vi rekryterar Tågtekniker" advertises a train technician, not a recruiter.
+
+    `rekryterar(?!e)` is the split — one letter from the agent noun — and the participle
+    *rekryterande* is a real HR title that has to survive it.
+    """
+    assert taxonomy.classify("Vi rekryterar Tågtekniker till Göteborg!") != "hr_recruiting"
+    assert taxonomy.classify("Modine rekryterar Chef Produktionsteknik") != "hr_recruiting"
+    for title in ("Rekryterare", "Rekryterande konsultchef", "Senior Rekryteringskonsult"):
+        assert taxonomy.classify(title) == "hr_recruiting", title
+
+
+def test_in_a_pipe_delimited_title_the_role_is_the_first_segment():
+    """A staffing agency's own name after the first `|` is branding, not the vacancy."""
+    assert taxonomy.classify(
+        "Driftkoordinator VVS | Lernia Rekrytering & Bemanning | Stockholm") != "hr_recruiting"
+    assert taxonomy.classify(
+        "General Operatives | Lernia Bemanning & Rekrytering | Gävle") != "hr_recruiting"
+    assert taxonomy.classify(
+        "Rekryteringsassistent | Internt Manpower | Göteborg | Extrajobb") == "hr_recruiting"
+
+
+def test_the_czech_genitive_plural_inserts_a_fugitive_e():
+    """`sociálních služeb` — the form a municipality uses for its social-services department.
+
+    The stem was written for *služby* and could never match it. Same class as `inžený` and
+    `mechani[kc]`: the register writes the inflected form, not the citation one.
+    """
+    for title in ("Manažer/ka kvality sociálních služeb",
+                  "Referentka / referent sociálních služeb v odboru sociálních věcí"):
+        assert taxonomy.classify(title) == "social_care", title
+
+
+def test_a_sector_word_does_not_outrank_a_role_head():
+    """`logistik`, `betong`, `assembly`, `výrob` and `zákaznick` are all the same finding.
+
+    Each names a material, a sector or a department, and each ran ahead of the category that
+    names the actual profession.
+    """
+    assert taxonomy.classify("Senior Makler Logistikimmobilien (m/w/d)") != "logistics_transport"
+    assert taxonomy.classify("Säljare - logistik till Bilfrakt") == "sales"
+    assert taxonomy.classify("Betongbilsförare på deltid sökes i Göteborg!") == "logistics_transport"
+    assert taxonomy.classify("Assembly Process Engineer") == "engineering"
+    assert taxonomy.classify("OBCHODNÍK - KOŽENÉ VÝROBKY, PLASTOVÉ VÝROBKY (m/ž)") == "sales"
+    assert taxonomy.classify("TECHNIK ŽIVOČIŠNÉ VÝROBY") == "uncategorised"
+    assert taxonomy.classify(
+        "Vzorkař/vzorkařka - Oddělení zákaznického servisu, pracoviště Kladno"
+    ) != "customer_support"
+    # The work each fragment exists for is untouched.
+    assert taxonomy.classify("Logistikkoordinator") == "logistics_transport"
+    assert taxonomy.classify("Assembly Operator") == "manufacturing_production"
+    assert taxonomy.classify("Mistr výroby") == "manufacturing_production"
+    assert taxonomy.classify("Zákaznická podpora pro zahraničí") == "customer_support"
