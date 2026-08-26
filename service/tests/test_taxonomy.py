@@ -287,7 +287,12 @@ def test_polish_projektant_never_becomes_design():
      "NL `kok` unbounded matches bangkok"),
     ("Adviseur Utrecht", "uncategorised",
      "NL `recht` is inside Utrecht — the georgia rule in Dutch"),
-    ("Magazine Content Editor", "other_tech_function",
+    # Same shape as `Assistenza Autistica` above: declining is the correct answer, and the point
+    # is only that IT `magazzin` must not read it as a warehouse. It expected
+    # `other_tech_function` until 2026-08-26 purely because the residual's bare `\bcontent\b`
+    # happened to claim it; that fragment was removed as a misfile (81 of its 123 postings were
+    # content marketing), so the trap is now asserted without borrowing another bucket's answer.
+    ("Magazine Content Editor", "uncategorised",
      "IT `magazzin` has a double z and must not reach English magazine"),
     # --- 2026-08-11 wave 2. Each of these misfiled during the JOINT measurement, and none
     # of them was visible to the single-language pass that proposed the term: the offending
@@ -326,6 +331,109 @@ def test_multilingual_stems_stay_inside_their_own_language(title, expected, trap
     and each one is a lookahead, a word boundary or a binding that a later simplification
     would remove without any other test noticing."""
     assert taxonomy.classify(title) == expected, trap
+
+
+#: The 2026-08-26 misfile pass. Every one of these is a real corpus title that was categorised
+#: **confidently and wrongly**, and each was found by grouping the live corpus under the exact
+#: taxonomy fragment that claimed it (`scripts/matchspans.py`).
+#:
+#: They are grouped here rather than scattered because they share one cause, and it is the
+#: finding worth keeping: **almost none of them was a gap in what the taxonomy knew.** In nearly
+#: every case the file had already made the decision, written it down in a comment, measured it
+#: — and then not applied it to the sibling fragment that needed it. A test that pins the
+#: outcomes is the cheap half; the expensive half is noticing the class.
+_MISFILE_CASES = [
+    # --- an existing guard that was never copied to its sibling -----------------------------
+    ("Business Analist", "other_tech_function",
+     "NL: `Business Analyst` was already other_tech_function; the bare `analist` made that "
+     "ruling unreachable one language over"),
+    ("Kravanalytiker", "uncategorised",
+     "SE requirements analyst — the bare-`analyst` deletion of 2026-08-22 was applied to "
+     "English and to nothing else"),
+    ("1st Line SOC Analytiker", "uncategorised",
+     "the same fragment shadowing cybersecurity in Swedish"),
+    ("Data Analist", "data_analysis",
+     "the bound Dutch form must survive the narrowing — every correct row carries `data`"),
+    ("Dataanalytiker", "data_analysis", "and the bound Swedish form"),
+    ("Senior Software Engineer GenAI Enterprise Applications", "software_engineering",
+     "`Senior Software Engineer, Data Analytics` was already software; GenAI is the same "
+     "domain-word trap with the guard not fitted"),
+    ("GenAI Product Manager", "product", "same fragment, the product half"),
+    ("Large Language Model Architect", "machine_learning",
+     "the guard must not cost the vocabulary it was added for"),
+    ("Front Office Assistant", "uncategorised",
+     "`office manager` carries five lookbehinds for exactly this; the assistant form had none, "
+     "and its damage was larger"),
+    ("Senior Account Executive - Cybersecurity (North)", "sales",
+     "`financial services` is guarded as a vertical; cybersecurity is a vertical too"),
+    ("Field Security Specialist (Cyber Security Solutions Engineer)", "cybersecurity",
+     "security PRE-SALES is genuinely security work and must survive that guard"),
+    ("Kubernetes Software Developer", "software_engineering",
+     "`a tool name alone never names a role` was recorded for `tableau` and not for k8s"),
+    ("Senior Kubernetes Engineer", "devops_platform",
+     "the guard must not cost the real platform roles"),
+    ("Senior Javautvecklare – Spring Boot, Microservices, Kubernetes", "software_engineering",
+     "the Swedish compound has no word boundary before the head, so the guard cannot be bound"),
+    ("Business Developer till Eurofins!", "sales",
+     "`Business Development Manager` and `Affärsutvecklare` were already sales; the English "
+     "*-er* form was a programmer"),
+    ("Doktorand i odontologi", "education",
+     "four sibling clinical fragments carry the academic guard; `odont[óo]log` was the one "
+     "place it was not copied"),
+    ("Učitel/ka odborného výcviku oboru Pečovatel/ka", "education",
+     "teaching the care trade is not practising it — the same guard, one register over"),
+    ("Registrator till Försvarsmaktens internationella expedition - vikariat", "uncategorised",
+     "the Czech fragment's comment says NOT bare `expedi`; the Dutch one reintroduced it"),
+    ("Produktionsarbetare med truckkort", "manufacturing_production",
+     "a forklift LICENCE is a duty attached to another job — the class `med logistikansvar` "
+     "already defines"),
+    ("Operatör med truckkort | Lernia | Halmstad", "logistics_transport",
+     "and the publisher's own SSYK coding says a bare operator with that licence IS logistics: "
+     "the wider rule was wrong and the answer key is what caught it"),
+    # --- a word that names a place, a material or an employer, not a profession -------------
+    ("Kock till Lunda förskola", "hospitality",
+     "`Kock till Lunda skola` was already hospitality — one prefix moved the same job"),
+    ("Förskollärare", "education", "and the profession itself must not move"),
+    ("Zaakbegeleider Commissie Mijnbouwschade", "uncategorised",
+     "NL `mijnbouw` is mining; the `-bouw` lookbehind list was two doors short"),
+    ("Adviseur Energie Innovatie Gebouwde Omgeving", "uncategorised",
+     "`gebouwde` is the adjective *built* — `bouw` as a mid-word substring"),
+    ("Administratief medewerker vrachtwagenheffing/Toezicht Wegvervoer", "other_tech_function",
+     "the Dutch truck-TOLL programme is administration, not driving"),
+    # --- a generic role head with no domain binding -----------------------------------------
+    ("Senior PCB Designer", "uncategorised",
+     "`design lead` was bound to a domain word after 'Mechanical Design Leader' took 20 of 29; "
+     "the bare `designer` above it never was"),
+    ("Digital IC Designer", "uncategorised", "integrated-circuit design is engineering"),
+    ("Industrial Designer", "design",
+     "and an Industrial Designer IS a designer — the guard must not read `industri`"),
+    ("Product Designer", "design", "the deliberate product/design boundary is unchanged"),
+    # --- an enumerated list that went stale --------------------------------------------------
+    ("GTM Partnerships Manager, SME & Growth", "partnerships",
+     "the `growth` decline list shipped the same day `partnerships` was created"),
+    ("Director of Product, Growth/AI", "product",
+     "and `Director of Product` was a hole in `product` itself, so narrowing alone would have "
+     "produced a decline rather than a right answer"),
+    ("Growth Marketing Manager", "marketing",
+     "anything naming marketing outright still stays — the original guard's collateral was nil"),
+    ("B2B-säljare till ett snabbväxande bolag inom digital marknadsföring", "sales",
+     "`marknadsföring` naming the EMPLOYER'S SECTOR survived the leading-boundary fix"),
+]
+
+
+@pytest.mark.parametrize("title,expected,trap", _MISFILE_CASES)
+def test_a_fragment_never_claims_a_job_it_cannot_read(title, expected, trap):
+    """The 2026-08-26 misfile pass, one case per guard.
+
+    A misfile is the expensive kind of wrong and the invisible kind: the categorisation
+    watchdog counts `uncategorised` and a misfile is the opposite of that; `unmet_demand_terms`
+    reads demand, not supply; and the AI matcher never sees the row, because the row is not in
+    the shortlist it was retrieved for. Nothing in this repo reports one. Each string below was
+    read out of the live corpus and verified wrong before its guard was written.
+    """
+    assert taxonomy.classify(title) == expected, trap
+
+
 
 
 @pytest.mark.parametrize("category,title,trap", [
