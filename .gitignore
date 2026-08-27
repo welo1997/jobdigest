@@ -37,3 +37,11 @@ notes/INFRA.local.md
 # production. Public job titles only — the query touches `postings`, never `profiles` — but a
 # corpus extract is a measurement, not a repo artefact, and it is stale the next morning.
 scripts/.corpus-titles.csv
+
+# ATS-discovery output CSVs (`discover_ats.py`, `discover_seed.py`). Each is a point-in-time
+# probe of live boards, not a repo artefact — stale within a day — and a default run writing one
+# into the tree is how a discovery run silently made `deploy.sh` refuse a "dirty tree".
+scripts/seed_candidates.csv
+scripts/ats_discovery_results.csv
+scripts/*_ats_discovery.csv
+scripts/*_discovery.csv
