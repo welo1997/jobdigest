@@ -1,63 +1,55 @@
-"""Automated candidate generation + identity verdict around `discover_ats`.
+"""Automated identity triage for `discover_ats` output — the impostor check `inspect_hits.py`
+does by eye, made a machine step.
 
-**Offline discovery tool, not an ingestion source.** Like `discover_ats`, it never runs in the
-digest window; you run it, read the report, and the *verified* rows are hand-copied into the
-curated adapter lists. What this adds is the removal of the two manual ends `discover_ats` left:
-the hand-assembled input list (`scripts/cz_companies.csv`) and the by-eye identity check
-(`scripts/inspect_hits.py`). Both are now machine-produced, so a run needs no company list typed
-in advance and hands back a PASS / REVIEW / REJECT verdict per board instead of a wall of
-postings to squint at.
+**Offline tool, not an ingestion source.** `discover_ats` walks a company's careers pages, reads
+the ATS slug off them, and writes a CSV of live boards (`jobs > 0`). Proving a board *serves
+jobs* is not proving it *belongs to the company whose name it spells* — the whole history of this
+discovery work is boards that returned a live 200 while belonging to someone else (`ashby:eon`,
+`lever:zeiss`, Recruitee demo content), and that check was a human reading `inspect_hits.py`
+output. This reads the same board postings and returns a verdict:
 
-Two automatable candidate sources, **neither an aggregator's database** — the jobs.cz route is
-closed on Alma Career's §4.11 and the EU database right (96/9/EC), and enumerating employers off
-their board is a *more* substantial extraction than the postings `gather()` already excludes
-(see `discover_ats`'s "Deliberately not derived from jobs.cz"):
-
-1. **Certificate Transparency** (`crt.sh`) → tenant slugs for the subdomain-per-tenant ATSes
-   (`teamtailor`, `recruitee`). Every tenant that ever provisioned TLS on `*.teamtailor.com` is
-   listed in a public append-only log; the subdomain label *is* the ATS slug. Nothing is
-   guessed, so the impostor trap that dogs name-derived slugs (`ashby:eon`, `lever:zeiss`) does
-   not arise here — the only open question is whether the board serves postings we want, which
-   is a country filter, not an identity one.
-2. **ARES** (the Czech open business register, CZ-NACE 62 = programming/IT) → Czech company
-   *names* → the existing `discover_ats.probe_api_slugs` for the path-based ATSes
-   (`greenhouse`/`lever`/`ashby`/`workable`), whose slug is a single guessable token. Here a
-   guessed slug **can** collide with another real company, so identity must be able to REJECT.
-   Measured 2026-08-27, this half is the CZ *long shot*, not the lever: `czNace:["62"]` matches
-   ~151 000 subjects (ARES caps a query at 1 000 and 400s above it), overwhelmingly dormant
-   micro-`s.r.o.` that run no ATS, so a bare-NACE sweep is un-runnable and near-zero yield — the
-   platform-bound finding, met head-on. Narrow with `--pravni-forma 121` (joint-stock `a.s.`).
-   The yield that matters is EEA-wide `ct`.
-
-Both feed one gate, `identity_verdict`, which automates what `inspect_hits.py` does by eye:
-read the board's own postings, extract the employer name and posting countries, and decide.
-
-- **PASS** only where the ATS exposes the employer's *own* name (`teamtailor`
-  `hiringOrganization.name`, `workable` account `name`, `greenhouse` board `name`) and it either
-  matches the name we probed for or — for a CT slug, where there is no name to match against —
-  is simply read off the feed while the board serves target-region postings.
-- **REJECT** only on a *positive* name mismatch — the impostor caught, not merely unproven.
-- **REVIEW** for everything the machine cannot settle: an ATS that exposes no employer name
+- **PASS** — the ATS exposes the employer's *own* name (`teamtailor` `hiringOrganization.name`,
+  `workable` account `name`, `greenhouse` board `name`, `recruitee` `company_name`) and it matches
+  the company the CSV probed for, and the board serves target-region postings.
+- **REJECT** — a *positive* name mismatch: the impostor caught, not merely unproven.
+- **REVIEW** — everything the machine cannot settle: an ATS that exposes no employer name
   (`lever`, `ashby`), a board with no postings in the target region, or a borderline name. That
-  stays a human's call — the same call the curated adapter-list comments already encode — and a
-  REVIEW is a smaller job than a cold `inspect_hits` read, because the evidence is attached.
+  stays a human's call — the same call the curated adapter-list comments already encode — but the
+  evidence is attached, so a REVIEW is a smaller job than a cold `inspect_hits` read. The verified
+  PASS rows are still hand-copied into the curated lists; the copy is deliberately not automated.
 
-Output is `discover_ats`'s CSV schema plus `verdict`/`reason`/`employer` columns, so
-`inspect_hits.py` and the curated wiring flow keep working unchanged.
+Why only this half is automated
+--------------------------------
+The original design also tried to *generate* the candidate list automatically, to remove the
+hand-assembled `scripts/cz_companies.csv`. Two sources were tried and **both are non-viable, each
+verified against live data on 2026-08-27** — recorded here so no one rebuilds them:
+
+- **Certificate Transparency (crt.sh / certspotter) → dead.** `teamtailor` and `recruitee` serve
+  every tenant under a single wildcard cert (`CN=*.teamtailor.com`, SAN `*.teamtailor.com` +
+  `teamtailor.com`). No per-tenant certificate is ever issued, so CT logs cannot enumerate tenant
+  slugs at all — the log holds only the ATS's own infra subdomains. crt.sh being down was a red
+  herring; the approach never worked.
+- **ARES (CZ register, CZ-NACE 62) → a flood, not a seed.** `czNace:["62"]` matches ~151 000
+  subjects (ARES caps a query at 1 000 and 400s above it), and even narrowed to joint-stock `a.s.`
+  it is ~3 100 — overwhelmingly dormant micro-`s.r.o.` that run no ATS. Near-zero yield; the
+  CZ-is-platform-bound measurement met head-on.
+- **Common Crawl → no coverage.** Its URL index for `*.teamtailor.com` returns only
+  `www.teamtailor.com`; tenant boards are `noindex`/low-rank and are not crawled.
+
+So candidate *generation* stays manual (a company list, the `discover_ats` walk). What is
+automated is the identity *read* on the boards that walk finds.
 
 Usage
 -----
-    python scripts/discover_seed.py ct                       # teamtailor + recruitee, EEA-wide
-    python scripts/discover_seed.py ct --host teamtailor.com --limit 300
-    python scripts/discover_seed.py ares --country CZ --limit 200
-    python scripts/discover_seed.py ct --out scratch/ct_seed.csv
+    python scripts/discover_ats.py --companies scripts/cz_companies.csv --out scratch/hits.csv
+    python scripts/discover_seed.py verify scratch/hits.csv                 # EEA-wide
+    python scripts/discover_seed.py verify scratch/hits.csv --country CZ
 """
 
 from __future__ import annotations
 
 import argparse
 import csv
-import json
 import logging
 import re
 import sys
@@ -69,19 +61,16 @@ from pathlib import Path
 import requests
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from ingestion import politeness  # noqa: E402
 from scripts import discover_ats as da  # noqa: E402
 
 logging.basicConfig(level=logging.INFO, format="%(message)s")
 logger = logging.getLogger("seed")
 logging.getLogger("ingestion.politeness").setLevel(logging.ERROR)
 
-TIMEOUT = 20
-
 #: The EEA membership set — what "target region" defaults to. This is the same distinction the
 #: rest of the repo draws (see `geo.EEA_COUNTRIES`): GB is deliberately *out*. Kept as a local
 #: literal rather than importing `service.geo` because `scripts/` must not depend on `service/`
-#: (it is not in the pipeline image), and this list needs only membership, not resolution.
+#: (it is not in the pipeline image), and this needs only membership, not resolution.
 EEA = {
     "AT", "BE", "BG", "HR", "CY", "CZ", "DK", "EE", "FI", "FR", "DE", "GR", "HU", "IS",
     "IE", "IT", "LV", "LI", "LT", "LU", "MT", "NL", "NO", "PL", "PT", "RO", "SK", "SI",
@@ -112,7 +101,7 @@ _COUNTRY_NAMES = {
     "estonia": "EE", "latvia": "LV", "lithuania": "LT", "slovenia": "SI", "slovenija": "SI",
     "luxembourg": "LU", "cyprus": "CY", "malta": "MT", "iceland": "IS",
     "united kingdom": "GB", "uk": "GB", "england": "GB",  # resolved so it can be *excluded*
-    "united states": "US", "usa": "US", "remote": None,
+    "united states": "US", "usa": "US",
 }
 
 #: Which curated list a PASS row would be pasted into, per ATS. Purely for the report's
@@ -172,8 +161,8 @@ def country_of(loc: str) -> str | None:
     if not loc:
         return None
     text = loc.strip()
-    # Longest names first so "czech republic" wins over a bare "czech".
     low = text.lower()
+    # Longest names first so "czech republic" wins over a bare "czech".
     for name in sorted(_COUNTRY_NAMES, key=len, reverse=True):
         if re.search(rf"\b{re.escape(name)}\b", low):
             return _COUNTRY_NAMES[name]
@@ -279,11 +268,12 @@ class Verdict:
 
 
 def identity_verdict(ats: str, token: str, extra: str, expected_name: str | None,
-                     target: set[str], sampler=board_identity) -> Verdict:
-    """PASS / REVIEW / REJECT for one live board. `expected_name` is the name we probed for
-    (ARES path) or None (CT path, where the slug came from the tenant's own subdomain and there
-    is nothing to match against). `sampler` is injected so the decision tree is testable without
-    a network."""
+                     target: set[str], sampler=None) -> Verdict:
+    """PASS / REVIEW / REJECT for one live board. `expected_name` is the company the discovery
+    CSV probed for (the impostor is a slug that resolved to a *different* company of that name);
+    None disables the name check. `sampler` is resolved at call time (not bound as a default) so
+    a test can monkeypatch `board_identity`."""
+    sampler = sampler or board_identity
     b = sampler(ats, token, extra)
     uniq = sorted(set(b.countries))
     if b.n <= 0:
@@ -307,100 +297,6 @@ def identity_verdict(ats: str, token: str, extra: str, expected_name: str | None
                    f"employer '{b.employer}' in {', '.join(in_target)}")
 
 
-# --- candidate sources ---------------------------------------------------------------------
-
-def harvest_ct(host: str, limit: int = 0) -> list[str]:
-    """Tenant slugs for a subdomain-per-tenant ATS, from Certificate Transparency (`crt.sh`).
-
-    `crt.sh?q=%.host&output=json` returns every certificate whose SAN matches the wildcard; the
-    subdomain label directly left of `host` is the ATS slug. Deduped, marketing/infrastructure
-    labels dropped. A public, append-only transparency log — not anyone's job database."""
-    url = f"https://crt.sh/?q=%25.{host}&output=json"
-    r = da._fetch(url)
-    if r is None:
-        logger.warning("crt.sh unreachable for %s (robots refusal or network error)", host)
-        return []
-    if r.status_code != 200:
-        # crt.sh is chronically overloaded and answers 502 under load — including on its own
-        # robots.txt. A non-200 is "service down, retry later", not "no such tenants", and must
-        # not be mistaken for an empty result.
-        logger.warning("crt.sh HTTP %s for %s — the service is frequently 502 under load; "
-                       "retry later", r.status_code, host)
-        return []
-    try:
-        rows = r.json()
-    except ValueError:
-        logger.warning("crt.sh returned non-JSON for %s", host)
-        return []
-    suffix = "." + host
-    drop = {"www", "api", "app", "help", "blog", "static", "cdn", "mail", "support", "status",
-            "assets", "media", "dev", "staging", "test", "demo"}
-    slugs: set[str] = set()
-    for row in rows:
-        for name in str(row.get("name_value", "")).splitlines():
-            name = name.strip().lower().lstrip("*.")
-            if not name.endswith(suffix):
-                continue
-            label = name[: -len(suffix)]
-            if "." in label or "*" in label or not label or label in drop:
-                continue
-            slugs.add(label)
-    out = sorted(slugs)
-    return out[:limit] if limit else out
-
-
-def ares_it_companies(limit: int = 200, nace: str = "62",
-                      pravni_forma: list[str] | None = None) -> list[str]:
-    """Czech company names in a CZ-NACE class (default `62` = IT/programming), from the ARES
-    open register. Names only — ARES publishes no website — which is why these feed the
-    name-only `probe_api_slugs` path rather than the domain walk. Paged 100 at a time.
-
-    **ARES caps a query at 1 000 results and returns HTTP 400 above it — it does not page past
-    the cap.** `czNace:["62"]` alone matches ~151 000 subjects (measured 2026-08-27), the vast
-    majority dormant one-person `s.r.o.` that run no ATS, so a bare-NACE sweep is both
-    un-runnable *and* near-zero yield — the CZ-is-platform-bound finding, met operationally.
-    Narrow it: `pravni_forma=["121"]` (joint-stock `a.s.`, the larger employers) brought NACE 62
-    to ~3 100, and a region filter would take it under the cap. A 400 is now logged with ARES's
-    own reason rather than silently returning an empty list, which is the bug the first live run
-    hit. **crt.sh (the `ct` mode) is the higher-yield source; ARES is the CZ-tech long shot.**"""
-    url = "https://ares.gov.cz/ekonomicke-subjekty-v-be/rest/ekonomicke-subjekty/vyhledat"
-    names: list[str] = []
-    start = 0
-    while len(names) < limit:
-        body: dict = {"czNace": [nace], "pocet": 100, "start": start}
-        if pravni_forma:
-            body["pravniForma"] = list(pravni_forma)
-        try:
-            politeness.throttle(url)
-            r = requests.post(url, headers={**politeness.HEADERS,
-                                            "Content-Type": "application/json"},
-                              data=json.dumps(body), timeout=TIMEOUT)
-        except requests.RequestException as exc:
-            logger.warning("ARES request failed: %s", exc)
-            break
-        if r.status_code != 200:
-            try:
-                err = r.json()
-                logger.warning("ARES %s: %s", err.get("subKod") or r.status_code,
-                               err.get("popis"))
-            except ValueError:
-                logger.warning("ARES HTTP %s", r.status_code)
-            break
-        try:
-            subj = r.json().get("ekonomickeSubjekty", [])
-        except ValueError:
-            logger.warning("ARES returned non-JSON")
-            break
-        if not subj:
-            break
-        for s in subj:
-            name = (s.get("obchodniJmeno") or "").strip()
-            if name:
-                names.append(name)
-        start += 100
-    return names[:limit]
-
-
 # --- orchestration -------------------------------------------------------------------------
 
 @dataclass
@@ -413,56 +309,40 @@ class Row:
     verdict: Verdict
 
 
-def _run_ct(hosts: list[str], target: set[str], limit: int) -> list[Row]:
-    ats_of = {"teamtailor.com": "teamtailor", "recruitee.com": "recruitee"}
-    rows: list[Row] = []
-    for host in hosts:
-        ats = ats_of.get(host)
-        if ats not in da.SUPPORTED:
-            logger.warning("skipping %s: not a supported subdomain-per-tenant ATS", host)
-            continue
-        slugs = harvest_ct(host, limit)
-        logger.info("crt.sh %s: %d candidate slugs", host, len(slugs))
-        for i, slug in enumerate(slugs, 1):
-            hit = da.Hit(company=slug, domain="", tier="ct", ats=ats, token=slug)
-            da._verify(hit)
-            if hit.jobs <= 0:
-                continue
-            v = identity_verdict(ats, slug, "", expected_name=None, target=target)
-            rows.append(Row(v.employer or slug, ats, slug, "", hit.jobs, v))
-            logger.info("[%s %d/%d] %-6s %-24s %s (%d) — %s",
-                        host, i, len(slugs), v.status, slug, v.employer, hit.jobs, v.reason)
-    return rows
+def verify_csv(path: str, target: set[str]) -> list[Row]:
+    """Run `identity_verdict` over every live, supported row of a `discover_ats` output CSV.
 
-
-def _run_ares(target: set[str], limit: int, nace: str,
-              pravni_forma: list[str] | None) -> list[Row]:
-    names = ares_it_companies(limit, nace, pravni_forma)
-    logger.info("ARES CZ-NACE %s (pravniForma=%s): %d companies", nace,
-                pravni_forma or "any", len(names))
+    The CSV's `company` column is the name the walk probed for, so it is the `expected_name` the
+    impostor check needs. Rows with `jobs <= 0` or on an unsupported ATS are skipped — the same
+    filter `inspect_hits.py` applies."""
     rows: list[Row] = []
-    for i, name in enumerate(names, 1):
-        hits = da.probe_api_slugs(name, domain="", tier="ares", already=set())
-        for hit in hits:
-            if hit.jobs <= 0 or hit.ats not in da.SUPPORTED:
+    with open(path, encoding="utf-8") as fh:
+        for r in csv.DictReader(fh):
+            try:
+                jobs = int(r.get("jobs", "-1"))
+            except (TypeError, ValueError):
+                jobs = -1
+            ats, token = r.get("ats", ""), r.get("token", "")
+            if jobs <= 0 or ats not in da.SUPPORTED:
                 continue
-            v = identity_verdict(hit.ats, hit.token, hit.extra, expected_name=name, target=target)
-            rows.append(Row(name, hit.ats, hit.token, hit.extra, hit.jobs, v))
-            logger.info("[%d/%d] %-6s %-28s %s:%s (%d) — %s",
-                        i, len(names), v.status, name, hit.ats, hit.token, hit.jobs, v.reason)
+            company = (r.get("company") or "").strip()
+            v = identity_verdict(ats, token, r.get("extra", ""),
+                                 expected_name=company or None, target=target)
+            rows.append(Row(company, ats, token, r.get("extra", ""), jobs, v))
+            logger.info("%-6s %-28s %s:%s (%d) — %s", v.status, company or token, ats, token,
+                        jobs, v.reason)
     return rows
 
 
 def _write(rows: list[Row], out: Path) -> None:
     out.parent.mkdir(parents=True, exist_ok=True)
+    order = {"PASS": 0, "REVIEW": 1, "REJECT": 2}
     with out.open("w", newline="", encoding="utf-8") as fh:
         w = csv.writer(fh)
-        w.writerow(["company", "ats", "token", "extra", "jobs", "supported", "verdict",
-                    "employer", "countries", "reason"])
-        for r in sorted(rows, key=lambda r: ({"PASS": 0, "REVIEW": 1, "REJECT": 2}[r.verdict.status],
-                                             r.ats, r.company)):
-            w.writerow([r.company, r.ats, r.token, r.extra, r.jobs,
-                        "yes" if r.ats in da.SUPPORTED else "no", r.verdict.status,
+        w.writerow(["company", "ats", "token", "extra", "jobs", "verdict", "employer",
+                    "countries", "reason"])
+        for r in sorted(rows, key=lambda r: (order[r.verdict.status], r.ats, r.company)):
+            w.writerow([r.company, r.ats, r.token, r.extra, r.jobs, r.verdict.status,
                         r.verdict.employer, "|".join(r.verdict.countries), r.verdict.reason])
 
 
@@ -485,26 +365,15 @@ def _report(rows: list[Row]) -> None:
 
 def main(argv: list[str] | None = None) -> None:
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("mode", choices=["ct", "ares"])
-    ap.add_argument("--host", action="append",
-                    help="CT host(s) to harvest (default: teamtailor.com + recruitee.com)")
+    ap.add_argument("mode", choices=["verify"])
+    ap.add_argument("csv", help="a discover_ats output CSV")
     ap.add_argument("--country", help="restrict target region to one ISO2 (e.g. CZ); "
                                       "default is the whole EEA")
-    ap.add_argument("--nace", default="62", help="ARES CZ-NACE class (default 62 = IT)")
-    ap.add_argument("--pravni-forma", help="ARES legal-form code(s), comma-separated, to narrow "
-                                           "under the 1000-result cap (121 = joint-stock a.s.)")
-    ap.add_argument("--limit", type=int, default=0)
-    ap.add_argument("--out", default="scripts/seed_candidates.csv")
+    ap.add_argument("--out", default="scratch/seed_verdicts.csv")
     args = ap.parse_args(argv)
 
     target = {args.country.upper()} if args.country else EEA
-    if args.mode == "ct":
-        hosts = args.host or ["teamtailor.com", "recruitee.com"]
-        rows = _run_ct(hosts, target, args.limit)
-    else:
-        forms = [f.strip() for f in args.pravni_forma.split(",")] if args.pravni_forma else None
-        rows = _run_ares(target, args.limit or 200, args.nace, forms)
-
+    rows = verify_csv(args.csv, target)
     _write(rows, Path(args.out))
     _report(rows)
     logger.info("Wrote %s", args.out)

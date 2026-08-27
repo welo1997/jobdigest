@@ -123,25 +123,34 @@ payload will pick a different string and that *shape* is the thing to watch.
   asking anyone is **curated employers on Greenhouse/Lever/Ashby/Recruitee/Workable/
   SmartRecruiters/Workday/Oracle** via `scripts/discover_ats.py` — that is how Slovak coverage
   was rebuilt after Alma Career, and it is the route for any country whose register is gated.
-- **`scripts/discover_seed.py` removes the two hand steps in front of `discover_ats`** (added
-  2026-08-27, measured against production first — see the CZ coverage measurement in
-  `notes/`). `discover_ats` still needs a company list typed in and its hits eyeballed with
-  `inspect_hits.py`; `discover_seed` machine-produces both ends without touching an aggregator's
-  database. Two candidate sources: **Certificate Transparency** (`crt.sh`) enumerates
-  subdomain-per-tenant slugs for `teamtailor`/`recruitee` — the slug *is* the public subdomain,
-  so no slug is guessed and the impostor trap does not arise; and **ARES** (the CZ open register,
-  CZ-NACE 62 = IT) supplies Czech company *names* for the guessed-slug path, where the trap is
-  live. One gate, `identity_verdict`, automates the `inspect_hits` read: **PASS** only where the
-  ATS exposes the employer's own name (`teamtailor`/`workable`/`greenhouse`) and it matches;
-  **REJECT** only on a positive name mismatch; **REVIEW** for everything unprovable (`lever`/
-  `ashby` expose no org name, so they stay a human's call). The verified rows are still
-  hand-copied into the curated adapter lists — the copy is deliberately not automated, because
-  the lists' per-board comments are where impostor rejections are recorded. **The measurement
-  that motivated it found CZ is largely platform-bound**: `mpsv` (the register) already carries
-  6 804 CZ postings from 3 818 companies, while permitted ATS reaches ~58 — so the engine's real
-  yield is EU-wide `teamtailor`/`recruitee` tech coverage, not a startupjobs replacement, and CZ
-  gains only at the margin. It is `ct` (EEA-wide) or `ares --country CZ`; both call
-  `robots_allows`/`throttle` unchanged.
+- **`scripts/discover_seed.py verify` automates the identity read on `discover_ats` output**
+  (2026-08-27). `discover_ats` proves a board *serves jobs*; the impostor check — does it *belong*
+  to the company whose name it spells? — was a human reading `inspect_hits.py`. `discover_seed`
+  reads the board's own postings and returns **PASS** (the ATS exposes the employer's own name —
+  `teamtailor`/`workable`/`greenhouse`/`recruitee` — and it matches the probed company, in the
+  target region), **REJECT** (a positive name mismatch — the impostor caught), or **REVIEW**
+  (`lever`/`ashby` expose no org name; no target-region posting; borderline name — a human's call,
+  evidence attached). Verified rows are still hand-copied into the curated lists.
+  **Candidate *generation* stays manual — three automated sources were tried and all fail, each
+  verified against live data before the conclusion, so do not rebuild them:**
+  - **Certificate Transparency (crt.sh / certspotter): dead.** `teamtailor` and `recruitee` serve
+    every tenant under a single **wildcard cert** (`CN=*.teamtailor.com`), so no per-tenant
+    certificate is ever issued and CT logs cannot enumerate tenant slugs at all — the log holds
+    only the ATS's own infra subdomains (`blog`, `assets`, `dashboard`…). crt.sh being 502 at run
+    time was a red herring; the approach never worked. (Checked with `openssl s_client` on live
+    tenants.)
+  - **ARES (CZ register, CZ-NACE 62): a flood.** `czNace:["62"]` matches ~151 000 subjects (ARES
+    caps a query at 1 000, 400s above), ~3 100 even narrowed to joint-stock `a.s.` — overwhelmingly
+    dormant micro-`s.r.o.` that run no ATS. Near-zero yield; the CZ-is-platform-bound measurement
+    met head-on (`mpsv` already carries 6 804 CZ postings / 3 818 companies; permitted ATS reaches
+    ~58).
+  - **Common Crawl: no coverage.** Its URL index for `*.teamtailor.com` returns only
+    `www.teamtailor.com`; tenant boards are `noindex`/low-rank and are not crawled.
+
+  The lesson: **an ATS whose tenants share a wildcard cert and are un-indexed cannot be enumerated
+  from outside** — the only route to its tenants is a company's own careers page, i.e.
+  `discover_ats` with a hand-assembled company list. The measurement stands: CZ coverage is
+  platform-bound, not discovery-bound, and there is no cheap automated seed for it.
 - **Source terms of use — read on 2026-08-03, and one of them is a real problem.**
   `ingestion/politeness.py` is the one place for the crawler's identity: `USER_AGENT`
   (`JobDigest/1.0` + contact URL + address — every adapter used to send a browser string, and

@@ -1,9 +1,9 @@
-"""`discover_seed` turns the two manual ends of ATS discovery — the hand-typed company list and
-the by-eye `inspect_hits` identity read — into machine steps. The one that must not be wrong is
-the identity verdict: a PASS is an invitation to wire a board into a live source, and the whole
-history of this discovery work is boards that returned a live 200 while belonging to someone
-else (`ashby:eon`, `lever:zeiss`, Recruitee demo content). So the decision tree is tested to
-the letter, and every case below is the shape of a real trap the curated adapter comments record.
+"""`discover_seed` automates the identity read on `discover_ats` output — the check
+`inspect_hits.py` did by eye. The one thing that must not be wrong is the verdict: a PASS is an
+invitation to wire a board into a live source, and the whole history of this discovery work is
+boards that returned a live 200 while belonging to someone else (`ashby:eon`, `lever:zeiss`,
+Recruitee demo content). So the decision tree is tested to the letter, and every case below is
+the shape of a real trap the curated adapter comments record.
 
 The rule the tests pin:
   * REJECT is reserved for a *positive* name mismatch — an impostor caught, never mere doubt.
@@ -76,9 +76,9 @@ def test_pass_when_name_matches_and_region_hits():
     assert v.countries == ["CZ"]
 
 
-def test_pass_on_ct_slug_with_no_expected_name():
-    """CT path: the slug came from the tenant's own subdomain, so there is nothing to match
-    against — a known employer name read off the feed plus a target-region posting is enough."""
+def test_pass_with_no_expected_name():
+    """When the CSV carried no company to match against, a known employer name read off the feed
+    plus a target-region posting is enough."""
     v = seed.identity_verdict("teamtailor", "tractivegmbh", "", expected_name=None,
                               target=seed.EEA, sampler=_sampler(2, "Tractive GmbH", ["AT"]))
     assert v.status == "PASS"
@@ -121,124 +121,31 @@ def test_review_when_board_has_no_postings():
     assert v.status == "REVIEW"
 
 
-# --- harvest_ct: CT-log parsing ------------------------------------------------------------
+# --- verify_csv: the discover_ats-CSV flow -------------------------------------------------
 
-class _Resp:
-    def __init__(self, payload, status_code=200):
-        self._p = payload
-        self.status_code = status_code
+def test_verify_csv_triages_a_discover_ats_csv(monkeypatch, tmp_path):
+    """End to end over a CSV: a matching board PASSes, an impostor REJECTs, an unsupported/dead
+    row is skipped. `board_identity` is monkeypatched (resolved at call time, not bound as a
+    default), so no network is touched."""
+    boards = {
+        "roi-hunter": seed.Board(4, "ROI Hunter", ["CZ"]),
+        "eon": seed.Board(9, "Eon Studio", ["DE"]),          # impostor: probed E.ON Energie
+    }
+    monkeypatch.setattr(seed, "board_identity",
+                        lambda ats, token, extra="": boards.get(token, seed.Board(-1, "", [])))
 
-    def json(self):
-        return self._p
+    csvp = tmp_path / "hits.csv"
+    csvp.write_text(
+        "company,domain,tier,ats,token,extra,jobs,supported,found_on,jsonld\n"
+        "ROI Hunter,roihunter.com,cz,workable,roi-hunter,,4,yes,,\n"
+        "E.ON Energie,eon.cz,cz,greenhouse,eon,,9,yes,,\n"
+        "Somebody,x.com,cz,personio,foo,,5,no,,\n"          # unsupported ATS — skipped
+        "Deadco,y.com,cz,workable,dead,,0,yes,,\n",         # jobs=0 — skipped
+        encoding="utf-8")
 
-
-def test_harvest_ct_extracts_dedupes_and_drops_noise(monkeypatch):
-    payload = [
-        {"name_value": "netguru.teamtailor.com"},
-        {"name_value": "netguru.teamtailor.com"},               # duplicate cert
-        {"name_value": "*.teamtailor.com"},                     # wildcard — dropped
-        {"name_value": "www.teamtailor.com"},                   # infra label — dropped
-        {"name_value": "api.teamtailor.com"},                   # infra label — dropped
-        {"name_value": "deep.sub.teamtailor.com"},              # nested — not a tenant slug
-        {"name_value": "tractive\nother.teamtailor.com"},       # multi-line SAN
-    ]
-    monkeypatch.setattr(seed.da, "_fetch", lambda url: _Resp(payload))
-    slugs = seed.harvest_ct("teamtailor.com")
-    assert slugs == ["netguru", "other"]                        # 'tractive' has no suffix here
-    # multi-line: the line WITH the suffix is 'other.teamtailor.com'; 'tractive' alone is not.
-
-
-def test_harvest_ct_handles_a_dead_endpoint(monkeypatch):
-    monkeypatch.setattr(seed.da, "_fetch", lambda url: None)
-    assert seed.harvest_ct("recruitee.com") == []
-
-
-def test_harvest_ct_reports_a_502_as_down_not_empty(monkeypatch):
-    """crt.sh is chronically 502 under load — a non-200 must return [] with a 'retry later'
-    warning, never be read as 'this ATS has no tenants'. This is the shape the first live run
-    hit (crt.sh 502'd on its own robots.txt)."""
-    monkeypatch.setattr(seed.da, "_fetch", lambda url: _Resp("<html>502</html>", status_code=502))
-    assert seed.harvest_ct("teamtailor.com") == []
-
-
-def test_harvest_ct_respects_limit(monkeypatch):
-    payload = [{"name_value": f"co{i}.teamtailor.com"} for i in range(10)]
-    monkeypatch.setattr(seed.da, "_fetch", lambda url: _Resp(payload))
-    assert len(seed.harvest_ct("teamtailor.com", limit=3)) == 3
-
-
-# --- ares_it_companies: register paging ----------------------------------------------------
-
-def test_ares_builds_nace_body_and_pages(monkeypatch):
-    calls = []
-
-    class _R:
-        status_code = 200
-
-        def __init__(self, page):
-            self._page = page
-
-        def json(self):
-            return {"ekonomickeSubjekty": self._page}
-
-    def fake_post(url, headers=None, data=None, timeout=None):
-        import json as _json
-        body = _json.loads(data)
-        calls.append(body)
-        # First page full, second page empty -> paging stops.
-        if body["start"] == 0:
-            return _R([{"obchodniJmeno": f"Firma {i} s.r.o."} for i in range(100)])
-        return _R([])
-
-    monkeypatch.setattr(seed.requests, "post", fake_post)
-    monkeypatch.setattr(seed.politeness, "throttle", lambda url: None)
-    names = seed.ares_it_companies(limit=250, nace="620")
-    assert len(names) == 100
-    assert calls[0] == {"czNace": ["620"], "pocet": 100, "start": 0}
-    assert calls[1]["start"] == 100                              # it paged
-    assert names[0] == "Firma 0 s.r.o."
-
-
-def test_ares_does_not_silently_swallow_a_400(monkeypatch, caplog):
-    """The bug the first live run hit: `czNace:["62"]` returns HTTP 400 "too many results" and
-    the loop returned an empty list with no clue why. A 400 must be logged with ARES's own
-    reason, not swallowed into a silent zero."""
-    import logging
-
-    class _R400:
-        status_code = 400
-
-        def json(self):
-            return {"subKod": "VYSTUP_PRILIS_MNOHO_VYSLEDKU",
-                    "popis": "Zadaný dotaz vrací příliš mnoho výsledků (151 435)."}
-
-    monkeypatch.setattr(seed.requests, "post", lambda *a, **k: _R400())
-    monkeypatch.setattr(seed.politeness, "throttle", lambda url: None)
-    with caplog.at_level(logging.WARNING):
-        names = seed.ares_it_companies(limit=200, nace="62")
-    assert names == []
-    assert any("VYSTUP_PRILIS_MNOHO" in r.getMessage() for r in caplog.records)
-
-
-def test_ares_adds_pravni_forma_to_narrow_under_the_cap(monkeypatch):
-    import json as _json
-    seen = []
-
-    class _R:
-        status_code = 200
-
-        def json(self):
-            return {"ekonomickeSubjekty": []}
-
-    def fake_post(url, headers=None, data=None, timeout=None):
-        seen.append(_json.loads(data))
-        return _R()
-
-    monkeypatch.setattr(seed.requests, "post", fake_post)
-    monkeypatch.setattr(seed.politeness, "throttle", lambda url: None)
-    seed.ares_it_companies(limit=10, nace="62", pravni_forma=["121"])
-    assert seen[0]["pravniForma"] == ["121"]
-    assert seen[0]["czNace"] == ["62"]
+    rows = seed.verify_csv(str(csvp), seed.EEA)
+    by = {r.token: r.verdict.status for r in rows}
+    assert by == {"roi-hunter": "PASS", "eon": "REJECT"}    # the other two never reach a verdict
 
 
 if __name__ == "__main__":
