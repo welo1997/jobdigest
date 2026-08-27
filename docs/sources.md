@@ -123,6 +123,25 @@ payload will pick a different string and that *shape* is the thing to watch.
   asking anyone is **curated employers on Greenhouse/Lever/Ashby/Recruitee/Workable/
   SmartRecruiters/Workday/Oracle** via `scripts/discover_ats.py` — that is how Slovak coverage
   was rebuilt after Alma Career, and it is the route for any country whose register is gated.
+- **`scripts/discover_seed.py` removes the two hand steps in front of `discover_ats`** (added
+  2026-08-27, measured against production first — see the CZ coverage measurement in
+  `notes/`). `discover_ats` still needs a company list typed in and its hits eyeballed with
+  `inspect_hits.py`; `discover_seed` machine-produces both ends without touching an aggregator's
+  database. Two candidate sources: **Certificate Transparency** (`crt.sh`) enumerates
+  subdomain-per-tenant slugs for `teamtailor`/`recruitee` — the slug *is* the public subdomain,
+  so no slug is guessed and the impostor trap does not arise; and **ARES** (the CZ open register,
+  CZ-NACE 62 = IT) supplies Czech company *names* for the guessed-slug path, where the trap is
+  live. One gate, `identity_verdict`, automates the `inspect_hits` read: **PASS** only where the
+  ATS exposes the employer's own name (`teamtailor`/`workable`/`greenhouse`) and it matches;
+  **REJECT** only on a positive name mismatch; **REVIEW** for everything unprovable (`lever`/
+  `ashby` expose no org name, so they stay a human's call). The verified rows are still
+  hand-copied into the curated adapter lists — the copy is deliberately not automated, because
+  the lists' per-board comments are where impostor rejections are recorded. **The measurement
+  that motivated it found CZ is largely platform-bound**: `mpsv` (the register) already carries
+  6 804 CZ postings from 3 818 companies, while permitted ATS reaches ~58 — so the engine's real
+  yield is EU-wide `teamtailor`/`recruitee` tech coverage, not a startupjobs replacement, and CZ
+  gains only at the margin. It is `ct` (EEA-wide) or `ares --country CZ`; both call
+  `robots_allows`/`throttle` unchanged.
 - **Source terms of use — read on 2026-08-03, and one of them is a real problem.**
   `ingestion/politeness.py` is the one place for the crawler's identity: `USER_AGENT`
   (`JobDigest/1.0` + contact URL + address — every adapter used to send a browser string, and
