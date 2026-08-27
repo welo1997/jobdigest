@@ -23,6 +23,11 @@ their board is a *more* substantial extraction than the postings `gather()` alre
    *names* → the existing `discover_ats.probe_api_slugs` for the path-based ATSes
    (`greenhouse`/`lever`/`ashby`/`workable`), whose slug is a single guessable token. Here a
    guessed slug **can** collide with another real company, so identity must be able to REJECT.
+   Measured 2026-08-27, this half is the CZ *long shot*, not the lever: `czNace:["62"]` matches
+   ~151 000 subjects (ARES caps a query at 1 000 and 400s above it), overwhelmingly dormant
+   micro-`s.r.o.` that run no ATS, so a bare-NACE sweep is un-runnable and near-zero yield — the
+   platform-bound finding, met head-on. Narrow with `--pravni-forma 121` (joint-stock `a.s.`).
+   The yield that matters is EEA-wide `ct`.
 
 Both feed one gate, `identity_verdict`, which automates what `inspect_hits.py` does by eye:
 read the board's own postings, extract the employer name and posting countries, and decide.
@@ -311,13 +316,21 @@ def harvest_ct(host: str, limit: int = 0) -> list[str]:
     subdomain label directly left of `host` is the ATS slug. Deduped, marketing/infrastructure
     labels dropped. A public, append-only transparency log — not anyone's job database."""
     url = f"https://crt.sh/?q=%25.{host}&output=json"
-    r = da._get_api(url)
+    r = da._fetch(url)
     if r is None:
-        logger.warning("crt.sh returned nothing for %s", host)
+        logger.warning("crt.sh unreachable for %s (robots refusal or network error)", host)
+        return []
+    if r.status_code != 200:
+        # crt.sh is chronically overloaded and answers 502 under load — including on its own
+        # robots.txt. A non-200 is "service down, retry later", not "no such tenants", and must
+        # not be mistaken for an empty result.
+        logger.warning("crt.sh HTTP %s for %s — the service is frequently 502 under load; "
+                       "retry later", r.status_code, host)
         return []
     try:
         rows = r.json()
     except ValueError:
+        logger.warning("crt.sh returned non-JSON for %s", host)
         return []
     suffix = "." + host
     drop = {"www", "api", "app", "help", "blog", "static", "cdn", "mail", "support", "status",
@@ -336,24 +349,47 @@ def harvest_ct(host: str, limit: int = 0) -> list[str]:
     return out[:limit] if limit else out
 
 
-def ares_it_companies(limit: int = 200, nace: str = "620") -> list[str]:
-    """Czech company names in a CZ-NACE class (default 62 = programming/IT consultancy), from
-    the ARES open register. Names only — ARES publishes no website — which is why these feed the
-    name-only `probe_api_slugs` path rather than the domain walk. Paged 100 at a time."""
+def ares_it_companies(limit: int = 200, nace: str = "62",
+                      pravni_forma: list[str] | None = None) -> list[str]:
+    """Czech company names in a CZ-NACE class (default `62` = IT/programming), from the ARES
+    open register. Names only — ARES publishes no website — which is why these feed the
+    name-only `probe_api_slugs` path rather than the domain walk. Paged 100 at a time.
+
+    **ARES caps a query at 1 000 results and returns HTTP 400 above it — it does not page past
+    the cap.** `czNace:["62"]` alone matches ~151 000 subjects (measured 2026-08-27), the vast
+    majority dormant one-person `s.r.o.` that run no ATS, so a bare-NACE sweep is both
+    un-runnable *and* near-zero yield — the CZ-is-platform-bound finding, met operationally.
+    Narrow it: `pravni_forma=["121"]` (joint-stock `a.s.`, the larger employers) brought NACE 62
+    to ~3 100, and a region filter would take it under the cap. A 400 is now logged with ARES's
+    own reason rather than silently returning an empty list, which is the bug the first live run
+    hit. **crt.sh (the `ct` mode) is the higher-yield source; ARES is the CZ-tech long shot.**"""
     url = "https://ares.gov.cz/ekonomicke-subjekty-v-be/rest/ekonomicke-subjekty/vyhledat"
     names: list[str] = []
     start = 0
     while len(names) < limit:
-        body = {"czNace": [nace], "pocet": 100, "start": start}
+        body: dict = {"czNace": [nace], "pocet": 100, "start": start}
+        if pravni_forma:
+            body["pravniForma"] = list(pravni_forma)
         try:
             politeness.throttle(url)
             r = requests.post(url, headers={**politeness.HEADERS,
                                             "Content-Type": "application/json"},
                               data=json.dumps(body), timeout=TIMEOUT)
-            if r.status_code != 200:
-                break
+        except requests.RequestException as exc:
+            logger.warning("ARES request failed: %s", exc)
+            break
+        if r.status_code != 200:
+            try:
+                err = r.json()
+                logger.warning("ARES %s: %s", err.get("subKod") or r.status_code,
+                               err.get("popis"))
+            except ValueError:
+                logger.warning("ARES HTTP %s", r.status_code)
+            break
+        try:
             subj = r.json().get("ekonomickeSubjekty", [])
-        except (requests.RequestException, ValueError):
+        except ValueError:
+            logger.warning("ARES returned non-JSON")
             break
         if not subj:
             break
@@ -399,9 +435,11 @@ def _run_ct(hosts: list[str], target: set[str], limit: int) -> list[Row]:
     return rows
 
 
-def _run_ares(target: set[str], limit: int, nace: str) -> list[Row]:
-    names = ares_it_companies(limit, nace)
-    logger.info("ARES CZ-NACE %s: %d companies", nace, len(names))
+def _run_ares(target: set[str], limit: int, nace: str,
+              pravni_forma: list[str] | None) -> list[Row]:
+    names = ares_it_companies(limit, nace, pravni_forma)
+    logger.info("ARES CZ-NACE %s (pravniForma=%s): %d companies", nace,
+                pravni_forma or "any", len(names))
     rows: list[Row] = []
     for i, name in enumerate(names, 1):
         hits = da.probe_api_slugs(name, domain="", tier="ares", already=set())
@@ -452,7 +490,9 @@ def main(argv: list[str] | None = None) -> None:
                     help="CT host(s) to harvest (default: teamtailor.com + recruitee.com)")
     ap.add_argument("--country", help="restrict target region to one ISO2 (e.g. CZ); "
                                       "default is the whole EEA")
-    ap.add_argument("--nace", default="620", help="ARES CZ-NACE class (default 620 = IT)")
+    ap.add_argument("--nace", default="62", help="ARES CZ-NACE class (default 62 = IT)")
+    ap.add_argument("--pravni-forma", help="ARES legal-form code(s), comma-separated, to narrow "
+                                           "under the 1000-result cap (121 = joint-stock a.s.)")
     ap.add_argument("--limit", type=int, default=0)
     ap.add_argument("--out", default="scripts/seed_candidates.csv")
     args = ap.parse_args(argv)
@@ -462,7 +502,8 @@ def main(argv: list[str] | None = None) -> None:
         hosts = args.host or ["teamtailor.com", "recruitee.com"]
         rows = _run_ct(hosts, target, args.limit)
     else:
-        rows = _run_ares(target, args.limit or 200, args.nace)
+        forms = [f.strip() for f in args.pravni_forma.split(",")] if args.pravni_forma else None
+        rows = _run_ares(target, args.limit or 200, args.nace, forms)
 
     _write(rows, Path(args.out))
     _report(rows)

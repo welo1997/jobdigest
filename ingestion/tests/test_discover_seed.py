@@ -124,8 +124,9 @@ def test_review_when_board_has_no_postings():
 # --- harvest_ct: CT-log parsing ------------------------------------------------------------
 
 class _Resp:
-    def __init__(self, payload):
+    def __init__(self, payload, status_code=200):
         self._p = payload
+        self.status_code = status_code
 
     def json(self):
         return self._p
@@ -141,20 +142,28 @@ def test_harvest_ct_extracts_dedupes_and_drops_noise(monkeypatch):
         {"name_value": "deep.sub.teamtailor.com"},              # nested — not a tenant slug
         {"name_value": "tractive\nother.teamtailor.com"},       # multi-line SAN
     ]
-    monkeypatch.setattr(seed.da, "_get_api", lambda url: _Resp(payload))
+    monkeypatch.setattr(seed.da, "_fetch", lambda url: _Resp(payload))
     slugs = seed.harvest_ct("teamtailor.com")
     assert slugs == ["netguru", "other"]                        # 'tractive' has no suffix here
     # multi-line: the line WITH the suffix is 'other.teamtailor.com'; 'tractive' alone is not.
 
 
 def test_harvest_ct_handles_a_dead_endpoint(monkeypatch):
-    monkeypatch.setattr(seed.da, "_get_api", lambda url: None)
+    monkeypatch.setattr(seed.da, "_fetch", lambda url: None)
     assert seed.harvest_ct("recruitee.com") == []
+
+
+def test_harvest_ct_reports_a_502_as_down_not_empty(monkeypatch):
+    """crt.sh is chronically 502 under load — a non-200 must return [] with a 'retry later'
+    warning, never be read as 'this ATS has no tenants'. This is the shape the first live run
+    hit (crt.sh 502'd on its own robots.txt)."""
+    monkeypatch.setattr(seed.da, "_fetch", lambda url: _Resp("<html>502</html>", status_code=502))
+    assert seed.harvest_ct("teamtailor.com") == []
 
 
 def test_harvest_ct_respects_limit(monkeypatch):
     payload = [{"name_value": f"co{i}.teamtailor.com"} for i in range(10)]
-    monkeypatch.setattr(seed.da, "_get_api", lambda url: _Resp(payload))
+    monkeypatch.setattr(seed.da, "_fetch", lambda url: _Resp(payload))
     assert len(seed.harvest_ct("teamtailor.com", limit=3)) == 3
 
 
@@ -188,6 +197,48 @@ def test_ares_builds_nace_body_and_pages(monkeypatch):
     assert calls[0] == {"czNace": ["620"], "pocet": 100, "start": 0}
     assert calls[1]["start"] == 100                              # it paged
     assert names[0] == "Firma 0 s.r.o."
+
+
+def test_ares_does_not_silently_swallow_a_400(monkeypatch, caplog):
+    """The bug the first live run hit: `czNace:["62"]` returns HTTP 400 "too many results" and
+    the loop returned an empty list with no clue why. A 400 must be logged with ARES's own
+    reason, not swallowed into a silent zero."""
+    import logging
+
+    class _R400:
+        status_code = 400
+
+        def json(self):
+            return {"subKod": "VYSTUP_PRILIS_MNOHO_VYSLEDKU",
+                    "popis": "Zadaný dotaz vrací příliš mnoho výsledků (151 435)."}
+
+    monkeypatch.setattr(seed.requests, "post", lambda *a, **k: _R400())
+    monkeypatch.setattr(seed.politeness, "throttle", lambda url: None)
+    with caplog.at_level(logging.WARNING):
+        names = seed.ares_it_companies(limit=200, nace="62")
+    assert names == []
+    assert any("VYSTUP_PRILIS_MNOHO" in r.getMessage() for r in caplog.records)
+
+
+def test_ares_adds_pravni_forma_to_narrow_under_the_cap(monkeypatch):
+    import json as _json
+    seen = []
+
+    class _R:
+        status_code = 200
+
+        def json(self):
+            return {"ekonomickeSubjekty": []}
+
+    def fake_post(url, headers=None, data=None, timeout=None):
+        seen.append(_json.loads(data))
+        return _R()
+
+    monkeypatch.setattr(seed.requests, "post", fake_post)
+    monkeypatch.setattr(seed.politeness, "throttle", lambda url: None)
+    seed.ares_it_companies(limit=10, nace="62", pravni_forma=["121"])
+    assert seen[0]["pravniForma"] == ["121"]
+    assert seen[0]["czNace"] == ["62"]
 
 
 if __name__ == "__main__":
