@@ -22,6 +22,13 @@ set -euo pipefail
 COMPOSE_DIR=/opt/jobdigest/deploy
 BACKUP_DIR="${JOBDIGEST_BACKUP_DIR:-/var/backups/jobdigest}"
 KEEP_DAYS="${JOBDIGEST_BACKUP_KEEP_DAYS:-30}"
+# Local retention is a SEPARATE, tighter knob than off-box retention, because the two are
+# bounded by different things: Drive is effectively unlimited and cheap, but the VPS disk is
+# 38 GB and a single dump is now ~700 MB and growing with the DB. Keeping 30 days locally
+# filled the disk to 100% on 2026-09-06 and killed the pipeline mid-run (docker could not
+# write). Off-box keeps KEEP_DAYS for disaster recovery; locally we keep only enough for a
+# fast restore. Defaults to KEEP_DAYS so nothing changes for anyone who does not set it.
+LOCAL_KEEP_DAYS="${JOBDIGEST_BACKUP_LOCAL_KEEP_DAYS:-$KEEP_DAYS}"
 REMOTE="${JOBDIGEST_BACKUP_REMOTE:-}"
 # The dump contains every subscriber's email, CV-derived summary and — critically — their
 # manage/confirm tokens, which are bearer credentials: anyone holding one can read and
@@ -153,8 +160,9 @@ do_backup() {
     fi
   fi
 
-  # Rotate local copies.
-  find "$BACKUP_DIR" -name 'jobdigest-*.dump' -mtime "+$KEEP_DAYS" -delete
+  # Rotate local copies. Uses LOCAL_KEEP_DAYS (<= KEEP_DAYS) so the disk-bound local store
+  # stays small while off-box history goes back KEEP_DAYS.
+  find "$BACKUP_DIR" -name 'jobdigest-*.dump' -mtime "+$LOCAL_KEEP_DAYS" -delete
   find "$BACKUP_DIR" -name 'jobdigest-*.partial' -mtime +1 -delete
   # Ciphertext is transient (removed after upload); this only catches a crash mid-run.
   find "$BACKUP_DIR" -name 'jobdigest-*.dump.gpg' -mtime +1 -delete

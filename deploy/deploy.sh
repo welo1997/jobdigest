@@ -130,6 +130,11 @@ build_and_check() {
     # file). Leaving it out is how the box would keep running the old image while master
     # believes otherwise, which is the 2026-08-02 'deployed is not running' failure again.
     sudo docker compose build db api web pipeline
+    # Reclaim build cache after every build. Each deploy leaves behind the intermediate layer
+    # cache from the previous one; over weeks this reached 5.3 GB and was half of what filled
+    # the 38 GB disk to 100% on 2026-09-06. The just-built images live in the image store, not
+    # the build cache, so pruning here never removes what we are about to run.
+    sudo docker builder prune -f >/dev/null 2>&1 || true
     # 'up -d db' is a no-op unless the built image id or the service config actually changed,
     # so this does not recreate the database on every deploy. When it does change (a new
     # upstream postgres:16-alpine, or an edit to db.Dockerfile) the recreate is brief and the

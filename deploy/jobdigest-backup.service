@@ -31,7 +31,12 @@ Environment=JOBDIGEST_BACKUP_PASSPHRASE_FILE=/etc/jobdigest-backup.pass
 # off-box copy fails with "didn't find section in config file".
 Environment=RCLONE_CONFIG=/home/deploy/.config/rclone/rclone.conf
 Environment=JOBDIGEST_BACKUP_DIR=/var/backups/jobdigest
+# Off-box (Drive) history: 30 days. Local (VPS disk) history: 14 days. They are decoupled
+# because the disk is the scarce resource — 30 local dumps at ~700 MB each filled the 38 GB
+# disk to 100% on 2026-09-06 and killed the pipeline mid-run. 14 days is ample for a fast
+# local restore; anything older lives encrypted on Drive.
 Environment=JOBDIGEST_BACKUP_KEEP_DAYS=30
+Environment=JOBDIGEST_BACKUP_LOCAL_KEEP_DAYS=14
 # Runs the copy in the deployed tree, not an installed duplicate in /usr/local/bin. A second
 # copy is a second thing to forget: deploy.sh updates /opt/jobdigest, so a script living
 # anywhere else silently keeps running the old version (observed 2026-07-20, when the remote
