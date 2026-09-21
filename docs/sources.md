@@ -1360,7 +1360,18 @@ payload will pick a different string and that *shape* is the thing to watch.
     terms" quietly becoming a general argument.
 
   **Wired under it so far (2026-08-15): `remoteineurope`, `goldencareers` (CY, ~62 agency
-  postings).** `nva` (Latvia's live `cvvp` register) was wired here too and **removed
+  postings) — and since 2026-09-21 `goldencareers` alone.** `remoteineurope` was **removed
+  2026-09-21 because the board stopped existing**, not on permission: `remoteineurope.com`
+  now returns a 301 to `weworkremotely.com/remote-europe-jobs`, and its `robots.txt` and
+  every sitemap path (`/sitemap.xml`, `/sitemap_index.xml`, `/sitemap-0.xml`) 404. There is
+  nothing to repoint at — the inventory was absorbed by WeWorkRemotely, which `weworkremotely`
+  already reads. **Its measured contribution over five wired weeks was zero rows**: the
+  adapter raised on the sitemap fetch every run, and `source_watchdog` reported its freshness
+  as `never` rather than as a silent zero, which is the one status in that table that means
+  "this has never worked" and is easy to read past as "new". Worth remembering when the next
+  source is judged: a `never` is not a slow start. Pinned by the enumerated set above; the
+  adapter and `test_remoteineurope.py` are kept as working code.
+  `nva` (Latvia's live `cvvp` register) was wired here too and **removed
   2026-08-19 — not on permission, on cost/value**: the sector field it gates on lives only on
   each vacancy's detail page, so it fetched ~4 460 pages one-per-second to keep ~570
   low-professional-fit Latvian rows — ~30% of the whole pipeline's wall clock — and no

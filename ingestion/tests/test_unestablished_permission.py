@@ -31,11 +31,11 @@ import search_jobs
 
 #: Wired deliberately on 2026-08-15 despite publishing no terms. Keep the reason with the name.
 UNESTABLISHED_PERMISSION = {
-    "RemoteInEuropeSource": (
-        "remoteineurope.com — no terms, no privacy policy, none in Wayback; robots permits "
-        "the job pages and disallows only /search, /companies, /checkout, /post-a-job-2 and "
-        "/internal/. Wired for its multi-country `schema-loc` scopes."
-    ),
+    # RemoteInEuropeSource was here until 2026-09-21, when the board stopped existing:
+    # remoteineurope.com now 301s to weworkremotely.com and its robots.txt and every sitemap
+    # path 404, so the adapter could only raise. Its permission was never the issue either —
+    # and note it never actually delivered a row in the five weeks it was wired, which
+    # `source_watchdog` reported as a freshness of `never` rather than as a silent zero.
     # NvaSource was here until 2026-08-19, when it was removed from gather() for lack of
     # product use (see test_source_exclusions.py::test_nva_is_not_ingested). Its permission
     # was never the issue; its ~73-minute crawl for ~570 unwanted Latvian rows was.

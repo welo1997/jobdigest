@@ -632,8 +632,14 @@ it.
     no ToS, but robots carries `Content-Signal: ai-input=yes` and a keyless public JSON feed
     that exists to be read. Silence plus an invitation is permission; silence alone is not.
   - **The owner decided on 2026-08-15 to ingest a named, finite set of silent sources anyway**
-    — currently `remoteineurope` only. That is a risk-appetite call on the owner's own product,
-    not a general licence. **It never reaches a source that refuses**: an anti-automation
+    — `remoteineurope` and `goldencareers`, and **since 2026-09-21 `goldencareers` alone**:
+    remoteineurope.com stopped existing, 301ing to weworkremotely.com with its robots.txt and
+    every sitemap path 404, so the adapter was retired. Note what the five weeks bought —
+    **nothing**: `source_watchdog` read its freshness as `never`, not as stale, so the one
+    source this exception was opened for never delivered a row. That is not an argument
+    against the call, but it is the measured outcome of it. That is a risk-appetite call on
+    the owner's own product, not a general licence. **It never reaches a source that refuses**:
+    an anti-automation
     clause, a personal-use-only licence, a refusing robots.txt or an application gate all still
     close a source, and `test_source_exclusions.py` is unchanged. Adding another silent source
     means editing `ingestion/tests/test_unestablished_permission.py`, which enumerates the set

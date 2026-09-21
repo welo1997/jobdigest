@@ -41,7 +41,6 @@ from ingestion.sources.lever import LeverSource
 from ingestion.sources.nav import NavSource
 from ingestion.sources.oraclecloud import OracleCloudSource
 from ingestion.sources.platsbanken import PlatsbankenSource
-from ingestion.sources.remoteineurope import RemoteInEuropeSource
 from ingestion.sources.remoteok import RemoteOKSource
 from ingestion.sources.remotive import RemotiveSource
 from ingestion.sources.themuse import TheMuseSource
@@ -350,16 +349,19 @@ def _source_classes(include_cz: bool) -> list[type]:
                # allowlist of content sections and the contact block is never read. See the
                # module docstring and `test_werkenvoornederland.py`.
                WerkenVoorNederlandSource,
-               # Remote in Europe publishes NO terms of use and no privacy policy — permission
-               # is unestablished, which is normally a skip in this repo (the Bundesagentur
-               # error). Wired 2026-08-15 as a deliberate, enumerated exception; robots permits
-               # the job pages and nothing on the host refuses automated reading. See the
-               # module docstring, `ingestion/tests/test_unestablished_permission.py`, and the
-               # entry in docs/sources.md. It is here for its `schema-loc` country arrays —
-               # multi-country remote scopes are what the EU-International row is short of and
-               # almost nothing else in this stack emits them. Expect heavy overlap with the
-               # ATS adapters: it is a re-lister, so judge it on postings surviving dedupe.
-               RemoteInEuropeSource,
+               # `RemoteInEuropeSource` USED to sit here and was removed 2026-09-21: the board
+               # no longer exists. remoteineurope.com now 301s to weworkremotely.com, and its
+               # robots.txt and every sitemap path 404 — so the adapter could only ever raise,
+               # which is exactly what it did. Not a terms question, and nothing to repoint at:
+               # the inventory was absorbed by WeWorkRemotely, which `WeWorkRemotelySource`
+               # already reads two lines above. The wider point is that it never worked here at
+               # all — `source_watchdog` reported its freshness as `never`, not as stale, so it
+               # contributed zero rows for the whole five weeks it was wired.
+               #
+               # It was one of the two sources carrying the 2026-08-15 unestablished-permission
+               # decision, so `GoldenCareersSource` below is now the only member of that set;
+               # see `ingestion/tests/test_unestablished_permission.py`, which pins the members.
+               # The adapter and its tests are kept working — the `linkedin` / `jobscz` shape.
                # `NvaSource` (Latvia's cvvp.nva.gov.lv register) USED to sit here and was
                # removed 2026-08-19: no current product use, at a cost of ~30% of the pipeline's
                # wall clock (~4 460 detail fetches for ~570 kept rows, the register being

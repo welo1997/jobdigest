@@ -209,9 +209,11 @@ SAMPLING: dict[str, Sample] = {
     # constant bounds production; this shrinks it for a link check without editing what ships.
     "werkenvoornederland": Sample(module={"MAX_POSTINGS": 5},
                                   note="one request per vacancy; sitemap fetch on top"),
+    # `remoteineurope` sat here until 2026-09-21 and was dropped with the adapter: the board
+    # now 301s to weworkremotely.com and its sitemap 404s. Removing it here is not optional —
+    # `self_check()` fails on a name in SAMPLING that gather() no longer runs, which is how
+    # this edit got made at all.
     # Same N+1 shape: one page per job, `MAX_POSTINGS` is the only bound.
-    "remoteineurope": Sample(module={"MAX_POSTINGS": 5},
-                             note="one request per job; sitemap fetch on top"),
     "goldencareers": Sample(module={"MAX_POSTINGS": 5},
                             note="one request per vacancy; sitemap fetch on top"),
     # No bounding hook: one gzipped dump, all or nothing. ~40 s.
