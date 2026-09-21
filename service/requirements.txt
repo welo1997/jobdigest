@@ -16,5 +16,5 @@ python-multipart==0.0.32   # FastAPI UploadFile / Form (CV upload, one-click uns
 # bump's only breaking change relevant to our usage (PdfReader / extract_text) is none —
 # see CHANGELOG 6.0.0 (Python 3.8 drop, FlateDecode decompression-size limiting). Covered
 # by service/tests/test_cvparse.py.
-pypdf==6.15.0
+pypdf==6.16.1
 python-docx==1.2.0
