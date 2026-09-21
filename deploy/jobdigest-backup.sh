@@ -21,13 +21,21 @@ set -euo pipefail
 
 COMPOSE_DIR=/opt/jobdigest/deploy
 BACKUP_DIR="${JOBDIGEST_BACKUP_DIR:-/var/backups/jobdigest}"
-KEEP_DAYS="${JOBDIGEST_BACKUP_KEEP_DAYS:-30}"
-# Local retention is a SEPARATE, tighter knob than off-box retention, because the two are
-# bounded by different things: Drive is effectively unlimited and cheap, but the VPS disk is
-# 38 GB and a single dump is now ~700 MB and growing with the DB. Keeping 30 days locally
-# filled the disk to 100% on 2026-09-06 and killed the pipeline mid-run (docker could not
-# write). Off-box keeps KEEP_DAYS for disaster recovery; locally we keep only enough for a
-# fast restore. Defaults to KEEP_DAYS so nothing changes for anyone who does not set it.
+KEEP_DAYS="${JOBDIGEST_BACKUP_KEEP_DAYS:-7}"
+# Local and off-box retention are SEPARATE knobs because the two are bounded by different
+# things — and the original reasoning here had which-is-which backwards. It assumed "Drive is
+# effectively unlimited and cheap" against a 38 GB VPS disk, so local was the tight one.
+# Measured 2026-09-21: the Drive account is a 15 GiB FREE TIER with 6.9 GiB already spoken for
+# by other content, leaving room for roughly 9 dumps at ~845 MB — while the VPS disk, once the
+# local window is bounded, comfortably holds twice that. Drive is the constrained side.
+#
+# So neither default is 30 any more. KEEP_DAYS must stay under what the remote can physically
+# hold or the prune never fires and the account simply wedges at its quota (which is exactly
+# what happened: 30 days of nominal retention, 10 days of actual history, and 516 MB free).
+# LOCAL_KEEP_DAYS may legitimately now be the LARGER of the two: keeping 30 days locally filled
+# the disk to 100% on 2026-09-06 and again on 2026-09-20 — each time PANICking Postgres on its
+# checkpoint and crash-looping it for ~24 h — but 14 days fits with ~15 GB to spare.
+# Defaults to KEEP_DAYS so nothing changes for anyone who does not set it.
 LOCAL_KEEP_DAYS="${JOBDIGEST_BACKUP_LOCAL_KEEP_DAYS:-$KEEP_DAYS}"
 REMOTE="${JOBDIGEST_BACKUP_REMOTE:-}"
 # The dump contains every subscriber's email, CV-derived summary and — critically — their
@@ -133,6 +141,26 @@ do_backup() {
   # already valid, and skipping rotation would slowly fill the disk. Record the failure
   # and surface it in the exit code so systemd/n8n still alerts.
   local remote_failed=0
+
+  # Prune the remote BEFORE uploading, not after. Ordering is the whole point: the upload is
+  # what needs the free space, so pruning behind it frees space for a copy that has already
+  # succeeded or already failed. Measured on 2026-09-21 — the Drive account is a 15 GiB free
+  # tier holding 7.6 GiB of dumps with 516 MiB free, against a dump of ~845 MiB. The next
+  # upload could not have fitted. Worse, the prune had never deleted anything in its life:
+  # KEEP_DAYS was 30 while the account only had room for ~9 copies, so the age filter was
+  # permanently slack and the folder simply grew until it hit the quota wall.
+  #
+  # A retention window is only real if the storage can hold it. Keep KEEP_DAYS below what
+  # fits, and let this run first so the window is enforced against the space the upload is
+  # about to ask for.
+  if [ -n "$REMOTE" ]; then
+    if rclone delete --min-age "${KEEP_DAYS}d" "$REMOTE"; then
+      echo "backup: pruned remote copies older than ${KEEP_DAYS}d"
+    else
+      echo "backup: WARNING — remote prune failed; $REMOTE may be growing" >&2
+    fi
+  fi
+
   if [ -n "$REMOTE" ]; then
     # Encrypt, upload, then drop the ciphertext — the local dump stays plaintext so
     # `verify` and `restore` keep working without the passphrase.
@@ -143,21 +171,27 @@ do_backup() {
       remote_failed=1
     fi
     if [ -n "$ENC_FILE" ]; then rm -f "$ENC_FILE"; fi
+
+    # Report remaining remote headroom in units of whole backups. A quota that is one dump
+    # from full is a backup that stops silently next week, and "the upload worked today" is
+    # exactly the evidence that hides it — which is how the off-box copy came to hold 10 days
+    # of history while KEEP_DAYS claimed 30. Best-effort: not every backend answers `about`.
+    local avail_mb dump_mb
+    # rclone pretty-prints with a tab indent and a space after the colon, so strip whitespace
+    # before matching rather than assuming a compact encoding.
+    avail_mb=$(rclone about --json "${REMOTE%%:*}:" 2>/dev/null \
+                 | tr -d ' \t' | grep -o '"free":[0-9]*' | cut -d: -f2 \
+                 | awk '{print int($1/1048576)}')
+    dump_mb=$(du -m "$file" 2>/dev/null | cut -f1)
+    if [ -n "$avail_mb" ] && [ -n "$dump_mb" ] && [ "$dump_mb" -gt 0 ]; then
+      echo "backup: remote headroom ${avail_mb} MB = $((avail_mb / dump_mb)) more backup(s)"
+      if [ "$avail_mb" -lt "$((dump_mb * 2))" ]; then
+        echo "backup: WARNING — $REMOTE has under 2 backups of headroom (${avail_mb} MB free," \
+             "dump is ${dump_mb} MB). Lower JOBDIGEST_BACKUP_KEEP_DAYS or add quota." >&2
+      fi
+    fi
   else
     echo "backup: WARNING — JOBDIGEST_BACKUP_REMOTE unset, backup is on the same VPS only" >&2
-  fi
-
-  # Rotate the remote too. "Remote retention is the remote's business" was true only while
-  # nothing ran it — Drive keeps everything forever, so every nightly dump accumulated. Each
-  # one is a full copy of the subscriber table, so unbounded history is both a storage cost
-  # and a widening disclosure surface. Uses rclone's own age filter; failure is reported but
-  # does not fail the run, since the backup itself already succeeded.
-  if [ -n "$REMOTE" ]; then
-    if rclone delete --min-age "${KEEP_DAYS}d" "$REMOTE"; then
-      echo "backup: pruned remote copies older than ${KEEP_DAYS}d"
-    else
-      echo "backup: WARNING — remote prune failed; $REMOTE may be growing" >&2
-    fi
   fi
 
   # Rotate local copies. Uses LOCAL_KEEP_DAYS (<= KEEP_DAYS) so the disk-bound local store

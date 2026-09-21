@@ -832,13 +832,66 @@ replayed confirm link can no longer be exchanged for the manage token
 (`store.confirm_subscription`); job-`url` scheme validation in both the digest email
 (`safe_url`) and the `/matches` page (`web/lib/url.ts` `safeHref`); `pip-audit` / `npm audit`
 / Dependabot in CI (`.github/workflows/audit.yml`, `.github/dependabot.yml`); off-box backup
-retention — `jobdigest-backup.sh` prunes both local and the encrypted Drive copies past
-`KEEP_DAYS` (30), verified running on the VPS 2026-07-22; **origin TLS** — the LE cert that
+retention — `jobdigest-backup.sh` prunes both local and the encrypted Drive copies
+(**`KEEP_DAYS` is 7, not the 30 this line claimed until 2026-09-21 — see "Retention is
+bounded by the medium" below; the prune ran, but had never once deleted a file**); **origin
+TLS** — the LE cert that
 could not renew behind the Cloudflare proxy was replaced 2026-07-29 with a Cloudflare Origin
 Certificate valid to **2041**, and Caddy now logs *"skipping automatic certificate
 management"* rather than attempting ACME (`deploy/cert-renewal.md`).
 
 **Every item from the security review is now closed.**
+
+### Retention is bounded by the medium, not by the config (measured 2026-09-21)
+
+The same outage happened twice in fifteen days. On **2026-09-06** and again on
+**2026-09-20** the VPS root filesystem hit 100%, Postgres PANICked on its end-of-recovery
+checkpoint — `could not write to file "pg_logical/replorigin_checkpoint.tmp"` — and
+crash-looped roughly once a second. The second time it ran for **~24 h**: redo completed
+cleanly on every cycle, so nothing was corrupt, but the database never accepted a connection.
+Two digests were missed (09-20, 09-21) and `/matches`, login and subscribe were down with it.
+
+Three separate things were wrong, and only the first was known:
+
+**1. The fix existed and was not deployed.** PR #104 capped local retention at 14 days and
+merged 2026-09-06. The box was still running `819ce03` from 2026-08-27 — the unit had no
+`JOBDIGEST_BACKUP_LOCAL_KEEP_DAYS` line and the script had no `LOCAL_KEEP_DAYS` at all, so
+local retention silently stayed at the 30-day default and the disk refilled over exactly two
+weeks. `scripts/check_deploy_drift.sh` is the answer to this one; it names the undeployed
+commits by title. It is deliberately local — the repo is private, and a box-side timer would
+mean installing a repo credential on production to detect a bookkeeping error.
+
+**2. The off-box window was fiction.** `KEEP_DAYS` said 30. The Drive account is a **15 GiB
+free tier** holding 6.9 GiB of unrelated content, which leaves room for about **9 dumps at
+~845 MB**. So the age filter was permanently slack: `rclone delete --min-age 30d` had **never
+deleted a single file** in its life, and the folder simply grew until it wedged at the quota —
+**516 MB free, against an 845 MB dump.** Nominal retention 30 days; actual history 10 days;
+next upload impossible. A retention window wider than the storage is not retention, it is a
+quota wall with a countdown. `KEEP_DAYS` is now **7**, the prune runs **before** the upload
+rather than after it (ordering is the point — the upload is what needs the space), and the
+script reports remaining headroom *in units of whole backups* and warns under two.
+
+Note the asymmetry this corrects: the original comment reasoned that "Drive is effectively
+unlimited and cheap" while the VPS disk was scarce. **It is the other way round.** Local
+retention (14 days, ~12 GB of 38 GB) is now legitimately the *wider* of the two.
+
+**3. Nothing watched the disk.** The healthcheck tested the API and container health, so it
+only noticed once Postgres was already dead — it went red at 07:00 on 09-20 and climbed to
+270 consecutive failures (~22.5 h), re-alerting hourly, which is the system working as
+designed but far too late to be useful. Disk exhaustion is the rare failure that is fully
+predictable days ahead. The check now also tests `/` on **two** thresholds, because percent
+alone is the wrong unit: Postgres needs a few MB for a checkpoint, but a nightly dump needs
+~850 MB and the off-box ciphertext briefly needs another. So it warns at **85%** *or* under
+**3 GB free**, whichever trips first — the byte rule is what catches a large disk whose
+percentage still looks calm.
+
+One diagnostic note worth keeping: `systemctl status jobdigest-healthcheck` said
+`0/SUCCESS` throughout the outage. That is by design — the check alerts out-of-band and
+always `exit 0`, so systemd's view of it carries no health signal at all. The real state is
+the counter in `/var/lib/jobdigest/health.state`. Journald is also not a witness here: it had
+vacuumed the older unit logs while the disk was full, so `journalctl -u jobdigest-backup` was
+empty for the entire period being investigated. The evidence that survived was the container
+log, the file listing and `rclone about`.
 
 ### Seniority: six levels and a NULL (measured 2026-08-12, shipped the same day)
 

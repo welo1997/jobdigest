@@ -60,6 +60,29 @@ for svc in api db web; do
   fi
 done
 
+# 3) Disk. This check watched the box die twice without saying a word: on 2026-09-06 and
+# again on 2026-09-20 the root filesystem hit 100%, Postgres PANICked on its end-of-recovery
+# checkpoint ("could not write to file ... No space left on device") and crash-looped for
+# ~24 h. Sections 1 and 2 did eventually notice — but only once the DB was already down and
+# subscribers had missed a digest. Disk exhaustion is the rare failure that is completely
+# predictable days ahead, so the useful alert is the one that fires while there is still room
+# to act, not the one that confirms the outage.
+#
+# Threshold is on FREE BYTES as well as percent, deliberately. Percent alone is the wrong
+# unit for the thing that actually breaks: Postgres needs only a few MB for a checkpoint, but
+# a nightly pg_dump needs one dump's worth (~850 MB and growing ~10 MB/day) and the off-box
+# upload briefly needs another for the ciphertext. A 38 GB disk at 90% still has 3.8 GB and is
+# fine; a 200 GB disk at 90% has 20 GB and is also fine — but either at 1 GB free is not.
+DISK_PCT_MAX=85                   # warn while there is still ~5 GB of headroom on 38 GB
+DISK_FREE_MIN_MB=3072             # ...or whenever a backup + its ciphertext no longer fit
+disk_pct=$(df --output=pcent / 2>/dev/null | tail -1 | tr -dc '0-9')
+disk_free_mb=$(df --block-size=1M --output=avail / 2>/dev/null | tail -1 | tr -dc '0-9')
+if [ -n "$disk_pct" ] && [ "$disk_pct" -ge "$DISK_PCT_MAX" ]; then
+  problems="${problems}- disk / is ${disk_pct}% full (${disk_free_mb:-?} MB free); largest consumers:\n    $(du -xh --max-depth=2 /var 2>/dev/null | sort -rh | head -3 | tr '\n' ' ')\n"
+elif [ -n "$disk_free_mb" ] && [ "$disk_free_mb" -lt "$DISK_FREE_MIN_MB" ]; then
+  problems="${problems}- disk / has only ${disk_free_mb} MB free (a nightly dump needs ~850 MB)\n"
+fi
+
 prev=$(cat "$STATE_FILE" 2>/dev/null); prev=${prev//[^0-9]/}; prev=${prev:-0}
 
 if [ -n "$problems" ]; then

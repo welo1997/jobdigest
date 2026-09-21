@@ -374,6 +374,14 @@ from the gitignored `deploy/.deploy-target`.
   diff the **whole tree in both directions** and hash the result **inside the image**.
 - **`.deployed-sha` is `deploy.sh`'s rollback target, not a comment.** Deploying by hand and
   not updating it is how a failed health check reverts the box past an entire release.
+- **`scripts/check_deploy_drift.sh` is what actually checks "a merged commit is not a deployed
+  commit".** It compares `origin/master` to the box's `.deployed-sha` and names the undeployed
+  commits. Run it when a session begins touching `service/`, `web/` or `deploy/`, and after
+  any merge. It is local by design: the repo is private, so a box-side timer would mean a repo
+  credential on production. **On 2026-09-20 this gap cost ~24 h of downtime** — the disk-full
+  fix (#104) had been merged for fifteen days while the box ran the 2026-08-27 tree, and the
+  same outage recurred for the same reason. See `docs/jobdigest.md`, "Retention is bounded by
+  the medium".
 - **The build context is a place code can go missing.** `.dockerignore` excluded `dbt/` while
   `greenhouse.py` read its board tokens from `dbt/seeds/target_companies.csv` at runtime — the
   largest source loaded zero boards and only logged a warning. When a source's number looks
