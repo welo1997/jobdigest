@@ -665,11 +665,21 @@ it.
   **B2B** half addressed to advertisers, so as a *contract* term it is weaker than Alma Career's
   §4.11; as evidence the operator holds and asserts the database right it is decisive, and the
   right is statutory. **This closes the reopening path the robots-only reasoning left open**: a
-  keyless feed appearing on the permitted `www` host would change nothing. Its API moved off the dead `core.startupjobs.cz`
-  onto `back.startupjobs.com`, which is `User-agent: * / Disallow: /`; the robots-allow-all
-  `www` host renders its listing from that backend and its sitemap lists ids without the slug
-  `/job/{id}` needs, so **there is no permitted route to the inventory at all** and repointing
-  the host ships a silent zero. **Measured cost: 414 active rows (389 CZ, 11 SK), the
+  keyless feed appearing on the permitted `www` host would change nothing — **and that
+  sentence is now the only thing holding the exclusion, because the technical half of this
+  entry was measured false on 2026-09-23.** Its API moved off the dead `core.startupjobs.cz`
+  onto `back.startupjobs.com`, which is `User-agent: * / Disallow: /` (and has since moved a
+  *third* time: `/api/search/offers` 404s and `/api/offers` answers `totalItems: 0`). This
+  file used to add that the `www` sitemap "lists ids without the slug `/job/{id}` needs, so
+  there is no permitted route to the inventory at all". **Re-measured: `sitemap/offers.xml`
+  returns 408 fully-slugged URLs, `robots_allows()` on `www` is True, and every page carries a
+  complete schema.org `JobPosting`** — the whole inventory, over the permitted host, with no
+  browser. **The exclusion stands on the terms alone** (the ToS asserts the statutory database
+  right) and needs no help from claims about the site's plumbing, which change under you. The
+  lesson is the one this file already gives for the opposite case: settle a source on the
+  narrowest applicable clause, and do not prop that clause up with a second, weaker argument —
+  when the weak leg fails, the entry reads as reopened. Workings in `docs/sources.md`.
+  **Measured cost: 414 active rows (389 CZ, 11 SK), the
   second-largest CZ source and the largest startup/tech one, on top of Alma Career's 92%.**
   Do not re-add it because the Czech digest looks thin — and note the general lesson: a source
   that has moved its endpoint once will move again, and `source_watchdog`'s SILENT ZERO is the

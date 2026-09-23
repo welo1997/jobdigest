@@ -637,13 +637,33 @@ payload will pick a different string and that *shape* is the thing to watch.
   `politeness.robots_allows()` refuses every request, so repointing `API_BASE` ships an adapter
   that fetches nothing and reports a clean zero, which is this file's own silent-zero failure
   wearing a new hat.
-  **There is no permitted route left, which is what makes this a retirement rather than a
-  repair.** `www.startupjobs.com` is robots-allow-all and serves `sitemap/offers.xml`, but the
-  listing page is rendered from the refused backend and contains **zero** `/job/` links, and
-  the sitemap lists its **442 offers as bare ids** — and `/job/{id}` without the slug is a
-  clean 404, the exact fact that made the 2026-08-06 rewrite emit 450 dead links. So the
-  compliant host cannot even be walked. Driving it with a browser is closed for a second,
-  independent reason: no browser automation on the sourcing path.
+  **CORRECTED 2026-09-23 — the "no permitted route" half of this is no longer true, and the
+  retirement stands anyway.** This entry used to read: *"`www.startupjobs.com` is
+  robots-allow-all and serves `sitemap/offers.xml`, but the listing page is rendered from the
+  refused backend and contains zero `/job/` links, and the sitemap lists its 442 offers as
+  bare ids — and `/job/{id}` without the slug is a clean 404 … So the compliant host cannot
+  even be walked."*
+
+  Re-measured today, against the live site: `sitemap/offers.xml` returns **408 fully-slugged
+  URLs** (`/job/21242/customer-care-chat-and-mail-…`), `robots_allows()` on the `www` host is
+  **True**, and each page carries a complete schema.org `JobPosting` in one
+  `application/ld+json` graph — title, description, datePosted, hiringOrganization,
+  baseSalary, jobLocationType, applicantLocationRequirements. 408 against the 414 active rows
+  measured at removal, i.e. essentially the whole inventory, reachable over the permitted host
+  with no browser and no robots bypass. Whether the sitemap changed shape or the original read
+  was wrong cannot now be recovered; what is recoverable is the measurement, so it is stated
+  with its date.
+
+  **The conclusion does not move, and the reason it does not move is the point.** The binding
+  document was always the terms — the ToS asserts the sui generis database right, which is
+  statutory and survives any amount of technical reachability. This entry already said so:
+  *"a keyless feed appearing on the permitted `www` host would change nothing."* That sentence
+  was right, and it is the only load-bearing one. The unreachability argument was a second,
+  weaker leg that has now given way, and an entry resting on two legs is one that reads as
+  reopened the moment the weaker fails. **Settle a source on the narrowest applicable clause**
+  — here, the terms — and do not shore it up with facts about the site's plumbing, which
+  change. Driving it with a browser remains closed for a third, independent reason: no browser
+  automation on the sourcing path.
   **The cost, measured on production the day of the removal, not argued:** **414 active rows —
   389 CZ, 11 SK, 14 with no resolved country** (kept, and left to the AI matcher). Unlike
   SmartRecruiters, where half the output was in countries nobody can select, essentially the
