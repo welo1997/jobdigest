@@ -56,3 +56,15 @@ scripts/*_discovery.csv
 # rather than individual files: a per-file list is a copy, and the next note nobody adds to
 # the copy is the one that leaks.
 notes/
+
+# The personal weekly feed (2026-09-23). A second JobDigest instance for the owner's own
+# inbox, reading sources this product excludes on terms — Alma Career (jobs.cz, profesia),
+# SmartRecruiters and StartupJobs. It runs against its own database (`jobmatch_personal`)
+# that the api/web containers cannot see, and it never touches `gather()`, so
+# `ingestion/tests/test_source_exclusions.py` is unchanged and still binding.
+#
+# Ignored because this repo is PUBLIC. A risk decision the owner made about their own
+# exposure is not a thing to publish as code, and `deploy.sh` ships via `git archive` — so
+# ignoring it is also what stops it ever riding a deploy into the product image. It is
+# rsynced to /opt/jobdigest-personal and mounted at run time instead. See personal/README.md.
+personal/
