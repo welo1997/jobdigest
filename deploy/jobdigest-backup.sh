@@ -154,7 +154,23 @@ do_backup() {
   # fits, and let this run first so the window is enforced against the space the upload is
   # about to ask for.
   if [ -n "$REMOTE" ]; then
-    if rclone delete --min-age "${KEEP_DAYS}d" "$REMOTE"; then
+    # --drive-use-trash=false is load-bearing, not tidiness. rclone's delete maps to Drive's
+    # *trash*, and a trashed file still counts against the account quota for 30 days — so the
+    # prune above ran correctly every night and freed nothing. Measured 2026-09-23: the 15 GiB
+    # account held 517 MiB free against an 845 MiB dump, with 4.40 GiB sitting in the trash and
+    # every one of those 6 objects a jobdigest-*.dump.gpg this prune had "deleted". Uploads had
+    # failed with storageQuotaExceeded every night since 2026-09-21 while the prune reported
+    # success, which is this repo's recurring shape: the step works, the outcome does not, and
+    # nothing says so.
+    #
+    # Lowering KEEP_DAYS cannot fix it — pruning harder just trashes more. The flag is what
+    # makes the deletion actually reclaim space.
+    #
+    # Deliberately NOT paired with an `rclone cleanup` here: that empties the whole account's
+    # trash, and this remote lives in the owner's personal Drive alongside their own files.
+    # A backup script must never be the thing that permanently destroys something a human put
+    # in the bin. Scope the deletion instead.
+    if rclone delete --drive-use-trash=false --min-age "${KEEP_DAYS}d" "$REMOTE"; then
       echo "backup: pruned remote copies older than ${KEEP_DAYS}d"
     else
       echo "backup: WARNING — remote prune failed; $REMOTE may be growing" >&2
