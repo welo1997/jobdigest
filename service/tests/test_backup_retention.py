@@ -41,14 +41,57 @@ def test_remote_prune_runs_before_the_upload():
     how the Drive account reached 516 MB free against an 845 MB dump.
     """
     body = _text(BACKUP_SH)
-    prune = body.find("rclone delete --min-age")
+    # Match the command and its age filter separately rather than as one literal string: the
+    # prune legitimately carries other flags between them (see the --drive-use-trash guard
+    # below), and a literal match turns "a flag was added" into "the prune is gone".
+    prune_m = re.search(r"rclone delete\b[^\n]*--min-age", body)
     upload = body.find("rclone copy")
-    assert prune != -1, "the remote prune is gone; the off-box folder now grows without bound"
+    assert prune_m, "the remote prune is gone; the off-box folder now grows without bound"
+    prune = prune_m.start()
     assert upload != -1, "the off-box upload is gone"
     assert prune < upload, (
         "rclone delete must run BEFORE rclone copy — pruning after the upload cannot free "
         "space for that upload, which is how a 30-day window held 10 days of history and "
         "then stopped accepting new dumps entirely"
+    )
+
+
+def test_remote_prune_actually_reclaims_quota():
+    """A prune that trashes has not pruned. Drive bills trashed objects for 30 days.
+
+    This is the third distinct way this one line has failed, and the first two fixes made it
+    *worse*. `rclone delete` maps to Drive's trash, so every dump the prune "removed" kept
+    consuming the quota — and lowering KEEP_DAYS 30 -> 7 (#118) simply trashed more, faster.
+
+    Measured on the live account 2026-09-23, after that fix had shipped: 15 GiB total, 517 MiB
+    free against an 845 MiB dump, with 4.40 GiB in the trash and all six objects in there
+    jobdigest-*.dump.gpg files this prune had already deleted. Uploads had failed with
+    storageQuotaExceeded every night since 2026-09-21 while the prune logged success each time.
+
+    So the assertion is on the OUTCOME, not the presence of a prune: the delete must be one
+    that reclaims space. Mutation check — drop the flag and this goes red while
+    `test_remote_prune_runs_before_the_upload` stays green, which is precisely the gap that
+    let three weeks of backups silently not exist.
+    """
+    body = _text(BACKUP_SH)
+    prune = re.search(r"rclone delete\b[^\n]*", body)
+    assert prune, "the remote prune is gone"
+    assert "--drive-use-trash=false" in prune.group(0), (
+        "the remote prune deletes to Drive's trash, where the objects keep counting against "
+        "the 15 GiB quota for 30 days. The prune will report success every night and free "
+        "nothing, and the upload will fail with storageQuotaExceeded — which is exactly what "
+        "happened from 2026-09-21. Pass --drive-use-trash=false."
+    )
+    # The scoped delete is the right tool; `rclone cleanup` is not. It empties the WHOLE
+    # account trash, and this remote lives in the owner's personal Drive beside their own
+    # files — a backup script must never permanently destroy something a human put in the bin.
+    # Read CODE, not prose: the script explains in a comment why it does not call cleanup, and
+    # a bare substring check would trip over that explanation. Same trap this file already
+    # documents for DISK_PCT_MAX — match the invocation, not the name.
+    code = "\n".join(ln for ln in body.splitlines() if not ln.lstrip().startswith("#"))
+    assert "rclone cleanup" not in code, (
+        "rclone cleanup empties the entire Drive account's trash, including the owner's own "
+        "deleted files. Scope the deletion with --drive-use-trash=false instead."
     )
 
 
