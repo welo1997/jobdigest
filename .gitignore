@@ -45,3 +45,14 @@ scripts/seed_candidates.csv
 scripts/ats_discovery_results.csv
 scripts/*_ats_discovery.csv
 scripts/*_discovery.csv
+
+# The whole notes/ tree is local-only as of 2026-09-23.
+#
+# It was removed from this repo's history when the repo was made public: the session logs
+# carried real subscriber addresses, one note identifying two subscribers by their
+# relationship, and the production VPS IP — security rule 1, committed 181 times over.
+# They remain on disk (and in the pre-publication mirror) because CLAUDE.md cites them as
+# reasoning, but a public repo is the one place they must never go. Ignore the directory
+# rather than individual files: a per-file list is a copy, and the next note nobody adds to
+# the copy is the one that leaks.
+notes/
