@@ -31,8 +31,13 @@ logger = logging.getLogger("service.pipeline")
 BASE_URL = os.environ.get("BASE_URL", "https://jobdigest.eu")
 
 # Retention: blank descriptions of postings inactive this long (rows are kept), and drop
-# un-acted-on matches for postings gone this long. Descriptions are ~81% of table size.
-RETENTION_DESC_DAYS = int(os.environ.get("RETENTION_DESC_DAYS", "90"))
+# un-acted-on matches for postings gone this long. Blanking also shrinks the generated
+# `search_tsv`, which is the larger half: measured 2026-09-29, postings was 5.5 GB for 435k
+# rows (2/3 inactive) — search_tsv 1.77 GB, descriptions 0.89 GB, GIN index 0.57 GB. 90 days
+# had never fired (the oldest inactive row was 73 days old) while the disk reached 89%, so
+# the window is 30: nothing reads an inactive row's description, and a re-listed posting gets
+# its text back from the next upsert.
+RETENTION_DESC_DAYS = int(os.environ.get("RETENTION_DESC_DAYS", "30"))
 RETENTION_MATCH_DAYS = int(os.environ.get("RETENTION_MATCH_DAYS", "180"))
 # Raw analytics events. Rolled up to events_daily first, so pruning loses no trend data.
 RETENTION_EVENT_DAYS = int(os.environ.get("RETENTION_EVENT_DAYS", "180"))

@@ -119,8 +119,11 @@ jobdigest-backup.sh restore restored.dump
 
 ### Retention
 The daily pipeline prunes automatically (`service/pipeline.py`); no setup needed:
-- Descriptions of postings inactive **>90 days** are blanked (rows kept for analytics).
-  Descriptions are ~81% of table size — ~7.2 KB of the ~9.1 KB per posting.
+- Descriptions of postings inactive **>30 days** are blanked (rows kept for analytics),
+  which also shrinks the generated `search_tsv`. The two are most of the table (2026-09-29:
+  1.77 GB tsv + 0.89 GB descriptions of 5.5 GB); 90 days had never fired as the disk hit 89%.
+- journald is capped at 500 MB (`deploy/jobdigest-journald.conf`, installed by `deploy.sh`);
+  its default ceiling is 10% of the disk, ~3.8 GB, which is all of the headroom.
 - `matches` rows for postings inactive **>180 days** are deleted, *except* `saved`/`applied`
   (the user's own history). `digest_sends` is never pruned.
 

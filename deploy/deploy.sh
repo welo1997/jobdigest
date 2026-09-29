@@ -135,6 +135,14 @@ build_and_check() {
     # the 38 GB disk to 100% on 2026-09-06. The just-built images live in the image store, not
     # the build cache, so pruning here never removes what we are about to run.
     sudo docker builder prune -f >/dev/null 2>&1 || true
+    # Cap the journal. journald's default ceiling is 10% of the filesystem (~3.8 GB here),
+    # which is the entire headroom the disk check guards; it sat at 407 MB on 2026-09-29 and
+    # only grows. Restart journald only when the drop-in actually changed.
+    if ! sudo cmp -s $REMOTE_DIR/deploy/jobdigest-journald.conf /etc/systemd/journald.conf.d/jobdigest.conf; then
+      sudo install -D -m 644 $REMOTE_DIR/deploy/jobdigest-journald.conf /etc/systemd/journald.conf.d/jobdigest.conf
+      sudo systemctl restart systemd-journald
+      echo 'deploy: journald cap installed'
+    fi
     # 'up -d db' is a no-op unless the built image id or the service config actually changed,
     # so this does not recreate the database on every deploy. When it does change (a new
     # upstream postgres:16-alpine, or an edit to db.Dockerfile) the recreate is brief and the
