@@ -31,7 +31,7 @@ Environment=JOBDIGEST_BACKUP_PASSPHRASE_FILE=/etc/jobdigest-backup.pass
 # off-box copy fails with "didn't find section in config file".
 Environment=RCLONE_CONFIG=/home/deploy/.config/rclone/rclone.conf
 Environment=JOBDIGEST_BACKUP_DIR=/var/backups/jobdigest
-# Off-box (Drive) history: 7 days. Local (VPS disk) history: 7 days. Off-box is bounded by
+# Off-box (Drive) history: 7 days. Local (VPS disk) history: 2 days. Off-box is bounded by
 # the medium: the Drive account is a 15 GiB free tier with
 # ~6.9 GiB of other content on it, so it fits about 9 dumps of ~845 MB — measured 2026-09-21,
 # when it sat at 516 MB free with a nominal 30-day window that had therefore never deleted a
@@ -43,12 +43,23 @@ Environment=JOBDIGEST_BACKUP_DIR=/var/backups/jobdigest
 # volume itself reached 10.5 GB — on 2026-09-29 the disk sat at 89% (4.1 GB free) and the
 # healthcheck's 85% rule had been paging "DOWN" hourly for a day on a site that was up.
 # 30 days filled it to 100% on both 2026-09-06 and 2026-09-20, each time PANICking Postgres
-# on its checkpoint and crash-looping it for ~24 h. 7 days is ~6 GB, and matches off-box, so
-# a local dump is never the only copy of a restore point for long.
+# on its checkpoint and crash-looping it for ~24 h.
+#
+# Local is now 2 (2026-09-29), down from the 7 set the same morning. The two copies do
+# different jobs: Drive is the backup — it is the only one that survives losing the VPS, and
+# every local dump dies with the disk it sits on. Local is a convenience for a fast restore
+# after a bad deploy or migration, and one or two recent dumps is all that job needs. 7 local
+# was ~5.5 GB of the 38 GB disk holding copies Drive already has. `-mtime +2` keeps 3 files
+# (tonight's plus the two before, ~0.7 GB each since the 30-day description blanking) —
+# ~2 GB, and the disk settles near 60% instead of 70%.
+#
+# Safe only because an off-box failure is loud: a failed upload makes `backup` exit non-zero,
+# which fires OnFailure above. Without that alert, 2 local days would quietly become the whole
+# restore history the first night Drive stopped accepting uploads.
 #
 # Raising either means checking the medium first: `df -h /` here, `rclone about gdrive:` there.
 Environment=JOBDIGEST_BACKUP_KEEP_DAYS=7
-Environment=JOBDIGEST_BACKUP_LOCAL_KEEP_DAYS=7
+Environment=JOBDIGEST_BACKUP_LOCAL_KEEP_DAYS=2
 # Runs the copy in the deployed tree, not an installed duplicate in /usr/local/bin. A second
 # copy is a second thing to forget: deploy.sh updates /opt/jobdigest, so a script living
 # anywhere else silently keeps running the old version (observed 2026-07-20, when the remote
