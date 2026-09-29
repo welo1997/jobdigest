@@ -874,6 +874,10 @@ script reports remaining headroom *in units of whole backups* and warns under tw
 Note the asymmetry this corrects: the original comment reasoned that "Drive is effectively
 unlimited and cheap" while the VPS disk was scarce. **It is the other way round.** Local
 retention (14 days, ~12 GB of 38 GB) is now legitimately the *wider* of the two.
+**Superseded 2026-09-29:** 14 days did not stay ~12 GB. `-mtime +14` keeps 15 dumps, the dump
+grew to ~900 MB and the DB volume to 10.5 GB, so the disk reached 89% and the 85% rule below
+paged "DOWN" hourly for a day while the site was up. Local retention is now **7 days**, equal
+to off-box.
 
 **3. Nothing watched the disk.** The healthcheck tested the API and container health, so it
 only noticed once Postgres was already dead — it went red at 07:00 on 09-20 and climbed to

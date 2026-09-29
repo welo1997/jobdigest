@@ -31,20 +31,24 @@ Environment=JOBDIGEST_BACKUP_PASSPHRASE_FILE=/etc/jobdigest-backup.pass
 # off-box copy fails with "didn't find section in config file".
 Environment=RCLONE_CONFIG=/home/deploy/.config/rclone/rclone.conf
 Environment=JOBDIGEST_BACKUP_DIR=/var/backups/jobdigest
-# Off-box (Drive) history: 7 days. Local (VPS disk) history: 14 days. Off-box is the SHORTER
-# of the two, which looks wrong and is not: the Drive account is a 15 GiB free tier with
+# Off-box (Drive) history: 7 days. Local (VPS disk) history: 7 days. Off-box is bounded by
+# the medium: the Drive account is a 15 GiB free tier with
 # ~6.9 GiB of other content on it, so it fits about 9 dumps of ~845 MB — measured 2026-09-21,
 # when it sat at 516 MB free with a nominal 30-day window that had therefore never deleted a
 # single file. A retention window wider than the storage is not retention, it is a quota wall
 # with a countdown. 7 days keeps ~2 backups of headroom as the dump grows ~10 MB/day.
 #
-# Local is 14 because the disk genuinely fits it once bounded (~12 GB of 38 GB) — 30 days did
-# not, and filled it to 100% on both 2026-09-06 and 2026-09-20, each time PANICking Postgres
-# on its checkpoint and crash-looping it for ~24 h.
+# Local was 14 on the claim that it fit "~12 GB of 38 GB" with room to spare. It did not
+# stay true: `-mtime +14` actually keeps 15 dumps, each had grown to ~900 MB, and the DB
+# volume itself reached 10.5 GB — on 2026-09-29 the disk sat at 89% (4.1 GB free) and the
+# healthcheck's 85% rule had been paging "DOWN" hourly for a day on a site that was up.
+# 30 days filled it to 100% on both 2026-09-06 and 2026-09-20, each time PANICking Postgres
+# on its checkpoint and crash-looping it for ~24 h. 7 days is ~6 GB, and matches off-box, so
+# a local dump is never the only copy of a restore point for long.
 #
 # Raising either means checking the medium first: `df -h /` here, `rclone about gdrive:` there.
 Environment=JOBDIGEST_BACKUP_KEEP_DAYS=7
-Environment=JOBDIGEST_BACKUP_LOCAL_KEEP_DAYS=14
+Environment=JOBDIGEST_BACKUP_LOCAL_KEEP_DAYS=7
 # Runs the copy in the deployed tree, not an installed duplicate in /usr/local/bin. A second
 # copy is a second thing to forget: deploy.sh updates /opt/jobdigest, so a script living
 # anywhere else silently keeps running the old version (observed 2026-07-20, when the remote
