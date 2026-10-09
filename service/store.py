@@ -2635,7 +2635,13 @@ def starved_profiles(days: int = 3) -> list[dict]:
     Profiles too new to have had a chance are excluded — a subscriber who signed up an hour
     ago has legitimately never been sent anything, and alerting on that would train whoever
     reads these to ignore them.
+
+    `days` is the tolerance *beyond* the subscriber's own cadence, not a flat window. A weekly
+    subscriber is emailed on Mondays only (`pipeline._is_due`), so a flat 3 days alerted on
+    every healthy weekly profile from Thursday to Sunday — on 2026-10-09 the only alert was a
+    weekly profile sent four days earlier. Weekly allows 7 more days, weekdays 2 (the weekend).
     """
+    slack = "case p.frequency when 'weekly' then 7 when 'weekdays' then 2 else 0 end"
     with cursor() as cur:
         cur.execute(
             """
@@ -2647,12 +2653,12 @@ def starved_profiles(days: int = 3) -> list[dict]:
                 where d.profile_id = p.id order by d.day desc limit 1
             ) r on true
             where p.status = 'active'
-              and p.created_at < now() - (%s || ' days')::interval
+              and p.created_at < now() - make_interval(days => %s + {slack})
               and (p.paused_until is null or p.paused_until < now())
               and (p.last_digest_at is null
-                   or p.last_digest_at < now() - (%s || ' days')::interval)
+                   or p.last_digest_at < now() - make_interval(days => %s + {slack}))
             order by p.created_at
-            """,
+            """.format(slack=slack),
             (int(days), int(days)),
         )
         return [dict(r) for r in cur.fetchall()]
